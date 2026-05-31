@@ -47,6 +47,7 @@ Useful local routes:
 /api/proof/benchmarks
 /api/proof/market-making
 /api/proof/payouts
+/api/staking/summary
 /api
 /docs
 /chat
@@ -82,6 +83,7 @@ docker run --rm -p 3000:3000 \
   -v opfish-submissions:/app/data/submissions \
   -v opfish-ledger:/app/data/fish \
   -v opfish-proof:/app/data/proof \
+  -v opfish-staking:/app/data/staking \
   opfish-web:latest
 ```
 
@@ -97,15 +99,16 @@ Check health:
 curl -fsS http://127.0.0.1:3000/api/health
 ```
 
-The container runs the Next.js standalone server as a non-root user. Form submissions, prototype API ledger files, and provider proof files are written to:
+The container runs the Next.js standalone server as a non-root user. Form submissions, prototype API ledger files, provider proof files, and offchain staking credit records are written to:
 
 ```text
 /app/data/submissions
 /app/data/fish
 /app/data/proof
+/app/data/staking
 ```
 
-Compose mounts those paths as named volumes named `fish-submissions`, `fish-ledger`, and `fish-proof`.
+Compose mounts those paths as named volumes named `fish-submissions`, `fish-ledger`, `fish-proof`, and `fish-staking`.
 
 ## Configuration
 
@@ -120,6 +123,8 @@ PORT=3000
 HOSTNAME=0.0.0.0
 FISH_ADMIN_TOKEN=
 FISH_PROVIDER_ALLOWLIST=
+FISH_STAKING_CREDIT_BUDGET=10000
+FISH_STAKING_CREDITS_PER_OCEAN_MONTH=0.1
 ```
 
 Direct provider endpoints can be listed in:
@@ -262,6 +267,30 @@ curl -sS 'http://127.0.0.1:3000/api/proof/receipts/export?format=json&limit=50' 
 
 Provider job receipts, payout events, payout batches, and the local prototype signing key are written under `data/proof/`, which is ignored by git and should be backed up or moved to a database/secret manager before public scale-up.
 
+## OCEAN Staking Credits
+
+Phase 4 starts as an offchain prototype. Operators can record an OCEAN lock, issue spendable Fish Credits into the existing API ledger, and track whether those credits are actually used.
+
+```bash
+curl -sS http://127.0.0.1:3000/api/staking/positions \
+  -H 'content-type: application/json' \
+  -H "x-fish-admin-token: $FISH_ADMIN_TOKEN" \
+  -d '{
+    "holderLabel":"Pilot holder",
+    "walletRef":"0x...",
+    "oceanAmount":1000,
+    "lockDays":30
+  }'
+```
+
+The response returns a one-time Fish API key when credits are issued. Public staking credit summary is available at:
+
+```text
+/api/staking/summary
+```
+
+Staking positions are written under `data/staking/`, which is ignored by git. This is not an onchain staking contract; it is a funded-budget prototype for proving OCEAN lock intent, credit issuance, and credit spend.
+
 ## Provider Benchmarks
 
 Selected providers can run small repeatable route tests. Benchmark definitions use hash references only, not prompt text, and public summaries do not include prompt or output text.
@@ -306,7 +335,7 @@ The report returns route rules, route candidates, conservative price bands, marg
 ```text
 app/                         Next.js pages and API routes
 src/components/              Market UX, forms, dashboard UI
-src/lib/                     Oncompute ingestion, formatting, submissions
+src/lib/                     Oncompute ingestion, formatting, submissions, ledgers
 app/v1/                      Prototype Fish API routes
 public/assets/generated/     Text-free generated website illustrations
 public/assets/visual-identity/ Reference-only visual direction assets
@@ -330,6 +359,7 @@ data/submissions/
 data/forms/
 data/fish/
 data/proof/
+data/staking/
 .env*
 .next/
 node_modules/

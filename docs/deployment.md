@@ -69,12 +69,13 @@ X-Forwarded-For
 
 ## Persistent Data
 
-The V0 form sink, prototype API ledger, provider proof receipts, payout accounting files, benchmark runs, and the prototype proof signing key write JSON to:
+The V0 form sink, prototype API ledger, provider proof receipts, payout accounting files, benchmark runs, offchain staking credits, and the prototype proof signing key write JSON to:
 
 ```text
 /app/data/submissions
 /app/data/fish
 /app/data/proof
+/app/data/staking
 ```
 
 Back up these volumes or replace the sinks with a database/email/CRM integration and secret-managed signing key before running a public campaign.
@@ -92,6 +93,8 @@ PORT=3000
 HOSTNAME=0.0.0.0
 FISH_ADMIN_TOKEN=
 FISH_PROVIDER_ALLOWLIST=
+FISH_STAKING_CREDIT_BUDGET=10000
+FISH_STAKING_CREDITS_PER_OCEAN_MONTH=0.1
 ```
 
 Set `FISH_ADMIN_TOKEN` in production-like environments before issuing prototype API keys.
@@ -124,3 +127,4 @@ Then browser-check:
 - `/api/proof/market-making`
 - `/api/proof/payouts`
 - `/api/proof/payouts?state=accrued&limit=10`
+- `/api/staking/summary`

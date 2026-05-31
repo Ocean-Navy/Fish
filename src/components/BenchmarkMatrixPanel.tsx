@@ -1,6 +1,8 @@
 import { Activity, Gauge, Grid3X3, TimerReset } from "lucide-react";
+import Link from "next/link";
+import type { Route } from "next";
 import { formatCompact, formatDateTime, formatNumber, formatUsd } from "@/lib/format";
-import type { BenchmarkSummary } from "@/lib/providerBenchmarks";
+import type { BenchmarkStatus, BenchmarkSummary } from "@/lib/providerBenchmarks";
 import { StatusBadge } from "@/components/StatusBadge";
 
 const cards = [
@@ -25,6 +27,9 @@ export function BenchmarkMatrixPanel({ summary }: { summary: BenchmarkSummary })
           <div className="flex flex-wrap items-center gap-3">
             <StatusBadge state={summary.dataState} />
             <span className="text-sm font-bold text-fish-secondary">Updated {formatDateTime(summary.lastUpdated)}</span>
+            <Link className="rounded-full border border-fish-accent/35 px-4 py-2 text-xs font-black text-fish-accent" href="/api/proof/benchmarks?selectedOnly=true">
+              JSON matrix
+            </Link>
           </div>
         </div>
 
@@ -51,11 +56,12 @@ export function BenchmarkMatrixPanel({ summary }: { summary: BenchmarkSummary })
 
         {summary.matrix.length ? (
           <div className="mt-5 overflow-x-auto">
-            <table className="w-full min-w-[820px] border-collapse text-left text-sm">
+            <table className="w-full min-w-[1040px] border-collapse text-left text-sm">
               <thead className="text-xs uppercase tracking-[0.08em] text-fish-accent">
                 <tr>
                   <th className="border-b border-white/10 px-3 py-3">Provider</th>
                   <th className="border-b border-white/10 px-3 py-3">Route test</th>
+                  <th className="border-b border-white/10 px-3 py-3">Axes</th>
                   <th className="border-b border-white/10 px-3 py-3">Status</th>
                   <th className="border-b border-white/10 px-3 py-3">Samples</th>
                   <th className="border-b border-white/10 px-3 py-3">Runtime</th>
@@ -65,17 +71,43 @@ export function BenchmarkMatrixPanel({ summary }: { summary: BenchmarkSummary })
               </thead>
               <tbody>
                 {summary.matrix.slice(0, 9).map((row) => (
-                  <tr key={`${row.providerId}-${row.benchmarkId}`} className="text-fish-primary">
-                    <td className="border-b border-white/10 px-3 py-3 font-bold">{row.providerLabel}</td>
+                  <tr key={`${row.providerId}-${row.benchmarkId}`} className={row.failureDetail ? "bg-red-500/10 text-red-100" : "text-fish-primary"}>
+                    <td className="border-b border-white/10 px-3 py-3">
+                      <span className="block font-bold">{row.providerLabel}</span>
+                      <span className={`text-xs font-black ${row.selected ? "text-fish-accent" : "text-fish-secondary"}`}>{row.selected ? "selected" : "historical"}</span>
+                    </td>
                     <td className="border-b border-white/10 px-3 py-3">
                       <span className="block font-bold">{row.title}</span>
-                      <span className="text-xs text-fish-secondary">{row.inputSizeBucket} to {row.outputSizeBucket}</span>
+                      <span className="text-xs text-fish-secondary">{row.benchmarkId}</span>
                     </td>
-                    <td className="border-b border-white/10 px-3 py-3">{row.latestStatus}</td>
-                    <td className="border-b border-white/10 px-3 py-3">{formatNumber(row.sampleSize)}</td>
-                    <td className="border-b border-white/10 px-3 py-3">{row.medianRuntimeSeconds === null ? "-" : `${formatNumber(row.medianRuntimeSeconds)}s`}</td>
+                    <td className="border-b border-white/10 px-3 py-3">
+                      <span className="block font-bold">{row.modelClass}</span>
+                      <span className="text-xs text-fish-secondary">
+                        {row.workloadType} / {row.inputSizeBucket} to {row.outputSizeBucket} / batch {row.batchSize}
+                      </span>
+                    </td>
+                    <td className="border-b border-white/10 px-3 py-3">
+                      <span className={`rounded-full px-3 py-1 text-xs font-black ${statusClass(row.latestStatus)}`}>{formatStatus(row.latestStatus)}</span>
+                    </td>
+                    <td className="border-b border-white/10 px-3 py-3">
+                      <span className="block font-bold">{formatNumber(row.sampleSize)}</span>
+                      <span className="text-xs text-fish-secondary">{row.successRate === null ? "-" : `${formatNumber(row.successRate * 100)}% pass`}</span>
+                    </td>
+                    <td className="border-b border-white/10 px-3 py-3">
+                      <span className="block font-bold">{row.medianRuntimeSeconds === null ? "-" : `${formatNumber(row.medianRuntimeSeconds)}s`}</span>
+                      <span className="text-xs text-fish-secondary">{row.tokensPerSecond === null ? "-" : `${formatNumber(row.tokensPerSecond)} tok/s`}</span>
+                    </td>
                     <td className="border-b border-white/10 px-3 py-3">{formatUsd(row.providerCostUsd)}</td>
-                    <td className="border-b border-white/10 px-3 py-3">{row.receiptSignatureStatus}</td>
+                    <td className="border-b border-white/10 px-3 py-3">
+                      {row.latestReceiptUrl ? (
+                        <Link className="font-bold text-fish-accent hover:text-white" href={row.latestReceiptUrl as Route}>
+                          {row.receiptSignatureStatus}
+                        </Link>
+                      ) : (
+                        <span>{row.receiptSignatureStatus}</span>
+                      )}
+                      {row.failureDetail ? <span className="block text-xs text-red-100">{formatStatus(row.failureDetail.status)}</span> : null}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -95,6 +127,20 @@ export function BenchmarkMatrixPanel({ summary }: { summary: BenchmarkSummary })
       </div>
     </section>
   );
+}
+
+function formatStatus(status: BenchmarkStatus) {
+  return status.replaceAll("_", " ");
+}
+
+function statusClass(status: BenchmarkStatus) {
+  if (status === "succeeded") {
+    return "bg-emerald-400/15 text-emerald-200";
+  }
+  if (status === "untested") {
+    return "bg-fish-accent/10 text-fish-secondary";
+  }
+  return "bg-red-500/15 text-red-100";
 }
 
 function SmallMetric({ label, value }: { label: string; value: string }) {

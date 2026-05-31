@@ -14,6 +14,7 @@ data/submissions
 data/forms
 data/fish
 data/proof
+data/staking
 data/provider_allowlist.json
 
 coverage

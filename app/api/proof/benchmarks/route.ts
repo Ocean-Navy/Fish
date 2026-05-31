@@ -1,11 +1,25 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/fishLedger";
-import { parseBenchmarkRequest, runProviderBenchmark, summarizeBenchmarks } from "@/lib/providerBenchmarks";
+import { parseBenchmarkQuery, parseBenchmarkRequest, runProviderBenchmark, summarizeBenchmarks } from "@/lib/providerBenchmarks";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
-  return NextResponse.json(await summarizeBenchmarks());
+export async function GET(request: Request) {
+  const parsed = parseBenchmarkQuery(new URL(request.url).searchParams);
+  if (!parsed.success) {
+    return NextResponse.json(
+      {
+        error: {
+          message: "invalid_benchmark_query",
+          type: "invalid_request_error",
+          details: parsed.error.flatten().fieldErrors
+        }
+      },
+      { status: 400 }
+    );
+  }
+
+  return NextResponse.json(await summarizeBenchmarks(parsed.data));
 }
 
 export async function POST(request: Request) {

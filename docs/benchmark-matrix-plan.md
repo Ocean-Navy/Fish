@@ -25,13 +25,24 @@ data/proof/benchmark-runs/
 
 Each run is a single JSON file with `benchmarkRunVersion: 1` and public visibility. It is derived from a provider-job receipt, so the receipt remains the source of truth for hashes and signatures.
 
-Matrix rows are generated at request time from selected provider allowlist entries plus the recorded run files.
+Matrix rows are generated at request time from selected provider allowlist entries plus the recorded run files. The default view is selected providers only; operators can include historical non-selected providers with `selectedOnly=false`.
 
 ## Endpoint
 
 ```text
 GET /api/proof/benchmarks
 POST /api/proof/benchmarks
+```
+
+GET query filters:
+
+```text
+selectedOnly=true|false
+provider=label-or-id
+providerId=prov_...
+benchmarkId=tiny_smoke|small_chat|summary_batch
+status=succeeded|failed|timed_out|not_allowed|untested
+limit=100
 ```
 
 POST body:
@@ -66,5 +77,8 @@ mock_timeout
 - `POST /api/proof/benchmarks` requires admin auth in production-like environments.
 - Benchmark runs are persisted under `data/proof/benchmark-runs/`.
 - Stored benchmark files validate with zod before they are included in summaries.
+- Untested selected-provider combinations are represented as `latestStatus: "untested"` rows.
+- Failed, timed-out, and not-allowed cells include public receipt detail links.
+- Public summaries can filter down to selected providers only.
 - Public responses have `storesPromptOutputText: false` and do not expose prompt or output text.
 - Docker creates the benchmark runtime directory and Compose persists `data/proof`.

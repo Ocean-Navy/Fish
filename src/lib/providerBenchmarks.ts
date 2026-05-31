@@ -12,8 +12,24 @@ const ADAPTER_VERSION = "mock-provider-v0";
 
 const benchmarkIdSchema = z.enum(["tiny_smoke", "small_chat", "summary_batch"]);
 const benchmarkStatusSchema = z.enum(["succeeded", "failed", "timed_out", "not_allowed"]);
+const benchmarkMatrixStatusSchema = z.enum(["succeeded", "failed", "timed_out", "not_allowed", "untested"]);
 const signatureStatusSchema = z.enum(["not_required", "valid", "invalid", "missing"]);
 const dataStateSchema = z.enum(["live", "snapshot", "sample", "unavailable"]);
+const selectedOnlyQuerySchema = z.preprocess((value) => {
+  if (value === undefined || value === null || value === "") {
+    return true;
+  }
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (["false", "0", "no"].includes(normalized)) {
+      return false;
+    }
+    if (["true", "1", "yes"].includes(normalized)) {
+      return true;
+    }
+  }
+  return value;
+}, z.boolean());
 
 const benchmarkDefinitions = [
   {
@@ -66,6 +82,15 @@ const benchmarkRequestSchema = z.object({
   adapterMode: z.enum(["mock_success", "mock_failure", "mock_timeout"]).optional().default("mock_success")
 }).strict();
 
+const benchmarkQuerySchema = z.object({
+  selectedOnly: selectedOnlyQuerySchema,
+  provider: z.string().trim().min(1).max(160).optional(),
+  providerId: z.string().trim().min(1).max(160).optional(),
+  benchmarkId: benchmarkIdSchema.optional(),
+  status: benchmarkMatrixStatusSchema.optional(),
+  limit: z.coerce.number().int().min(1).max(500).default(100)
+});
+
 type BenchmarkId = z.infer<typeof benchmarkRequestSchema>["benchmarkId"];
 
 export type BenchmarkDefinition = {
@@ -85,6 +110,7 @@ export type BenchmarkDefinition = {
 };
 
 export type BenchmarkRequestInput = z.infer<typeof benchmarkRequestSchema>;
+export type BenchmarkQuery = z.infer<typeof benchmarkQuerySchema>;
 
 export type BenchmarkStatus = "succeeded" | "failed" | "timed_out" | "not_allowed" | "untested";
 
@@ -122,6 +148,7 @@ export type BenchmarkRun = {
 export type BenchmarkMatrixRow = {
   providerId: string;
   providerLabel: string;
+  selected: boolean;
   benchmarkId: BenchmarkRequestInput["benchmarkId"];
   title: string;
   modelClass: string;
@@ -139,6 +166,14 @@ export type BenchmarkMatrixRow = {
   providerCostUsd: number | null;
   costPer1kTokensUsd: number | null;
   receiptSignatureStatus: ProviderJobReceipt["signatureStatus"] | "missing";
+  latestReceiptId: string | null;
+  latestReceiptUrl: string | null;
+  latestJobId: string | null;
+  failureDetail: {
+    status: Exclude<BenchmarkStatus, "succeeded" | "untested">;
+    receiptUrl: string;
+    message: string;
+  } | null;
   lastRunAt: string | null;
 };
 
@@ -164,6 +199,7 @@ export type BenchmarkReport = {
 export type BenchmarkSummary = {
   dataState: DataState;
   lastUpdated: string;
+  filters: BenchmarkQuery;
   definitions: BenchmarkDefinition[];
   runs: BenchmarkRun[];
   matrix: BenchmarkMatrixRow[];
@@ -215,6 +251,10 @@ export function parseBenchmarkRequest(body: unknown) {
   return benchmarkRequestSchema.safeParse(body);
 }
 
+export function parseBenchmarkQuery(searchParams: URLSearchParams) {
+  return benchmarkQuerySchema.safeParse(queryObject(searchParams));
+}
+
 export async function runProviderBenchmark(input: BenchmarkRequestInput) {
   const definition = benchmarkDefinitions.find((candidate) => candidate.benchmarkId === input.benchmarkId) ?? benchmarkDefinitions[0];
   const result = await runProviderJob({
@@ -233,39 +273,40 @@ export async function runProviderBenchmark(input: BenchmarkRequestInput) {
   return result.ok ? { ok: true as const, status: 200, run, receipt: result.receipt } : { ok: false as const, status: result.status, run, receipt: result.receipt, error: result.error };
 }
 
-export async function summarizeBenchmarks(): Promise<BenchmarkSummary> {
+export async function summarizeBenchmarks(query: BenchmarkQuery = { selectedOnly: true, limit: 100 }): Promise<BenchmarkSummary> {
   const [registry, runs] = await Promise.all([collectProviderPilotRegistry(), readBenchmarkRuns()]);
-  const selectedProviders = registry.allowlist.map((entry) => {
-    const provider = registry.providers.find((candidate) => candidate.providerId === entry.providerId);
-    return {
-      providerId: entry.providerId,
-      providerLabel: provider?.publicLabel ?? entry.providerId
-    };
-  });
-  const definitions: BenchmarkDefinition[] = benchmarkDefinitions.map((definition) => ({ ...definition, adapterVersion: ADAPTER_VERSION }));
-  const matrix = selectedProviders.flatMap((provider) => definitions.map((definition) => buildMatrixRow(provider, definition, runs)));
-  const sortedRuns = [...runs].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-  const successfulRuns = runs.filter((run) => run.status === "succeeded").length;
+  const selectedProviderIds = new Set(registry.allowlist.map((entry) => entry.providerId));
+  const providers = buildBenchmarkProviders({ selectedProviderIds, registryProviders: registry.providers, runs, selectedOnly: query.selectedOnly }).filter((provider) => providerMatchesQuery(provider, query));
+  const definitions: BenchmarkDefinition[] = benchmarkDefinitions.map((definition) => ({ ...definition, adapterVersion: ADAPTER_VERSION as typeof ADAPTER_VERSION })).filter((definition) => !query.benchmarkId || definition.benchmarkId === query.benchmarkId);
+  const matrix = providers
+    .flatMap((provider) => definitions.map((definition) => buildMatrixRow(provider, definition, runs)))
+    .filter((row) => !query.status || row.latestStatus === query.status);
+  const providerIds = new Set(providers.map((provider) => provider.providerId));
+  const filteredRuns = runs.filter((run) => providerIds.has(run.providerId) && definitions.some((definition) => definition.benchmarkId === run.benchmarkId) && (!query.status || run.status === query.status));
+  const sortedRuns = [...filteredRuns].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  const successfulRuns = filteredRuns.filter((run) => run.status === "succeeded").length;
   const lastUpdated = sortedRuns.at(-1)?.createdAt ?? new Date().toISOString();
 
   return {
     dataState: runs.length ? "live" : "sample",
     lastUpdated,
+    filters: query,
     definitions,
-    runs: sortedRuns.slice(-20).reverse(),
+    runs: sortedRuns.slice(-query.limit).reverse(),
     matrix,
     report: buildBenchmarkReport(matrix, definitions),
     totals: {
-      selectedProviders: selectedProviders.length,
-      benchmarkRuns: runs.length,
+      selectedProviders: providers.filter((provider) => provider.selected).length,
+      benchmarkRuns: filteredRuns.length,
       successfulRuns,
-      failedRuns: runs.filter((run) => run.status === "failed" || run.status === "not_allowed").length,
-      timedOutRuns: runs.filter((run) => run.status === "timed_out").length,
+      failedRuns: filteredRuns.filter((run) => run.status === "failed" || run.status === "not_allowed").length,
+      timedOutRuns: filteredRuns.filter((run) => run.status === "timed_out").length,
       untestedCells: matrix.filter((row) => row.latestStatus === "untested").length,
-      passRate: runs.length ? successfulRuns / runs.length : null
+      passRate: filteredRuns.length ? successfulRuns / filteredRuns.length : null
     },
     warnings: [
-      ...(selectedProviders.length ? [] : ["No selected providers are allowlisted for benchmark runs yet."]),
+      ...(providers.length ? [] : ["No providers match the current benchmark filters."]),
+      ...(providers.some((provider) => provider.selected) ? [] : ["No selected providers are allowlisted for benchmark runs yet."]),
       ...(runs.length ? [] : ["No benchmark runs recorded yet. Start with the tiny smoke benchmark for each selected provider."])
     ]
   };
@@ -307,14 +348,16 @@ function buildBenchmarkRun(definition: (typeof benchmarkDefinitions)[number], re
   };
 }
 
-function buildMatrixRow(provider: { providerId: string; providerLabel: string }, definition: BenchmarkDefinition, runs: BenchmarkRun[]): BenchmarkMatrixRow {
+function buildMatrixRow(provider: BenchmarkProvider, definition: BenchmarkDefinition, runs: BenchmarkRun[]): BenchmarkMatrixRow {
   const matchingRuns = runs.filter((run) => run.providerId === provider.providerId && run.benchmarkId === definition.benchmarkId);
   const latest = [...matchingRuns].sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
   const successful = matchingRuns.filter((run) => run.status === "succeeded");
+  const failureDetail = buildFailureDetail(latest);
 
   return {
     providerId: provider.providerId,
     providerLabel: provider.providerLabel,
+    selected: provider.selected,
     benchmarkId: definition.benchmarkId,
     title: definition.title,
     modelClass: definition.modelClass,
@@ -332,7 +375,66 @@ function buildMatrixRow(provider: { providerId: string; providerLabel: string },
     providerCostUsd: latest?.providerCostUsd ?? null,
     costPer1kTokensUsd: latest?.costPer1kTokensUsd ?? null,
     receiptSignatureStatus: latest?.receiptSignatureStatus ?? "missing",
+    latestReceiptId: latest?.receiptId ?? null,
+    latestReceiptUrl: latest ? `/api/proof/receipts/${latest.receiptId}` : null,
+    latestJobId: latest?.jobId ?? null,
+    failureDetail,
     lastRunAt: latest?.createdAt ?? null
+  };
+}
+
+type BenchmarkProvider = {
+  providerId: string;
+  providerLabel: string;
+  selected: boolean;
+};
+
+function buildBenchmarkProviders(input: { selectedProviderIds: Set<string>; registryProviders: Array<{ providerId: string; publicLabel: string }>; runs: BenchmarkRun[]; selectedOnly: boolean }): BenchmarkProvider[] {
+  const byProvider = new Map<string, BenchmarkProvider>();
+  for (const providerId of input.selectedProviderIds) {
+    const provider = input.registryProviders.find((candidate) => candidate.providerId === providerId);
+    byProvider.set(providerId, {
+      providerId,
+      providerLabel: provider?.publicLabel ?? providerId,
+      selected: true
+    });
+  }
+
+  if (!input.selectedOnly) {
+    for (const run of input.runs) {
+      if (byProvider.has(run.providerId)) {
+        continue;
+      }
+      byProvider.set(run.providerId, {
+        providerId: run.providerId,
+        providerLabel: run.providerLabel,
+        selected: false
+      });
+    }
+  }
+
+  return Array.from(byProvider.values()).sort((a, b) => Number(b.selected) - Number(a.selected) || a.providerLabel.localeCompare(b.providerLabel));
+}
+
+function providerMatchesQuery(provider: BenchmarkProvider, query: BenchmarkQuery) {
+  if (query.providerId && provider.providerId !== query.providerId) {
+    return false;
+  }
+  if (!query.provider) {
+    return true;
+  }
+  const needle = query.provider.toLowerCase();
+  return provider.providerId.toLowerCase().includes(needle) || provider.providerLabel.toLowerCase().includes(needle);
+}
+
+function buildFailureDetail(latest: BenchmarkRun | undefined): BenchmarkMatrixRow["failureDetail"] {
+  if (!latest || latest.status === "succeeded") {
+    return null;
+  }
+  return {
+    status: latest.status,
+    receiptUrl: `/api/proof/receipts/${latest.receiptId}`,
+    message: `${latest.status.replaceAll("_", " ")} on ${latest.benchmarkId}`
   };
 }
 
@@ -419,4 +521,16 @@ function median(values: number[]) {
     return sorted[middle];
   }
   return Number(((sorted[middle - 1] + sorted[middle]) / 2).toFixed(4));
+}
+
+function queryObject(searchParams: URLSearchParams) {
+  const fields = ["selectedOnly", "provider", "providerId", "benchmarkId", "status", "limit"];
+  const entries: Array<[string, string]> = [];
+  for (const field of fields) {
+    const value = searchParams.get(field);
+    if (value && value.trim()) {
+      entries.push([field, value]);
+    }
+  }
+  return Object.fromEntries(entries);
 }

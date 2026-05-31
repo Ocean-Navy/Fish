@@ -5,6 +5,7 @@ import { MarketMakingPanel } from "@/components/MarketMakingPanel";
 import { ProofSummaryPanel } from "@/components/ProofSummaryPanel";
 import { ProviderPilotPanel } from "@/components/ProviderPilotPanel";
 import { ProviderScorecardPanel } from "@/components/ProviderScorecardPanel";
+import { StakingCreditsPanel } from "@/components/StakingCreditsPanel";
 import { collectOceanData } from "@/lib/oceanSupply";
 import { summarizeFishUsage } from "@/lib/fishLedger";
 import { summarizeMarketMaking } from "@/lib/marketMaking";
@@ -12,19 +13,21 @@ import { summarizeBenchmarks } from "@/lib/providerBenchmarks";
 import { summarizeProof } from "@/lib/providerJobs";
 import { collectProviderPilotRegistry } from "@/lib/providerPilot";
 import { summarizeProviderScorecard } from "@/lib/providerScorecard";
+import { summarizeStakingCredits } from "@/lib/stakingCredits";
 import { Fish } from "lucide-react";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  const [oceanData, fishUsage, providerPilot, proof, providerScorecard, benchmarks] = await Promise.all([
+  const [oceanData, fishUsage, providerPilot, proof, providerScorecard, benchmarks, stakingCredits] = await Promise.all([
     collectOceanData(),
     summarizeFishUsage(),
     collectProviderPilotRegistry(),
     summarizeProof(),
     summarizeProviderScorecard(),
-    summarizeBenchmarks()
+    summarizeBenchmarks(),
+    summarizeStakingCredits()
   ]);
   const marketMaking = await summarizeMarketMaking({
     oceanSummary: oceanData.summary,
@@ -50,6 +53,7 @@ export default async function DashboardPage() {
       </header>
       <DashboardPreview initialSummary={oceanData.summary} />
       <FishUsageSummary summary={fishUsage} />
+      <StakingCreditsPanel summary={stakingCredits} />
       <ProviderPilotPanel registry={providerPilot} />
       <ProviderScorecardPanel summary={providerScorecard} />
       <MarketMakingPanel summary={marketMaking} />

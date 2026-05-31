@@ -357,6 +357,16 @@ receipt signature status
 - Matrix can be filtered down to selected providers only.
 - Public view shows enough to build trust without exposing sensitive test payloads.
 
+Prototype route coverage:
+
+```text
+GET /api/proof/benchmarks
+GET /api/proof/benchmarks?selectedOnly=true&status=untested
+POST /api/proof/benchmarks
+```
+
+Public matrix rows include selected/historical state, untested cells, benchmark axes, latest receipt links, and failure status. Prompt and output payload text stay out of the benchmark summary.
+
 ## Milestone D2.6 - Public Proof Page
 
 ### Outcome

@@ -194,6 +194,12 @@ export async function summarizeAccount(account: Account) {
   };
 }
 
+export async function summarizeAccountById(accountId: string) {
+  const ledger = await readLedger();
+  const account = ledger.accounts.find((candidate) => candidate.id === accountId);
+  return account ? summarizeAccount(account) : null;
+}
+
 export async function summarizeFishUsage(): Promise<FishUsageSummary> {
   const ledger = await readLedger();
   const receipts = await readAllReceipts();

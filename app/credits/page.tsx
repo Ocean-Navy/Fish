@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { RolePageShell } from "@/components/RolePageShell";
+import { StakingCreditsPanel } from "@/components/StakingCreditsPanel";
+import { summarizeStakingCredits } from "@/lib/stakingCredits";
 
 export const metadata: Metadata = {
   title: "Fish Credits - OCEAN utility without magic",
@@ -20,7 +22,9 @@ const cards = [
   { label: "Risk rule", title: "No unfunded payouts", body: "Fish should not create provider liabilities before revenue, reserve, or budget policy exists." }
 ];
 
-export default function CreditsPage() {
+export default async function CreditsPage() {
+  const stakingSummary = await summarizeStakingCredits();
+
   return (
     <RolePageShell
       eyebrow="Vault door"
@@ -34,6 +38,8 @@ export default function CreditsPage() {
       steps={steps}
       cards={cards}
       note="Credit rule: product first, token utility after usage. Fish Credits should be backed by real demand and settlement work."
-    />
+    >
+      <StakingCreditsPanel summary={stakingSummary} />
+    </RolePageShell>
   );
 }

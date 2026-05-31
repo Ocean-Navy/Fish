@@ -11,12 +11,15 @@ services:
       ONCOMPUTE_MAX_PAGES: "3"
       FISH_ADMIN_TOKEN: ${FISH_ADMIN_TOKEN:-}
       FISH_PROVIDER_ALLOWLIST: ${FISH_PROVIDER_ALLOWLIST:-}
+      FISH_STAKING_CREDIT_BUDGET: ${FISH_STAKING_CREDIT_BUDGET:-10000}
+      FISH_STAKING_CREDITS_PER_OCEAN_MONTH: ${FISH_STAKING_CREDITS_PER_OCEAN_MONTH:-0.1}
     ports:
       - "3000:3000"
     volumes:
       - fish-submissions:/app/data/submissions
       - fish-ledger:/app/data/fish
       - fish-proof:/app/data/proof
+      - fish-staking:/app/data/staking
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
@@ -29,3 +32,4 @@ volumes:
   fish-submissions:
   fish-ledger:
   fish-proof:
+  fish-staking:

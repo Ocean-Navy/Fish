@@ -304,6 +304,39 @@ paths:
   /api/proof/benchmarks:
     get:
       summary: Public-safe provider benchmark matrix
+      parameters:
+        - in: query
+          name: selectedOnly
+          schema:
+            type: boolean
+            default: true
+          description: When true, show only currently selected provider rows.
+        - in: query
+          name: provider
+          schema:
+            type: string
+          description: Provider id or public label substring.
+        - in: query
+          name: providerId
+          schema:
+            type: string
+        - in: query
+          name: benchmarkId
+          schema:
+            type: string
+            enum: [tiny_smoke, small_chat, summary_batch]
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [succeeded, failed, timed_out, not_allowed, untested]
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 100
+            minimum: 1
+            maximum: 500
       responses:
         '200':
           description: Provider benchmark matrix
@@ -635,6 +668,82 @@ paths:
                     nullable: true
                   message:
                     type: string
+  /api/staking/summary:
+    get:
+      summary: Public offchain OCEAN staking credit summary
+      responses:
+        '200':
+          description: Staking credit summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StakingCreditSummary'
+  /api/staking/positions:
+    get:
+      summary: Public offchain OCEAN staking positions
+      responses:
+        '200':
+          description: Public staking positions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  object:
+                    type: string
+                    example: list
+                  dataState:
+                    type: string
+                    enum: [live, snapshot, sample, unavailable]
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PublicStakingPosition'
+    post:
+      summary: Admin-only offchain OCEAN stake record and Fish Credit issuance
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [walletRef, oceanAmount]
+              properties:
+                holderLabel:
+                  type: string
+                walletRef:
+                  type: string
+                oceanAmount:
+                  type: number
+                lockDays:
+                  type: integer
+                budgetId:
+                  type: string
+                issueApiKey:
+                  type: boolean
+      responses:
+        '201':
+          description: Staking position recorded and credits issued when budget allows
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  position:
+                    $ref: '#/components/schemas/PublicStakingPosition'
+                  apiKey:
+                    type: string
+                    nullable: true
+                  keyNotice:
+                    type: string
+                    nullable: true
+        '401':
+          description: Admin token required
   /api/waitlist:
     post:
       summary: Submit user/developer waitlist interest
@@ -1470,6 +1579,8 @@ components:
           type: string
         providerLabel:
           type: string
+        selected:
+          type: boolean
         benchmarkId:
           type: string
         title:
@@ -1511,6 +1622,26 @@ components:
           nullable: true
         receiptSignatureStatus:
           type: string
+        latestReceiptId:
+          type: string
+          nullable: true
+        latestReceiptUrl:
+          type: string
+          nullable: true
+        latestJobId:
+          type: string
+          nullable: true
+        failureDetail:
+          type: object
+          nullable: true
+          properties:
+            status:
+              type: string
+              enum: [failed, timed_out, not_allowed]
+            receiptUrl:
+              type: string
+            message:
+              type: string
         lastRunAt:
           type: string
           nullable: true
@@ -1564,6 +1695,8 @@ components:
           enum: [live, snapshot, sample, unavailable]
         lastUpdated:
           type: string
+        filters:
+          type: object
         definitions:
           type: array
           items:
@@ -2045,6 +2178,103 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/PublicPayoutBatch'
+        warnings:
+          type: array
+          items:
+            type: string
+    PublicStakingPosition:
+      type: object
+      properties:
+        positionVersion:
+          type: integer
+          enum: [1]
+        positionId:
+          type: string
+        holderLabel:
+          type: string
+        budgetId:
+          type: string
+        oceanAmount:
+          type: number
+        lockDays:
+          type: integer
+        creditsPerOceanMonth:
+          type: number
+        creditsEarned:
+          type: number
+        creditsIssued:
+          type: number
+        creditState:
+          type: string
+          enum: [issued, partial, queued]
+        sourceState:
+          type: string
+          enum: [live, snapshot, sample, unavailable]
+        visibility:
+          type: string
+          enum: [public]
+        createdAt:
+          type: string
+        unlocksAt:
+          type: string
+        walletHashPrefix:
+          type: string
+        creditsSpent:
+          type: number
+        creditsRemaining:
+          type: number
+    StakingCreditSummary:
+      type: object
+      properties:
+        dataState:
+          type: string
+          enum: [live, snapshot, sample, unavailable]
+        lastUpdated:
+          type: string
+        policy:
+          type: object
+          properties:
+            budgetId:
+              type: string
+            creditBudget:
+              type: number
+            creditsPerOceanMonth:
+              type: number
+            minLockDays:
+              type: integer
+            maxLockDays:
+              type: integer
+            onchainState:
+              type: string
+              enum: [offchain_prototype]
+        totals:
+          type: object
+          properties:
+            positions:
+              type: integer
+            activePositions:
+              type: integer
+            queuedPositions:
+              type: integer
+            oceanStaked:
+              type: number
+            creditsEarned:
+              type: number
+            creditsIssued:
+              type: number
+            creditsSpent:
+              type: number
+            creditsRemaining:
+              type: number
+            budgetRemaining:
+              type: number
+            averageLockDays:
+              type: number
+              nullable: true
+        positions:
+          type: array
+          items:
+            $ref: '#/components/schemas/PublicStakingPosition'
         warnings:
           type: array
           items:
