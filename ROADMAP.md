@@ -151,6 +151,8 @@ Success criteria:
 
 **Goal:** make Fish Credits more composable only after usage exists.
 
+Planning detail: see `docs/tokenized-credits-plan.md`.
+
 Deliverables:
 
 - restricted Fish Credits / WATER-style token spec;

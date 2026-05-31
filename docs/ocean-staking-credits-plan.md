@@ -18,6 +18,7 @@ operator verifies OCEAN lock intent
 - API keys are returned once on creation and only a hash is stored in the Fish credit ledger.
 - This is not an onchain staking contract and must be labeled `offchain_prototype`.
 - Provider bonds are a separate supply-side utility lane. See `docs/provider-bonds-plan.md`; staking credits must not be mixed with provider bond custody or routing eligibility.
+- Tokenized credits are a later composability lane. See `docs/tokenized-credits-plan.md`; the staking-credit prototype should stay offchain and budget-capped.
 
 ## Endpoints
 
