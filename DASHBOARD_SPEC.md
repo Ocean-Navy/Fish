@@ -194,6 +194,33 @@ V0: explain future metrics.
 
 V3+: show real staking and bonding numbers.
 
+## Phase 2/3 proof-dashboard extension
+
+The V0 dashboard proves live or recent Ocean Network supply. The Phase 2/3 dashboard must add Fish-native proof without mixing it into network-wide Oncompute analytics.
+
+Implementation plans:
+
+- `docs/provider-pilot-plan.md`
+- `docs/proof-dashboard-plan.md`
+
+Additional Phase 2/3 sections:
+
+- selected provider registry and allowlist;
+- provider scorecard;
+- batch inference job ledger;
+- signed usage receipt ledger;
+- payout accounting summary;
+- benchmark matrix;
+- public-safe proof page.
+
+Rules:
+
+- Keep Fish-native jobs separate from network-wide Oncompute jobs.
+- Keep benchmark jobs separate from paid user jobs.
+- Keep sample proof fixtures separate from live or snapshot proof data.
+- Show receipt signature status wherever a receipt count is shown.
+- Hide prompts, outputs, contact details, private payout details, full node IPs, and operator notes from public views.
+
 ## Backend API contract
 
 See `api/openapi.yaml`.
@@ -233,4 +260,3 @@ Keep raw payloads for debugging.
 - Frontend never silently shows sample data as live.
 - Provider and user forms work locally or write to file/log in prototype.
 - Agentic coders can replace storage with Postgres without changing frontend contracts.
-
