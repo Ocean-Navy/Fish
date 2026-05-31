@@ -29,6 +29,7 @@ const endpoints = [
   { method: "POST", path: "/api/providers/jobs", state: "Prototype" },
   { method: "GET", path: "/api/proof/summary", state: "Prototype" },
   { method: "GET", path: "/api/proof/receipts", state: "Prototype" },
+  { method: "GET", path: "/api/proof/providers", state: "Prototype" },
   { method: "GET", path: "/api/proof/benchmarks", state: "Prototype" },
   { method: "POST", path: "/api/proof/benchmarks", state: "Prototype" },
   { method: "GET", path: "/api/proof/payouts", state: "Prototype" },

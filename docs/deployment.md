@@ -118,5 +118,6 @@ Then browser-check:
 - `/docs`
 - `/providers`
 - `/api/proof/summary`
+- `/api/proof/providers`
 - `/api/proof/benchmarks`
 - `/api/proof/payouts`

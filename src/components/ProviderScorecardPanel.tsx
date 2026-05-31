@@ -110,8 +110,15 @@ function ProviderCard({ row }: { row: ProviderScorecardRow }) {
 
       <div className="mt-4 grid grid-cols-3 gap-2">
         <MiniMetric label="Runs" value={row.jobsRouted ? `${formatNumber(row.successfulJobs)}/${formatNumber(row.jobsRouted)}` : "0"} />
-        <MiniMetric label="Stamp" value={formatNumber(row.verifiedReceipts)} />
+        <MiniMetric label="Bench" value={row.benchmarkPassRate === null ? "-" : `${formatNumber(row.benchmarkPassRate * 100)}%`} />
         <MiniMetric label="Chest" value={formatUsd(row.outstandingUsd + row.paidUsd)} />
+      </div>
+
+      <div className="mt-3 grid grid-cols-4 gap-1" aria-label="Provider score inputs">
+        <ScoreInput label="Rel" value={row.scoreInputs.reliability} />
+        <ScoreInput label="Perf" value={row.scoreInputs.performance} />
+        <ScoreInput label="Cost" value={row.scoreInputs.costConfidence} />
+        <ScoreInput label="Ops" value={row.scoreInputs.operatorReadiness} />
       </div>
 
       <div className="mt-4 flex flex-wrap gap-2">
@@ -125,6 +132,7 @@ function ProviderCard({ row }: { row: ProviderScorecardRow }) {
       <div className="mt-4 flex flex-col gap-2 text-sm font-bold text-fish-secondary">
         <span>{row.gpuTypes.length ? row.gpuTypes.slice(0, 2).join(", ") : "GPU route pending"}</span>
         <span>{row.maxDailySpendUsd === null ? "Pilot limit pending" : `Pilot limit ${formatUsd(row.maxDailySpendUsd)}/day`}</span>
+        <span>State {row.displayState}. Benchmark {row.latestBenchmarkStatus}.</span>
         <span>Last move {formatDateTime(row.latestActivityAt)}</span>
       </div>
     </article>
@@ -148,6 +156,15 @@ function MiniMetric({ label, value }: { label: string; value: string }) {
     <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-3">
       <p className="text-xs font-black uppercase tracking-[0.08em] text-fish-secondary">{label}</p>
       <p className="mt-1 text-base font-black text-white">{value}</p>
+    </div>
+  );
+}
+
+function ScoreInput({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/[0.025] px-2 py-2 text-center">
+      <p className="text-[10px] font-black uppercase tracking-[0.08em] text-fish-secondary">{label}</p>
+      <p className="mt-1 text-sm font-black text-white">{formatNumber(value)}</p>
     </div>
   );
 }

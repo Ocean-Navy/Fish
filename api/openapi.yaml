@@ -197,6 +197,16 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/ProviderJobReceipt'
+  /api/proof/providers:
+    get:
+      summary: Public-safe provider scorecard
+      responses:
+        '200':
+          description: Provider scorecard summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderScorecardSummary'
   /api/proof/benchmarks:
     get:
       summary: Public-safe provider benchmark matrix
@@ -1225,6 +1235,136 @@ components:
             passRate:
               type: number
               nullable: true
+        warnings:
+          type: array
+          items:
+            type: string
+    ProviderScoreInputs:
+      type: object
+      properties:
+        reliability:
+          type: number
+        performance:
+          type: number
+        costConfidence:
+          type: number
+        operatorReadiness:
+          type: number
+    ProviderScorecardRow:
+      type: object
+      properties:
+        providerId:
+          type: string
+        providerLabel:
+          type: string
+        region:
+          type: string
+        gpuTypes:
+          type: array
+          items:
+            type: string
+        pilotStatus:
+          type: string
+        displayState:
+          type: string
+          enum: [new, allowed, preferred, probation, paused, exited]
+        selected:
+          type: boolean
+        maxDailySpendUsd:
+          type: number
+          nullable: true
+        selectionStartedAt:
+          type: string
+          nullable: true
+        selectionExpiresAt:
+          type: string
+          nullable: true
+        hasOperatorDecision:
+          type: boolean
+        score:
+          type: integer
+        scoreLabel:
+          type: string
+        scoreInputs:
+          $ref: '#/components/schemas/ProviderScoreInputs'
+        signal:
+          type: string
+          enum: [ready, proving, needs_run, review, attention]
+        jobsRouted:
+          type: integer
+        successfulJobs:
+          type: integer
+        failedJobs:
+          type: integer
+        timedOutJobs:
+          type: integer
+        successRate:
+          type: number
+          nullable: true
+        verifiedReceipts:
+          type: integer
+        receiptWarnings:
+          type: integer
+        benchmarkRuns:
+          type: integer
+        benchmarkPassRate:
+          type: number
+          nullable: true
+        latestBenchmarkStatus:
+          type: string
+          enum: [succeeded, failed, timed_out, not_allowed, untested]
+        medianBenchmarkRuntimeSeconds:
+          type: number
+          nullable: true
+        costPer1kTokensUsd:
+          type: number
+          nullable: true
+        outstandingUsd:
+          type: number
+        paidUsd:
+          type: number
+        payoutEvents:
+          type: integer
+        latestActivityAt:
+          type: string
+          nullable: true
+        marketBadges:
+          type: array
+          items:
+            type: string
+    ProviderScorecardSummary:
+      type: object
+      properties:
+        dataState:
+          type: string
+          enum: [live, snapshot, sample, unavailable]
+        lastUpdated:
+          type: string
+        totals:
+          type: object
+          properties:
+            providers:
+              type: integer
+            selectedProviders:
+              type: integer
+            readyProviders:
+              type: integer
+            preferredProviders:
+              type: integer
+            jobsRouted:
+              type: integer
+            verifiedReceipts:
+              type: integer
+            benchmarkRuns:
+              type: integer
+            outstandingUsd:
+              type: number
+            paidUsd:
+              type: number
+        rows:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProviderScorecardRow'
         warnings:
           type: array
           items:

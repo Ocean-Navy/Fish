@@ -42,6 +42,7 @@ Useful local routes:
 /api/ocean/resources
 /api/providers/pilot
 /api/proof/summary
+/api/proof/providers
 /api/proof/benchmarks
 /api/proof/payouts
 /api
@@ -217,6 +218,7 @@ Public proof endpoints are:
 ```text
 /api/proof/summary
 /api/proof/receipts
+/api/proof/providers
 /api/proof/benchmarks
 /api/proof/payouts
 ```
@@ -265,6 +267,16 @@ The public benchmark board returns definitions, recent runs, matrix rows, public
 ```
 
 Benchmark run files are written to `data/proof/benchmark-runs/` and validate before they are included in public summaries. See `docs/benchmark-matrix-plan.md` for the Phase 3 benchmark matrix contract.
+
+## Provider Scorecards
+
+The public provider scorecard is available at:
+
+```text
+/api/proof/providers
+```
+
+It uses public labels and derives score inputs from reliability, benchmark performance, cost confidence, and operator readiness. It does not expose provider contacts, endpoint URLs, private payout details, operator owners, or operator notes.
 
 ## Repository Structure
 
