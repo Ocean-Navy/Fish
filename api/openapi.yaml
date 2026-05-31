@@ -508,6 +508,12 @@ components:
           type: integer
         creditsRemaining:
           type: integer
+        userChargeUsd:
+          type: number
+        providerCostUsd:
+          type: number
+        grossMarginUsd:
+          type: number
     FishUsageReceipt:
       type: object
       properties:
@@ -522,6 +528,9 @@ components:
         route:
           type: string
           enum: [mock, ocean-provider, external-fallback]
+        costState:
+          type: string
+          enum: [prototype_estimate, provider_verified, fallback_verified]
         promptTokens:
           type: integer
         completionTokens:
@@ -530,6 +539,12 @@ components:
           type: integer
         creditsSpent:
           type: integer
+        userChargeUsd:
+          type: number
+        providerCostUsd:
+          type: number
+        grossMarginUsd:
+          type: number
         providerId:
           type: string
           nullable: true
@@ -565,12 +580,20 @@ components:
           properties:
             route:
               type: string
+            costState:
+              type: string
             receiptId:
               type: string
             creditsSpent:
               type: integer
             creditsRemaining:
               type: integer
+            userChargeUsd:
+              type: number
+            providerCostUsd:
+              type: number
+            grossMarginUsd:
+              type: number
     ProviderApplication:
       type: object
       required: [contact]

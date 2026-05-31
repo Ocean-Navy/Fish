@@ -1,12 +1,14 @@
 import { DashboardPreview } from "@/components/DashboardPreview";
+import { FishUsageSummary } from "@/components/FishUsageSummary";
 import { collectOceanData } from "@/lib/oceanSupply";
+import { summarizeFishUsage } from "@/lib/fishLedger";
 import { Fish } from "lucide-react";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  const { summary } = await collectOceanData();
+  const [{ summary }, fishUsage] = await Promise.all([collectOceanData(), summarizeFishUsage()]);
 
   return (
     <main className="min-h-screen">
@@ -24,6 +26,7 @@ export default async function DashboardPage() {
         </div>
       </header>
       <DashboardPreview initialSummary={summary} />
+      <FishUsageSummary summary={fishUsage} />
     </main>
   );
 }

@@ -43,8 +43,8 @@ export default function ApiPage() {
       image="/assets/generated/fish-role-builder.png"
       imageAlt="Ocean Navy API hatch in a Venice market workshop"
       chips={["Health", "Supply", "Keys", "Mock AI"]}
-      primaryAction={{ label: "Read docs", href: "/docs" }}
-      secondaryAction={{ label: "Open dashboard", href: "/dashboard" }}
+      primaryAction={{ label: "Try chat", href: "/chat" }}
+      secondaryAction={{ label: "Read docs", href: "/docs" }}
       steps={steps}
       cards={cards}
       note="API rule: the prototype can mock model output, but it must not fake Ocean provider routing. Provider proof comes after selected providers run jobs."

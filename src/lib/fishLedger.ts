@@ -2,11 +2,13 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import path from "node:path";
 import { z } from "zod";
+import type { DataState } from "@/lib/types";
 
 const ROOT = process.cwd();
 const LEDGER_DIR = path.join(ROOT, "data", "fish");
 const ACCOUNTS_PATH = path.join(LEDGER_DIR, "accounts.json");
 const RECEIPTS_DIR = path.join(LEDGER_DIR, "receipts");
+const FISH_CREDIT_USD = 0.001;
 
 export const FISH_MODELS = [
   {
@@ -69,12 +71,33 @@ type UsageReceipt = {
   createdAt: string;
   model: string;
   route: "mock" | "ocean-provider" | "external-fallback";
+  costState: "prototype_estimate" | "provider_verified" | "fallback_verified";
   promptTokens: number;
   completionTokens: number;
   totalTokens: number;
   creditsSpent: number;
+  userChargeUsd: number;
+  providerCostUsd: number;
+  grossMarginUsd: number;
   providerId: string | null;
   requestHash: string;
+};
+
+export type FishUsageSummary = {
+  dataState: DataState;
+  requests: number;
+  accounts: number;
+  oceanNativeJobs: number;
+  externalFallbackJobs: number;
+  mockJobs: number;
+  providerPayoutUsd: number;
+  creditsSpent: number;
+  creditsRemaining: number;
+  userChargeUsd: number;
+  providerCostUsd: number;
+  grossMarginUsd: number;
+  averageProviderCostUsd: number;
+  lastReceiptAt: string | null;
 };
 
 export function parseKeyRequest(body: unknown) {
@@ -158,30 +181,38 @@ export async function authenticateRequest(request: Request) {
 
 export async function summarizeAccount(account: Account) {
   const receipts = await readReceipts(account.id);
+  const costs = summarizeReceiptCosts(receipts);
   return {
     account: publicAccount(account),
     receipts: receipts.slice(-20).reverse(),
     totals: {
       requests: account.requestCount,
       creditsSpent: account.totalCreditsSpent,
-      creditsRemaining: account.creditBalance
+      creditsRemaining: account.creditBalance,
+      ...costs
     }
   };
 }
 
-export async function summarizeFishUsage() {
+export async function summarizeFishUsage(): Promise<FishUsageSummary> {
   const ledger = await readLedger();
   const receipts = await readAllReceipts();
+  const costs = summarizeReceiptCosts(receipts);
+  const dataState: DataState = receipts.length > 0 ? "live" : "sample";
   return {
-    dataState: receipts.length > 0 ? "live" : "sample",
+    dataState,
     requests: ledger.accounts.reduce((sum, account) => sum + account.requestCount, 0),
     accounts: ledger.accounts.length,
     oceanNativeJobs: receipts.filter((receipt) => receipt.route === "ocean-provider").length,
     externalFallbackJobs: receipts.filter((receipt) => receipt.route === "external-fallback").length,
     mockJobs: receipts.filter((receipt) => receipt.route === "mock").length,
-    providerPayoutUsd: 0,
+    providerPayoutUsd: costs.providerCostUsd,
     creditsSpent: ledger.accounts.reduce((sum, account) => sum + account.totalCreditsSpent, 0),
     creditsRemaining: ledger.accounts.reduce((sum, account) => sum + account.creditBalance, 0),
+    userChargeUsd: costs.userChargeUsd,
+    providerCostUsd: costs.providerCostUsd,
+    grossMarginUsd: costs.grossMarginUsd,
+    averageProviderCostUsd: receipts.length ? costs.providerCostUsd / receipts.length : 0,
     lastReceiptAt: receipts.at(-1)?.createdAt ?? null
   };
 }
@@ -207,6 +238,9 @@ export async function recordChatUsage(params: {
   }
 
   const now = new Date().toISOString();
+  const userChargeUsd = Number((creditsSpent * FISH_CREDIT_USD).toFixed(6));
+  const providerCostUsd = 0;
+  const grossMarginUsd = Number((userChargeUsd - providerCostUsd).toFixed(6));
   params.account.creditBalance -= creditsSpent;
   params.account.totalCreditsSpent += creditsSpent;
   params.account.requestCount += 1;
@@ -218,10 +252,14 @@ export async function recordChatUsage(params: {
     createdAt: now,
     model: params.input.model,
     route: "mock",
+    costState: "prototype_estimate",
     promptTokens: params.promptTokens,
     completionTokens: params.completionTokens,
     totalTokens,
     creditsSpent,
+    userChargeUsd,
+    providerCostUsd,
+    grossMarginUsd,
     providerId: null,
     requestHash: hashSecret(JSON.stringify(params.input.messages))
   };
@@ -307,6 +345,18 @@ async function readAllReceipts(): Promise<UsageReceipt[]> {
   } catch {
     return [];
   }
+}
+
+function summarizeReceiptCosts(receipts: UsageReceipt[]) {
+  return {
+    userChargeUsd: sumReceiptNumber(receipts, "userChargeUsd"),
+    providerCostUsd: sumReceiptNumber(receipts, "providerCostUsd"),
+    grossMarginUsd: sumReceiptNumber(receipts, "grossMarginUsd")
+  };
+}
+
+function sumReceiptNumber(receipts: UsageReceipt[], key: "userChargeUsd" | "providerCostUsd" | "grossMarginUsd") {
+  return Number(receipts.reduce((sum, receipt) => sum + (Number.isFinite(receipt[key]) ? receipt[key] : 0), 0).toFixed(6));
 }
 
 function publicAccount(account: Account) {

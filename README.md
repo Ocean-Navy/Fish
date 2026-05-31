@@ -42,6 +42,7 @@ Useful local routes:
 /api/ocean/resources
 /api
 /docs
+/chat
 /v1/models
 ```
 

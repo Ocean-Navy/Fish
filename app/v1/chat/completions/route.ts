@@ -92,9 +92,13 @@ export async function POST(request: Request) {
     },
     fish: {
       route: usage.receipt.route,
+      costState: usage.receipt.costState,
       receiptId: usage.receipt.id,
       creditsSpent: usage.receipt.creditsSpent,
-      creditsRemaining: usage.creditsRemaining
+      creditsRemaining: usage.creditsRemaining,
+      userChargeUsd: usage.receipt.userChargeUsd,
+      providerCostUsd: usage.receipt.providerCostUsd,
+      grossMarginUsd: usage.receipt.grossMarginUsd
     }
   });
 }

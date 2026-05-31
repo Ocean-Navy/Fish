@@ -30,7 +30,7 @@ export default function DocsPage() {
       image="/assets/generated/fish-role-builder.png"
       imageAlt="Venice market API hatch with Ocean Navy compute tools"
       chips={["API keys", "Model routes", "Usage receipts", "Provider proof"]}
-      primaryAction={{ label: "Join builders", href: "/#pilot" }}
+      primaryAction={{ label: "Try chat", href: "/chat" }}
       secondaryAction={{ label: "See roadmap", href: "/roadmap" }}
       steps={steps}
       cards={cards}
