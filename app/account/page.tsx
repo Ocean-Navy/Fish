@@ -21,6 +21,13 @@ const cards = [
   { label: "Local", title: "No key storage", body: "The page does not persist the API key in browser storage." }
 ];
 
+const billingLanes = [
+  { title: "Free grant", body: "Starter credits can prove the product loop before checkout exists." },
+  { title: "Plan credits", body: "Subscriptions need limits, expiry rules, and provider-payment coverage." },
+  { title: "Top-ups", body: "Prepaid balance comes later with refunds, fraud checks, and liability caps." },
+  { title: "Hard settlement", body: "Providers still need real settlement funds, not unfunded credit promises." }
+];
+
 export default function AccountPage() {
   return (
     <RolePageShell
@@ -39,6 +46,27 @@ export default function AccountPage() {
       <section className="px-4 pb-14 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl">
           <FishAccountPanel />
+        </div>
+      </section>
+      <section className="px-4 pb-14 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl rounded-[2rem] border border-fish-accent/25 bg-fish-surface/80 p-6 shadow-harbor sm:p-8">
+          <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">Billing later</p>
+          <div className="mt-4 grid gap-4 lg:grid-cols-[0.75fr_1.25fr] lg:items-start">
+            <div>
+              <h2 className="text-3xl font-black leading-tight text-white sm:text-5xl">Tabs before checkout.</h2>
+              <p className="mt-3 text-lg font-bold leading-8 text-fish-secondary">
+                The account tab proves balances and receipts first. Plans and top-ups come after limits, refunds, and provider settlement coverage.
+              </p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {billingLanes.map((lane) => (
+                <article key={lane.title} className="rounded-3xl border border-fish-accent/15 bg-white/[0.035] p-5">
+                  <h3 className="text-xl font-black text-white">{lane.title}</h3>
+                  <p className="mt-2 text-sm font-bold leading-6 text-fish-secondary">{lane.body}</p>
+                </article>
+              ))}
+            </div>
+          </div>
         </div>
       </section>
     </RolePageShell>

@@ -11,6 +11,8 @@ The first Fish Credits implementation should stay internal and offchain. Tokeniz
 - outstanding credit liability is capped and visible;
 - legal, audit, and incident-response work is complete.
 
+The paid commercial layer should mature first. See `docs/billing-topups-plan.md` for subscription, top-up, credit-lane, and checkout readiness.
+
 ## Principles
 
 - Product first. Token utility after usage.

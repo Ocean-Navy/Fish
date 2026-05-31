@@ -171,4 +171,6 @@ Success criteria:
 
 **Goal:** gradually match the valuable product layers of Venice, not just its token loop.
 
+Commercial layer detail: see `docs/billing-topups-plan.md`.
+
 See `VENICE_PARITY_ROADMAP.md`.
