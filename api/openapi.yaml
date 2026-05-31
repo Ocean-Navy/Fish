@@ -147,7 +147,149 @@ paths:
                     type: boolean
                   id:
                     type: string
+  /v1/api_keys:
+    post:
+      summary: Create a prototype Fish API key
+      description: Requires an admin token in production. The returned key is shown once and stored only as a hash.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                label:
+                  type: string
+                creditGrant:
+                  type: integer
+                  minimum: 1
+                  maximum: 100000
+      responses:
+        '200':
+          description: Prototype key created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  object:
+                    type: string
+                    example: api_key
+                  key:
+                    type: string
+                  keyNotice:
+                    type: string
+                  account:
+                    $ref: '#/components/schemas/FishAccount'
+  /v1/models:
+    get:
+      summary: List prototype Fish models
+      responses:
+        '200':
+          description: Model list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  object:
+                    type: string
+                    example: list
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/FishModel'
+  /v1/chat/completions:
+    post:
+      summary: Create a prototype chat completion
+      description: OpenAI-style mock route that requires a Fish API key, debits credits, and writes a usage receipt.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [messages]
+              properties:
+                model:
+                  type: string
+                  default: fish-demo-chat
+                messages:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      role:
+                        type: string
+                        enum: [system, user, assistant, tool]
+                      content:
+                        oneOf:
+                          - type: string
+                          - type: array
+                            items: {}
+                stream:
+                  type: boolean
+                  default: false
+                temperature:
+                  type: number
+                max_tokens:
+                  type: integer
+      responses:
+        '200':
+          description: Chat completion
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FishChatCompletion'
+  /v1/balance:
+    get:
+      summary: Get prototype account balance
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Balance
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  object:
+                    type: string
+                    example: balance
+                  account:
+                    $ref: '#/components/schemas/FishAccount'
+                  totals:
+                    $ref: '#/components/schemas/FishUsageTotals'
+  /v1/usage:
+    get:
+      summary: List recent prototype usage receipts
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Usage receipts
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  object:
+                    type: string
+                    example: list
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/FishUsageReceipt'
+                  totals:
+                    $ref: '#/components/schemas/FishUsageTotals'
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
   schemas:
     OceanSummary:
       type: object
@@ -323,6 +465,112 @@ components:
           type: boolean
         oceanHolder:
           type: boolean
+    FishAccount:
+      type: object
+      properties:
+        id:
+          type: string
+        label:
+          type: string
+        createdAt:
+          type: string
+        creditBalance:
+          type: integer
+        totalCreditsGranted:
+          type: integer
+        totalCreditsSpent:
+          type: integer
+        requestCount:
+          type: integer
+        lastUsedAt:
+          type: string
+          nullable: true
+    FishModel:
+      type: object
+      properties:
+        id:
+          type: string
+        object:
+          type: string
+          example: model
+        created:
+          type: integer
+        owned_by:
+          type: string
+        description:
+          type: string
+    FishUsageTotals:
+      type: object
+      properties:
+        requests:
+          type: integer
+        creditsSpent:
+          type: integer
+        creditsRemaining:
+          type: integer
+    FishUsageReceipt:
+      type: object
+      properties:
+        id:
+          type: string
+        accountId:
+          type: string
+        createdAt:
+          type: string
+        model:
+          type: string
+        route:
+          type: string
+          enum: [mock, ocean-provider, external-fallback]
+        promptTokens:
+          type: integer
+        completionTokens:
+          type: integer
+        totalTokens:
+          type: integer
+        creditsSpent:
+          type: integer
+        providerId:
+          type: string
+          nullable: true
+        requestHash:
+          type: string
+    FishChatCompletion:
+      type: object
+      properties:
+        id:
+          type: string
+        object:
+          type: string
+          example: chat.completion
+        created:
+          type: integer
+        model:
+          type: string
+        choices:
+          type: array
+          items:
+            type: object
+        usage:
+          type: object
+          properties:
+            prompt_tokens:
+              type: integer
+            completion_tokens:
+              type: integer
+            total_tokens:
+              type: integer
+        fish:
+          type: object
+          properties:
+            route:
+              type: string
+            receiptId:
+              type: string
+            creditsSpent:
+              type: integer
+            creditsRemaining:
+              type: integer
     ProviderApplication:
       type: object
       required: [contact]

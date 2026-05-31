@@ -3,8 +3,8 @@ import Link from "next/link";
 import { RolePageShell } from "@/components/RolePageShell";
 
 export const metadata: Metadata = {
-  title: "Fish Docs - API hatch placeholder",
-  description: "Developer docs placeholder for future Fish API keys, model routing, usage receipts, and provider proof."
+  title: "Fish Docs - API hatch",
+  description: "Developer docs placeholder for Fish API keys, model routing, usage receipts, and future provider proof."
 };
 
 const steps = [
@@ -25,8 +25,8 @@ export default function DocsPage() {
   return (
     <RolePageShell
       eyebrow="API hatch"
-      title="Docs are opening soon."
-      subtitle="One key for builders. Ocean compute behind the counter."
+      title="Docs are opening."
+      subtitle="One key for builders. Receipts now. Ocean providers next."
       image="/assets/generated/fish-role-builder.png"
       imageAlt="Venice market API hatch with Ocean Navy compute tools"
       chips={["API keys", "Model routes", "Usage receipts", "Provider proof"]}
@@ -40,7 +40,7 @@ export default function DocsPage() {
           <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">Builder placeholder</p>
           <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_auto] lg:items-center">
             <p className="max-w-3xl text-2xl font-black leading-tight text-white">
-              V0 docs are a signpost. The real hatch opens when the API key, ledger, and provider receipts ship.
+              The prototype hatch has keys, models, chat, balance, and usage receipts. Provider proof opens after selected Ocean providers run jobs.
             </p>
             <Link className="inline-flex h-12 items-center justify-center rounded-full border border-fish-accent/40 px-6 text-sm font-black text-fish-accent" href="/roadmap">
               See build order

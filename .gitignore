@@ -13,3 +13,4 @@ yarn-error.log*
 *.tsbuildinfo
 data/forms/
 data/submissions/
+data/fish/

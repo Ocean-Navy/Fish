@@ -12,6 +12,7 @@ yarn-error.log*
 
 data/submissions
 data/forms
+data/fish
 
 coverage
 dist

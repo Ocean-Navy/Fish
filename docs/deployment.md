@@ -7,7 +7,7 @@ This document is the server handoff for the Fish V0 website.
 - Node.js 22 in production Docker image.
 - Next.js standalone server.
 - Port `3000` by default.
-- Local JSON persistence for pilot submissions.
+- Local JSON persistence for pilot submissions and prototype Fish API ledger files.
 
 ## Build
 
@@ -24,7 +24,9 @@ docker run -d \
   --name opfish-web \
   --restart unless-stopped \
   -p 3000:3000 \
+  -e FISH_ADMIN_TOKEN="$FISH_ADMIN_TOKEN" \
   -v opfish-submissions:/app/data/submissions \
+  -v opfish-ledger:/app/data/fish \
   opfish-web:latest
 ```
 
@@ -66,13 +68,14 @@ X-Forwarded-For
 
 ## Persistent Data
 
-The V0 form sink writes JSON to:
+The V0 form sink and prototype API ledger write JSON to:
 
 ```text
 /app/data/submissions
+/app/data/fish
 ```
 
-Back up this volume or replace the sink with a database/email/CRM integration before running a public campaign.
+Back up these volumes or replace the sinks with a database/email/CRM integration before running a public campaign.
 
 ## Environment
 
@@ -85,7 +88,10 @@ ONCOMPUTE_STATS_URL=https://analytics.oncompute.ai/global-stats
 ONCOMPUTE_MAX_PAGES=3
 PORT=3000
 HOSTNAME=0.0.0.0
+FISH_ADMIN_TOKEN=
 ```
+
+Set `FISH_ADMIN_TOKEN` in production-like environments before issuing prototype API keys.
 
 ## Verification
 
@@ -104,3 +110,5 @@ Then browser-check:
 - `/#market`
 - `/#pilot`
 - `/dashboard`
+- `/api`
+- `/docs`

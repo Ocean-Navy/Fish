@@ -9,15 +9,15 @@ export const metadata: Metadata = {
 const steps = [
   { title: "Check the dock", body: "Use the health endpoint to confirm the service is awake." },
   { title: "Read supply", body: "Ocean supply endpoints expose dashboard-ready GPU and provider data." },
-  { title: "Join the pilot", body: "Waitlist and provider forms already write structured submissions." },
-  { title: "Open the hatch", body: "The future AI API adds keys, models, usage receipts, and credit debits." }
+  { title: "Create a pilot key", body: "Admins can issue local keys with a starting Fish Credits balance." },
+  { title: "Send a test catch", body: "Chat requests debit credits and write usage receipts before real provider routing." }
 ];
 
 const cards = [
   { label: "Live now", title: "/api/health", body: "Simple readiness check for deploys and server monitoring." },
   { label: "Live now", title: "/api/ocean/summary", body: "Dashboard summary with source-state labels and Ocean compute supply." },
   { label: "Live now", title: "/api/waitlist", body: "Demand intake for users, builders, holders, and ecosystem partners." },
-  { label: "Next", title: "/v1/chat/completions", body: "OpenAI-style AI route once keys, metering, receipts, and cost tracking are ready." }
+  { label: "Prototype", title: "/v1/chat/completions", body: "OpenAI-style mock route with API-key auth, credit debits, and receipts." }
 ];
 
 const endpoints = [
@@ -27,8 +27,11 @@ const endpoints = [
   { method: "GET", path: "/api/ocean/providers", state: "Live" },
   { method: "POST", path: "/api/waitlist", state: "Live" },
   { method: "POST", path: "/api/providers/apply", state: "Live" },
-  { method: "GET", path: "/v1/models", state: "Planned" },
-  { method: "POST", path: "/v1/chat/completions", state: "Planned" }
+  { method: "POST", path: "/v1/api_keys", state: "Prototype" },
+  { method: "GET", path: "/v1/models", state: "Prototype" },
+  { method: "POST", path: "/v1/chat/completions", state: "Prototype" },
+  { method: "GET", path: "/v1/balance", state: "Prototype" },
+  { method: "GET", path: "/v1/usage", state: "Prototype" }
 ];
 
 export default function ApiPage() {
@@ -36,15 +39,15 @@ export default function ApiPage() {
     <RolePageShell
       eyebrow="Signal flags"
       title="API status."
-      subtitle="The hatch is small today. It gets useful before it gets fancy."
+      subtitle="The hatch is small today. It proves keys, credits, and receipts before provider routing."
       image="/assets/generated/fish-role-builder.png"
       imageAlt="Ocean Navy API hatch in a Venice market workshop"
-      chips={["Health", "Supply", "Forms", "AI API next"]}
+      chips={["Health", "Supply", "Keys", "Mock AI"]}
       primaryAction={{ label: "Read docs", href: "/docs" }}
       secondaryAction={{ label: "Open dashboard", href: "/dashboard" }}
       steps={steps}
       cards={cards}
-      note="API rule: no fake AI endpoint. Chat, models, credits, and receipts ship only when metering and provider proof are ready."
+      note="API rule: the prototype can mock model output, but it must not fake Ocean provider routing. Provider proof comes after selected providers run jobs."
     >
       <section className="px-4 pb-14 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl rounded-[2rem] border border-fish-accent/25 bg-fish-surface/80 p-6 shadow-harbor sm:p-8">
@@ -53,7 +56,7 @@ export default function ApiPage() {
               <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">Endpoint board</p>
               <h2 className="mt-2 text-3xl font-black text-white sm:text-5xl">What is open?</h2>
             </div>
-            <p className="text-lg font-black text-fish-accent">Green flags first. Big routes later.</p>
+            <p className="text-lg font-black text-fish-accent">Green flags first. Real providers later.</p>
           </div>
 
           <div className="grid gap-3 md:grid-cols-2">

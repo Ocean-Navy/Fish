@@ -1,14 +1,15 @@
 import { NextResponse } from "next/server";
+import { summarizeFishUsage } from "@/lib/fishLedger";
 
 export const dynamic = "force-dynamic";
 
-export function GET() {
+export async function GET() {
+  const summary = await summarizeFishUsage();
   return NextResponse.json({
-    dataState: "sample",
-    requests: 0,
-    oceanNativeJobs: 0,
-    providerPayoutUsd: 0,
-    creditsSpent: 0,
-    message: "Usage metrics start after the Fish API prototype is live."
+    ...summary,
+    message:
+      summary.requests > 0
+        ? "Fish API prototype usage is being recorded locally."
+        : "Usage metrics start after API keys make Fish prototype calls."
   });
 }

@@ -13,6 +13,7 @@ The public V0 is intentionally simple: a visual Venice fish-market homepage, rol
 - Simple Fish loop: stake OCEAN, catch FISH, use AI, providers get paid, Ocean grows.
 - `/dashboard` with live Oncompute/Ocean supply signals and sample-data fallback.
 - Waitlist/provider intake APIs that persist JSON submissions locally.
+- Prototype `/v1` AI API with local API keys, Fish Credits debits, and usage receipts.
 - Production Docker image and Docker Compose service.
 
 ## Quick Start
@@ -39,6 +40,9 @@ Useful local routes:
 /api/health
 /api/ocean/summary
 /api/ocean/resources
+/api
+/docs
+/v1/models
 ```
 
 ## Development Commands
@@ -65,7 +69,11 @@ Build and run locally:
 
 ```bash
 docker build -t opfish-web:latest .
-docker run --rm -p 3000:3000 -v opfish-submissions:/app/data/submissions opfish-web:latest
+docker run --rm -p 3000:3000 \
+  -e FISH_ADMIN_TOKEN="$FISH_ADMIN_TOKEN" \
+  -v opfish-submissions:/app/data/submissions \
+  -v opfish-ledger:/app/data/fish \
+  opfish-web:latest
 ```
 
 Or use Compose:
@@ -80,13 +88,14 @@ Check health:
 curl -fsS http://127.0.0.1:3000/api/health
 ```
 
-The container runs the Next.js standalone server as a non-root user. Form submissions are written to:
+The container runs the Next.js standalone server as a non-root user. Form submissions and prototype API ledger files are written to:
 
 ```text
 /app/data/submissions
+/app/data/fish
 ```
 
-Compose mounts that path as a named volume named `fish-submissions`.
+Compose mounts those paths as named volumes named `fish-submissions` and `fish-ledger`.
 
 ## Configuration
 
@@ -99,6 +108,7 @@ ONCOMPUTE_STATS_URL=https://analytics.oncompute.ai/global-stats
 ONCOMPUTE_MAX_PAGES=3
 PORT=3000
 HOSTNAME=0.0.0.0
+FISH_ADMIN_TOKEN=
 ```
 
 Direct provider endpoints can be listed in:
@@ -107,12 +117,52 @@ Direct provider endpoints can be listed in:
 data/node_endpoints.txt
 ```
 
+## Prototype Fish API
+
+The Phase 1 API prototype is local-first. It proves API keys, credit debits, and usage receipts before selected Ocean provider routing is live.
+
+Create a pilot key:
+
+```bash
+curl -sS http://127.0.0.1:3000/v1/api_keys \
+  -H 'content-type: application/json' \
+  -H "x-fish-admin-token: $FISH_ADMIN_TOKEN" \
+  -d '{"label":"Local pilot","creditGrant":1000}'
+```
+
+In local development, `FISH_ADMIN_TOKEN` may be empty. Set it in production before issuing keys.
+
+List models:
+
+```bash
+curl -sS http://127.0.0.1:3000/v1/models
+```
+
+Send a mock chat request:
+
+```bash
+curl -sS http://127.0.0.1:3000/v1/chat/completions \
+  -H 'content-type: application/json' \
+  -H "authorization: Bearer $FISH_API_KEY" \
+  -d '{"model":"fish-demo-chat","messages":[{"role":"user","content":"Explain Fish in one line"}]}'
+```
+
+Check balance and receipts:
+
+```bash
+curl -sS http://127.0.0.1:3000/v1/balance -H "authorization: Bearer $FISH_API_KEY"
+curl -sS http://127.0.0.1:3000/v1/usage -H "authorization: Bearer $FISH_API_KEY"
+```
+
+Runtime API keys and receipts are written under `data/fish/`, which is ignored by git. The prototype stores hashed API keys and receipt hashes, but it is not a production ledger yet.
+
 ## Repository Structure
 
 ```text
 app/                         Next.js pages and API routes
 src/components/              Market UX, forms, dashboard UI
 src/lib/                     Oncompute ingestion, formatting, submissions
+app/v1/                      Prototype Fish API routes
 public/assets/generated/     Text-free generated website illustrations
 public/assets/visual-identity/ Reference-only visual direction assets
 data/sample_supply.json      Offline dashboard fallback
@@ -132,6 +182,7 @@ Ignored local runtime paths:
 ```text
 data/submissions/
 data/forms/
+data/fish/
 .env*
 .next/
 node_modules/
