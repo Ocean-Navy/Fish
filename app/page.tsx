@@ -9,6 +9,7 @@ import {
   Waves
 } from "lucide-react";
 import Image from "next/image";
+import type { Route as NextRoute } from "next";
 import Link from "next/link";
 import { InterestForm } from "@/components/InterestForm";
 import { MarketEntrances } from "@/components/MarketEntrances";
@@ -35,6 +36,7 @@ export default function Home() {
           <nav className="hidden items-center gap-6 text-sm font-black text-fish-secondary md:flex" aria-label="Primary navigation">
             <a className="hover:text-white" href="#market">Market</a>
             <a className="hover:text-white" href="#flow">Flow</a>
+            <Link className="hover:text-white" href={"/proof" as NextRoute}>Proof</Link>
             <Link className="hover:text-white" href="/dashboard">Dashboard</Link>
           </nav>
           <a className="inline-flex h-10 items-center rounded-full bg-gradient-to-r from-fish-accent to-fish-aqua px-4 text-sm font-black text-fish-navy950" href="#pilot">
@@ -126,13 +128,18 @@ export default function Home() {
           <div className="grid lg:grid-cols-[1.15fr_0.85fr]">
             <div className="p-6 sm:p-10">
               <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">Proof, not homepage clutter</p>
-              <h2 className="mt-3 text-4xl font-black leading-tight text-white sm:text-6xl">The dashboard lives one click away.</h2>
+              <h2 className="mt-3 text-4xl font-black leading-tight text-white sm:text-6xl">The proof harbor lives one click away.</h2>
               <p className="mt-5 max-w-xl text-xl font-bold leading-8 text-fish-secondary">
-                Average users get the story. Builders get the numbers.
+                Average users get simple proof. Builders can still open the full dashboard.
               </p>
-              <Link className="mt-8 inline-flex h-12 items-center gap-2 rounded-full border border-fish-accent/40 px-6 text-sm font-black text-fish-accent" href="/dashboard">
-                Open dashboard <ArrowRight className="h-4 w-4" aria-hidden="true" />
-              </Link>
+              <div className="mt-8 flex flex-wrap gap-3">
+                <Link className="inline-flex h-12 items-center gap-2 rounded-full bg-gradient-to-r from-fish-accent to-fish-aqua px-6 text-sm font-black text-fish-navy950" href={"/proof" as NextRoute}>
+                  Open proof <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                </Link>
+                <Link className="inline-flex h-12 items-center gap-2 rounded-full border border-fish-accent/40 px-6 text-sm font-black text-fish-accent" href="/dashboard">
+                  Dashboard
+                </Link>
+              </div>
             </div>
             <div className="relative min-h-80">
               <div

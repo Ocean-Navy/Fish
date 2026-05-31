@@ -12,6 +12,7 @@ The public V0 is intentionally simple: a visual Venice fish-market homepage, rol
 - Role entrances for users, builders, providers, and OCEAN holders.
 - Simple Fish loop: stake OCEAN, catch FISH, use AI, providers get paid, Ocean grows.
 - `/dashboard` with live Oncompute/Ocean supply signals and sample-data fallback.
+- `/proof` with a simple public proof harbor for receipts, provider boats, payouts, and benchmarks.
 - Waitlist/provider intake APIs that persist JSON submissions locally.
 - Prototype `/v1` AI API with local API keys, Fish Credits debits, and usage receipts.
 - Production Docker image and Docker Compose service.
@@ -37,6 +38,7 @@ Useful local routes:
 ```text
 /
 /dashboard
+/proof
 /api/health
 /api/ocean/summary
 /api/ocean/resources

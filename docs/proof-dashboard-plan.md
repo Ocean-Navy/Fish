@@ -390,6 +390,14 @@ The public dashboard explains the Fish pilot in a simple, visual way without ove
 - Source-state badges appear above every metric group.
 - Average users can understand the page without reading dense tables.
 
+Prototype route coverage:
+
+```text
+GET /proof
+```
+
+The public proof page uses the Venice harbor metaphor: counters, boats, receipt net, payout chest, and benchmark board. The dense operator dashboard remains at `/dashboard`.
+
 ## Proposed API Contract For Future Implementation
 
 These endpoints are proposed for the proof-dashboard milestone. They should not replace existing V0 Ocean supply endpoints.
