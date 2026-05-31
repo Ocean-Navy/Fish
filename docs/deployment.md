@@ -125,6 +125,7 @@ Then browser-check:
 - `/#market`
 - `/#pilot`
 - `/proof`
+- `/account`
 - `/dashboard`
 - `/api`
 - `/docs`

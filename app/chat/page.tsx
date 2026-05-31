@@ -31,7 +31,7 @@ export default function ChatPage() {
       imageAlt="Venice market AI counter with Fish Ocean Navy styling"
       chips={["Pilot key", "Model menu", "Local thread", "Receipt"]}
       primaryAction={{ label: "Read API docs", href: "/docs" }}
-      secondaryAction={{ label: "Open dashboard", href: "/dashboard" }}
+      secondaryAction={{ label: "Check account", href: "/account" }}
       steps={steps}
       cards={cards}
       note="Prototype rule: this chat tests the Fish product loop. External fallback is not Ocean routing; selected Ocean provider proof remains separate."

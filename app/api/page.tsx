@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { RolePageShell } from "@/components/RolePageShell";
 
 export const metadata: Metadata = {
@@ -78,6 +79,15 @@ export default function ApiPage() {
               <h2 className="mt-2 text-3xl font-black text-white sm:text-5xl">What is open?</h2>
             </div>
             <p className="text-lg font-black text-fish-accent">Green flags first. Real providers later.</p>
+          </div>
+
+          <div className="mb-4 flex flex-wrap gap-3">
+            <Link className="inline-flex h-10 items-center rounded-full border border-fish-accent/35 px-4 text-xs font-black text-fish-accent hover:text-white" href="/account">
+              Open account tab
+            </Link>
+            <Link className="inline-flex h-10 items-center rounded-full border border-fish-accent/35 px-4 text-xs font-black text-fish-accent hover:text-white" href="/chat">
+              Open chat counter
+            </Link>
           </div>
 
           <div className="grid gap-3 md:grid-cols-2">

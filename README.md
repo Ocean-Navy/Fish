@@ -40,6 +40,7 @@ Useful local routes:
 /
 /dashboard
 /proof
+/account
 /api/health
 /api/ocean/summary
 /api/ocean/resources
