@@ -206,14 +206,16 @@ curl -sS http://127.0.0.1:3000/api/providers/jobs \
   }'
 ```
 
-The adapter checks the selected-provider allowlist before writing a receipt. Public proof endpoints are:
+The adapter checks the selected-provider allowlist before writing a receipt. Each new provider job receipt gets a canonical hash and an Ed25519 signature. The first run creates a local prototype signing key at `data/proof/signing-key.json`; keep that proof volume backed up if you want stable signing identity across deploys.
+
+Public proof endpoints are:
 
 ```text
 /api/proof/summary
 /api/proof/receipts
 ```
 
-Provider job receipts are written under `data/proof/`, which is ignored by git and should be backed up or moved to a database before public scale-up.
+Provider job receipts and the local prototype signing key are written under `data/proof/`, which is ignored by git and should be backed up or moved to a database/secret manager before public scale-up.
 
 ## Repository Structure
 

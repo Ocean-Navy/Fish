@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, createPrivateKey, createPublicKey, generateKeyPairSync, randomUUID, sign, verify } from "node:crypto";
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
@@ -7,6 +7,7 @@ import type { DataState } from "@/lib/types";
 
 const PROOF_DIR = path.join(process.cwd(), "data", "proof");
 const RECEIPTS_DIR = path.join(PROOF_DIR, "receipts");
+const SIGNING_KEY_PATH = path.join(PROOF_DIR, "signing-key.json");
 
 const jobRequestSchema = z.object({
   providerId: z.string().trim().min(1),
@@ -25,7 +26,17 @@ const jobRequestSchema = z.object({
   adapterMode: z.enum(["mock_success", "mock_failure", "mock_timeout"]).optional().default("mock_success")
 });
 
+const signingKeySchema = z.object({
+  keyId: z.string(),
+  algorithm: z.literal("ed25519"),
+  publicKeyPem: z.string(),
+  privateKeyPem: z.string(),
+  createdAt: z.string()
+});
+
 export type ProviderJobRequestInput = z.infer<typeof jobRequestSchema>;
+
+type ProofSigningKey = z.infer<typeof signingKeySchema>;
 
 export type ProviderJobReceipt = {
   receiptVersion: 1;
@@ -61,10 +72,20 @@ export type ProviderJobReceipt = {
   };
   signer: {
     keyId: string;
-    algorithm: "none";
+    algorithm: "none" | "ed25519";
+    publicKeyPem: string | null;
   };
-  signatureStatus: "not_required";
+  signatureStatus: "not_required" | "valid" | "invalid" | "missing";
+  signature: string | null;
   errorCode: string | null;
+};
+
+export type ReceiptVerification = {
+  ok: boolean;
+  status: ProviderJobReceipt["signatureStatus"];
+  receiptId: string;
+  canonicalReceiptHash: string;
+  error: string | null;
 };
 
 export type ProofSummary = {
@@ -125,13 +146,15 @@ export async function runProviderJob(input: ProviderJobRequestInput) {
     },
     signer: {
       keyId: "fish-proof-none-v1",
-      algorithm: "none" as const
+      algorithm: "none" as const,
+      publicKeyPem: null
     },
-    signatureStatus: "not_required" as const
+    signatureStatus: "not_required" as const,
+    signature: null
   };
 
   if (!allowed || !provider) {
-    const receipt = finalizeReceipt({
+    const receipt = await finalizeReceipt({
       ...receiptBase,
       status: "not_allowed" as const,
       completedAt: new Date().toISOString(),
@@ -142,7 +165,7 @@ export async function runProviderJob(input: ProviderJobRequestInput) {
   }
 
   const outcome = runMockAdapter(input);
-  const receipt = finalizeReceipt({
+  const receipt = await finalizeReceipt({
     ...receiptBase,
     providerJobId: outcome.status === "succeeded" ? `mock_${randomUUID()}` : null,
     status: outcome.status,
@@ -165,21 +188,26 @@ export async function summarizeProof(): Promise<ProofSummary> {
   const sorted = receipts.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   const selectedReceipts = sorted.slice(-20).reverse();
   const succeeded = receipts.filter((receipt) => receipt.status === "succeeded");
+  const verifications = receipts.map((receipt) => verifyProviderJobReceipt(receipt));
+  const verificationFailures = verifications.filter((verification) => !verification.ok).length;
 
   return {
     dataState: receipts.length ? "live" : "sample",
     lastUpdated: sorted.at(-1)?.createdAt ?? new Date().toISOString(),
     oceanJobsRouted: receipts.filter((receipt) => receipt.status !== "not_allowed").length,
-    verifiedReceipts: receipts.filter((receipt) => receipt.hashes.canonicalReceiptHash).length,
+    verifiedReceipts: verifications.filter((verification) => verification.ok).length,
     pilotProviders: registry.counts.allowed,
     providerPayoutUsd: sum(receipts.map((receipt) => receipt.cost.providerCostUsd)),
     benchmarkPassRate: receipts.length ? succeeded.length / receipts.length : null,
     oceanNativeShare: receipts.length ? receipts.filter((receipt) => receipt.backend === "ocean_provider").length / receipts.length : 0,
     failedJobs: receipts.filter((receipt) => receipt.status === "failed" || receipt.status === "not_allowed").length,
     timedOutJobs: receipts.filter((receipt) => receipt.status === "timed_out").length,
-    receiptVerificationFailures: 0,
+    receiptVerificationFailures: verificationFailures,
     receipts: selectedReceipts,
-    warnings: receipts.length ? [] : ["No provider jobs have been routed yet. Run a selected provider smoke job to create the first receipt."]
+    warnings: [
+      ...(receipts.length ? [] : ["No provider jobs have been routed yet. Run a selected provider smoke job to create the first receipt."]),
+      ...(verificationFailures ? [`${verificationFailures} provider job receipt signature check failed.`] : [])
+    ]
   };
 }
 
@@ -190,6 +218,59 @@ export async function listProviderJobReceipts() {
     dataState: receipts.length ? "live" : "sample",
     data: receipts.sort((a, b) => b.createdAt.localeCompare(a.createdAt))
   };
+}
+
+export function verifyProviderJobReceipt(receipt: ProviderJobReceipt): ReceiptVerification {
+  const canonicalReceiptHash = hashReceipt(receipt);
+  if (canonicalReceiptHash !== receipt.hashes.canonicalReceiptHash) {
+    return {
+      ok: false,
+      status: "invalid",
+      receiptId: receipt.receiptId,
+      canonicalReceiptHash,
+      error: "canonical_receipt_hash_mismatch"
+    };
+  }
+
+  if (receipt.signatureStatus === "not_required" || receipt.signer.algorithm === "none") {
+    return {
+      ok: true,
+      status: "not_required",
+      receiptId: receipt.receiptId,
+      canonicalReceiptHash,
+      error: null
+    };
+  }
+
+  if (!receipt.signature || !receipt.signer.publicKeyPem) {
+    return {
+      ok: false,
+      status: "missing",
+      receiptId: receipt.receiptId,
+      canonicalReceiptHash,
+      error: "signature_missing"
+    };
+  }
+
+  try {
+    const publicKey = createPublicKey(receipt.signer.publicKeyPem);
+    const valid = verify(null, Buffer.from(canonicalReceiptHash), publicKey, Buffer.from(receipt.signature, "base64"));
+    return {
+      ok: valid,
+      status: valid ? "valid" : "invalid",
+      receiptId: receipt.receiptId,
+      canonicalReceiptHash,
+      error: valid ? null : "signature_invalid"
+    };
+  } catch {
+    return {
+      ok: false,
+      status: "invalid",
+      receiptId: receipt.receiptId,
+      canonicalReceiptHash,
+      error: "signature_verification_error"
+    };
+  }
 }
 
 function runMockAdapter(input: ProviderJobRequestInput) {
@@ -235,21 +316,72 @@ function runMockAdapter(input: ProviderJobRequestInput) {
   };
 }
 
-function finalizeReceipt(receipt: Omit<ProviderJobReceipt, "hashes"> & { hashes: Omit<ProviderJobReceipt["hashes"], "canonicalReceiptHash"> & { canonicalReceiptHash: string } }): ProviderJobReceipt {
-  const withoutHash = {
+async function finalizeReceipt(receipt: Omit<ProviderJobReceipt, "hashes"> & { hashes: Omit<ProviderJobReceipt["hashes"], "canonicalReceiptHash"> & { canonicalReceiptHash: string } }): Promise<ProviderJobReceipt> {
+  const signingKey = await readOrCreateSigningKey();
+  const signedReceipt = {
     ...receipt,
+    signer: {
+      keyId: signingKey.keyId,
+      algorithm: signingKey.algorithm,
+      publicKeyPem: signingKey.publicKeyPem
+    },
+    signatureStatus: "valid" as const
+  };
+  const canonicalReceiptHash = hashReceipt(signedReceipt);
+  const privateKey = createPrivateKey(signingKey.privateKeyPem);
+  const signature = sign(null, Buffer.from(canonicalReceiptHash), privateKey).toString("base64");
+
+  return {
+    ...signedReceipt,
+    hashes: {
+      ...signedReceipt.hashes,
+      canonicalReceiptHash
+    },
+    signature
+  };
+}
+
+function hashReceipt(receipt: ProviderJobReceipt | Omit<ProviderJobReceipt, "signature">): string {
+  const { signature: _signature, ...withoutSignature } = receipt as ProviderJobReceipt;
+  const withoutHash = {
+    ...withoutSignature,
     hashes: {
       inputHash: receipt.hashes.inputHash,
       outputHash: receipt.hashes.outputHash,
       canonicalReceiptHash: ""
     }
   };
-  return {
-    ...receipt,
-    hashes: {
-      ...receipt.hashes,
-      canonicalReceiptHash: normalizeHash(stableStringify(withoutHash))
+  return normalizeHash(stableStringify(withoutHash));
+}
+
+async function readOrCreateSigningKey(): Promise<ProofSigningKey> {
+  try {
+    const raw = await readFile(SIGNING_KEY_PATH, "utf8");
+    const parsed = signingKeySchema.safeParse(JSON.parse(raw));
+    if (parsed.success) {
+      return parsed.data;
     }
+  } catch {
+    // First run creates a local prototype signing key in the ignored proof volume.
+  }
+
+  const generated = generateSigningKey();
+  await mkdir(PROOF_DIR, { recursive: true });
+  await writeFile(SIGNING_KEY_PATH, JSON.stringify(generated, null, 2), { mode: 0o600 });
+  return generated;
+}
+
+function generateSigningKey(): ProofSigningKey {
+  const { privateKey, publicKey } = generateKeyPairSync("ed25519");
+  const publicKeyPem = publicKey.export({ type: "spki", format: "pem" }).toString();
+  const privateKeyPem = privateKey.export({ type: "pkcs8", format: "pem" }).toString();
+
+  return {
+    keyId: `fish-proof-ed25519-${shortHash(publicKeyPem)}`,
+    algorithm: "ed25519",
+    publicKeyPem,
+    privateKeyPem,
+    createdAt: new Date().toISOString()
   };
 }
 
@@ -284,6 +416,10 @@ function normalizeHash(value: string) {
     return value;
   }
   return `sha256:${createHash("sha256").update(value).digest("hex")}`;
+}
+
+function shortHash(value: string) {
+  return createHash("sha256").update(value).digest("hex").slice(0, 12);
 }
 
 function stableStringify(value: unknown): string {

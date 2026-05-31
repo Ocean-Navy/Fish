@@ -68,7 +68,7 @@ X-Forwarded-For
 
 ## Persistent Data
 
-The V0 form sink, prototype API ledger, and provider proof receipts write JSON to:
+The V0 form sink, prototype API ledger, provider proof receipts, and the prototype proof signing key write JSON to:
 
 ```text
 /app/data/submissions
@@ -76,7 +76,7 @@ The V0 form sink, prototype API ledger, and provider proof receipts write JSON t
 /app/data/proof
 ```
 
-Back up these volumes or replace the sinks with a database/email/CRM integration before running a public campaign.
+Back up these volumes or replace the sinks with a database/email/CRM integration and secret-managed signing key before running a public campaign.
 
 ## Environment
 

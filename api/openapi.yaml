@@ -114,7 +114,7 @@ paths:
   /api/providers/jobs:
     post:
       summary: Run a selected-provider prototype batch job
-      description: Admin-only controlled adapter. Checks provider allowlist, never stores prompt/output text, and writes a public-safe provider job receipt.
+      description: Admin-only controlled adapter. Checks provider allowlist, never stores prompt/output text, and writes a public-safe signed provider job receipt.
       security:
         - bearerAuth: []
       requestBody:
@@ -754,9 +754,21 @@ components:
               type: string
         signer:
           type: object
+          properties:
+            keyId:
+              type: string
+            algorithm:
+              type: string
+              enum: [none, ed25519]
+            publicKeyPem:
+              type: string
+              nullable: true
         signatureStatus:
           type: string
-          enum: [not_required]
+          enum: [not_required, valid, invalid, missing]
+        signature:
+          type: string
+          nullable: true
         errorCode:
           type: string
           nullable: true

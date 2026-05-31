@@ -19,7 +19,7 @@ export function ProofSummaryPanel({ summary }: { summary: ProofSummary }) {
             <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">Proof board</p>
             <h2 className="mt-2 text-3xl font-black text-white sm:text-5xl">Provider job receipts</h2>
             <p className="mt-3 max-w-2xl text-base font-bold leading-7 text-fish-secondary">
-              Selected provider smoke jobs create public-safe receipts with hashes, usage, cost, and status. Prompt and output text are not stored here.
+              Selected provider smoke jobs create public-safe receipts with signatures, hashes, usage, cost, and status. Prompt and output text are not stored here.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
@@ -59,7 +59,7 @@ export function ProofSummaryPanel({ summary }: { summary: ProofSummary }) {
                   <th className="border-b border-white/10 px-3 py-3">Status</th>
                   <th className="border-b border-white/10 px-3 py-3">Usage</th>
                   <th className="border-b border-white/10 px-3 py-3">Cost</th>
-                  <th className="border-b border-white/10 px-3 py-3">Hash</th>
+                  <th className="border-b border-white/10 px-3 py-3">Signature</th>
                 </tr>
               </thead>
               <tbody>
@@ -70,7 +70,10 @@ export function ProofSummaryPanel({ summary }: { summary: ProofSummary }) {
                     <td className="border-b border-white/10 px-3 py-3">{receipt.status}</td>
                     <td className="border-b border-white/10 px-3 py-3">{formatNumber(receipt.usage.inputTokens + receipt.usage.outputTokens)} tokens</td>
                     <td className="border-b border-white/10 px-3 py-3">{formatUsd(receipt.cost.providerCostUsd)}</td>
-                    <td className="border-b border-white/10 px-3 py-3">{receipt.hashes.canonicalReceiptHash.slice(0, 18)}...</td>
+                    <td className="border-b border-white/10 px-3 py-3">
+                      <span className="block font-bold">{receipt.signatureStatus}</span>
+                      <span className="text-xs text-fish-secondary">{receipt.hashes.canonicalReceiptHash.slice(0, 18)}...</span>
+                    </td>
                   </tr>
                 ))}
               </tbody>
