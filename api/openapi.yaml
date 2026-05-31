@@ -103,6 +103,17 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/FishPlan'
+  /api/billing/usage-analytics:
+    get:
+      summary: Aggregate Fish billing usage analytics
+      description: Public-safe aggregate billing metrics. Excludes API keys, raw prompts, outputs, and account-level rows.
+      responses:
+        '200':
+          description: Billing usage analytics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BillingUsageAnalytics'
   /api/providers/pilot:
     get:
       summary: Public-safe provider pilot registry and selected allowlist
@@ -2559,6 +2570,81 @@ components:
         expiresAt:
           type: string
           nullable: true
+    BillingUsageAnalytics:
+      type: object
+      properties:
+        dataState:
+          type: string
+          enum: [live, snapshot, sample, unavailable]
+        generatedAt:
+          type: string
+        totals:
+          type: object
+          properties:
+            requests:
+              type: integer
+            creditsSpent:
+              type: integer
+            creditsRemaining:
+              type: integer
+            userChargeUsd:
+              type: number
+            providerCostUsd:
+              type: number
+            grossMarginUsd:
+              type: number
+            refunds:
+              type: integer
+            failures:
+              type: integer
+        requestsByDay:
+          type: array
+          items:
+            type: object
+            properties:
+              date:
+                type: string
+              requests:
+                type: integer
+              creditsSpent:
+                type: integer
+              userChargeUsd:
+                type: number
+              providerCostUsd:
+                type: number
+        creditsByLane:
+          type: array
+          items:
+            $ref: '#/components/schemas/FishCreditLane'
+        creditsByModel:
+          type: array
+          items:
+            type: object
+            properties:
+              model:
+                type: string
+              requests:
+                type: integer
+              creditsSpent:
+                type: integer
+              totalTokens:
+                type: integer
+        routeMix:
+          type: array
+          items:
+            type: object
+            properties:
+              route:
+                type: string
+                enum: [mock, ocean-provider, external-fallback]
+              requests:
+                type: integer
+              creditsSpent:
+                type: integer
+              userChargeUsd:
+                type: number
+              providerCostUsd:
+                type: number
     FishUsageReceipt:
       type: object
       properties:

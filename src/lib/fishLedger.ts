@@ -215,6 +215,42 @@ export type FishUsageSummary = {
   creditLanes: CreditLaneSummary[];
 };
 
+export type BillingUsageAnalytics = {
+  dataState: DataState;
+  generatedAt: string;
+  totals: {
+    requests: number;
+    creditsSpent: number;
+    creditsRemaining: number;
+    userChargeUsd: number;
+    providerCostUsd: number;
+    grossMarginUsd: number;
+    refunds: number;
+    failures: number;
+  };
+  requestsByDay: Array<{
+    date: string;
+    requests: number;
+    creditsSpent: number;
+    userChargeUsd: number;
+    providerCostUsd: number;
+  }>;
+  creditsByLane: CreditLaneSummary[];
+  creditsByModel: Array<{
+    model: string;
+    requests: number;
+    creditsSpent: number;
+    totalTokens: number;
+  }>;
+  routeMix: Array<{
+    route: UsageReceipt["route"];
+    requests: number;
+    creditsSpent: number;
+    userChargeUsd: number;
+    providerCostUsd: number;
+  }>;
+};
+
 export function parseKeyRequest(body: unknown) {
   return keyRequestSchema.safeParse(body);
 }
@@ -360,6 +396,33 @@ export async function summarizeFishUsage(): Promise<FishUsageSummary> {
     averageProviderCostUsd: receipts.length ? costs.providerCostUsd / receipts.length : 0,
     lastReceiptAt: receipts.at(-1)?.createdAt ?? null,
     creditLanes
+  };
+}
+
+export async function summarizeBillingUsageAnalytics(): Promise<BillingUsageAnalytics> {
+  const ledger = await readLedger();
+  const [receipts, creditEntries] = await Promise.all([readAllReceipts(), readCreditEntries()]);
+  const creditLanes = summarizeCreditLanes(includeLegacyCreditSeeds(ledger.accounts, creditEntries), {
+    creditBalance: ledger.accounts.reduce((sum, account) => sum + account.creditBalance, 0),
+    totalCreditsGranted: ledger.accounts.reduce((sum, account) => sum + account.totalCreditsGranted, 0),
+    totalCreditsSpent: ledger.accounts.reduce((sum, account) => sum + account.totalCreditsSpent, 0)
+  });
+  const costs = summarizeReceiptCosts(receipts);
+  return {
+    dataState: receipts.length > 0 || creditEntries.length > 0 ? "live" : "sample",
+    generatedAt: new Date().toISOString(),
+    totals: {
+      requests: receipts.length,
+      creditsSpent: ledger.accounts.reduce((sum, account) => sum + account.totalCreditsSpent, 0),
+      creditsRemaining: ledger.accounts.reduce((sum, account) => sum + account.creditBalance, 0),
+      ...costs,
+      refunds: Math.round(creditEntries.filter((entry) => entry.kind === "refund").reduce((sum, entry) => sum + Math.max(0, entry.amount), 0)),
+      failures: 0
+    },
+    requestsByDay: groupReceiptsByDay(receipts),
+    creditsByLane: creditLanes,
+    creditsByModel: groupReceiptsByModel(receipts),
+    routeMix: groupReceiptsByRoute(receipts)
   };
 }
 
@@ -592,6 +655,57 @@ function summarizeReceiptCosts(receipts: UsageReceipt[]) {
     providerCostUsd: sumReceiptNumber(receipts, "providerCostUsd"),
     grossMarginUsd: sumReceiptNumber(receipts, "grossMarginUsd")
   };
+}
+
+function groupReceiptsByDay(receipts: UsageReceipt[]) {
+  const days = new Map<string, { date: string; requests: number; creditsSpent: number; userChargeUsd: number; providerCostUsd: number }>();
+  for (const receipt of receipts) {
+    const date = receipt.createdAt.slice(0, 10);
+    const row = days.get(date) ?? { date, requests: 0, creditsSpent: 0, userChargeUsd: 0, providerCostUsd: 0 };
+    row.requests += 1;
+    row.creditsSpent += receipt.creditsSpent;
+    row.userChargeUsd += receipt.userChargeUsd;
+    row.providerCostUsd += receipt.providerCostUsd;
+    days.set(date, row);
+  }
+  return [...days.values()]
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .map((row) => ({
+      ...row,
+      userChargeUsd: Number(row.userChargeUsd.toFixed(6)),
+      providerCostUsd: Number(row.providerCostUsd.toFixed(6))
+    }));
+}
+
+function groupReceiptsByModel(receipts: UsageReceipt[]) {
+  const models = new Map<string, { model: string; requests: number; creditsSpent: number; totalTokens: number }>();
+  for (const receipt of receipts) {
+    const row = models.get(receipt.model) ?? { model: receipt.model, requests: 0, creditsSpent: 0, totalTokens: 0 };
+    row.requests += 1;
+    row.creditsSpent += receipt.creditsSpent;
+    row.totalTokens += receipt.totalTokens;
+    models.set(receipt.model, row);
+  }
+  return [...models.values()].sort((a, b) => b.requests - a.requests || a.model.localeCompare(b.model));
+}
+
+function groupReceiptsByRoute(receipts: UsageReceipt[]) {
+  const routes = new Map<UsageReceipt["route"], { route: UsageReceipt["route"]; requests: number; creditsSpent: number; userChargeUsd: number; providerCostUsd: number }>();
+  for (const receipt of receipts) {
+    const row = routes.get(receipt.route) ?? { route: receipt.route, requests: 0, creditsSpent: 0, userChargeUsd: 0, providerCostUsd: 0 };
+    row.requests += 1;
+    row.creditsSpent += receipt.creditsSpent;
+    row.userChargeUsd += receipt.userChargeUsd;
+    row.providerCostUsd += receipt.providerCostUsd;
+    routes.set(receipt.route, row);
+  }
+  return [...routes.values()]
+    .sort((a, b) => b.requests - a.requests || a.route.localeCompare(b.route))
+    .map((row) => ({
+      ...row,
+      userChargeUsd: Number(row.userChargeUsd.toFixed(6)),
+      providerCostUsd: Number(row.providerCostUsd.toFixed(6))
+    }));
 }
 
 function summarizeCreditLanes(

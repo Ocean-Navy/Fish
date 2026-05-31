@@ -21,6 +21,7 @@ const cards = [
   { label: "Live now", title: "/api/waitlist", body: "Demand intake for users, builders, holders, and ecosystem partners." },
   { label: "Prototype", title: "/v1/chat/completions", body: "OpenAI-style route with API-key auth, credit debits, receipts, and optional external fallback." },
   { label: "Prototype", title: "/api/billing/plans", body: "Public plan catalog with limits, routing permissions, and prototype/future state." },
+  { label: "Prototype", title: "/api/billing/usage-analytics", body: "Aggregate billing analytics without API keys, prompts, outputs, or account rows." },
   { label: "Live now", title: "/api/routing/policy", body: "Public route compass for mock, fallback, selected Ocean providers, and privacy stages." },
   { label: "Prototype", title: "/api/proof/receipts", body: "Filterable provider receipt ledger with public-safe detail links." },
   { label: "Admin", title: "/api/proof/receipts/export", body: "CSV or JSON receipt export for operator review." }
@@ -32,6 +33,7 @@ const endpoints = [
   { method: "GET", path: "/api/ocean/resources", state: "Live" },
   { method: "GET", path: "/api/ocean/providers", state: "Live" },
   { method: "GET", path: "/api/billing/plans", state: "Prototype" },
+  { method: "GET", path: "/api/billing/usage-analytics", state: "Prototype" },
   { method: "GET", path: "/api/routing/policy", state: "Live" },
   { method: "GET", path: "/api/providers/pilot", state: "Live" },
   { method: "POST", path: "/api/providers/jobs", state: "Prototype" },

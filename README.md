@@ -46,6 +46,7 @@ Useful local routes:
 /api/ocean/summary
 /api/ocean/resources
 /api/billing/plans
+/api/billing/usage-analytics
 /api/routing/policy
 /api/providers/pilot
 /api/proof/summary
@@ -208,6 +209,12 @@ Plan metadata is visible in balances and in the public catalog:
 
 ```bash
 curl -sS http://127.0.0.1:3000/api/billing/plans
+```
+
+Aggregate billing analytics are available without API keys or prompt/output text:
+
+```bash
+curl -sS http://127.0.0.1:3000/api/billing/usage-analytics
 ```
 
 Runtime API keys, lane-based credit entries, and receipts are written under `data/fish/`, which is ignored by git. The prototype stores hashed API keys and receipt hashes, but it is not a production ledger yet.
