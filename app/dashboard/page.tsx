@@ -1,18 +1,29 @@
+import { BenchmarkMatrixPanel } from "@/components/BenchmarkMatrixPanel";
 import { DashboardPreview } from "@/components/DashboardPreview";
 import { FishUsageSummary } from "@/components/FishUsageSummary";
 import { ProofSummaryPanel } from "@/components/ProofSummaryPanel";
 import { ProviderPilotPanel } from "@/components/ProviderPilotPanel";
+import { ProviderScorecardPanel } from "@/components/ProviderScorecardPanel";
 import { collectOceanData } from "@/lib/oceanSupply";
 import { summarizeFishUsage } from "@/lib/fishLedger";
+import { summarizeBenchmarks } from "@/lib/providerBenchmarks";
 import { summarizeProof } from "@/lib/providerJobs";
 import { collectProviderPilotRegistry } from "@/lib/providerPilot";
+import { summarizeProviderScorecard } from "@/lib/providerScorecard";
 import { Fish } from "lucide-react";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  const [{ summary }, fishUsage, providerPilot, proof] = await Promise.all([collectOceanData(), summarizeFishUsage(), collectProviderPilotRegistry(), summarizeProof()]);
+  const [{ summary }, fishUsage, providerPilot, proof, providerScorecard, benchmarks] = await Promise.all([
+    collectOceanData(),
+    summarizeFishUsage(),
+    collectProviderPilotRegistry(),
+    summarizeProof(),
+    summarizeProviderScorecard(),
+    summarizeBenchmarks()
+  ]);
 
   return (
     <main className="min-h-screen">
@@ -32,7 +43,9 @@ export default async function DashboardPage() {
       <DashboardPreview initialSummary={summary} />
       <FishUsageSummary summary={fishUsage} />
       <ProviderPilotPanel registry={providerPilot} />
+      <ProviderScorecardPanel summary={providerScorecard} />
       <ProofSummaryPanel summary={proof} />
+      <BenchmarkMatrixPanel summary={benchmarks} />
     </main>
   );
 }

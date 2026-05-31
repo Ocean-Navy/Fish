@@ -12,6 +12,7 @@ Fish V0 should treat Oncompute / Ocean Network data as beta, mutable, and partia
 
 Primary and live surfaces:
 
+- https://docs.oncompute.ai/
 - https://dashboard.oncompute.ai/run-job/environments
 - https://dashboard.oncompute.ai/stats
 - https://api.oncompute.ai/envs
@@ -21,6 +22,8 @@ Primary and live surfaces:
 - https://analytics.oncompute.ai/global-stats
 - https://analytics.oncompute.ai/gpu-popularity
 - https://docs.oceanprotocol.com/developers/ocean-node
+- https://docs.oceanprotocol.com/developers/compute-to-data/compute-workflow
+- https://docs.oceanprotocol.com/developers/ocean-cli/run-c2d
 - https://github.com/oceanprotocol/ocean-node/blob/develop/API.md
 - https://github.com/oceanprotocol/ocean-node/blob/develop/docs/C2DV2.md
 - https://docs.oceanprotocol.com/developers/old-infrastructure/provider/compute-endpoints
@@ -509,6 +512,20 @@ Current `backend/ocean_supply.py` already probes useful hosts but should be tigh
 - Keep `fees` parsing chain-aware and token-aware.
 - Do not compute `pricePerHour = price * 60` unless the fee token is known, decimals are known, and the resource price id matches the GPU row.
 - Persist a last-good snapshot for `snapshot` state.
+
+## Benchmark and Routing Implications
+
+The current Oncompute docs frame provider competition around node performance benchmarks and leaderboards. Fish should use that as a signal for routing and public reports, but not as settlement proof. Benchmark rows need their own `benchmark` state and should stay separate from user-paid Fish jobs, provider payout events, and Ocean Network-wide analytics.
+
+The current Ocean Compute-to-Data workflow keeps a clear job lifecycle: select a compute environment, start a job, monitor job details/status, then retrieve result references after completion. Fish benchmark and provider-job receipts should mirror that structure:
+
+- record the selected provider/environment/model/workload;
+- store an input hash or fixture id, not prompt or output text;
+- store status, timing, usage, and cost estimate;
+- store provider-visible result references only as hashes or redacted ids;
+- sign or hash public receipts before they enter payout or scorecard totals.
+
+For a Phase 3 scorecard, do not rank providers by raw supply alone. Use separate columns for live supply, selected-provider status, completed Fish jobs, benchmark pass rate, timeout/failure counts, verified receipt count, and payout state. This keeps the product honest while there are still few routed jobs.
 
 ## Recommended V0 Dashboard Claims
 

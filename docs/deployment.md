@@ -27,6 +27,7 @@ docker run -d \
   -e FISH_ADMIN_TOKEN="$FISH_ADMIN_TOKEN" \
   -v opfish-submissions:/app/data/submissions \
   -v opfish-ledger:/app/data/fish \
+  -v opfish-proof:/app/data/proof \
   opfish-web:latest
 ```
 
@@ -68,7 +69,7 @@ X-Forwarded-For
 
 ## Persistent Data
 
-The V0 form sink, prototype API ledger, provider proof receipts, payout accounting files, and the prototype proof signing key write JSON to:
+The V0 form sink, prototype API ledger, provider proof receipts, payout accounting files, benchmark runs, and the prototype proof signing key write JSON to:
 
 ```text
 /app/data/submissions
@@ -117,4 +118,5 @@ Then browser-check:
 - `/docs`
 - `/providers`
 - `/api/proof/summary`
+- `/api/proof/benchmarks`
 - `/api/proof/payouts`

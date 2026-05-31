@@ -42,6 +42,7 @@ Useful local routes:
 /api/ocean/resources
 /api/providers/pilot
 /api/proof/summary
+/api/proof/benchmarks
 /api/proof/payouts
 /api
 /docs
@@ -77,6 +78,7 @@ docker run --rm -p 3000:3000 \
   -e FISH_ADMIN_TOKEN="$FISH_ADMIN_TOKEN" \
   -v opfish-submissions:/app/data/submissions \
   -v opfish-ledger:/app/data/fish \
+  -v opfish-proof:/app/data/proof \
   opfish-web:latest
 ```
 
@@ -92,14 +94,15 @@ Check health:
 curl -fsS http://127.0.0.1:3000/api/health
 ```
 
-The container runs the Next.js standalone server as a non-root user. Form submissions and prototype API ledger files are written to:
+The container runs the Next.js standalone server as a non-root user. Form submissions, prototype API ledger files, and provider proof files are written to:
 
 ```text
 /app/data/submissions
 /app/data/fish
+/app/data/proof
 ```
 
-Compose mounts those paths as named volumes named `fish-submissions` and `fish-ledger`.
+Compose mounts those paths as named volumes named `fish-submissions`, `fish-ledger`, and `fish-proof`.
 
 ## Configuration
 
@@ -214,6 +217,7 @@ Public proof endpoints are:
 ```text
 /api/proof/summary
 /api/proof/receipts
+/api/proof/benchmarks
 /api/proof/payouts
 ```
 
@@ -242,6 +246,25 @@ curl -sS http://127.0.0.1:3000/api/proof/payouts/export \
 ```
 
 Provider job receipts, payout events, payout batches, and the local prototype signing key are written under `data/proof/`, which is ignored by git and should be backed up or moved to a database/secret manager before public scale-up.
+
+## Provider Benchmarks
+
+Selected providers can run small repeatable route tests. Benchmark definitions use hash references only, not prompt text, and public summaries do not include prompt or output text.
+
+```bash
+curl -sS http://127.0.0.1:3000/api/proof/benchmarks \
+  -H 'content-type: application/json' \
+  -H "x-fish-admin-token: $FISH_ADMIN_TOKEN" \
+  -d '{"providerId":"prov_...","benchmarkId":"tiny_smoke"}'
+```
+
+The public benchmark board returns definitions, recent runs, matrix rows, public report rows, totals, and warnings:
+
+```text
+/api/proof/benchmarks
+```
+
+Benchmark run files are written to `data/proof/benchmark-runs/` and validate before they are included in public summaries. See `docs/benchmark-matrix-plan.md` for the Phase 3 benchmark matrix contract.
 
 ## Repository Structure
 

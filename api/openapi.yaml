@@ -197,6 +197,58 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/ProviderJobReceipt'
+  /api/proof/benchmarks:
+    get:
+      summary: Public-safe provider benchmark matrix
+      responses:
+        '200':
+          description: Provider benchmark matrix
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BenchmarkSummary'
+    post:
+      summary: Admin-only selected-provider benchmark run
+      description: Runs one fixed benchmark definition through the provider-job proof adapter. The request accepts provider id, benchmark id, and prototype adapter mode only; prompt and output text are never accepted or stored.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [providerId]
+              properties:
+                providerId:
+                  type: string
+                benchmarkId:
+                  type: string
+                  enum: [tiny_smoke, small_chat, summary_batch]
+                adapterMode:
+                  type: string
+                  enum: [mock_success, mock_failure, mock_timeout]
+      responses:
+        '200':
+          description: Benchmark run completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  run:
+                    $ref: '#/components/schemas/BenchmarkRun'
+                  receipt:
+                    $ref: '#/components/schemas/ProviderJobReceipt'
+        '400':
+          description: Invalid benchmark request
+        '401':
+          description: Admin token required
+        '403':
+          description: Provider is not selected for the benchmark workload
   /api/proof/payouts:
     get:
       summary: Public-safe provider payout accounting summary
@@ -974,6 +1026,209 @@ components:
             transactionRef:
               type: string
               nullable: true
+    BenchmarkRun:
+      type: object
+      properties:
+        benchmarkRunVersion:
+          type: integer
+          enum: [1]
+        benchmarkRunId:
+          type: string
+        benchmarkId:
+          type: string
+          enum: [tiny_smoke, small_chat, summary_batch]
+        providerId:
+          type: string
+        providerLabel:
+          type: string
+        modelClass:
+          type: string
+        workloadType:
+          type: string
+        model:
+          type: string
+        inputSizeBucket:
+          type: string
+        outputSizeBucket:
+          type: string
+        batchSize:
+          type: integer
+        adapterVersion:
+          type: string
+        status:
+          type: string
+          enum: [succeeded, failed, timed_out, not_allowed]
+        sourceState:
+          type: string
+          enum: [live, snapshot, sample, unavailable]
+        visibility:
+          type: string
+        receiptId:
+          type: string
+        receiptSignatureStatus:
+          type: string
+          enum: [not_required, valid, invalid, missing]
+        jobId:
+          type: string
+        sampleSize:
+          type: integer
+        queueSeconds:
+          type: number
+          nullable: true
+        runtimeSeconds:
+          type: number
+        gpuSeconds:
+          type: number
+        inputTokens:
+          type: integer
+        outputTokens:
+          type: integer
+        tokensPerSecond:
+          type: number
+        providerCostUsd:
+          type: number
+        costPer1kTokensUsd:
+          type: number
+          nullable: true
+        createdAt:
+          type: string
+    BenchmarkMatrixRow:
+      type: object
+      properties:
+        providerId:
+          type: string
+        providerLabel:
+          type: string
+        benchmarkId:
+          type: string
+        title:
+          type: string
+        modelClass:
+          type: string
+        workloadType:
+          type: string
+        inputSizeBucket:
+          type: string
+        outputSizeBucket:
+          type: string
+        batchSize:
+          type: integer
+        adapterVersion:
+          type: string
+        latestStatus:
+          type: string
+          enum: [succeeded, failed, timed_out, not_allowed, untested]
+        sampleSize:
+          type: integer
+        successRate:
+          type: number
+          nullable: true
+        medianQueueSeconds:
+          type: number
+          nullable: true
+        medianRuntimeSeconds:
+          type: number
+          nullable: true
+        tokensPerSecond:
+          type: number
+          nullable: true
+        providerCostUsd:
+          type: number
+          nullable: true
+        costPer1kTokensUsd:
+          type: number
+          nullable: true
+        receiptSignatureStatus:
+          type: string
+        lastRunAt:
+          type: string
+          nullable: true
+    BenchmarkReportRow:
+      type: object
+      properties:
+        benchmarkId:
+          type: string
+          enum: [tiny_smoke, small_chat, summary_batch]
+        title:
+          type: string
+        selectedProviders:
+          type: integer
+        testedProviders:
+          type: integer
+        successfulProviders:
+          type: integer
+        latestPassRate:
+          type: number
+          nullable: true
+        medianRuntimeSeconds:
+          type: number
+          nullable: true
+        medianCostPer1kTokensUsd:
+          type: number
+          nullable: true
+        bestProviderLabel:
+          type: string
+          nullable: true
+        lastRunAt:
+          type: string
+          nullable: true
+    BenchmarkReport:
+      type: object
+      properties:
+        visibility:
+          type: string
+          enum: [public]
+        storesPromptOutputText:
+          type: boolean
+          enum: [false]
+        rows:
+          type: array
+          items:
+            $ref: '#/components/schemas/BenchmarkReportRow'
+    BenchmarkSummary:
+      type: object
+      properties:
+        dataState:
+          type: string
+          enum: [live, snapshot, sample, unavailable]
+        lastUpdated:
+          type: string
+        definitions:
+          type: array
+          items:
+            type: object
+        runs:
+          type: array
+          items:
+            $ref: '#/components/schemas/BenchmarkRun'
+        matrix:
+          type: array
+          items:
+            $ref: '#/components/schemas/BenchmarkMatrixRow'
+        report:
+          $ref: '#/components/schemas/BenchmarkReport'
+        totals:
+          type: object
+          properties:
+            selectedProviders:
+              type: integer
+            benchmarkRuns:
+              type: integer
+            successfulRuns:
+              type: integer
+            failedRuns:
+              type: integer
+            timedOutRuns:
+              type: integer
+            untestedCells:
+              type: integer
+            passRate:
+              type: number
+              nullable: true
+        warnings:
+          type: array
+          items:
+            type: string
     PayoutBatch:
       type: object
       properties:
