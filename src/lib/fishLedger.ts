@@ -24,7 +24,18 @@ export const FISH_MODELS = [
     created: 1780245000,
     owned_by: "ocean-navy",
     description: "Placeholder for selected Ocean provider batch inference."
-  }
+  },
+  ...(process.env.FISH_EXTERNAL_CHAT_MODEL
+    ? [
+        {
+          id: process.env.FISH_EXTERNAL_CHAT_MODEL,
+          object: "model",
+          created: 1780245000,
+          owned_by: process.env.FISH_EXTERNAL_PROVIDER_ID || "external-compatible",
+          description: "Configured external OpenAI-compatible fallback model."
+        }
+      ]
+    : [])
 ];
 
 const keyRequestSchema = z.object({
@@ -230,6 +241,10 @@ export async function recordChatUsage(params: {
   promptTokens: number;
   completionTokens: number;
   content: string;
+  route?: UsageReceipt["route"];
+  costState?: UsageReceipt["costState"];
+  providerCostUsd?: number;
+  providerId?: string | null;
 }) {
   const totalTokens = params.promptTokens + params.completionTokens;
   const creditsSpent = Math.max(1, Math.ceil(totalTokens / 1000));
@@ -245,7 +260,7 @@ export async function recordChatUsage(params: {
 
   const now = new Date().toISOString();
   const userChargeUsd = Number((creditsSpent * FISH_CREDIT_USD).toFixed(6));
-  const providerCostUsd = 0;
+  const providerCostUsd = Number((params.providerCostUsd ?? 0).toFixed(6));
   const grossMarginUsd = Number((userChargeUsd - providerCostUsd).toFixed(6));
   params.account.creditBalance -= creditsSpent;
   params.account.totalCreditsSpent += creditsSpent;
@@ -257,8 +272,8 @@ export async function recordChatUsage(params: {
     accountId: params.account.id,
     createdAt: now,
     model: params.input.model,
-    route: "mock",
-    costState: "prototype_estimate",
+    route: params.route ?? "mock",
+    costState: params.costState ?? "prototype_estimate",
     promptTokens: params.promptTokens,
     completionTokens: params.completionTokens,
     totalTokens,
@@ -266,7 +281,7 @@ export async function recordChatUsage(params: {
     userChargeUsd,
     providerCostUsd,
     grossMarginUsd,
-    providerId: null,
+    providerId: params.providerId ?? null,
     requestHash: hashSecret(JSON.stringify(params.input.messages))
   };
 

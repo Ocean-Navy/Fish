@@ -125,6 +125,12 @@ PORT=3000
 HOSTNAME=0.0.0.0
 FISH_ADMIN_TOKEN=
 FISH_PROVIDER_ALLOWLIST=
+FISH_CHAT_BACKEND=mock
+FISH_EXTERNAL_CHAT_BASE_URL=
+FISH_EXTERNAL_CHAT_API_KEY=
+FISH_EXTERNAL_CHAT_MODEL=
+FISH_EXTERNAL_PROVIDER_ID=external-compatible
+FISH_EXTERNAL_COST_USD_PER_1K_TOKENS=0
 FISH_STAKING_CREDIT_BUDGET=10000
 FISH_STAKING_CREDITS_PER_OCEAN_MONTH=0.1
 ```
@@ -138,6 +144,19 @@ data/node_endpoints.txt
 ## Prototype Fish API
 
 The Phase 1 API prototype is local-first. It proves API keys, credit debits, and usage receipts before selected Ocean provider routing is live.
+
+Default chat is a deterministic mock. To test real AI calls before Ocean provider routing, point the same Fish API route at an OpenAI-compatible backend:
+
+```text
+FISH_CHAT_BACKEND=external
+FISH_EXTERNAL_CHAT_BASE_URL=https://api.openai.com/v1
+FISH_EXTERNAL_CHAT_API_KEY=...
+FISH_EXTERNAL_CHAT_MODEL=...
+FISH_EXTERNAL_PROVIDER_ID=openai-compatible
+FISH_EXTERNAL_COST_USD_PER_1K_TOKENS=0
+```
+
+Fish still stores only usage numbers and a request hash in local receipts. The raw prompt is sent to the configured external backend, so that provider's privacy policy applies.
 
 Create a pilot key:
 
@@ -156,7 +175,7 @@ List models:
 curl -sS http://127.0.0.1:3000/v1/models
 ```
 
-Send a mock chat request:
+Send a chat request:
 
 ```bash
 curl -sS http://127.0.0.1:3000/v1/chat/completions \

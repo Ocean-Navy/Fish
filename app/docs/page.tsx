@@ -16,7 +16,7 @@ const steps = [
 
 const cards = [
   { label: "API", title: "OpenAI-style surface", body: "Target familiar chat completions, model list, and usage response shapes." },
-  { label: "Routing", title: "Ocean behind the counter", body: "Fish chooses providers based on availability, price, reliability, and privacy needs." },
+  { label: "Routing", title: "Mock, fallback, Ocean", body: "Start local, optionally call an external compatible backend, then graduate to selected Ocean providers." },
   { label: "Credits", title: "Metered from day one", body: "Usage receipts and credit debits need to exist before advanced token flows." },
   { label: "Providers", title: "Proof for every catch", body: "Provider receipts should back dashboards, payouts, and later scorecards." }
 ];
@@ -40,7 +40,7 @@ export default function DocsPage() {
           <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">Builder placeholder</p>
           <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_auto] lg:items-center">
             <p className="max-w-3xl text-2xl font-black leading-tight text-white">
-              The prototype hatch has keys, models, chat, balance, and usage receipts. Provider proof opens after selected Ocean providers run jobs.
+              The prototype hatch has keys, models, chat, balance, and usage receipts. Chat can stay mock or use a configured external compatible backend until selected Ocean providers run jobs.
             </p>
             <Link className="inline-flex h-12 items-center justify-center rounded-full border border-fish-accent/40 px-6 text-sm font-black text-fish-accent" href="/roadmap">
               See build order

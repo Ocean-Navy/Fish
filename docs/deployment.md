@@ -28,6 +28,7 @@ docker run -d \
   -v opfish-submissions:/app/data/submissions \
   -v opfish-ledger:/app/data/fish \
   -v opfish-proof:/app/data/proof \
+  -v opfish-staking:/app/data/staking \
   opfish-web:latest
 ```
 
@@ -93,12 +94,19 @@ PORT=3000
 HOSTNAME=0.0.0.0
 FISH_ADMIN_TOKEN=
 FISH_PROVIDER_ALLOWLIST=
+FISH_CHAT_BACKEND=mock
+FISH_EXTERNAL_CHAT_BASE_URL=
+FISH_EXTERNAL_CHAT_API_KEY=
+FISH_EXTERNAL_CHAT_MODEL=
+FISH_EXTERNAL_PROVIDER_ID=external-compatible
+FISH_EXTERNAL_COST_USD_PER_1K_TOKENS=0
 FISH_STAKING_CREDIT_BUDGET=10000
 FISH_STAKING_CREDITS_PER_OCEAN_MONTH=0.1
 ```
 
 Set `FISH_ADMIN_TOKEN` in production-like environments before issuing prototype API keys.
 Set `FISH_PROVIDER_ALLOWLIST` or mount `data/provider_allowlist.json` when the first selected providers are approved.
+Keep `FISH_CHAT_BACKEND=mock` for a no-secret local deployment. Set `FISH_CHAT_BACKEND=external`, `FISH_EXTERNAL_CHAT_BASE_URL`, `FISH_EXTERNAL_CHAT_API_KEY`, and `FISH_EXTERNAL_CHAT_MODEL` only when you want `/v1/chat/completions` to call a real OpenAI-compatible backend.
 
 ## Verification
 
@@ -121,6 +129,7 @@ Then browser-check:
 - `/api`
 - `/docs`
 - `/providers`
+- `/chat`
 - `/api/proof/summary`
 - `/api/proof/receipts`
 - `/api/proof/providers`

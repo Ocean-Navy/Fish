@@ -841,7 +841,7 @@ paths:
   /v1/chat/completions:
     post:
       summary: Create a prototype chat completion
-      description: OpenAI-style mock route that requires a Fish API key, debits credits, and writes a usage receipt.
+      description: OpenAI-style route that requires a Fish API key, debits credits, writes a usage receipt, and can optionally call a configured external compatible backend.
       security:
         - bearerAuth: []
       requestBody:
@@ -2460,8 +2460,10 @@ components:
           properties:
             route:
               type: string
+              enum: [mock, ocean-provider, external-fallback]
             costState:
               type: string
+              enum: [prototype_estimate, provider_verified, fallback_verified]
             receiptId:
               type: string
             creditsSpent:
