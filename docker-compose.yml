@@ -1,17 +1,25 @@
 services:
-  fish-api:
-    image: python:3.11-slim
-    working_dir: /app/backend
-    command: python3 server.py
-    volumes:
-      - .:/app
+  fish-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: opfish-web:latest
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: 0.0.0.0
+      ONCOMPUTE_MAX_PAGES: "3"
     ports:
-      - "8787:8787"
-  fish-static:
-    image: python:3.11-slim
-    working_dir: /app/app
-    command: python3 -m http.server 5173
+      - "3000:3000"
     volumes:
-      - .:/app
-    ports:
-      - "5173:5173"
+      - fish-submissions:/app/data/submissions
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+volumes:
+  fish-submissions:

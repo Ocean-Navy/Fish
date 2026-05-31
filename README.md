@@ -1,95 +1,159 @@
-# Fish Landing Page + Ocean Network Usage Dashboard
+# Fish
 
-Fish is a proposed product layer on top of **Ocean Network / Oncompute**. The core pitch is simple:
+Fish is an Ocean Navy-built product layer for turning Ocean Network / Oncompute supply into simple AI access.
 
-> Turn Ocean Network compute into easy AI.
+The public V0 is intentionally simple: a visual Venice fish-market homepage, role-based entrances, a pilot interest form, and a separate live supply dashboard for builders.
 
-This package gives agentic developers a complete starting point:
+> Built by Ocean Navy. Built on Ocean Protocol. Not official unless approved.
 
-- a landing page prototype inspired by the current Fish / Ocean Navy / Venice visual direction;
-- a backend that can ingest Ocean Network compute supply where public endpoints are reachable;
-- a `DESIGN.md` file in the Google Labs Code `design.md` format;
-- a full website specification;
-- roadmap and milestone documents;
-- implementation issues for agentic coders.
+## What Ships In V0
 
-## What this is
+- Visual landing page with a Venice fork / Ocean Navy identity.
+- Role entrances for users, builders, providers, and OCEAN holders.
+- Simple Fish loop: stake OCEAN, catch FISH, use AI, providers get paid, Ocean grows.
+- `/dashboard` with live Oncompute/Ocean supply signals and sample-data fallback.
+- Waitlist/provider intake APIs that persist JSON submissions locally.
+- Production Docker image and Docker Compose service.
 
-A product-first website and dashboard spec for the first public version of Fish.
+## Quick Start
 
-Fish is **not** presented as an official Ocean Protocol product. The site language should say:
-
-> Built by Ocean Navy. Built on Ocean Protocol.
-
-The first goal is to prove demand and usage, not to launch a token.
-
-## Quick start prototype
+Use Node 22 for local development. The Docker image also runs Node 22.
 
 ```bash
-cd app
-python3 -m http.server 5173
+nvm use
+npm ci
+npm run dev
 ```
 
 Open:
 
 ```text
-http://127.0.0.1:5173
+http://127.0.0.1:3000
 ```
 
-For the backend dashboard proxy:
+Useful local routes:
+
+```text
+/
+/dashboard
+/api/health
+/api/ocean/summary
+/api/ocean/resources
+```
+
+## Development Commands
 
 ```bash
-cd backend
-python3 server.py
+npm run lint       # ESLint for app and src
+npm run typecheck  # TypeScript check
+npm run build      # Production Next.js build
+npm run smoke      # Typecheck + build
+npm run verify     # Lint + typecheck + build
 ```
 
-Open:
+The same commands are exposed through `make`:
+
+```bash
+make install
+make dev
+make verify
+```
+
+## Docker Deployment
+
+Build and run locally:
+
+```bash
+docker build -t opfish-web:latest .
+docker run --rm -p 3000:3000 -v opfish-submissions:/app/data/submissions opfish-web:latest
+```
+
+Or use Compose:
+
+```bash
+docker compose up --build
+```
+
+Check health:
+
+```bash
+curl -fsS http://127.0.0.1:3000/api/health
+```
+
+The container runs the Next.js standalone server as a non-root user. Form submissions are written to:
 
 ```text
-http://127.0.0.1:8787/api/health
-http://127.0.0.1:8787/api/ocean/summary
+/app/data/submissions
 ```
 
-The static landing page will work without the backend and will show sample data. With the backend running, it will attempt to fetch live Ocean Network / Oncompute supply data and fall back to samples if unavailable.
+Compose mounts that path as a named volume named `fish-submissions`.
 
-## Repository structure
+## Configuration
+
+All configuration is optional for V0. Defaults point at current public Oncompute endpoints and fall back to sample data when live sources are unavailable.
 
 ```text
-DESIGN.md                      Visual identity tokens and design rationale
-PRODUCT_SPEC.md                Product definition and scope
-WEBSITE_SPEC.md                Page-by-page website specification
-ROADMAP.md                     Implementation roadmap and milestones
-AGENTIC_DEVELOPMENT_PLAN.md    Work packages for AI coding agents
-DASHBOARD_SPEC.md              Ocean Network dashboard data model and UI spec
-VENICE_PARITY_ROADMAP.md       Step-by-step feature roadmap inspired by Venice-style product layers
-api/openapi.yaml               Backend API contract
-backend/server.py              Local dashboard backend / proxy prototype
-backend/ocean_supply.py        Ocean Network supply ingestion and normalization helpers
-app/index.html                 Static landing page prototype
-app/styles.css                 Prototype CSS using DESIGN.md tokens
-app/app.js                     Frontend data-loading and sample dashboard logic
-app/assets/                    Generated concept imagery and local brand placeholders
-data/sample_supply.json        Sample dashboard data
-issues/                        Ready-to-import agent tasks
+ONCOMPUTE_NODES_URL=https://api.oncompute.ai/nodes
+ONCOMPUTE_ENVS_URL=https://api.oncompute.ai/envs
+ONCOMPUTE_STATS_URL=https://analytics.oncompute.ai/global-stats
+ONCOMPUTE_MAX_PAGES=3
+PORT=3000
+HOSTNAME=0.0.0.0
 ```
 
-## Product principle
+Direct provider endpoints can be listed in:
 
-Do not launch token promises before real usage exists.
+```text
+data/node_endpoints.txt
+```
 
-Build in this order:
+## Repository Structure
 
-1. Market-making dashboard and landing page.
-2. One simple AI app/API.
-3. Selected Ocean provider pilot.
-4. Usage and payout proof dashboard.
-5. OCEAN staking for AI credits.
-6. Provider OCEAN bonding.
-7. Tokenized credits only after usage and settlement work.
+```text
+app/                         Next.js pages and API routes
+src/components/              Market UX, forms, dashboard UI
+src/lib/                     Oncompute ingestion, formatting, submissions
+public/assets/generated/     Text-free generated website illustrations
+public/assets/visual-identity/ Reference-only visual direction assets
+data/sample_supply.json      Offline dashboard fallback
+data/node_endpoints.txt      Optional direct provider endpoints
+docs/                        Implementation and visual identity notes
+legacy/static-prototype/     Original static prototype
+Dockerfile                   Production standalone Next.js image
+docker-compose.yml           Production-like local service
+```
 
-## Key message
+## Data And Privacy
 
-Fish should be explained in one sentence:
+The pilot form stores submissions as local JSON files. Do not collect secrets in the form. For production, either mount persistent storage or replace `src/lib/submissions.ts` with a database/email/CRM integration.
 
-> Fish turns Ocean Network compute into simple AI products, so users buy AI, providers get paid, and OCEAN gains utility.
+Ignored local runtime paths:
 
+```text
+data/submissions/
+data/forms/
+.env*
+.next/
+node_modules/
+```
+
+## Visual Direction
+
+Fish should feel like entering a Venice fish market with Ocean Navy energy:
+
+- users enter the chat counter;
+- builders enter the API hatch;
+- providers enter the dock master;
+- OCEAN holders enter the vault door.
+
+Generated images should be text-free and used as scene assets. Render copy, buttons, forms, and metrics in accessible HTML.
+
+## Pre-Launch Checklist
+
+- `npm run verify` passes.
+- `docker build -t opfish-web:latest .` passes.
+- `/api/health` returns `ok: true`.
+- `/` is visually clear on mobile and desktop.
+- `/dashboard` loads with live data or sample fallback.
+- `data/submissions` is persisted or integrated with a real intake system.
+- Public copy keeps the status clear: Ocean Navy-built, on Ocean Protocol, not official unless approved.

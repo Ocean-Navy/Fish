@@ -4,7 +4,7 @@ info:
   version: 0.1.0
   description: API contract for the Fish landing page, Ocean Network supply dashboard, provider pilot, and waitlist.
 servers:
-  - url: http://127.0.0.1:8787
+  - url: http://127.0.0.1:3000
 paths:
   /api/health:
     get:
@@ -44,6 +44,11 @@ paths:
               schema:
                 type: object
                 properties:
+                  dataState:
+                    type: string
+                    enum: [live, snapshot, sample, unavailable]
+                  lastUpdated:
+                    type: string
                   resources:
                     type: array
                     items:
@@ -59,6 +64,11 @@ paths:
               schema:
                 type: object
                 properties:
+                  dataState:
+                    type: string
+                    enum: [live, snapshot, sample, unavailable]
+                  lastUpdated:
+                    type: string
                   providers:
                     type: array
                     items:
@@ -152,6 +162,12 @@ components:
           type: array
           items:
             type: object
+        sourceCount:
+          type: integer
+        warnings:
+          type: array
+          items:
+            type: string
         kpis:
           type: object
           properties:
@@ -163,10 +179,20 @@ components:
               type: integer
             h200FromUsdHr:
               type: number
+              nullable: true
+            lowestListedGpuFee:
+              type: number
+              nullable: true
             oceanNativeJobs:
+              type: integer
+            benchmarkJobs:
               type: integer
             providerPayoutUsd:
               type: number
+              nullable: true
+            networkRevenueUsd:
+              type: number
+              nullable: true
         gpuSupply:
           type: array
           items:
@@ -188,8 +214,13 @@ components:
           type: integer
         lowestUsdHr:
           type: number
+          nullable: true
         medianUsdHr:
           type: number
+          nullable: true
+        lowestListedPrice:
+          type: number
+          nullable: true
         regions:
           type: array
           items:
@@ -225,8 +256,15 @@ components:
           type: string
         pricePerMinute:
           type: number
+          nullable: true
         pricePerHour:
           type: number
+          nullable: true
+        listedPrice:
+          type: number
+          nullable: true
+        priceBasis:
+          type: string
         status:
           type: string
     ProviderScore:
@@ -246,6 +284,10 @@ components:
           type: number
         lowestUsdHr:
           type: number
+          nullable: true
+        lowestListedPrice:
+          type: number
+          nullable: true
         uptime7d:
           type: number
         benchmarkStatus:
@@ -254,13 +296,28 @@ components:
           type: boolean
     WaitlistRequest:
       type: object
-      required: [contact]
+      required: [contact, subscriberRoles]
       properties:
         contact:
           type: string
+        subscriberRoles:
+          type: array
+          items:
+            type: string
+            enum: [user, developer, provider, oceanHolder]
         useCase:
           type: string
         expectedUsage:
+          type: string
+        nodeEndpoint:
+          type: string
+        gpuType:
+          type: string
+        region:
+          type: string
+        payoutPreference:
+          type: string
+        notes:
           type: string
         apiInterest:
           type: boolean
@@ -272,6 +329,11 @@ components:
       properties:
         contact:
           type: string
+        subscriberRoles:
+          type: array
+          items:
+            type: string
+            enum: [user, developer, provider, oceanHolder]
         nodeEndpoint:
           type: string
         gpuType:

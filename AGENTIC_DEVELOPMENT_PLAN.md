@@ -20,12 +20,13 @@ Input:
 
 - `DESIGN.md`
 - `WEBSITE_SPEC.md`
-- `app/index.html`
-- `app/styles.css`
+- `app/page.tsx`
+- `app/globals.css`
+- `src/components/*`
 
 Tasks:
 
-- Convert prototype into production framework.
+- Continue the production Next.js App Router implementation.
 - Implement responsive sections.
 - Create reusable components: Hero, FlowCards, BenefitStrip, DashboardPreview, Roadmap, CTA.
 - Ensure all text follows ELI5 copy.
@@ -164,4 +165,3 @@ Acceptance:
 - Polish mobile.
 - Publish first demo.
 - Ask providers to join pilot.
-
