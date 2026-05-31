@@ -178,25 +178,119 @@ paths:
                 $ref: '#/components/schemas/ProofSummary'
   /api/proof/receipts:
     get:
-      summary: Public-safe provider job receipts
+      summary: Filterable public-safe provider job receipt ledger
+      parameters:
+        - in: query
+          name: provider
+          schema:
+            type: string
+          description: Provider id or public label substring.
+        - in: query
+          name: providerId
+          schema:
+            type: string
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [succeeded, failed, timed_out, not_allowed]
+        - in: query
+          name: backend
+          schema:
+            type: string
+            enum: [ocean_provider]
+        - in: query
+          name: receiptType
+          schema:
+            type: string
+            enum: [provider_job_receipt]
+        - in: query
+          name: signatureStatus
+          schema:
+            type: string
+            enum: [not_required, valid, invalid, missing]
+        - in: query
+          name: from
+          schema:
+            type: string
+          description: Inclusive createdAt lower bound.
+        - in: query
+          name: to
+          schema:
+            type: string
+          description: Inclusive createdAt upper bound.
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 100
+            minimum: 1
+            maximum: 500
       responses:
         '200':
           description: Receipt list
           content:
             application/json:
               schema:
+                $ref: '#/components/schemas/ReceiptLedgerResponse'
+  /api/proof/receipts/{receiptId}:
+    get:
+      summary: Public-safe provider job receipt detail
+      parameters:
+        - in: path
+          name: receiptId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Receipt detail without prompt or output text
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicReceiptDetail'
+        '404':
+          description: Receipt not found
+  /api/proof/receipts/export:
+    get:
+      summary: Admin-only provider receipt ledger export
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: format
+          schema:
+            type: string
+            enum: [csv, json]
+            default: csv
+        - in: query
+          name: provider
+          schema:
+            type: string
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [succeeded, failed, timed_out, not_allowed]
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 100
+            minimum: 1
+            maximum: 500
+      responses:
+        '200':
+          description: CSV or JSON receipt ledger export for operator review
+          content:
+            text/csv:
+              schema:
+                type: string
+            application/json:
+              schema:
                 type: object
-                properties:
-                  object:
-                    type: string
-                    example: list
-                  dataState:
-                    type: string
-                    enum: [live, snapshot, sample, unavailable]
-                  data:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/ProviderJobReceipt'
+        '401':
+          description: Admin token required
   /api/proof/providers:
     get:
       summary: Public-safe provider scorecard
@@ -259,6 +353,16 @@ paths:
           description: Admin token required
         '403':
           description: Provider is not selected for the benchmark workload
+  /api/proof/market-making:
+    get:
+      summary: Public-safe market-making routing and cost report
+      responses:
+        '200':
+          description: Market-making report
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MarketMakingSummary'
   /api/proof/payouts:
     get:
       summary: Public-safe provider payout accounting summary
@@ -976,6 +1080,171 @@ components:
         errorCode:
           type: string
           nullable: true
+    ReceiptLedgerResponse:
+      type: object
+      properties:
+        object:
+          type: string
+          example: list
+        dataState:
+          type: string
+          enum: [live, snapshot, sample, unavailable]
+        filters:
+          type: object
+        count:
+          type: integer
+        totalCount:
+          type: integer
+        verificationFailures:
+          type: integer
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReceiptLedgerItem'
+    ReceiptLedgerItem:
+      type: object
+      properties:
+        receiptId:
+          type: string
+        receiptType:
+          type: string
+          enum: [provider_job_receipt]
+        jobId:
+          type: string
+        providerLabel:
+          type: string
+        model:
+          type: string
+        workloadType:
+          type: string
+        backend:
+          type: string
+          enum: [ocean_provider]
+        status:
+          type: string
+          enum: [succeeded, failed, timed_out, not_allowed]
+        sourceState:
+          type: string
+          enum: [live, snapshot, sample, unavailable]
+        usageSummary:
+          $ref: '#/components/schemas/ReceiptUsageSummary'
+        costSummary:
+          $ref: '#/components/schemas/ReceiptCostSummary'
+        signatureStatus:
+          type: string
+          enum: [not_required, valid, invalid, missing]
+        signatureVerified:
+          type: boolean
+        signatureError:
+          type: string
+          nullable: true
+        canonicalReceiptHash:
+          type: string
+        createdAt:
+          type: string
+        completedAt:
+          type: string
+        detailUrl:
+          type: string
+    PublicReceiptDetail:
+      type: object
+      properties:
+        object:
+          type: string
+          example: provider_job_receipt
+        receiptId:
+          type: string
+        receiptType:
+          type: string
+          enum: [provider_job_receipt]
+        jobId:
+          type: string
+        providerLabel:
+          type: string
+        model:
+          type: string
+        workloadType:
+          type: string
+        backend:
+          type: string
+          enum: [ocean_provider]
+        status:
+          type: string
+          enum: [succeeded, failed, timed_out, not_allowed]
+        sourceState:
+          type: string
+          enum: [live, snapshot, sample, unavailable]
+        visibility:
+          type: string
+          enum: [public]
+        timestamps:
+          type: object
+          properties:
+            createdAt:
+              type: string
+            startedAt:
+              type: string
+            completedAt:
+              type: string
+        usage:
+          $ref: '#/components/schemas/ReceiptUsageSummary'
+        cost:
+          $ref: '#/components/schemas/ReceiptCostSummary'
+        hashes:
+          type: object
+          properties:
+            canonicalReceiptHash:
+              type: string
+            computedCanonicalReceiptHash:
+              type: string
+            inputHashPrefix:
+              type: string
+            outputHashPrefix:
+              type: string
+              nullable: true
+        signer:
+          type: object
+          properties:
+            keyId:
+              type: string
+            algorithm:
+              type: string
+              enum: [none, ed25519]
+        signature:
+          type: object
+          properties:
+            status:
+              type: string
+              enum: [not_required, valid, invalid, missing]
+            verified:
+              type: boolean
+            error:
+              type: string
+              nullable: true
+        errorCode:
+          type: string
+          nullable: true
+    ReceiptUsageSummary:
+      type: object
+      properties:
+        inputTokens:
+          type: integer
+        outputTokens:
+          type: integer
+        totalTokens:
+          type: integer
+        gpuSeconds:
+          type: number
+    ReceiptCostSummary:
+      type: object
+      properties:
+        userChargeUsd:
+          type: number
+        providerCostUsd:
+          type: number
+        pricingState:
+          type: string
+          enum: [prototype_estimate, not_applicable]
     PayoutEvent:
       type: object
       properties:
@@ -1365,6 +1634,163 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/ProviderScorecardRow'
+        warnings:
+          type: array
+          items:
+            type: string
+    MarketCostModel:
+      type: object
+      properties:
+        benchmarkId:
+          type: string
+        title:
+          type: string
+        modelClass:
+          type: string
+        workloadType:
+          type: string
+        providerCount:
+          type: integer
+        sampleSize:
+          type: integer
+        providerCostUsdPer1kTokens:
+          type: number
+          nullable: true
+        suggestedUserPriceUsdPer1kTokens:
+          type: number
+          nullable: true
+        grossMarginUsdPer1kTokens:
+          type: number
+          nullable: true
+        grossMarginRate:
+          type: number
+          nullable: true
+        reserveContributionUsdPer1kTokens:
+          type: number
+          nullable: true
+        pricingConfidence:
+          type: string
+          enum: [none, low, medium, high]
+        bestProviderLabel:
+          type: string
+          nullable: true
+    MarketRouteCandidate:
+      type: object
+      properties:
+        providerId:
+          type: string
+        providerLabel:
+          type: string
+        displayState:
+          type: string
+        signal:
+          type: string
+        score:
+          type: integer
+        routeState:
+          type: string
+          enum: [route_now, pilot_only, benchmark_first, watch, pause]
+        routeReason:
+          type: string
+        benchmarkId:
+          type: string
+          nullable: true
+        benchmarkStatus:
+          type: string
+        benchmarkPassRate:
+          type: number
+          nullable: true
+        medianRuntimeSeconds:
+          type: number
+          nullable: true
+        providerCostUsdPer1kTokens:
+          type: number
+          nullable: true
+        suggestedUserPriceUsdPer1kTokens:
+          type: number
+          nullable: true
+        grossMarginUsdPer1kTokens:
+          type: number
+          nullable: true
+        maxDailySpendUsd:
+          type: number
+          nullable: true
+        badges:
+          type: array
+          items:
+            type: string
+    MarketMakingSummary:
+      type: object
+      properties:
+        dataState:
+          type: string
+          enum: [live, snapshot, sample, unavailable]
+        lastUpdated:
+          type: string
+        visibility:
+          type: string
+          enum: [public]
+        storesPromptOutputText:
+          type: boolean
+          enum: [false]
+        routeRules:
+          type: array
+          items:
+            type: string
+        demand:
+          type: object
+          properties:
+            fishRequests:
+              type: integer
+            creditsSpent:
+              type: number
+            grossMarginUsd:
+              type: number
+            demandState:
+              type: string
+              enum: [live, snapshot, sample, unavailable]
+        supply:
+          type: object
+          properties:
+            oceanProviders:
+              type: integer
+            totalGpus:
+              type: integer
+            availableGpus:
+              type: integer
+            supplyState:
+              type: string
+              enum: [live, snapshot, sample, unavailable]
+        totals:
+          type: object
+          properties:
+            selectedProviders:
+              type: integer
+            routeNow:
+              type: integer
+            pilotOnly:
+              type: integer
+            benchmarkFirst:
+              type: integer
+            watch:
+              type: integer
+            paused:
+              type: integer
+            costModels:
+              type: integer
+            pricingConfidence:
+              type: string
+              enum: [none, low, medium, high]
+        costModels:
+          type: array
+          items:
+            $ref: '#/components/schemas/MarketCostModel'
+        routes:
+          type: array
+          items:
+            $ref: '#/components/schemas/MarketRouteCandidate'
+        publicNarrative:
+          type: string
         warnings:
           type: array
           items:

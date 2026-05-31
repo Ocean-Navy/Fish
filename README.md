@@ -42,8 +42,10 @@ Useful local routes:
 /api/ocean/resources
 /api/providers/pilot
 /api/proof/summary
+/api/proof/receipts
 /api/proof/providers
 /api/proof/benchmarks
+/api/proof/market-making
 /api/proof/payouts
 /api
 /docs
@@ -220,10 +222,13 @@ Public proof endpoints are:
 /api/proof/receipts
 /api/proof/providers
 /api/proof/benchmarks
+/api/proof/market-making
 /api/proof/payouts
 ```
 
-Successful provider job receipts automatically create `job_accrued` payout events. Public payout summaries omit operator owners, operator reasons, and transaction references; the admin CSV export keeps those details for settlement review.
+The receipt ledger supports `provider`, `providerId`, `status`, `backend`, `receiptType`, `signatureStatus`, `from`, `to`, and `limit` filters. Public receipt detail is available through each row's `detailUrl` and shows hashes, signature state, usage, cost, and timestamps without prompt or output text.
+
+Successful provider job receipts automatically create `job_accrued` payout events. Public payout summaries omit operator owners, operator reasons, and transaction references; the admin CSV exports keep those details for settlement review.
 
 Operators can add manual payout events, create review batches, and export CSVs:
 
@@ -244,6 +249,9 @@ curl -sS http://127.0.0.1:3000/api/proof/payouts/batches \
   -d '{"states":["accrued","approved"],"reason":"First provider review batch"}'
 
 curl -sS http://127.0.0.1:3000/api/proof/payouts/export \
+  -H "x-fish-admin-token: $FISH_ADMIN_TOKEN"
+
+curl -sS 'http://127.0.0.1:3000/api/proof/receipts/export?format=json&limit=50' \
   -H "x-fish-admin-token: $FISH_ADMIN_TOKEN"
 ```
 
@@ -277,6 +285,16 @@ The public provider scorecard is available at:
 ```
 
 It uses public labels and derives score inputs from reliability, benchmark performance, cost confidence, and operator readiness. It does not expose provider contacts, endpoint URLs, private payout details, operator owners, or operator notes.
+
+## Market-Making Report
+
+The Phase 3 market-making report combines supply, Fish demand, scorecards, and benchmark cost rows into public routing lanes:
+
+```text
+/api/proof/market-making
+```
+
+The report returns route rules, route candidates, conservative price bands, margin estimates, and warnings. It is public-safe and does not store or expose prompt text, output text, provider contacts, endpoint URLs, or private payout settlement data. See `docs/market-making-report.md` for the report contract.
 
 ## Repository Structure
 

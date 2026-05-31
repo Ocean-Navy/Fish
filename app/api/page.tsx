@@ -17,7 +17,9 @@ const cards = [
   { label: "Live now", title: "/api/health", body: "Simple readiness check for deploys and server monitoring." },
   { label: "Live now", title: "/api/ocean/summary", body: "Dashboard summary with source-state labels and Ocean compute supply." },
   { label: "Live now", title: "/api/waitlist", body: "Demand intake for users, builders, holders, and ecosystem partners." },
-  { label: "Prototype", title: "/v1/chat/completions", body: "OpenAI-style mock route with API-key auth, credit debits, and receipts." }
+  { label: "Prototype", title: "/v1/chat/completions", body: "OpenAI-style mock route with API-key auth, credit debits, and receipts." },
+  { label: "Prototype", title: "/api/proof/receipts", body: "Filterable provider receipt ledger with public-safe detail links." },
+  { label: "Admin", title: "/api/proof/receipts/export", body: "CSV or JSON receipt export for operator review." }
 ];
 
 const endpoints = [
@@ -29,9 +31,12 @@ const endpoints = [
   { method: "POST", path: "/api/providers/jobs", state: "Prototype" },
   { method: "GET", path: "/api/proof/summary", state: "Prototype" },
   { method: "GET", path: "/api/proof/receipts", state: "Prototype" },
+  { method: "GET", path: "/api/proof/receipts/:receiptId", state: "Prototype" },
+  { method: "GET", path: "/api/proof/receipts/export", state: "Prototype" },
   { method: "GET", path: "/api/proof/providers", state: "Prototype" },
   { method: "GET", path: "/api/proof/benchmarks", state: "Prototype" },
   { method: "POST", path: "/api/proof/benchmarks", state: "Prototype" },
+  { method: "GET", path: "/api/proof/market-making", state: "Prototype" },
   { method: "GET", path: "/api/proof/payouts", state: "Prototype" },
   { method: "POST", path: "/api/proof/payouts", state: "Prototype" },
   { method: "GET", path: "/api/proof/payouts/batches", state: "Prototype" },

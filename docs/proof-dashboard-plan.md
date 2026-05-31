@@ -256,6 +256,14 @@ operator notes
 - Receipt detail never shows prompt text or output text.
 - CSV/JSON export is available for operator review.
 
+Prototype route coverage:
+
+```text
+GET /api/proof/receipts
+GET /api/proof/receipts/{receiptId}
+GET /api/proof/receipts/export?format=csv|json
+```
+
 ## Milestone D2.4 - Payout Accounting View
 
 ### Outcome

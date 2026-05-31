@@ -90,6 +90,105 @@ export type ReceiptVerification = {
   error: string | null;
 };
 
+const receiptStatusSchema = z.enum(["succeeded", "failed", "timed_out", "not_allowed"]);
+const receiptSignatureStatusSchema = z.enum(["not_required", "valid", "invalid", "missing"]);
+const receiptLedgerQuerySchema = z
+  .object({
+    provider: z.string().trim().min(1).max(160).optional(),
+    providerId: z.string().trim().min(1).max(160).optional(),
+    status: receiptStatusSchema.optional(),
+    backend: z.literal("ocean_provider").optional(),
+    receiptType: z.literal("provider_job_receipt").optional(),
+    signatureStatus: receiptSignatureStatusSchema.optional(),
+    from: z.string().trim().min(1).refine(isDateLike, "from must be a valid date").optional(),
+    to: z.string().trim().min(1).refine(isDateLike, "to must be a valid date").optional(),
+    limit: z.coerce.number().int().min(1).max(500).default(100)
+  })
+  .superRefine((query, context) => {
+    if (query.from && query.to && Date.parse(query.from) > Date.parse(query.to)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["to"],
+        message: "to must be after from"
+      });
+    }
+  });
+
+export type ReceiptLedgerQuery = z.infer<typeof receiptLedgerQuerySchema>;
+
+export type ReceiptLedgerItem = {
+  receiptId: string;
+  receiptType: ProviderJobReceipt["receiptType"];
+  jobId: string;
+  providerLabel: string;
+  model: string;
+  workloadType: string;
+  backend: ProviderJobReceipt["backend"];
+  status: ProviderJobReceipt["status"];
+  sourceState: DataState;
+  usageSummary: {
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
+    gpuSeconds: number;
+  };
+  costSummary: ProviderJobReceipt["cost"];
+  signatureStatus: ProviderJobReceipt["signatureStatus"];
+  signatureVerified: boolean;
+  signatureError: string | null;
+  canonicalReceiptHash: string;
+  createdAt: string;
+  completedAt: string;
+  detailUrl: string;
+};
+
+export type PublicReceiptDetail = {
+  object: "provider_job_receipt";
+  receiptId: string;
+  receiptType: ProviderJobReceipt["receiptType"];
+  jobId: string;
+  providerLabel: string;
+  model: string;
+  workloadType: string;
+  backend: ProviderJobReceipt["backend"];
+  status: ProviderJobReceipt["status"];
+  sourceState: DataState;
+  visibility: ProviderJobReceipt["visibility"];
+  timestamps: {
+    createdAt: string;
+    startedAt: string;
+    completedAt: string;
+  };
+  usage: ReceiptLedgerItem["usageSummary"];
+  cost: ProviderJobReceipt["cost"];
+  hashes: {
+    canonicalReceiptHash: string;
+    computedCanonicalReceiptHash: string;
+    inputHashPrefix: string;
+    outputHashPrefix: string | null;
+  };
+  signer: {
+    keyId: string;
+    algorithm: ProviderJobReceipt["signer"]["algorithm"];
+  };
+  signature: {
+    status: ProviderJobReceipt["signatureStatus"];
+    verified: boolean;
+    error: string | null;
+  };
+  errorCode: string | null;
+};
+
+export type ReceiptLedgerResponse = {
+  object: "list";
+  dataState: DataState;
+  filters: ReceiptLedgerQuery;
+  count: number;
+  totalCount: number;
+  verificationFailures: number;
+  data: ReceiptLedgerItem[];
+};
+
 export type ProofSummary = {
   dataState: DataState;
   lastUpdated: string;
@@ -109,6 +208,10 @@ export type ProofSummary = {
 
 export function parseProviderJobRequest(body: unknown) {
   return jobRequestSchema.safeParse(body);
+}
+
+export function parseReceiptLedgerQuery(searchParams: URLSearchParams) {
+  return receiptLedgerQuerySchema.safeParse(queryObject(searchParams));
 }
 
 export async function runProviderJob(input: ProviderJobRequestInput) {
@@ -226,6 +329,113 @@ export async function listProviderJobReceipts() {
   };
 }
 
+export async function listProviderJobReceiptLedger(query: ReceiptLedgerQuery): Promise<ReceiptLedgerResponse> {
+  const receipts = await readReceipts();
+  const filtered = filterReceipts(receipts, query);
+  const selected = filtered.slice(0, query.limit);
+  return {
+    object: "list",
+    dataState: receipts.length ? "live" : "sample",
+    filters: query,
+    count: selected.length,
+    totalCount: filtered.length,
+    verificationFailures: selected.filter((receipt) => !verifyProviderJobReceipt(receipt).ok).length,
+    data: selected.map(toReceiptLedgerItem)
+  };
+}
+
+export async function getProviderJobReceiptDetail(receiptId: string): Promise<PublicReceiptDetail | null> {
+  const receipts = await readReceipts();
+  const receipt = receipts.find((candidate) => candidate.receiptId === receiptId);
+  return receipt ? toPublicReceiptDetail(receipt) : null;
+}
+
+export async function exportProviderJobReceiptsJson(query: ReceiptLedgerQuery) {
+  const receipts = await readReceipts();
+  const selected = filterReceipts(receipts, query).slice(0, query.limit);
+  return {
+    object: "receipt_ledger_export",
+    dataState: receipts.length ? "live" : "sample",
+    filters: query,
+    count: selected.length,
+    data: selected.map(toOperatorReceiptExport)
+  };
+}
+
+export async function exportProviderJobReceiptsCsv(query: ReceiptLedgerQuery) {
+  const receipts = await readReceipts();
+  const selected = filterReceipts(receipts, query).slice(0, query.limit);
+  return toCsv(
+    [
+      "receiptId",
+      "receiptType",
+      "jobId",
+      "providerId",
+      "providerJobId",
+      "providerLabel",
+      "model",
+      "workloadType",
+      "backend",
+      "status",
+      "sourceState",
+      "createdAt",
+      "startedAt",
+      "completedAt",
+      "inputTokens",
+      "outputTokens",
+      "totalTokens",
+      "gpuSeconds",
+      "userChargeUsd",
+      "providerCostUsd",
+      "pricingState",
+      "inputHashPrefix",
+      "outputHashPrefix",
+      "canonicalReceiptHash",
+      "signatureStatus",
+      "signatureVerified",
+      "signatureError",
+      "keyId",
+      "algorithm",
+      "errorCode"
+    ],
+    selected.map((receipt) => {
+      const verification = verifyProviderJobReceipt(receipt);
+      return [
+        receipt.receiptId,
+        receipt.receiptType,
+        receipt.jobId,
+        receipt.providerId,
+        receipt.providerJobId ?? "",
+        receipt.providerLabel,
+        receipt.model,
+        receipt.workloadType,
+        receipt.backend,
+        receipt.status,
+        receipt.sourceState,
+        receipt.createdAt,
+        receipt.startedAt,
+        receipt.completedAt,
+        receipt.usage.inputTokens,
+        receipt.usage.outputTokens,
+        receipt.usage.inputTokens + receipt.usage.outputTokens,
+        receipt.usage.gpuSeconds,
+        receipt.cost.userChargeUsd,
+        receipt.cost.providerCostUsd,
+        receipt.cost.pricingState,
+        hashPrefix(receipt.hashes.inputHash),
+        receipt.hashes.outputHash ? hashPrefix(receipt.hashes.outputHash) : "",
+        receipt.hashes.canonicalReceiptHash,
+        receipt.signatureStatus,
+        verification.ok ? "yes" : "no",
+        verification.error ?? "",
+        receipt.signer.keyId,
+        receipt.signer.algorithm,
+        receipt.errorCode ?? ""
+      ];
+    })
+  );
+}
+
 export function verifyProviderJobReceipt(receipt: ProviderJobReceipt): ReceiptVerification {
   const canonicalReceiptHash = hashReceipt(receipt);
   if (canonicalReceiptHash !== receipt.hashes.canonicalReceiptHash) {
@@ -319,6 +529,137 @@ function runMockAdapter(input: ProviderJobRequestInput) {
       pricingState: "prototype_estimate" as const
     },
     errorCode: null
+  };
+}
+
+function filterReceipts(receipts: ProviderJobReceipt[], query: ReceiptLedgerQuery) {
+  return receipts
+    .filter((receipt) => {
+      if (query.providerId && receipt.providerId !== query.providerId) {
+        return false;
+      }
+      if (query.provider) {
+        const needle = query.provider.toLowerCase();
+        const label = receipt.providerLabel.toLowerCase();
+        const providerId = receipt.providerId.toLowerCase();
+        if (!label.includes(needle) && !providerId.includes(needle)) {
+          return false;
+        }
+      }
+      if (query.status && receipt.status !== query.status) {
+        return false;
+      }
+      if (query.backend && receipt.backend !== query.backend) {
+        return false;
+      }
+      if (query.receiptType && receipt.receiptType !== query.receiptType) {
+        return false;
+      }
+      if (query.signatureStatus && receipt.signatureStatus !== query.signatureStatus) {
+        return false;
+      }
+      const createdAt = Date.parse(receipt.createdAt);
+      if (query.from && createdAt < Date.parse(query.from)) {
+        return false;
+      }
+      if (query.to && createdAt > Date.parse(query.to)) {
+        return false;
+      }
+      return true;
+    })
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+function toReceiptLedgerItem(receipt: ProviderJobReceipt): ReceiptLedgerItem {
+  const verification = verifyProviderJobReceipt(receipt);
+  return {
+    receiptId: receipt.receiptId,
+    receiptType: receipt.receiptType,
+    jobId: receipt.jobId,
+    providerLabel: receipt.providerLabel,
+    model: receipt.model,
+    workloadType: receipt.workloadType,
+    backend: receipt.backend,
+    status: receipt.status,
+    sourceState: receipt.sourceState,
+    usageSummary: {
+      inputTokens: receipt.usage.inputTokens,
+      outputTokens: receipt.usage.outputTokens,
+      totalTokens: receipt.usage.inputTokens + receipt.usage.outputTokens,
+      gpuSeconds: receipt.usage.gpuSeconds
+    },
+    costSummary: receipt.cost,
+    signatureStatus: receipt.signatureStatus,
+    signatureVerified: verification.ok,
+    signatureError: verification.error,
+    canonicalReceiptHash: receipt.hashes.canonicalReceiptHash,
+    createdAt: receipt.createdAt,
+    completedAt: receipt.completedAt,
+    detailUrl: `/api/proof/receipts/${receipt.receiptId}`
+  };
+}
+
+function toPublicReceiptDetail(receipt: ProviderJobReceipt): PublicReceiptDetail {
+  const verification = verifyProviderJobReceipt(receipt);
+  return {
+    object: "provider_job_receipt",
+    receiptId: receipt.receiptId,
+    receiptType: receipt.receiptType,
+    jobId: receipt.jobId,
+    providerLabel: receipt.providerLabel,
+    model: receipt.model,
+    workloadType: receipt.workloadType,
+    backend: receipt.backend,
+    status: receipt.status,
+    sourceState: receipt.sourceState,
+    visibility: receipt.visibility,
+    timestamps: {
+      createdAt: receipt.createdAt,
+      startedAt: receipt.startedAt,
+      completedAt: receipt.completedAt
+    },
+    usage: {
+      inputTokens: receipt.usage.inputTokens,
+      outputTokens: receipt.usage.outputTokens,
+      totalTokens: receipt.usage.inputTokens + receipt.usage.outputTokens,
+      gpuSeconds: receipt.usage.gpuSeconds
+    },
+    cost: receipt.cost,
+    hashes: {
+      canonicalReceiptHash: receipt.hashes.canonicalReceiptHash,
+      computedCanonicalReceiptHash: verification.canonicalReceiptHash,
+      inputHashPrefix: hashPrefix(receipt.hashes.inputHash),
+      outputHashPrefix: receipt.hashes.outputHash ? hashPrefix(receipt.hashes.outputHash) : null
+    },
+    signer: {
+      keyId: receipt.signer.keyId,
+      algorithm: receipt.signer.algorithm
+    },
+    signature: {
+      status: receipt.signatureStatus,
+      verified: verification.ok,
+      error: verification.error
+    },
+    errorCode: receipt.errorCode
+  };
+}
+
+function toOperatorReceiptExport(receipt: ProviderJobReceipt) {
+  const verification = verifyProviderJobReceipt(receipt);
+  return {
+    ...toPublicReceiptDetail(receipt),
+    providerId: receipt.providerId,
+    providerJobId: receipt.providerJobId,
+    hashes: {
+      ...toPublicReceiptDetail(receipt).hashes,
+      inputHash: receipt.hashes.inputHash,
+      outputHash: receipt.hashes.outputHash
+    },
+    signature: {
+      ...toPublicReceiptDetail(receipt).signature,
+      rawSignaturePresent: Boolean(receipt.signature),
+      verificationError: verification.error
+    }
   };
 }
 
@@ -422,6 +763,35 @@ function normalizeHash(value: string) {
     return value;
   }
   return `sha256:${createHash("sha256").update(value).digest("hex")}`;
+}
+
+function hashPrefix(hash: string) {
+  return hash.length > 24 ? `${hash.slice(0, 24)}...` : hash;
+}
+
+function isDateLike(value: string) {
+  return Number.isFinite(Date.parse(value));
+}
+
+function queryObject(searchParams: URLSearchParams) {
+  const fields = ["provider", "providerId", "status", "backend", "receiptType", "signatureStatus", "from", "to", "limit"];
+  const entries: Array<[string, string]> = [];
+  for (const field of fields) {
+    const value = searchParams.get(field);
+    if (value && value.trim()) {
+      entries.push([field, value]);
+    }
+  }
+  return Object.fromEntries(entries);
+}
+
+function toCsv(headers: string[], rows: Array<Array<string | number>>) {
+  return `${headers.join(",")}\n${rows.map((row) => row.map(csvCell).join(",")).join("\n")}\n`;
+}
+
+function csvCell(value: string | number) {
+  const text = String(value);
+  return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
 }
 
 function shortHash(value: string) {

@@ -1,6 +1,8 @@
 import { FileCheck2, Gauge, ReceiptText, Ship } from "lucide-react";
+import Link from "next/link";
+import type { Route } from "next";
 import { formatCompact, formatDateTime, formatNumber, formatUsd } from "@/lib/format";
-import type { ProofSummary } from "@/lib/providerJobs";
+import type { ProofSummary, ProviderJobReceipt } from "@/lib/providerJobs";
 import { StatusBadge } from "@/components/StatusBadge";
 
 const cards = [
@@ -25,6 +27,9 @@ export function ProofSummaryPanel({ summary }: { summary: ProofSummary }) {
           <div className="flex flex-wrap items-center gap-3">
             <StatusBadge state={summary.dataState} />
             <span className="text-sm font-bold text-fish-secondary">Updated {formatDateTime(summary.lastUpdated)}</span>
+            <Link className="rounded-full border border-fish-accent/35 px-4 py-2 text-xs font-black text-fish-accent" href="/api/proof/receipts?limit=20">
+              JSON ledger
+            </Link>
           </div>
         </div>
 
@@ -69,31 +74,58 @@ export function ProofSummaryPanel({ summary }: { summary: ProofSummary }) {
 
         {summary.receipts.length ? (
           <div className="mt-5 overflow-x-auto">
-            <table className="w-full min-w-[720px] border-collapse text-left text-sm">
+            <table className="w-full min-w-[1080px] border-collapse text-left text-sm">
               <thead className="text-xs uppercase tracking-[0.08em] text-fish-accent">
                 <tr>
                   <th className="border-b border-white/10 px-3 py-3">Receipt</th>
+                  <th className="border-b border-white/10 px-3 py-3">Type / job</th>
                   <th className="border-b border-white/10 px-3 py-3">Provider</th>
+                  <th className="border-b border-white/10 px-3 py-3">Model</th>
+                  <th className="border-b border-white/10 px-3 py-3">Backend</th>
                   <th className="border-b border-white/10 px-3 py-3">Status</th>
                   <th className="border-b border-white/10 px-3 py-3">Usage</th>
                   <th className="border-b border-white/10 px-3 py-3">Cost</th>
                   <th className="border-b border-white/10 px-3 py-3">Signature</th>
+                  <th className="border-b border-white/10 px-3 py-3">Created</th>
                 </tr>
               </thead>
               <tbody>
-                {summary.receipts.slice(0, 6).map((receipt) => (
-                  <tr key={receipt.receiptId} className="text-fish-primary">
-                    <td className="border-b border-white/10 px-3 py-3 font-bold">{receipt.receiptId.slice(0, 14)}...</td>
-                    <td className="border-b border-white/10 px-3 py-3">{receipt.providerLabel}</td>
-                    <td className="border-b border-white/10 px-3 py-3">{receipt.status}</td>
-                    <td className="border-b border-white/10 px-3 py-3">{formatNumber(receipt.usage.inputTokens + receipt.usage.outputTokens)} tokens</td>
-                    <td className="border-b border-white/10 px-3 py-3">{formatUsd(receipt.cost.providerCostUsd)}</td>
-                    <td className="border-b border-white/10 px-3 py-3">
-                      <span className="block font-bold">{receipt.signatureStatus}</span>
-                      <span className="text-xs text-fish-secondary">{receipt.hashes.canonicalReceiptHash.slice(0, 18)}...</span>
-                    </td>
-                  </tr>
-                ))}
+                {summary.receipts.slice(0, 8).map((receipt) => {
+                  const needsReview = receipt.signatureStatus === "invalid" || receipt.signatureStatus === "missing";
+                  return (
+                    <tr key={receipt.receiptId} className={needsReview ? "bg-red-500/10 text-red-100" : "text-fish-primary"}>
+                      <td className="border-b border-white/10 px-3 py-3 font-bold">
+                        <Link className="text-fish-accent hover:text-white" href={`/api/proof/receipts/${receipt.receiptId}` as Route}>
+                          {receipt.receiptId.slice(0, 14)}...
+                        </Link>
+                      </td>
+                      <td className="border-b border-white/10 px-3 py-3">
+                        <span className="block font-bold">{formatReceiptType(receipt.receiptType)}</span>
+                        <span className="text-xs text-fish-secondary">{receipt.jobId.slice(0, 14)}...</span>
+                      </td>
+                      <td className="border-b border-white/10 px-3 py-3">{receipt.providerLabel}</td>
+                      <td className="border-b border-white/10 px-3 py-3">
+                        <span className="block font-bold">{receipt.model}</span>
+                        <span className="text-xs text-fish-secondary">{receipt.workloadType}</span>
+                      </td>
+                      <td className="border-b border-white/10 px-3 py-3">{formatReceiptType(receipt.backend)}</td>
+                      <td className="border-b border-white/10 px-3 py-3">{formatReceiptType(receipt.status)}</td>
+                      <td className="border-b border-white/10 px-3 py-3">
+                        <span className="block font-bold">{formatNumber(receipt.usage.inputTokens + receipt.usage.outputTokens)} tokens</span>
+                        <span className="text-xs text-fish-secondary">{formatNumber(receipt.usage.gpuSeconds)} GPU sec</span>
+                      </td>
+                      <td className="border-b border-white/10 px-3 py-3">
+                        <span className="block font-bold">{formatUsd(receipt.cost.providerCostUsd)}</span>
+                        <span className="text-xs text-fish-secondary">{formatUsd(receipt.cost.userChargeUsd)} charge</span>
+                      </td>
+                      <td className="border-b border-white/10 px-3 py-3">
+                        <span className={`block font-bold ${needsReview ? "text-red-100" : "text-white"}`}>{receipt.signatureStatus}</span>
+                        <span className="text-xs text-fish-secondary">{receipt.hashes.canonicalReceiptHash.slice(0, 18)}...</span>
+                      </td>
+                      <td className="border-b border-white/10 px-3 py-3">{formatDateTime(receipt.createdAt)}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -111,6 +143,10 @@ export function ProofSummaryPanel({ summary }: { summary: ProofSummary }) {
       </div>
     </section>
   );
+}
+
+function formatReceiptType(value: ProviderJobReceipt["receiptType"] | ProviderJobReceipt["backend"] | ProviderJobReceipt["status"]) {
+  return value.replaceAll("_", " ");
 }
 
 function SmallMetric({ label, value }: { label: string; value: string }) {

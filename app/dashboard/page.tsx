@@ -1,11 +1,13 @@
 import { BenchmarkMatrixPanel } from "@/components/BenchmarkMatrixPanel";
 import { DashboardPreview } from "@/components/DashboardPreview";
 import { FishUsageSummary } from "@/components/FishUsageSummary";
+import { MarketMakingPanel } from "@/components/MarketMakingPanel";
 import { ProofSummaryPanel } from "@/components/ProofSummaryPanel";
 import { ProviderPilotPanel } from "@/components/ProviderPilotPanel";
 import { ProviderScorecardPanel } from "@/components/ProviderScorecardPanel";
 import { collectOceanData } from "@/lib/oceanSupply";
 import { summarizeFishUsage } from "@/lib/fishLedger";
+import { summarizeMarketMaking } from "@/lib/marketMaking";
 import { summarizeBenchmarks } from "@/lib/providerBenchmarks";
 import { summarizeProof } from "@/lib/providerJobs";
 import { collectProviderPilotRegistry } from "@/lib/providerPilot";
@@ -16,7 +18,7 @@ import Link from "next/link";
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  const [{ summary }, fishUsage, providerPilot, proof, providerScorecard, benchmarks] = await Promise.all([
+  const [oceanData, fishUsage, providerPilot, proof, providerScorecard, benchmarks] = await Promise.all([
     collectOceanData(),
     summarizeFishUsage(),
     collectProviderPilotRegistry(),
@@ -24,6 +26,12 @@ export default async function DashboardPage() {
     summarizeProviderScorecard(),
     summarizeBenchmarks()
   ]);
+  const marketMaking = await summarizeMarketMaking({
+    oceanSummary: oceanData.summary,
+    fishUsage,
+    scorecard: providerScorecard,
+    benchmarks
+  });
 
   return (
     <main className="min-h-screen">
@@ -40,10 +48,11 @@ export default async function DashboardPage() {
           </Link>
         </div>
       </header>
-      <DashboardPreview initialSummary={summary} />
+      <DashboardPreview initialSummary={oceanData.summary} />
       <FishUsageSummary summary={fishUsage} />
       <ProviderPilotPanel registry={providerPilot} />
       <ProviderScorecardPanel summary={providerScorecard} />
+      <MarketMakingPanel summary={marketMaking} />
       <ProofSummaryPanel summary={proof} />
       <BenchmarkMatrixPanel summary={benchmarks} />
     </main>
