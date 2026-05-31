@@ -1,0 +1,3 @@
+# Add direct Ocean Node endpoints here, one per line.
+# Example:
+# https://example-ocean-node.example.com

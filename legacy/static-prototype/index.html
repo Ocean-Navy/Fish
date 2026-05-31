@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Fish — Turn Ocean Network compute into easy AI</title>
+  <meta name="description" content="Fish is an Ocean Navy-built product concept that turns Ocean Network compute into simple AI access, provider demand, and OCEAN utility." />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="page-shell">
+    <header class="site-header">
+      <a class="brand" href="#top" aria-label="Fish home">
+        <span class="fish-mark" aria-hidden="true"></span>
+        <span class="brand-text">Fish</span>
+      </a>
+      <nav class="nav" aria-label="Primary navigation">
+        <a href="#flow">How it works</a>
+        <a href="#dashboard">Dashboard</a>
+        <a href="#utility">OCEAN utility</a>
+        <a href="#roadmap">Roadmap</a>
+      </nav>
+      <a class="header-cta" href="#pilot">Join pilot</a>
+    </header>
+
+    <main id="top">
+      <section class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow">Ocean Navy · built on Ocean Protocol</p>
+          <h1>Fish</h1>
+          <h2>Turn <span>Ocean Network</span> compute into easy <span>AI</span></h2>
+          <p class="slogan">The fish were there all along — let’s farm and eat</p>
+          <p class="hero-lede">A simple AI product layer that routes demand to Ocean Network providers.</p>
+          <div class="cta-row">
+            <a class="button primary" href="#dashboard">View dashboard</a>
+            <a class="button secondary" href="#pilot">Join provider pilot</a>
+          </div>
+        </div>
+        <div class="hero-art" role="img" aria-label="Fish Ocean Navy concept artwork with dolphin mascot and Venice canal theme">
+          <img src="assets/fish-ocean-navy-venice.png" alt="Fish concept artwork with a geometric dolphin captain in a Venice canal setting" />
+        </div>
+      </section>
+
+      <section id="flow" class="section flow-section">
+        <div class="section-heading">
+          <p class="eyebrow">ELI5</p>
+          <h2>How Fish works</h2>
+          <p>Five steps. No raw marketplace for users.</p>
+        </div>
+        <div class="flow-grid">
+          <article class="flow-card"><span class="step">1</span><h3>Stake OCEAN</h3><p>OCEAN can create access.</p></article>
+          <article class="flow-card"><span class="step">2</span><h3>Catch FISH</h3><p>Credits become usable.</p></article>
+          <article class="flow-card"><span class="step">3</span><h3>Use AI</h3><p>Users buy simple AI.</p></article>
+          <article class="flow-card"><span class="step">4</span><h3>Providers get paid</h3><p>Compute earns money.</p></article>
+          <article class="flow-card"><span class="step">5</span><h3>Ocean grows</h3><p>More use. More value.</p></article>
+        </div>
+        <p class="summary-line">Users buy AI · Providers get paid · OCEAN gains utility</p>
+      </section>
+
+      <section class="section benefits-section">
+        <div class="benefit-card">
+          <div class="benefit-icon">👤</div>
+          <h3>Users</h3>
+          <p class="benefit-kicker">Easy AI</p>
+          <p>One app/API, private open AI, no provider hassle.</p>
+        </div>
+        <div class="benefit-card">
+          <div class="benefit-icon">◎</div>
+          <h3>OCEAN holders</h3>
+          <p class="benefit-kicker">Stake. Lock. Utility.</p>
+          <p>OCEAN can earn credits, back providers, and reduce liquid supply.</p>
+        </div>
+        <div class="benefit-card">
+          <div class="benefit-icon">↗</div>
+          <h3>Ocean</h3>
+          <p class="benefit-kicker">More reach. More revenue.</p>
+          <p>More users, provider demand, and usage proof.</p>
+        </div>
+      </section>
+
+      <section id="dashboard" class="section dashboard-section">
+        <div class="section-heading row-heading">
+          <div>
+            <p class="eyebrow">Market-making first</p>
+            <h2>Ocean Network supply dashboard</h2>
+            <p>Start by measuring compute supply, provider availability, and pricing.</p>
+          </div>
+          <button id="refreshButton" class="button secondary" type="button">Refresh data</button>
+        </div>
+
+        <div class="status-row">
+          <span id="dataState" class="status-badge sample">Sample data</span>
+          <span id="lastUpdated" class="muted">Not loaded yet</span>
+        </div>
+
+        <div class="kpi-grid" id="kpiGrid">
+          <div class="metric-card"><p>GPU supply</p><strong id="metricTotalGpus">—</strong></div>
+          <div class="metric-card"><p>Available now</p><strong id="metricAvailableGpus">—</strong></div>
+          <div class="metric-card"><p>Providers</p><strong id="metricProviders">—</strong></div>
+          <div class="metric-card"><p>H200 from</p><strong id="metricH200">—</strong></div>
+          <div class="metric-card"><p>Ocean-native jobs</p><strong id="metricJobs">—</strong></div>
+          <div class="metric-card"><p>Provider payouts</p><strong id="metricPayouts">—</strong></div>
+        </div>
+
+        <div class="dashboard-tables">
+          <div class="table-card">
+            <h3>GPU supply</h3>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>GPU</th><th>Total</th><th>Available</th><th>Lowest $/hr</th></tr></thead>
+                <tbody id="gpuTable"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="table-card">
+            <h3>Provider scorecard</h3>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Provider</th><th>Region</th><th>Available</th><th>Status</th></tr></thead>
+                <tbody id="providerTable"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="utility" class="section utility-section">
+        <div class="section-heading">
+          <p class="eyebrow">Why holders should care</p>
+          <h2>OCEAN becomes the coordination asset</h2>
+        </div>
+        <div class="utility-grid">
+          <article><h3>Stake OCEAN</h3><p>Holders can lock OCEAN to earn AI credits from funded budgets.</p></article>
+          <article><h3>Provider bonds</h3><p>Providers can bond OCEAN to receive routed jobs.</p></article>
+          <article><h3>Fish Credits</h3><p>Credits turn staked OCEAN into usable AI access.</p></article>
+          <article><h3>Future support</h3><p>Real margin can support reserves and possible buy/lock/burn later.</p></article>
+        </div>
+        <div class="caveat">Providers are paid from real usage, reserves, or funded budgets — not by staking magic.</div>
+      </section>
+
+      <section id="roadmap" class="section roadmap-section">
+        <div class="section-heading">
+          <p class="eyebrow">Roadmap</p>
+          <h2>Copy the product loop step by step</h2>
+          <p>Fish builds the app/API, usage proof, staking credits, and provider economics before token promises.</p>
+        </div>
+        <ol class="roadmap-list">
+          <li><strong>Market-making dashboard</strong><span>Map supply and providers.</span></li>
+          <li><strong>AI API prototype</strong><span>One simple app/API.</span></li>
+          <li><strong>Provider pilot</strong><span>Route selected Ocean jobs.</span></li>
+          <li><strong>Proof dashboard</strong><span>Show usage and payouts.</span></li>
+          <li><strong>OCEAN staking</strong><span>Earn Fish Credits.</span></li>
+          <li><strong>Provider bonds</strong><span>Bond OCEAN for routed work.</span></li>
+          <li><strong>Credits later</strong><span>Tokenize only after usage works.</span></li>
+        </ol>
+      </section>
+
+      <section id="pilot" class="section pilot-section">
+        <div class="form-card">
+          <h2>Join the pilot</h2>
+          <p>Providers, developers, and OCEAN holders can help test the first product loop.</p>
+          <form id="pilotForm">
+            <label>Contact <input name="contact" required placeholder="email, Telegram, Discord, X" /></label>
+            <label>I am a <select name="role"><option>User / developer</option><option>Compute provider</option><option>OCEAN holder</option></select></label>
+            <label>Notes <textarea name="notes" placeholder="What do you want to test?"></textarea></label>
+            <button class="button primary" type="submit">Send interest</button>
+          </form>
+          <p id="formStatus" class="form-status" role="status"></p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <p>Fish is a community concept by Ocean Navy, built on Ocean Protocol. Not an official Ocean Protocol product unless approved.</p>
+      <p>Product first. Token utility after usage.</p>
+    </footer>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>

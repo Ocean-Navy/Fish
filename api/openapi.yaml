@@ -1,0 +1,284 @@
+openapi: 3.0.3
+info:
+  title: Fish Landing + Dashboard API
+  version: 0.1.0
+  description: API contract for the Fish landing page, Ocean Network supply dashboard, provider pilot, and waitlist.
+servers:
+  - url: http://127.0.0.1:8787
+paths:
+  /api/health:
+    get:
+      summary: Health check
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  service:
+                    type: string
+                  timestamp:
+                    type: string
+  /api/ocean/summary:
+    get:
+      summary: Aggregate Ocean Network compute supply and usage summary
+      responses:
+        '200':
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OceanSummary'
+  /api/ocean/resources:
+    get:
+      summary: Normalized compute resources
+      responses:
+        '200':
+          description: Resource list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  resources:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ComputeResource'
+  /api/ocean/providers:
+    get:
+      summary: Provider scorecard
+      responses:
+        '200':
+          description: Provider list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  providers:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ProviderScore'
+  /api/ocean/refresh:
+    post:
+      summary: Trigger a refresh of Ocean Network supply snapshots
+      responses:
+        '200':
+          description: Refresh result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OceanSummary'
+  /api/usage/summary:
+    get:
+      summary: Fish usage proof summary
+      responses:
+        '200':
+          description: Usage summary
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  dataState:
+                    type: string
+                    enum: [live, snapshot, sample, unavailable]
+                  requests:
+                    type: integer
+                  oceanNativeJobs:
+                    type: integer
+                  providerPayoutUsd:
+                    type: number
+                  creditsSpent:
+                    type: number
+  /api/waitlist:
+    post:
+      summary: Submit user/developer waitlist interest
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WaitlistRequest'
+      responses:
+        '200':
+          description: Submission accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  id:
+                    type: string
+  /api/providers/apply:
+    post:
+      summary: Submit provider pilot application
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProviderApplication'
+      responses:
+        '200':
+          description: Application accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  id:
+                    type: string
+components:
+  schemas:
+    OceanSummary:
+      type: object
+      required: [dataState, lastUpdated, kpis]
+      properties:
+        dataState:
+          type: string
+          enum: [live, snapshot, sample, unavailable]
+        lastUpdated:
+          type: string
+        sources:
+          type: array
+          items:
+            type: object
+        kpis:
+          type: object
+          properties:
+            totalGpus:
+              type: number
+            availableGpus:
+              type: number
+            providerCount:
+              type: integer
+            h200FromUsdHr:
+              type: number
+            oceanNativeJobs:
+              type: integer
+            providerPayoutUsd:
+              type: number
+        gpuSupply:
+          type: array
+          items:
+            $ref: '#/components/schemas/GpuSupplyRow'
+        providers:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProviderScore'
+    GpuSupplyRow:
+      type: object
+      properties:
+        gpu:
+          type: string
+        total:
+          type: number
+        available:
+          type: number
+        providers:
+          type: integer
+        lowestUsdHr:
+          type: number
+        medianUsdHr:
+          type: number
+        regions:
+          type: array
+          items:
+            type: string
+    ComputeResource:
+      type: object
+      properties:
+        timestamp:
+          type: string
+        source:
+          type: string
+        providerId:
+          type: string
+        providerLabel:
+          type: string
+        nodeEndpoint:
+          type: string
+        environmentId:
+          type: string
+        region:
+          type: string
+        resourceType:
+          type: string
+        resourceName:
+          type: string
+        total:
+          type: number
+        inUse:
+          type: number
+        available:
+          type: number
+        feeToken:
+          type: string
+        pricePerMinute:
+          type: number
+        pricePerHour:
+          type: number
+        status:
+          type: string
+    ProviderScore:
+      type: object
+      properties:
+        providerId:
+          type: string
+        label:
+          type: string
+        region:
+          type: string
+        gpuTypes:
+          type: array
+          items:
+            type: string
+        availableGpus:
+          type: number
+        lowestUsdHr:
+          type: number
+        uptime7d:
+          type: number
+        benchmarkStatus:
+          type: string
+        pilotEligible:
+          type: boolean
+    WaitlistRequest:
+      type: object
+      required: [contact]
+      properties:
+        contact:
+          type: string
+        useCase:
+          type: string
+        expectedUsage:
+          type: string
+        apiInterest:
+          type: boolean
+        oceanHolder:
+          type: boolean
+    ProviderApplication:
+      type: object
+      required: [contact]
+      properties:
+        contact:
+          type: string
+        nodeEndpoint:
+          type: string
+        gpuType:
+          type: string
+        region:
+          type: string
+        payoutPreference:
+          type: string
+        notes:
+          type: string
