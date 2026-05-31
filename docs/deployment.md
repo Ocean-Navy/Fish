@@ -89,9 +89,11 @@ ONCOMPUTE_MAX_PAGES=3
 PORT=3000
 HOSTNAME=0.0.0.0
 FISH_ADMIN_TOKEN=
+FISH_PROVIDER_ALLOWLIST=
 ```
 
 Set `FISH_ADMIN_TOKEN` in production-like environments before issuing prototype API keys.
+Set `FISH_PROVIDER_ALLOWLIST` or mount `data/provider_allowlist.json` when the first selected providers are approved.
 
 ## Verification
 
@@ -112,3 +114,4 @@ Then browser-check:
 - `/dashboard`
 - `/api`
 - `/docs`
+- `/providers`

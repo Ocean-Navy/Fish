@@ -25,6 +25,7 @@ const endpoints = [
   { method: "GET", path: "/api/ocean/summary", state: "Live" },
   { method: "GET", path: "/api/ocean/resources", state: "Live" },
   { method: "GET", path: "/api/ocean/providers", state: "Live" },
+  { method: "GET", path: "/api/providers/pilot", state: "Live" },
   { method: "POST", path: "/api/waitlist", state: "Live" },
   { method: "POST", path: "/api/providers/apply", state: "Live" },
   { method: "POST", path: "/v1/api_keys", state: "Prototype" },

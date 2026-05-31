@@ -1,5 +1,9 @@
 import type { Metadata } from "next";
+import { ProviderPilotPanel } from "@/components/ProviderPilotPanel";
 import { RolePageShell } from "@/components/RolePageShell";
+import { collectProviderPilotRegistry } from "@/lib/providerPilot";
+
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Fish Provider Pilot - List compute at the dock",
@@ -20,7 +24,9 @@ const cards = [
   { label: "Future", title: "Bonded dock slots", body: "OCEAN provider bonds can come later, after jobs and scorecards exist." }
 ];
 
-export default function ProvidersPage() {
+export default async function ProvidersPage() {
+  const registry = await collectProviderPilotRegistry();
+
   return (
     <RolePageShell
       eyebrow="Dock master"
@@ -34,6 +40,12 @@ export default function ProvidersPage() {
       steps={steps}
       cards={cards}
       note="Provider caveat: staking does not pay providers by itself. Fish needs real usage, reserves, or funded budgets for payouts."
-    />
+    >
+      <section className="px-4 pb-14 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl">
+          <ProviderPilotPanel registry={registry} compact />
+        </div>
+      </section>
+    </RolePageShell>
   );
 }

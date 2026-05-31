@@ -12,6 +12,7 @@ const entrances = [
     image: "/assets/generated/fish-flow-use.png",
     icon: MessageSquareText,
     cta: "Ask for AI",
+    href: "/chat",
     chips: ["Fresh answers", "No compute setup", "Spend FISH"],
     scene: ["Pick a fish", "Ask a question", "Get useful AI"]
   },
@@ -22,6 +23,7 @@ const entrances = [
     image: "/assets/generated/fish-role-builder.png",
     icon: KeyRound,
     cta: "Get a key",
+    href: "/api",
     chips: ["One key", "Route jobs", "Ship fast"],
     scene: ["Choose model", "Send job", "Return result"]
   },
@@ -32,6 +34,7 @@ const entrances = [
     image: "/assets/generated/fish-flow-paid.png",
     icon: ServerCog,
     cta: "List compute",
+    href: "/providers",
     chips: ["Show GPUs", "Catch demand", "Get paid"],
     scene: ["Connect node", "Accept orders", "Earn OCEAN"]
   },
@@ -42,6 +45,7 @@ const entrances = [
     image: "/assets/generated/fish-flow-stake.png",
     icon: Coins,
     cta: "Stake OCEAN",
+    href: "/credits",
     chips: ["Lock utility", "Catch FISH", "Grow Ocean"],
     scene: ["Stake", "Support supply", "Share upside"]
   }
@@ -145,7 +149,7 @@ export function MarketEntrances() {
                   ))}
                 </div>
                 <a
-                  href={active.id === "providers" ? "#pilot" : active.id === "builders" ? "#pilot" : "#flow"}
+                  href={active.href}
                   className="mt-4 inline-flex h-12 items-center gap-2 rounded-full bg-gradient-to-r from-fish-accent to-fish-aqua px-6 text-sm font-black text-fish-navy950"
                 >
                   {active.cta}

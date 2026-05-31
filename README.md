@@ -40,6 +40,7 @@ Useful local routes:
 /api/health
 /api/ocean/summary
 /api/ocean/resources
+/api/providers/pilot
 /api
 /docs
 /chat
@@ -110,6 +111,7 @@ ONCOMPUTE_MAX_PAGES=3
 PORT=3000
 HOSTNAME=0.0.0.0
 FISH_ADMIN_TOKEN=
+FISH_PROVIDER_ALLOWLIST=
 ```
 
 Direct provider endpoints can be listed in:
@@ -157,6 +159,34 @@ curl -sS http://127.0.0.1:3000/v1/usage -H "authorization: Bearer $FISH_API_KEY"
 
 Runtime API keys and receipts are written under `data/fish/`, which is ignored by git. The prototype stores hashed API keys and receipt hashes, but it is not a production ledger yet.
 
+## Provider Pilot Registry
+
+Phase 2 starts with a selected provider registry. Provider applications are read from local form submissions, while selected providers can be marked with either an env var or a local allowlist file.
+
+```bash
+cp data/provider_allowlist.example.json data/provider_allowlist.json
+```
+
+`data/provider_allowlist.json` is ignored by git because it can contain operator decisions. In production you can also set:
+
+```text
+FISH_PROVIDER_ALLOWLIST=prov_abc123,prov_def456
+```
+
+Public-safe registry data is available at:
+
+```text
+/api/providers/pilot
+```
+
+The endpoint hides contacts, exact endpoints, private payout preferences, and operator notes. It exposes only public labels, status, capacity summary, and allowlist constraints.
+
+Admin-only operator export is available at:
+
+```text
+/api/providers/pilot/export
+```
+
 ## Repository Structure
 
 ```text
@@ -168,6 +198,7 @@ public/assets/generated/     Text-free generated website illustrations
 public/assets/visual-identity/ Reference-only visual direction assets
 data/sample_supply.json      Offline dashboard fallback
 data/node_endpoints.txt      Optional direct provider endpoints
+data/provider_allowlist.example.json Provider allowlist template
 docs/                        Implementation and visual identity notes
 legacy/static-prototype/     Original static prototype
 Dockerfile                   Production standalone Next.js image

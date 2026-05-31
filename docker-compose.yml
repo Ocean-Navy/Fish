@@ -10,6 +10,7 @@ services:
       HOSTNAME: 0.0.0.0
       ONCOMPUTE_MAX_PAGES: "3"
       FISH_ADMIN_TOKEN: ${FISH_ADMIN_TOKEN:-}
+      FISH_PROVIDER_ALLOWLIST: ${FISH_PROVIDER_ALLOWLIST:-}
     ports:
       - "3000:3000"
     volumes:

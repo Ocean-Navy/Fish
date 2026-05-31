@@ -73,6 +73,44 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/ProviderScore'
+  /api/providers/pilot:
+    get:
+      summary: Public-safe provider pilot registry and selected allowlist
+      parameters:
+        - in: query
+          name: providerId
+          schema:
+            type: string
+          description: Optional provider id to check against the allowlist.
+        - in: query
+          name: workloadType
+          schema:
+            type: string
+            default: chat_batch
+        - in: query
+          name: model
+          schema:
+            type: string
+            default: fish-demo-chat
+      responses:
+        '200':
+          description: Provider pilot registry
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderPilotRegistry'
+  /api/providers/pilot/export:
+    get:
+      summary: Admin-only provider pilot outreach export
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Provider pilot operator export with private outreach fields
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderPilotOperatorExport'
   /api/ocean/refresh:
     post:
       summary: Trigger a refresh of Ocean Network supply snapshots
@@ -436,6 +474,135 @@ components:
           type: string
         pilotEligible:
           type: boolean
+    ProviderPilotRegistry:
+      type: object
+      properties:
+        dataState:
+          type: string
+          enum: [live, snapshot, sample, unavailable]
+        lastUpdated:
+          type: string
+        counts:
+          type: object
+          properties:
+            applications:
+              type: integer
+            applied:
+              type: integer
+            allowed:
+              type: integer
+            paused:
+              type: integer
+            rejected:
+              type: integer
+        providers:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProviderPilotProfile'
+        allowlist:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProviderAllowlistEntry'
+        warnings:
+          type: array
+          items:
+            type: string
+        allowedFor:
+          nullable: true
+          type: object
+    ProviderPilotProfile:
+      type: object
+      properties:
+        providerId:
+          type: string
+        displayName:
+          type: string
+        sourceApplicationId:
+          type: string
+          nullable: true
+        nodeEndpointHash:
+          type: string
+          nullable: true
+        region:
+          type: string
+        gpuTypes:
+          type: array
+          items:
+            type: string
+        capacitySummary:
+          type: string
+        pilotStatus:
+          type: string
+          enum: [applied, contacted, verified, allowed, probation, paused, rejected, exited]
+        publicLabel:
+          type: string
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+    ProviderAllowlistEntry:
+      type: object
+      properties:
+        providerId:
+          type: string
+        allowedWorkloadTypes:
+          type: array
+          items:
+            type: string
+        allowedModels:
+          type: array
+          items:
+            type: string
+        maxConcurrentJobs:
+          type: integer
+        maxDailySpendUsd:
+          type: number
+        benchmarkRequired:
+          type: boolean
+        operatorOwner:
+          type: string
+        decisionReason:
+          type: string
+        startsAt:
+          type: string
+        expiresAt:
+          type: string
+          nullable: true
+    ProviderPilotOperatorExport:
+      type: object
+      properties:
+        exportedAt:
+          type: string
+        rows:
+          type: array
+          items:
+            type: object
+            properties:
+              providerId:
+                type: string
+              sourceApplicationId:
+                type: string
+              pilotStatus:
+                type: string
+              contact:
+                type: string
+              nodeEndpoint:
+                type: string
+              nodeEndpointHash:
+                type: string
+                nullable: true
+              gpuType:
+                type: string
+              region:
+                type: string
+              payoutPreference:
+                type: string
+              notes:
+                type: string
+              publicLabel:
+                type: string
+              createdAt:
+                type: string
     WaitlistRequest:
       type: object
       required: [contact, subscriberRoles]
