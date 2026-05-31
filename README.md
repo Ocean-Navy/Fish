@@ -15,6 +15,7 @@ The public V0 is intentionally simple: a visual Venice fish-market homepage, rol
 - `/proof` with a simple public proof harbor for receipts, provider boats, payouts, and benchmarks.
 - Waitlist/provider intake APIs that persist JSON submissions locally.
 - Prototype `/v1` AI API with local API keys, Fish Credits debits, and usage receipts.
+- `/chat` with a model selector, short local browser thread, credit spend, and receipt display.
 - Production Docker image and Docker Compose service.
 
 ## Quick Start
