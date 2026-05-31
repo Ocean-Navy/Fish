@@ -49,6 +49,20 @@ export function FishUsageSummary({ summary }: { summary: FishUsageSummaryData })
           <MoneyCard label="Estimated gross margin" value={summary.grossMarginUsd} />
         </div>
 
+        {summary.creditLanes.length > 0 && (
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
+            {summary.creditLanes.slice(0, 3).map((lane) => (
+              <div key={lane.lane} className="rounded-2xl border border-fish-accent/15 bg-fish-navy950/55 p-4">
+                <p className="text-xs font-black uppercase tracking-[0.1em] text-fish-secondary">{lane.lane} lane</p>
+                <p className="mt-2 text-2xl font-black text-white">{formatNumber(lane.balance)}</p>
+                <p className="mt-1 text-xs font-bold text-fish-secondary">
+                  {formatNumber(lane.granted)} granted / {formatNumber(lane.spent)} spent
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+
         <div className="mt-4 rounded-2xl border border-fish-gold/25 bg-fish-gold/10 p-4 text-sm font-bold leading-6 text-fish-primary">
           Ocean-native jobs: {formatNumber(summary.oceanNativeJobs)}. Fallback jobs: {formatNumber(summary.externalFallbackJobs)}. Provider payouts stay at {formatUsd(summary.providerPayoutUsd)} until selected Ocean providers run real jobs.
         </div>

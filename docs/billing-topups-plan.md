@@ -39,6 +39,8 @@ Rules:
 
 Fish can distinguish where credits came from and how they were spent.
 
+Current prototype status: `/v1/balance`, `/v1/usage`, `/account`, and the dashboard now expose credit lanes. New pilot-key grants and chat debits write immutable local entries under `data/fish/credit_entries.json`.
+
 ### Credit Lanes
 
 ```text

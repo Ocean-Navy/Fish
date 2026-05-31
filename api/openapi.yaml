@@ -911,6 +911,10 @@ paths:
                     example: balance
                   account:
                     $ref: '#/components/schemas/FishAccount'
+                  creditLanes:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/FishCreditLane'
                   totals:
                     $ref: '#/components/schemas/FishUsageTotals'
   /v1/usage:
@@ -933,6 +937,10 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/FishUsageReceipt'
+                  creditLanes:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/FishCreditLane'
                   totals:
                     $ref: '#/components/schemas/FishUsageTotals'
 components:
@@ -2475,6 +2483,27 @@ components:
           type: number
         grossMarginUsd:
           type: number
+    FishCreditLane:
+      type: object
+      properties:
+        lane:
+          type: string
+          enum: [grant, subscription, prepaid, staking, adjustment, refund]
+        balance:
+          type: integer
+        granted:
+          type: integer
+        spent:
+          type: integer
+        refunds:
+          type: integer
+        adjustments:
+          type: integer
+        entries:
+          type: integer
+        expiresAt:
+          type: string
+          nullable: true
     FishUsageReceipt:
       type: object
       properties:
@@ -2482,6 +2511,12 @@ components:
           type: string
         accountId:
           type: string
+        creditEntryId:
+          type: string
+          nullable: true
+        creditLane:
+          type: string
+          enum: [grant, subscription, prepaid, staking, adjustment, refund]
         createdAt:
           type: string
         model:

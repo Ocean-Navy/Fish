@@ -13,6 +13,7 @@ export async function GET(request: Request) {
   return NextResponse.json({
     object: "list",
     data: summary.receipts,
+    creditLanes: summary.creditLanes,
     totals: summary.totals
   });
 }

@@ -21,10 +21,13 @@ type AccountPayload = {
     providerCostUsd: number;
     grossMarginUsd: number;
   };
+  creditLanes: CreditLaneSummary[];
 };
 
 type Receipt = {
   id: string;
+  creditEntryId?: string | null;
+  creditLane?: string;
   createdAt: string;
   model: string;
   route: "mock" | "ocean-provider" | "external-fallback";
@@ -36,6 +39,17 @@ type Receipt = {
   grossMarginUsd: number;
   providerId: string | null;
   requestHash: string;
+};
+
+type CreditLaneSummary = {
+  lane: string;
+  balance: number;
+  granted: number;
+  spent: number;
+  refunds: number;
+  adjustments: number;
+  entries: number;
+  expiresAt: string | null;
 };
 
 function getErrorMessage(payload: unknown) {
@@ -157,6 +171,7 @@ export function FishAccountPanel() {
               <Metric label="Provider cost" value={formatUsd(account.totals.providerCostUsd)} />
               <Metric label="Gross margin" value={formatUsd(account.totals.grossMarginUsd)} />
             </div>
+            <CreditLaneNet lanes={account.creditLanes} />
             <ReceiptNet receipts={receipts} />
           </div>
         ) : (
@@ -164,6 +179,29 @@ export function FishAccountPanel() {
             <p className="max-w-sm text-xl font-black leading-8 text-fish-primary">Paste a pilot key to see credits, receipts, and route costs.</p>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+function CreditLaneNet({ lanes }: { lanes: CreditLaneSummary[] }) {
+  const visibleLanes = lanes.length ? lanes : [{ lane: "grant", balance: 0, granted: 0, spent: 0, refunds: 0, adjustments: 0, entries: 0, expiresAt: null }];
+  return (
+    <div className="rounded-3xl border border-fish-accent/15 bg-fish-navy950/55 p-4">
+      <div className="mb-3 flex items-center gap-3">
+        <BadgeDollarSign className="h-5 w-5 text-fish-accent" aria-hidden="true" />
+        <p className="text-sm font-black uppercase tracking-[0.1em] text-fish-gold">Credit lanes</p>
+      </div>
+      <div className="grid gap-2 md:grid-cols-3">
+        {visibleLanes.map((lane) => (
+          <div key={lane.lane} className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+            <p className="text-xs font-black uppercase tracking-[0.1em] text-fish-secondary">{lane.lane}</p>
+            <p className="mt-2 text-2xl font-black text-white">{formatNumber(lane.balance)}</p>
+            <p className="mt-1 text-xs font-bold text-fish-secondary">
+              {formatNumber(lane.granted)} in / {formatNumber(lane.spent)} spent
+            </p>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -183,7 +221,7 @@ function ReceiptNet({ receipts }: { receipts: Receipt[] }) {
               <div>
                 <p className="font-black text-white">{receipt.model}</p>
                 <p className="mt-1 break-all text-xs font-bold leading-5 text-fish-secondary">
-                  {receipt.route.replaceAll("-", " ")} / {receipt.costState.replaceAll("_", " ")} / {receipt.requestHash.slice(0, 24)}...
+                  {receipt.route.replaceAll("-", " ")} / {receipt.creditLane ?? "grant"} / {receipt.costState.replaceAll("_", " ")} / {receipt.requestHash.slice(0, 24)}...
                 </p>
               </div>
               <div className="text-left md:text-right">

@@ -196,14 +196,14 @@ curl -sS http://127.0.0.1:3000/v1/chat/completions \
   -d '{"model":"fish-demo-chat","messages":[{"role":"user","content":"Explain Fish in one line"}]}'
 ```
 
-Check balance and receipts:
+Check balance, credit lanes, and receipts:
 
 ```bash
 curl -sS http://127.0.0.1:3000/v1/balance -H "authorization: Bearer $FISH_API_KEY"
 curl -sS http://127.0.0.1:3000/v1/usage -H "authorization: Bearer $FISH_API_KEY"
 ```
 
-Runtime API keys and receipts are written under `data/fish/`, which is ignored by git. The prototype stores hashed API keys and receipt hashes, but it is not a production ledger yet.
+Runtime API keys, lane-based credit entries, and receipts are written under `data/fish/`, which is ignored by git. The prototype stores hashed API keys and receipt hashes, but it is not a production ledger yet.
 
 ## Provider Pilot Registry
 

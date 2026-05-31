@@ -7,8 +7,10 @@ import type { DataState } from "@/lib/types";
 const ROOT = process.cwd();
 const LEDGER_DIR = path.join(ROOT, "data", "fish");
 const ACCOUNTS_PATH = path.join(LEDGER_DIR, "accounts.json");
+const CREDIT_ENTRIES_PATH = path.join(LEDGER_DIR, "credit_entries.json");
 const RECEIPTS_DIR = path.join(LEDGER_DIR, "receipts");
 const FISH_CREDIT_USD = 0.001;
+const CREDIT_LANES = ["grant", "subscription", "prepaid", "staking", "adjustment", "refund"] as const;
 
 export const FISH_MODELS = [
   {
@@ -76,9 +78,42 @@ type Ledger = {
   accounts: Account[];
 };
 
+export type CreditLane = (typeof CREDIT_LANES)[number];
+export type CreditEntryKind = "grant" | "debit" | "refund" | "adjustment";
+
+type CreditLedger = {
+  entries: CreditLedgerEntry[];
+};
+
+export type CreditLedgerEntry = {
+  entryId: string;
+  accountId: string;
+  lane: CreditLane;
+  kind: CreditEntryKind;
+  amount: number;
+  requestId: string | null;
+  receiptId: string | null;
+  expiresAt: string | null;
+  createdAt: string;
+  operatorReason: string | null;
+};
+
+export type CreditLaneSummary = {
+  lane: CreditLane;
+  balance: number;
+  granted: number;
+  spent: number;
+  refunds: number;
+  adjustments: number;
+  entries: number;
+  expiresAt: string | null;
+};
+
 type UsageReceipt = {
   id: string;
   accountId: string;
+  creditEntryId: string | null;
+  creditLane: CreditLane;
   createdAt: string;
   model: string;
   route: "mock" | "ocean-provider" | "external-fallback";
@@ -109,6 +144,7 @@ export type FishUsageSummary = {
   grossMarginUsd: number;
   averageProviderCostUsd: number;
   lastReceiptAt: string | null;
+  creditLanes: CreditLaneSummary[];
 };
 
 export function parseKeyRequest(body: unknown) {
@@ -155,6 +191,18 @@ export async function createApiKey(label: string, creditGrant: number) {
 
   ledger.accounts.push(account);
   await writeLedger(ledger);
+  await appendCreditEntry({
+    entryId: randomUUID(),
+    accountId: account.id,
+    lane: "grant",
+    kind: "grant",
+    amount: creditGrant,
+    requestId: null,
+    receiptId: null,
+    expiresAt: null,
+    createdAt: now,
+    operatorReason: "pilot_key_grant"
+  });
 
   return {
     key,
@@ -191,11 +239,17 @@ export async function authenticateRequest(request: Request) {
 }
 
 export async function summarizeAccount(account: Account) {
-  const receipts = await readReceipts(account.id);
+  const [receipts, creditEntries] = await Promise.all([readReceipts(account.id), readCreditEntries(account.id)]);
   const costs = summarizeReceiptCosts(receipts);
+  const creditLanes = summarizeCreditLanes(creditEntries, {
+    creditBalance: account.creditBalance,
+    totalCreditsGranted: account.totalCreditsGranted,
+    totalCreditsSpent: account.totalCreditsSpent
+  });
   return {
     account: publicAccount(account),
     receipts: receipts.slice(-20).reverse(),
+    creditLanes,
     totals: {
       requests: account.requestCount,
       creditsSpent: account.totalCreditsSpent,
@@ -213,9 +267,14 @@ export async function summarizeAccountById(accountId: string) {
 
 export async function summarizeFishUsage(): Promise<FishUsageSummary> {
   const ledger = await readLedger();
-  const receipts = await readAllReceipts();
+  const [receipts, creditEntries] = await Promise.all([readAllReceipts(), readCreditEntries()]);
   const costs = summarizeReceiptCosts(receipts);
   const dataState: DataState = receipts.length > 0 ? "live" : "sample";
+  const creditLanes = summarizeCreditLanes(includeLegacyCreditSeeds(ledger.accounts, creditEntries), {
+    creditBalance: ledger.accounts.reduce((sum, account) => sum + account.creditBalance, 0),
+    totalCreditsGranted: ledger.accounts.reduce((sum, account) => sum + account.totalCreditsGranted, 0),
+    totalCreditsSpent: ledger.accounts.reduce((sum, account) => sum + account.totalCreditsSpent, 0)
+  });
   return {
     dataState,
     requests: ledger.accounts.reduce((sum, account) => sum + account.requestCount, 0),
@@ -230,7 +289,8 @@ export async function summarizeFishUsage(): Promise<FishUsageSummary> {
     providerCostUsd: costs.providerCostUsd,
     grossMarginUsd: costs.grossMarginUsd,
     averageProviderCostUsd: receipts.length ? costs.providerCostUsd / receipts.length : 0,
-    lastReceiptAt: receipts.at(-1)?.createdAt ?? null
+    lastReceiptAt: receipts.at(-1)?.createdAt ?? null,
+    creditLanes
   };
 }
 
@@ -260,6 +320,7 @@ export async function recordChatUsage(params: {
   }
 
   const now = new Date().toISOString();
+  await ensureAccountCreditSeed(params.account, now);
   const userChargeUsd = Number((creditsSpent * FISH_CREDIT_USD).toFixed(6));
   const providerCostUsd = Number((params.providerCostUsd ?? 0).toFixed(6));
   const grossMarginUsd = Number((userChargeUsd - providerCostUsd).toFixed(6));
@@ -268,9 +329,14 @@ export async function recordChatUsage(params: {
   params.account.requestCount += 1;
   params.account.lastUsedAt = now;
 
+  const requestId = randomUUID();
+  const receiptId = randomUUID();
+  const creditEntryId = randomUUID();
   const receipt: UsageReceipt = {
-    id: randomUUID(),
+    id: receiptId,
     accountId: params.account.id,
+    creditEntryId,
+    creditLane: "grant",
     createdAt: now,
     model: params.model ?? params.input.model,
     route: params.route ?? "mock",
@@ -288,6 +354,18 @@ export async function recordChatUsage(params: {
 
   await writeLedger(params.ledger);
   await writeReceipt(receipt);
+  await appendCreditEntry({
+    entryId: creditEntryId,
+    accountId: params.account.id,
+    lane: "grant",
+    kind: "debit",
+    amount: -creditsSpent,
+    requestId,
+    receiptId,
+    expiresAt: null,
+    createdAt: now,
+    operatorReason: null
+  });
 
   return {
     ok: true as const,
@@ -341,6 +419,76 @@ async function writeLedger(ledger: Ledger) {
   await writeFile(ACCOUNTS_PATH, JSON.stringify(ledger, null, 2));
 }
 
+async function readCreditLedger(): Promise<CreditLedger> {
+  try {
+    const raw = await readFile(CREDIT_ENTRIES_PATH, "utf8");
+    const parsed = JSON.parse(raw) as CreditLedger;
+    return {
+      entries: Array.isArray(parsed.entries) ? parsed.entries.filter(isCreditEntry) : []
+    };
+  } catch {
+    return { entries: [] };
+  }
+}
+
+async function writeCreditLedger(ledger: CreditLedger) {
+  await mkdir(LEDGER_DIR, { recursive: true });
+  await writeFile(CREDIT_ENTRIES_PATH, JSON.stringify(ledger, null, 2));
+}
+
+async function readCreditEntries(accountId?: string): Promise<CreditLedgerEntry[]> {
+  const ledger = await readCreditLedger();
+  const entries = accountId ? ledger.entries.filter((entry) => entry.accountId === accountId) : ledger.entries;
+  return entries.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+}
+
+async function appendCreditEntry(entry: CreditLedgerEntry) {
+  const ledger = await readCreditLedger();
+  ledger.entries.push(entry);
+  await writeCreditLedger(ledger);
+}
+
+async function ensureAccountCreditSeed(account: Account, createdAt: string) {
+  const existing = await readCreditEntries(account.id);
+  if (existing.length > 0) {
+    return;
+  }
+
+  const seeded: CreditLedgerEntry[] = [
+    {
+      entryId: randomUUID(),
+      accountId: account.id,
+      lane: "grant",
+      kind: "grant",
+      amount: account.totalCreditsGranted,
+      requestId: null,
+      receiptId: null,
+      expiresAt: null,
+      createdAt,
+      operatorReason: "legacy_account_seed"
+    }
+  ];
+
+  if (account.totalCreditsSpent > 0) {
+    seeded.push({
+      entryId: randomUUID(),
+      accountId: account.id,
+      lane: "grant",
+      kind: "debit",
+      amount: -account.totalCreditsSpent,
+      requestId: null,
+      receiptId: null,
+      expiresAt: null,
+      createdAt,
+      operatorReason: "legacy_spend_seed"
+    });
+  }
+
+  const ledger = await readCreditLedger();
+  ledger.entries.push(...seeded);
+  await writeCreditLedger(ledger);
+}
+
 async function writeReceipt(receipt: UsageReceipt) {
   await mkdir(RECEIPTS_DIR, { recursive: true });
   await writeFile(path.join(RECEIPTS_DIR, `${receipt.createdAt}-${receipt.id}.json`.replaceAll(":", "-")), JSON.stringify(receipt, null, 2));
@@ -377,6 +525,118 @@ function summarizeReceiptCosts(receipts: UsageReceipt[]) {
   };
 }
 
+function summarizeCreditLanes(
+  entries: CreditLedgerEntry[],
+  fallback: { creditBalance: number; totalCreditsGranted: number; totalCreditsSpent: number }
+): CreditLaneSummary[] {
+  if (entries.length === 0 && (fallback.creditBalance > 0 || fallback.totalCreditsGranted > 0 || fallback.totalCreditsSpent > 0)) {
+    return [
+      {
+        lane: "grant",
+        balance: fallback.creditBalance,
+        granted: fallback.totalCreditsGranted,
+        spent: fallback.totalCreditsSpent,
+        refunds: 0,
+        adjustments: 0,
+        entries: Number(fallback.totalCreditsGranted > 0) + Number(fallback.totalCreditsSpent > 0),
+        expiresAt: null
+      }
+    ];
+  }
+
+  const summaries = new Map<CreditLane, CreditLaneSummary>(
+    CREDIT_LANES.map((lane) => [
+      lane,
+      {
+        lane,
+        balance: 0,
+        granted: 0,
+        spent: 0,
+        refunds: 0,
+        adjustments: 0,
+        entries: 0,
+        expiresAt: null
+      }
+    ])
+  );
+
+  for (const entry of entries) {
+    const summary = summaries.get(entry.lane);
+    if (!summary) {
+      continue;
+    }
+    summary.balance += entry.amount;
+    summary.entries += 1;
+    if (entry.kind === "grant") {
+      summary.granted += Math.max(0, entry.amount);
+    }
+    if (entry.kind === "debit") {
+      summary.spent += Math.abs(Math.min(0, entry.amount));
+    }
+    if (entry.kind === "refund") {
+      summary.refunds += Math.max(0, entry.amount);
+    }
+    if (entry.kind === "adjustment") {
+      summary.adjustments += entry.amount;
+    }
+    if (entry.expiresAt && (!summary.expiresAt || entry.expiresAt < summary.expiresAt)) {
+      summary.expiresAt = entry.expiresAt;
+    }
+  }
+
+  return [...summaries.values()]
+    .filter((summary) => summary.entries > 0 || summary.balance !== 0)
+    .map((summary) => ({
+      ...summary,
+      balance: Math.round(summary.balance),
+      granted: Math.round(summary.granted),
+      spent: Math.round(summary.spent),
+      refunds: Math.round(summary.refunds),
+      adjustments: Math.round(summary.adjustments)
+    }));
+}
+
+function includeLegacyCreditSeeds(accounts: Account[], entries: CreditLedgerEntry[]) {
+  const accountIdsWithEntries = new Set(entries.map((entry) => entry.accountId));
+  const legacyEntries = accounts.flatMap((account): CreditLedgerEntry[] => {
+    if (accountIdsWithEntries.has(account.id)) {
+      return [];
+    }
+    const createdAt = account.createdAt;
+    return [
+      {
+        entryId: `legacy-grant-${account.id}`,
+        accountId: account.id,
+        lane: "grant",
+        kind: "grant",
+        amount: account.totalCreditsGranted,
+        requestId: null,
+        receiptId: null,
+        expiresAt: null,
+        createdAt,
+        operatorReason: "legacy_account_summary"
+      },
+      ...(account.totalCreditsSpent > 0
+        ? [
+            {
+              entryId: `legacy-spent-${account.id}`,
+              accountId: account.id,
+              lane: "grant" as const,
+              kind: "debit" as const,
+              amount: -account.totalCreditsSpent,
+              requestId: null,
+              receiptId: null,
+              expiresAt: null,
+              createdAt,
+              operatorReason: "legacy_spend_summary"
+            }
+          ]
+        : [])
+    ];
+  });
+  return [...entries, ...legacyEntries];
+}
+
 function sumReceiptNumber(receipts: UsageReceipt[], key: "userChargeUsd" | "providerCostUsd" | "grossMarginUsd") {
   return Number(receipts.reduce((sum, receipt) => sum + (Number.isFinite(receipt[key]) ? receipt[key] : 0), 0).toFixed(6));
 }
@@ -392,4 +652,20 @@ function publicAccount(account: Account) {
     requestCount: account.requestCount,
     lastUsedAt: account.lastUsedAt
   };
+}
+
+function isCreditEntry(entry: unknown): entry is CreditLedgerEntry {
+  if (!entry || typeof entry !== "object") {
+    return false;
+  }
+  const candidate = entry as CreditLedgerEntry;
+  return (
+    typeof candidate.entryId === "string" &&
+    typeof candidate.accountId === "string" &&
+    CREDIT_LANES.includes(candidate.lane) &&
+    ["grant", "debit", "refund", "adjustment"].includes(candidate.kind) &&
+    typeof candidate.amount === "number" &&
+    Number.isFinite(candidate.amount) &&
+    typeof candidate.createdAt === "string"
+  );
 }
