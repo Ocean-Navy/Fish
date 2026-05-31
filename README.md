@@ -40,10 +40,12 @@ Useful local routes:
 /
 /dashboard
 /proof
+/routing
 /account
 /api/health
 /api/ocean/summary
 /api/ocean/resources
+/api/routing/policy
 /api/providers/pilot
 /api/proof/summary
 /api/proof/receipts
@@ -159,6 +161,14 @@ FISH_EXTERNAL_COST_USD_PER_1K_TOKENS=0
 ```
 
 Fish still stores only usage numbers and a request hash in local receipts. The raw prompt is sent to the configured external backend, so that provider's privacy policy applies.
+
+The public route compass shows what is active without exposing secrets:
+
+```bash
+curl -sS http://127.0.0.1:3000/api/routing/policy
+```
+
+Use `/routing` for the human-friendly view. It must label mock, external fallback, and selected Ocean provider work differently.
 
 Create a pilot key:
 

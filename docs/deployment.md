@@ -125,6 +125,7 @@ Then browser-check:
 - `/#market`
 - `/#pilot`
 - `/proof`
+- `/routing`
 - `/account`
 - `/dashboard`
 - `/api`
@@ -138,4 +139,5 @@ Then browser-check:
 - `/api/proof/market-making`
 - `/api/proof/payouts`
 - `/api/proof/payouts?state=accrued&limit=10`
+- `/api/routing/policy`
 - `/api/staking/summary`

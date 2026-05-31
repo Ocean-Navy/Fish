@@ -136,8 +136,8 @@ export default function Home() {
                 <Link className="inline-flex h-12 items-center gap-2 rounded-full bg-gradient-to-r from-fish-accent to-fish-aqua px-6 text-sm font-black text-fish-navy950" href={"/proof" as NextRoute}>
                   Open proof <ArrowRight className="h-4 w-4" aria-hidden="true" />
                 </Link>
-                <Link className="inline-flex h-12 items-center gap-2 rounded-full border border-fish-accent/40 px-6 text-sm font-black text-fish-accent" href="/dashboard">
-                  Dashboard
+                <Link className="inline-flex h-12 items-center gap-2 rounded-full border border-fish-accent/40 px-6 text-sm font-black text-fish-accent" href={"/routing" as NextRoute}>
+                  Route compass
                 </Link>
               </div>
             </div>

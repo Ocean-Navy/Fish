@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import type { Route as NextRoute } from "next";
 import Link from "next/link";
 import { RolePageShell } from "@/components/RolePageShell";
 
@@ -95,6 +96,9 @@ export default function RoadmapPage() {
             </Link>
             <Link className="inline-flex h-12 items-center rounded-full border border-fish-accent/40 px-6 text-sm font-black text-fish-accent" href="/credits">
               Credits guardrails
+            </Link>
+            <Link className="inline-flex h-12 items-center rounded-full border border-fish-accent/40 px-6 text-sm font-black text-fish-accent" href={"/routing" as NextRoute}>
+              Route compass
             </Link>
           </div>
         </div>

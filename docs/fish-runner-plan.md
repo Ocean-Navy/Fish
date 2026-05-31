@@ -14,6 +14,7 @@ This is a planning contract only. It should not replace the current prototype AP
 - Do not claim Ocean-native chat until a selected Ocean provider actually serves the request.
 - Prefer boring health checks and failover over clever routing.
 - Require provider-side signed receipts before using runner traffic for scorecards or payouts.
+- Match privacy claims to the active route and the staged ladder in `docs/privacy-modes-plan.md`.
 
 ## System Boundary
 

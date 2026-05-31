@@ -73,6 +73,17 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/ProviderScore'
+  /api/routing/policy:
+    get:
+      summary: Public Fish routing policy
+      description: Public-safe route compass for mock chat, external fallback, selected Ocean providers, future privacy stages, and receipt rules. It does not expose secrets.
+      responses:
+        '200':
+          description: Route policy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FishRoutePolicy'
   /api/providers/pilot:
     get:
       summary: Public-safe provider pilot registry and selected allowlist
@@ -1075,6 +1086,76 @@ components:
           type: string
         pilotEligible:
           type: boolean
+    FishRoutePolicy:
+      type: object
+      required: [dataState, generatedAt, activeRoute, backend, modes, rules, nextMilestone]
+      properties:
+        dataState:
+          type: string
+          enum: [live, snapshot, sample, unavailable]
+        generatedAt:
+          type: string
+        activeRoute:
+          type: object
+          properties:
+            id:
+              type: string
+              enum: [mock, external-fallback]
+            label:
+              type: string
+            isRealAi:
+              type: boolean
+            privacy:
+              type: string
+            evidence:
+              type: string
+        backend:
+          type: object
+          properties:
+            chatBackend:
+              type: string
+              enum: [mock, external]
+            externalConfigured:
+              type: boolean
+            externalBaseUrlConfigured:
+              type: boolean
+            externalApiKeyConfigured:
+              type: boolean
+            externalModel:
+              type: string
+              nullable: true
+            externalProviderId:
+              type: string
+        modes:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                enum: [mock, external-fallback, selected-ocean-provider, ocean-private, hardened-runner, tee-runner]
+              title:
+                type: string
+              state:
+                type: string
+                enum: [active, ready, needs-config, pilot, future]
+              short:
+                type: string
+              privacy:
+                type: string
+              proof:
+                type: string
+        rules:
+          type: array
+          items:
+            type: object
+            properties:
+              title:
+                type: string
+              body:
+                type: string
+        nextMilestone:
+          type: string
     ProviderPilotRegistry:
       type: object
       properties:
