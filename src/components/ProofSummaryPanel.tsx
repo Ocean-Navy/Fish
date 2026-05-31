@@ -49,6 +49,24 @@ export function ProofSummaryPanel({ summary }: { summary: ProofSummary }) {
           <SmallMetric label="Ocean-native share" value={`${formatNumber(summary.oceanNativeShare * 100)}%`} />
         </div>
 
+        <div className="mt-4 rounded-3xl border border-fish-gold/20 bg-fish-gold/10 p-4">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.1em] text-fish-gold">Payout chest</p>
+              <p className="mt-1 text-sm font-bold text-fish-primary">Payable events are linked to signed receipts or manual adjustments.</p>
+            </div>
+            <p className="text-sm font-black text-fish-primary">{formatNumber(summary.payouts.eventCount)} event{summary.payouts.eventCount === 1 ? "" : "s"}</p>
+          </div>
+          <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-6">
+            <PayoutChip label="Accrued" value={summary.payouts.totals.accrued} />
+            <PayoutChip label="Review" value={summary.payouts.totals.review} />
+            <PayoutChip label="Approved" value={summary.payouts.totals.approved} />
+            <PayoutChip label="Paid" value={summary.payouts.totals.paid} />
+            <PayoutChip label="Disputed" value={summary.payouts.totals.disputed} />
+            <PayoutChip label="Voided" value={summary.payouts.totals.voided} />
+          </div>
+        </div>
+
         {summary.receipts.length ? (
           <div className="mt-5 overflow-x-auto">
             <table className="w-full min-w-[720px] border-collapse text-left text-sm">
@@ -100,6 +118,15 @@ function SmallMetric({ label, value }: { label: string; value: string }) {
     <div className="rounded-2xl border border-fish-accent/15 bg-fish-navy950/55 p-4">
       <p className="text-xs font-black uppercase tracking-[0.1em] text-fish-secondary">{label}</p>
       <p className="mt-2 text-2xl font-black text-white">{value}</p>
+    </div>
+  );
+}
+
+function PayoutChip({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-fish-navy950/45 p-3">
+      <p className="text-xs font-black uppercase tracking-[0.08em] text-fish-secondary">{label}</p>
+      <p className="mt-1 text-lg font-black text-white">{formatUsd(value)}</p>
     </div>
   );
 }

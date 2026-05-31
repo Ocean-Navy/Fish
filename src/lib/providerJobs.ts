@@ -3,6 +3,8 @@ import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 import { collectProviderPilotRegistry, isProviderAllowed } from "@/lib/providerPilot";
+import { recordPayoutEventForReceipt, summarizePayouts } from "@/lib/providerPayouts";
+import type { PayoutSummary } from "@/lib/providerPayouts";
 import type { DataState } from "@/lib/types";
 
 const PROOF_DIR = path.join(process.cwd(), "data", "proof");
@@ -100,6 +102,7 @@ export type ProofSummary = {
   failedJobs: number;
   timedOutJobs: number;
   receiptVerificationFailures: number;
+  payouts: PayoutSummary;
   receipts: ProviderJobReceipt[];
   warnings: string[];
 };
@@ -161,7 +164,8 @@ export async function runProviderJob(input: ProviderJobRequestInput) {
       errorCode: "provider_not_allowed"
     });
     await writeReceipt(receipt);
-    return { ok: false as const, status: 403, receipt, error: "provider_not_allowed" };
+    const payoutEvent = await recordPayoutEventForReceipt(receipt);
+    return { ok: false as const, status: 403, receipt, payoutEvent, error: "provider_not_allowed" };
   }
 
   const outcome = runMockAdapter(input);
@@ -180,11 +184,12 @@ export async function runProviderJob(input: ProviderJobRequestInput) {
   });
 
   await writeReceipt(receipt);
-  return outcome.status === "succeeded" ? { ok: true as const, status: 200, receipt } : { ok: false as const, status: 502, receipt, error: outcome.errorCode ?? "provider_job_failed" };
+  const payoutEvent = await recordPayoutEventForReceipt(receipt);
+  return outcome.status === "succeeded" ? { ok: true as const, status: 200, receipt, payoutEvent } : { ok: false as const, status: 502, receipt, payoutEvent, error: outcome.errorCode ?? "provider_job_failed" };
 }
 
 export async function summarizeProof(): Promise<ProofSummary> {
-  const [registry, receipts] = await Promise.all([collectProviderPilotRegistry(), readReceipts()]);
+  const [registry, receipts, payouts] = await Promise.all([collectProviderPilotRegistry(), readReceipts(), summarizePayouts()]);
   const sorted = receipts.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   const selectedReceipts = sorted.slice(-20).reverse();
   const succeeded = receipts.filter((receipt) => receipt.status === "succeeded");
@@ -197,12 +202,13 @@ export async function summarizeProof(): Promise<ProofSummary> {
     oceanJobsRouted: receipts.filter((receipt) => receipt.status !== "not_allowed").length,
     verifiedReceipts: verifications.filter((verification) => verification.ok).length,
     pilotProviders: registry.counts.allowed,
-    providerPayoutUsd: sum(receipts.map((receipt) => receipt.cost.providerCostUsd)),
+    providerPayoutUsd: payouts.totals.outstandingUsd,
     benchmarkPassRate: receipts.length ? succeeded.length / receipts.length : null,
     oceanNativeShare: receipts.length ? receipts.filter((receipt) => receipt.backend === "ocean_provider").length / receipts.length : 0,
     failedJobs: receipts.filter((receipt) => receipt.status === "failed" || receipt.status === "not_allowed").length,
     timedOutJobs: receipts.filter((receipt) => receipt.status === "timed_out").length,
     receiptVerificationFailures: verificationFailures,
+    payouts,
     receipts: selectedReceipts,
     warnings: [
       ...(receipts.length ? [] : ["No provider jobs have been routed yet. Run a selected provider smoke job to create the first receipt."]),

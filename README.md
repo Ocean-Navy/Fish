@@ -42,6 +42,7 @@ Useful local routes:
 /api/ocean/resources
 /api/providers/pilot
 /api/proof/summary
+/api/proof/payouts
 /api
 /docs
 /chat
@@ -213,9 +214,34 @@ Public proof endpoints are:
 ```text
 /api/proof/summary
 /api/proof/receipts
+/api/proof/payouts
 ```
 
-Provider job receipts and the local prototype signing key are written under `data/proof/`, which is ignored by git and should be backed up or moved to a database/secret manager before public scale-up.
+Successful provider job receipts automatically create `job_accrued` payout events. Public payout summaries omit operator owners, operator reasons, and transaction references; the admin CSV export keeps those details for settlement review.
+
+Operators can add manual payout events, create review batches, and export CSVs:
+
+```bash
+curl -sS http://127.0.0.1:3000/api/proof/payouts \
+  -H 'content-type: application/json' \
+  -H "x-fish-admin-token: $FISH_ADMIN_TOKEN" \
+  -d '{
+    "providerId":"prov_...",
+    "eventType":"manual_adjustment",
+    "amountUsd":5,
+    "reason":"Manual pilot stipend"
+  }'
+
+curl -sS http://127.0.0.1:3000/api/proof/payouts/batches \
+  -H 'content-type: application/json' \
+  -H "x-fish-admin-token: $FISH_ADMIN_TOKEN" \
+  -d '{"states":["accrued","approved"],"reason":"First provider review batch"}'
+
+curl -sS http://127.0.0.1:3000/api/proof/payouts/export \
+  -H "x-fish-admin-token: $FISH_ADMIN_TOKEN"
+```
+
+Provider job receipts, payout events, payout batches, and the local prototype signing key are written under `data/proof/`, which is ignored by git and should be backed up or moved to a database/secret manager before public scale-up.
 
 ## Repository Structure
 

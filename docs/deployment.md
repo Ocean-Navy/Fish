@@ -68,7 +68,7 @@ X-Forwarded-For
 
 ## Persistent Data
 
-The V0 form sink, prototype API ledger, provider proof receipts, and the prototype proof signing key write JSON to:
+The V0 form sink, prototype API ledger, provider proof receipts, payout accounting files, and the prototype proof signing key write JSON to:
 
 ```text
 /app/data/submissions
@@ -117,3 +117,4 @@ Then browser-check:
 - `/docs`
 - `/providers`
 - `/api/proof/summary`
+- `/api/proof/payouts`

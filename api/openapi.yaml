@@ -162,6 +162,10 @@ paths:
                     type: boolean
                   receipt:
                     $ref: '#/components/schemas/ProviderJobReceipt'
+                  payoutEvent:
+                    nullable: true
+                    allOf:
+                      - $ref: '#/components/schemas/OperatorPayoutEvent'
   /api/proof/summary:
     get:
       summary: Public proof dashboard summary
@@ -193,6 +197,144 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/ProviderJobReceipt'
+  /api/proof/payouts:
+    get:
+      summary: Public-safe provider payout accounting summary
+      responses:
+        '200':
+          description: Provider payout summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PayoutSummary'
+    post:
+      summary: Admin-only manual provider payout event
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [providerId, amountUsd, reason]
+              properties:
+                providerId:
+                  type: string
+                providerLabel:
+                  type: string
+                sourceReceiptId:
+                  type: string
+                  nullable: true
+                sourceReceiptHash:
+                  type: string
+                  nullable: true
+                sourceSignatureStatus:
+                  type: string
+                  enum: [not_required, valid, invalid, missing]
+                  nullable: true
+                eventType:
+                  type: string
+                  enum: [job_accrued, benchmark_stipend, manual_adjustment, refund, payout_approved, payout_paid, payout_voided]
+                amount:
+                  type: number
+                currency:
+                  type: string
+                amountUsd:
+                  type: number
+                state:
+                  type: string
+                  enum: [accrued, review, approved, paid, disputed, voided]
+                operatorOwner:
+                  type: string
+                reason:
+                  type: string
+                transactionRef:
+                  type: string
+                  nullable: true
+      responses:
+        '201':
+          description: Payout event created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  event:
+                    $ref: '#/components/schemas/OperatorPayoutEvent'
+  /api/proof/payouts/batches:
+    get:
+      summary: Admin-only payout batch list
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Payout batch list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  object:
+                    type: string
+                    example: list
+                  dataState:
+                    type: string
+                    enum: [live, snapshot, sample, unavailable]
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PayoutBatch'
+    post:
+      summary: Admin-only payout review batch creation
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                eventIds:
+                  type: array
+                  items:
+                    type: string
+                states:
+                  type: array
+                  items:
+                    type: string
+                    enum: [accrued, review, approved, paid, disputed, voided]
+                operatorOwner:
+                  type: string
+                reason:
+                  type: string
+      responses:
+        '201':
+          description: Payout batch created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  batch:
+                    $ref: '#/components/schemas/PayoutBatch'
+  /api/proof/payouts/export:
+    get:
+      summary: Admin-only provider payout CSV export
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: CSV payout event export
+          content:
+            text/csv:
+              schema:
+                type: string
   /api/ocean/refresh:
     post:
       summary: Trigger a refresh of Ocean Network supply snapshots
@@ -772,6 +914,185 @@ components:
         errorCode:
           type: string
           nullable: true
+    PayoutEvent:
+      type: object
+      properties:
+        payoutEventId:
+          type: string
+        providerId:
+          type: string
+        providerLabel:
+          type: string
+        sourceReceiptId:
+          type: string
+          nullable: true
+        sourceReceiptHash:
+          type: string
+          nullable: true
+        sourceSignatureStatus:
+          type: string
+          enum: [not_required, valid, invalid, missing]
+          nullable: true
+        eventType:
+          type: string
+          enum: [job_accrued, benchmark_stipend, manual_adjustment, refund, payout_approved, payout_paid, payout_voided]
+        amount:
+          type: number
+        currency:
+          type: string
+        amountUsd:
+          type: number
+        state:
+          type: string
+          enum: [accrued, review, approved, paid, disputed, voided]
+        visibility:
+          type: string
+        sourceState:
+          type: string
+          enum: [live, snapshot, sample, unavailable]
+        createdAt:
+          type: string
+        approvedAt:
+          type: string
+          nullable: true
+        paidAt:
+          type: string
+          nullable: true
+        hasOperatorReason:
+          type: boolean
+        hasTransactionRef:
+          type: boolean
+    OperatorPayoutEvent:
+      allOf:
+        - $ref: '#/components/schemas/PayoutEvent'
+        - type: object
+          properties:
+            operatorOwner:
+              type: string
+            reason:
+              type: string
+            transactionRef:
+              type: string
+              nullable: true
+    PayoutBatch:
+      type: object
+      properties:
+        payoutBatchId:
+          type: string
+        state:
+          type: string
+          enum: [review, approved, paid, voided]
+        eventIds:
+          type: array
+          items:
+            type: string
+        providerCount:
+          type: integer
+        eventCount:
+          type: integer
+        amountUsd:
+          type: number
+        currency:
+          type: string
+        sourceState:
+          type: string
+          enum: [live, snapshot, sample, unavailable]
+        visibility:
+          type: string
+        createdAt:
+          type: string
+        createdBy:
+          type: string
+        reason:
+          type: string
+        approvedAt:
+          type: string
+          nullable: true
+        paidAt:
+          type: string
+          nullable: true
+        transactionRefs:
+          type: array
+          items:
+            type: string
+    PublicPayoutBatch:
+      type: object
+      properties:
+        payoutBatchId:
+          type: string
+        state:
+          type: string
+          enum: [review, approved, paid, voided]
+        providerCount:
+          type: integer
+        eventCount:
+          type: integer
+        amountUsd:
+          type: number
+        currency:
+          type: string
+        sourceState:
+          type: string
+          enum: [live, snapshot, sample, unavailable]
+        visibility:
+          type: string
+        createdAt:
+          type: string
+        approvedAt:
+          type: string
+          nullable: true
+        paidAt:
+          type: string
+          nullable: true
+        hasOperatorReason:
+          type: boolean
+        hasTransactionRefs:
+          type: boolean
+    PayoutSummary:
+      type: object
+      properties:
+        dataState:
+          type: string
+          enum: [live, snapshot, sample, unavailable]
+        lastUpdated:
+          type: string
+        providerCount:
+          type: integer
+        eventCount:
+          type: integer
+        batchCount:
+          type: integer
+        totals:
+          type: object
+          properties:
+            accrued:
+              type: number
+            review:
+              type: number
+            approved:
+              type: number
+            paid:
+              type: number
+            disputed:
+              type: number
+            voided:
+              type: number
+            outstandingUsd:
+              type: number
+            excludedUsd:
+              type: number
+        events:
+          type: array
+          items:
+            $ref: '#/components/schemas/PayoutEvent'
+        batches:
+          type: array
+          items:
+            $ref: '#/components/schemas/PublicPayoutBatch'
+        warnings:
+          type: array
+          items:
+            type: string
     ProofSummary:
       type: object
       properties:
@@ -799,6 +1120,8 @@ components:
           type: integer
         receiptVerificationFailures:
           type: integer
+        payouts:
+          $ref: '#/components/schemas/PayoutSummary'
         receipts:
           type: array
           items:

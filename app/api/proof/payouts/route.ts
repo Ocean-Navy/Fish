@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/fishLedger";
-import { parseProviderJobRequest, runProviderJob } from "@/lib/providerJobs";
+import { createPayoutEvent, parsePayoutEventRequest, summarizePayouts } from "@/lib/providerPayouts";
 
 export const dynamic = "force-dynamic";
+
+export async function GET() {
+  return NextResponse.json(await summarizePayouts());
+}
 
 export async function POST(request: Request) {
   const admin = requireAdmin(request);
@@ -10,12 +14,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: { message: admin.error, type: "authentication_error" } }, { status: admin.status });
   }
 
-  const parsed = parseProviderJobRequest(await request.json().catch(() => ({})));
+  const parsed = parsePayoutEventRequest(await request.json().catch(() => ({})));
   if (!parsed.success) {
     return NextResponse.json(
       {
         error: {
-          message: "invalid_provider_job_request",
+          message: "invalid_payout_event_request",
           type: "invalid_request_error",
           details: parsed.error.flatten().fieldErrors
         }
@@ -24,6 +28,5 @@ export async function POST(request: Request) {
     );
   }
 
-  const result = await runProviderJob(parsed.data);
-  return NextResponse.json(result.ok ? { ok: true, receipt: result.receipt, payoutEvent: result.payoutEvent } : { ok: false, error: result.error, receipt: result.receipt, payoutEvent: result.payoutEvent }, { status: result.status });
+  return NextResponse.json({ ok: true, event: await createPayoutEvent(parsed.data) }, { status: 201 });
 }
