@@ -111,6 +111,88 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ProviderPilotOperatorExport'
+  /api/providers/jobs:
+    post:
+      summary: Run a selected-provider prototype batch job
+      description: Admin-only controlled adapter. Checks provider allowlist, never stores prompt/output text, and writes a public-safe provider job receipt.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [providerId, inputRef]
+              properties:
+                providerId:
+                  type: string
+                workloadType:
+                  type: string
+                  default: chat_batch
+                model:
+                  type: string
+                  default: fish-demo-chat
+                inputRef:
+                  type: string
+                  description: Hash or reference for the job input. Raw prompt text must not be submitted.
+                parameters:
+                  type: object
+                  properties:
+                    maxOutputTokens:
+                      type: integer
+                    temperature:
+                      type: number
+                maxRuntimeSeconds:
+                  type: integer
+                maxCostUsd:
+                  type: number
+                adapterMode:
+                  type: string
+                  enum: [mock_success, mock_failure, mock_timeout]
+      responses:
+        '200':
+          description: Provider job completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  receipt:
+                    $ref: '#/components/schemas/ProviderJobReceipt'
+  /api/proof/summary:
+    get:
+      summary: Public proof dashboard summary
+      responses:
+        '200':
+          description: Public proof summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProofSummary'
+  /api/proof/receipts:
+    get:
+      summary: Public-safe provider job receipts
+      responses:
+        '200':
+          description: Receipt list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  object:
+                    type: string
+                    example: list
+                  dataState:
+                    type: string
+                    enum: [live, snapshot, sample, unavailable]
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ProviderJobReceipt'
   /api/ocean/refresh:
     post:
       summary: Trigger a refresh of Ocean Network supply snapshots
@@ -143,6 +225,19 @@ paths:
                     type: number
                   creditsSpent:
                     type: number
+                  creditsRemaining:
+                    type: number
+                  userChargeUsd:
+                    type: number
+                  providerCostUsd:
+                    type: number
+                  grossMarginUsd:
+                    type: number
+                  lastReceiptAt:
+                    type: string
+                    nullable: true
+                  message:
+                    type: string
   /api/waitlist:
     post:
       summary: Submit user/developer waitlist interest
@@ -603,6 +698,103 @@ components:
                 type: string
               createdAt:
                 type: string
+    ProviderJobReceipt:
+      type: object
+      properties:
+        receiptVersion:
+          type: integer
+        receiptType:
+          type: string
+          example: provider_job_receipt
+        receiptId:
+          type: string
+        jobId:
+          type: string
+        providerJobId:
+          type: string
+          nullable: true
+        providerId:
+          type: string
+        providerLabel:
+          type: string
+        model:
+          type: string
+        workloadType:
+          type: string
+        backend:
+          type: string
+          enum: [ocean_provider]
+        status:
+          type: string
+          enum: [succeeded, failed, timed_out, not_allowed]
+        sourceState:
+          type: string
+          enum: [live, snapshot, sample, unavailable]
+        visibility:
+          type: string
+        createdAt:
+          type: string
+        startedAt:
+          type: string
+        completedAt:
+          type: string
+        usage:
+          type: object
+        cost:
+          type: object
+        hashes:
+          type: object
+          properties:
+            inputHash:
+              type: string
+            outputHash:
+              type: string
+              nullable: true
+            canonicalReceiptHash:
+              type: string
+        signer:
+          type: object
+        signatureStatus:
+          type: string
+          enum: [not_required]
+        errorCode:
+          type: string
+          nullable: true
+    ProofSummary:
+      type: object
+      properties:
+        dataState:
+          type: string
+          enum: [live, snapshot, sample, unavailable]
+        lastUpdated:
+          type: string
+        oceanJobsRouted:
+          type: integer
+        verifiedReceipts:
+          type: integer
+        pilotProviders:
+          type: integer
+        providerPayoutUsd:
+          type: number
+        benchmarkPassRate:
+          type: number
+          nullable: true
+        oceanNativeShare:
+          type: number
+        failedJobs:
+          type: integer
+        timedOutJobs:
+          type: integer
+        receiptVerificationFailures:
+          type: integer
+        receipts:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProviderJobReceipt'
+        warnings:
+          type: array
+          items:
+            type: string
     WaitlistRequest:
       type: object
       required: [contact, subscriberRoles]

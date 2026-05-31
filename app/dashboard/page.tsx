@@ -1,8 +1,10 @@
 import { DashboardPreview } from "@/components/DashboardPreview";
 import { FishUsageSummary } from "@/components/FishUsageSummary";
+import { ProofSummaryPanel } from "@/components/ProofSummaryPanel";
 import { ProviderPilotPanel } from "@/components/ProviderPilotPanel";
 import { collectOceanData } from "@/lib/oceanSupply";
 import { summarizeFishUsage } from "@/lib/fishLedger";
+import { summarizeProof } from "@/lib/providerJobs";
 import { collectProviderPilotRegistry } from "@/lib/providerPilot";
 import { Fish } from "lucide-react";
 import Link from "next/link";
@@ -10,7 +12,7 @@ import Link from "next/link";
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  const [{ summary }, fishUsage, providerPilot] = await Promise.all([collectOceanData(), summarizeFishUsage(), collectProviderPilotRegistry()]);
+  const [{ summary }, fishUsage, providerPilot, proof] = await Promise.all([collectOceanData(), summarizeFishUsage(), collectProviderPilotRegistry(), summarizeProof()]);
 
   return (
     <main className="min-h-screen">
@@ -30,6 +32,7 @@ export default async function DashboardPage() {
       <DashboardPreview initialSummary={summary} />
       <FishUsageSummary summary={fishUsage} />
       <ProviderPilotPanel registry={providerPilot} />
+      <ProofSummaryPanel summary={proof} />
     </main>
   );
 }

@@ -16,6 +16,7 @@ services:
     volumes:
       - fish-submissions:/app/data/submissions
       - fish-ledger:/app/data/fish
+      - fish-proof:/app/data/proof
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
@@ -27,3 +28,4 @@ services:
 volumes:
   fish-submissions:
   fish-ledger:
+  fish-proof:

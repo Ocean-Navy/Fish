@@ -41,6 +41,7 @@ Useful local routes:
 /api/ocean/summary
 /api/ocean/resources
 /api/providers/pilot
+/api/proof/summary
 /api
 /docs
 /chat
@@ -187,6 +188,33 @@ Admin-only operator export is available at:
 /api/providers/pilot/export
 ```
 
+## Provider Job Proof
+
+Selected provider smoke jobs can be recorded through the admin-only prototype adapter:
+
+```bash
+curl -sS http://127.0.0.1:3000/api/providers/jobs \
+  -H 'content-type: application/json' \
+  -H "x-fish-admin-token: $FISH_ADMIN_TOKEN" \
+  -d '{
+    "providerId":"prov_...",
+    "workloadType":"chat_batch",
+    "model":"fish-demo-chat",
+    "inputRef":"sha256:example-input-hash",
+    "maxRuntimeSeconds":60,
+    "maxCostUsd":1
+  }'
+```
+
+The adapter checks the selected-provider allowlist before writing a receipt. Public proof endpoints are:
+
+```text
+/api/proof/summary
+/api/proof/receipts
+```
+
+Provider job receipts are written under `data/proof/`, which is ignored by git and should be backed up or moved to a database before public scale-up.
+
 ## Repository Structure
 
 ```text
@@ -215,6 +243,7 @@ Ignored local runtime paths:
 data/submissions/
 data/forms/
 data/fish/
+data/proof/
 .env*
 .next/
 node_modules/

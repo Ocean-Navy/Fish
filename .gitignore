@@ -14,4 +14,5 @@ yarn-error.log*
 data/forms/
 data/submissions/
 data/fish/
+data/proof/
 data/provider_allowlist.json
