@@ -228,6 +228,8 @@ Public proof endpoints are:
 
 The receipt ledger supports `provider`, `providerId`, `status`, `backend`, `receiptType`, `signatureStatus`, `from`, `to`, and `limit` filters. Public receipt detail is available through each row's `detailUrl` and shows hashes, signature state, usage, cost, and timestamps without prompt or output text.
 
+The payout summary supports `provider`, `providerId`, `state`, `eventType`, `sourceReceiptId`, `from`, `to`, and `limit` filters. It includes provider-level rollups, payable totals, excluded disputed/voided totals, and public-safe event rows that identify receipt-linked versus manual-adjustment sources.
+
 Successful provider job receipts automatically create `job_accrued` payout events. Public payout summaries omit operator owners, operator reasons, and transaction references; the admin CSV exports keep those details for settlement review.
 
 Operators can add manual payout events, create review batches, and export CSVs:
@@ -249,6 +251,9 @@ curl -sS http://127.0.0.1:3000/api/proof/payouts/batches \
   -d '{"states":["accrued","approved"],"reason":"First provider review batch"}'
 
 curl -sS http://127.0.0.1:3000/api/proof/payouts/export \
+  -H "x-fish-admin-token: $FISH_ADMIN_TOKEN"
+
+curl -sS http://127.0.0.1:3000/api/proof/payouts/batches/batch_.../export \
   -H "x-fish-admin-token: $FISH_ADMIN_TOKEN"
 
 curl -sS 'http://127.0.0.1:3000/api/proof/receipts/export?format=json&limit=50' \

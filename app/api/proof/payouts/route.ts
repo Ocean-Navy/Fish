@@ -1,11 +1,25 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/fishLedger";
-import { createPayoutEvent, parsePayoutEventRequest, summarizePayouts } from "@/lib/providerPayouts";
+import { createPayoutEvent, parsePayoutEventRequest, parsePayoutQuery, summarizePayouts } from "@/lib/providerPayouts";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
-  return NextResponse.json(await summarizePayouts());
+export async function GET(request: Request) {
+  const parsed = parsePayoutQuery(new URL(request.url).searchParams);
+  if (!parsed.success) {
+    return NextResponse.json(
+      {
+        error: {
+          message: "invalid_payout_query",
+          type: "invalid_request_error",
+          details: parsed.error.flatten().fieldErrors
+        }
+      },
+      { status: 400 }
+    );
+  }
+
+  return NextResponse.json(await summarizePayouts(parsed.data));
 }
 
 export async function POST(request: Request) {

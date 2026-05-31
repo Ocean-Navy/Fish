@@ -70,6 +70,65 @@ export function ProofSummaryPanel({ summary }: { summary: ProofSummary }) {
             <PayoutChip label="Disputed" value={summary.payouts.totals.disputed} />
             <PayoutChip label="Voided" value={summary.payouts.totals.voided} />
           </div>
+          {summary.payouts.providerSummaries.length ? (
+            <div className="mt-4 grid gap-3 lg:grid-cols-[0.9fr_1.1fr]">
+              <div className="rounded-2xl border border-fish-gold/20 bg-fish-navy950/40 p-4">
+                <p className="text-xs font-black uppercase tracking-[0.1em] text-fish-gold">Provider tabs</p>
+                <div className="mt-3 space-y-2">
+                  {summary.payouts.providerSummaries.slice(0, 4).map((provider) => (
+                    <div key={provider.providerId} className="grid grid-cols-[1fr_auto] gap-3 rounded-xl border border-white/10 bg-white/[0.035] p-3">
+                      <div>
+                        <p className="font-black text-white">{provider.providerLabel}</p>
+                        <p className="text-xs font-bold text-fish-secondary">
+                          {provider.receiptLinkedEvents} receipt row{provider.receiptLinkedEvents === 1 ? "" : "s"} / {provider.manualAdjustmentEvents} manual
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-black text-fish-primary">{formatUsd(provider.totals.outstandingUsd)}</p>
+                        <p className="text-xs font-bold text-fish-secondary">{provider.eventCount} event{provider.eventCount === 1 ? "" : "s"}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="rounded-2xl border border-fish-gold/20 bg-fish-navy950/40 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-xs font-black uppercase tracking-[0.1em] text-fish-gold">Payable rows</p>
+                  <Link className="text-xs font-black text-fish-accent hover:text-white" href="/api/proof/payouts?limit=50">
+                    JSON
+                  </Link>
+                </div>
+                <div className="mt-3 space-y-2">
+                  {summary.payouts.events.slice(0, 4).map((event) => (
+                    <div key={event.payoutEventId} className="grid grid-cols-[1fr_auto] gap-3 rounded-xl border border-white/10 bg-white/[0.035] p-3">
+                      <div>
+                        <p className="font-black text-white">{event.providerLabel}</p>
+                        <p className="text-xs font-bold text-fish-secondary">
+                          {formatReceiptType(event.eventType)} / {formatReceiptType(event.state)} / {event.sourceKind === "receipt" && event.sourceReceiptId ? (
+                            <Link className="text-fish-accent hover:text-white" href={`/api/proof/receipts/${event.sourceReceiptId}` as Route}>
+                              receipt
+                            </Link>
+                          ) : (
+                            "manual"
+                          )}
+                        </p>
+                      </div>
+                      <p className="font-black text-fish-primary">{formatUsd(event.amountUsd)}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : null}
+          {summary.payouts.batches.length ? (
+            <div className="mt-4 flex flex-wrap gap-2">
+              {summary.payouts.batches.slice(0, 3).map((batch) => (
+                <Link key={batch.payoutBatchId} className="rounded-full border border-fish-gold/30 px-4 py-2 text-xs font-black text-fish-primary hover:border-fish-accent hover:text-white" href={batch.exportUrl as Route}>
+                  Export batch {batch.payoutBatchId.slice(0, 14)}... / {formatUsd(batch.amountUsd)}
+                </Link>
+              ))}
+            </div>
+          ) : null}
         </div>
 
         {summary.receipts.length ? (
@@ -145,7 +204,7 @@ export function ProofSummaryPanel({ summary }: { summary: ProofSummary }) {
   );
 }
 
-function formatReceiptType(value: ProviderJobReceipt["receiptType"] | ProviderJobReceipt["backend"] | ProviderJobReceipt["status"]) {
+function formatReceiptType(value: ProviderJobReceipt["receiptType"] | ProviderJobReceipt["backend"] | ProviderJobReceipt["status"] | string) {
   return value.replaceAll("_", " ");
 }
 

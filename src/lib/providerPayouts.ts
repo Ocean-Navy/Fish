@@ -13,6 +13,26 @@ const PAYOUT_BATCHES_DIR = path.join(PROOF_DIR, "payout-batches");
 const payoutEventTypeSchema = z.enum(["job_accrued", "benchmark_stipend", "manual_adjustment", "refund", "payout_approved", "payout_paid", "payout_voided"]);
 const payoutStateSchema = z.enum(["accrued", "review", "approved", "paid", "disputed", "voided"]);
 const payoutBatchStateSchema = z.enum(["review", "approved", "paid", "voided"]);
+const payoutQuerySchema = z
+  .object({
+    provider: z.string().trim().min(1).max(160).optional(),
+    providerId: z.string().trim().min(1).max(160).optional(),
+    state: payoutStateSchema.optional(),
+    eventType: payoutEventTypeSchema.optional(),
+    sourceReceiptId: z.string().trim().min(1).max(160).optional(),
+    from: z.string().trim().min(1).refine(isDateLike, "from must be a valid date").optional(),
+    to: z.string().trim().min(1).refine(isDateLike, "to must be a valid date").optional(),
+    limit: z.coerce.number().int().min(1).max(500).default(100)
+  })
+  .superRefine((query, context) => {
+    if (query.from && query.to && Date.parse(query.from) > Date.parse(query.to)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["to"],
+        message: "to must be after from"
+      });
+    }
+  });
 
 const payoutEventRequestSchema = z
   .object({
@@ -52,6 +72,7 @@ export type PayoutState = z.infer<typeof payoutStateSchema>;
 export type PayoutBatchState = z.infer<typeof payoutBatchStateSchema>;
 export type PayoutEventRequestInput = z.infer<typeof payoutEventRequestSchema>;
 export type PayoutBatchRequestInput = z.infer<typeof payoutBatchRequestSchema>;
+export type PayoutQuery = z.infer<typeof payoutQuerySchema>;
 
 export type PayoutEvent = {
   payoutEventId: string;
@@ -76,6 +97,7 @@ export type PayoutEvent = {
 };
 
 export type PublicPayoutEvent = Omit<PayoutEvent, "operatorOwner" | "reason" | "transactionRef"> & {
+  sourceKind: "receipt" | "manual_adjustment";
   hasOperatorReason: boolean;
   hasTransactionRef: boolean;
 };
@@ -100,13 +122,28 @@ export type PayoutBatch = {
 
 export type PublicPayoutBatch = Omit<PayoutBatch, "eventIds" | "createdBy" | "reason" | "transactionRefs" | "visibility"> & {
   visibility: "public";
+  exportUrl: string;
   hasOperatorReason: boolean;
   hasTransactionRefs: boolean;
+};
+
+export type PayoutProviderSummary = {
+  providerId: string;
+  providerLabel: string;
+  eventCount: number;
+  receiptLinkedEvents: number;
+  manualAdjustmentEvents: number;
+  latestEventAt: string | null;
+  totals: Record<PayoutState, number> & {
+    outstandingUsd: number;
+    excludedUsd: number;
+  };
 };
 
 export type PayoutSummary = {
   dataState: DataState;
   lastUpdated: string;
+  filters: PayoutQuery;
   providerCount: number;
   eventCount: number;
   batchCount: number;
@@ -114,6 +151,7 @@ export type PayoutSummary = {
     outstandingUsd: number;
     excludedUsd: number;
   };
+  providerSummaries: PayoutProviderSummary[];
   events: PublicPayoutEvent[];
   batches: PublicPayoutBatch[];
   warnings: string[];
@@ -125,6 +163,10 @@ export function parsePayoutEventRequest(body: unknown) {
 
 export function parsePayoutBatchRequest(body: unknown) {
   return payoutBatchRequestSchema.safeParse(body);
+}
+
+export function parsePayoutQuery(searchParams: URLSearchParams) {
+  return payoutQuerySchema.safeParse(queryObject(searchParams));
 }
 
 export async function recordPayoutEventForReceipt(receipt: ProviderJobReceipt) {
@@ -219,23 +261,26 @@ export async function createPayoutBatch(input: PayoutBatchRequestInput) {
   return batch;
 }
 
-export async function summarizePayouts(): Promise<PayoutSummary> {
+export async function summarizePayouts(query: PayoutQuery = { limit: 100 }): Promise<PayoutSummary> {
   const [events, batches] = await Promise.all([readPayoutEvents(), readPayoutBatches()]);
-  const sortedEvents = events.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-  const sortedBatches = batches.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  const filteredEvents = filterPayoutEvents(events, query);
+  const sortedEvents = filteredEvents.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  const sortedBatches = filterPayoutBatches(batches, filteredEvents, query).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   const lastUpdated = [sortedEvents.at(-1)?.createdAt, sortedBatches.at(-1)?.createdAt].filter(Boolean).sort().at(-1);
-  const totals = buildPayoutTotals(events);
+  const totals = buildPayoutTotals(filteredEvents);
 
   return {
     dataState: events.length || batches.length ? "live" : "sample",
     lastUpdated: lastUpdated ?? new Date().toISOString(),
-    providerCount: new Set(events.filter((event) => event.state !== "voided").map((event) => event.providerId)).size,
-    eventCount: events.length,
-    batchCount: batches.length,
+    filters: query,
+    providerCount: new Set(filteredEvents.filter((event) => !["disputed", "voided"].includes(event.state)).map((event) => event.providerId)).size,
+    eventCount: filteredEvents.length,
+    batchCount: sortedBatches.length,
     totals,
-    events: sortedEvents.slice(-20).reverse().map(toPublicPayoutEvent),
+    providerSummaries: buildProviderSummaries(filteredEvents),
+    events: sortedEvents.slice(-query.limit).reverse().map(toPublicPayoutEvent),
     batches: sortedBatches.slice(-10).reverse().map(toPublicPayoutBatch),
-    warnings: events.length ? [] : ["No provider payout events yet. Successful selected-provider jobs create accrued payout events."]
+    warnings: events.length ? (filteredEvents.length ? [] : ["No payout events match the current filters."]) : ["No provider payout events yet. Successful selected-provider jobs create accrued payout events."]
   };
 }
 
@@ -243,14 +288,54 @@ export async function listPayoutBatches() {
   return (await readPayoutBatches()).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
-export async function exportPayoutEventsCsv() {
-  const events = await readPayoutEvents();
+export async function getPayoutBatch(batchId: string) {
+  const batches = await readPayoutBatches();
+  return batches.find((batch) => batch.payoutBatchId === batchId) ?? null;
+}
+
+export async function exportPayoutEventsCsv(query: PayoutQuery = { limit: 500 }) {
+  const events = filterPayoutEvents(await readPayoutEvents(), query).slice(0, query.limit);
   return toCsv(
-    ["payoutEventId", "providerId", "providerLabel", "sourceReceiptId", "eventType", "amountUsd", "currency", "state", "createdAt", "approvedAt", "paidAt", "transactionRef", "operatorOwner", "reason"],
+    ["payoutEventId", "providerId", "providerLabel", "sourceKind", "sourceReceiptId", "eventType", "amountUsd", "currency", "state", "createdAt", "approvedAt", "paidAt", "transactionRef", "operatorOwner", "reason"],
     events.map((event) => [
       event.payoutEventId,
       event.providerId,
       event.providerLabel,
+      sourceKindForEvent(event),
+      event.sourceReceiptId ?? "",
+      event.eventType,
+      event.amountUsd,
+      event.currency,
+      event.state,
+      event.createdAt,
+      event.approvedAt ?? "",
+      event.paidAt ?? "",
+      event.transactionRef ?? "",
+      event.operatorOwner,
+      event.reason
+    ])
+  );
+}
+
+export async function exportPayoutBatchCsv(batchId: string) {
+  const [batch, events] = await Promise.all([getPayoutBatch(batchId), readPayoutEvents()]);
+  if (!batch) {
+    return null;
+  }
+
+  const byId = new Map(events.map((event) => [event.payoutEventId, event]));
+  const batchEvents = batch.eventIds.map((eventId) => byId.get(eventId)).filter((event): event is PayoutEvent => Boolean(event));
+
+  return toCsv(
+    ["batchId", "batchState", "batchCreatedAt", "eventId", "providerId", "providerLabel", "sourceKind", "sourceReceiptId", "eventType", "amountUsd", "currency", "state", "createdAt", "approvedAt", "paidAt", "transactionRef", "operatorOwner", "reason"],
+    batchEvents.map((event) => [
+      batch.payoutBatchId,
+      batch.state,
+      batch.createdAt,
+      event.payoutEventId,
+      event.providerId,
+      event.providerLabel,
+      sourceKindForEvent(event),
       event.sourceReceiptId ?? "",
       event.eventType,
       event.amountUsd,
@@ -320,6 +405,70 @@ async function readPayoutBatches(): Promise<PayoutBatch[]> {
   }
 }
 
+function filterPayoutEvents(events: PayoutEvent[], query: PayoutQuery) {
+  return events
+    .filter((event) => {
+      if (query.providerId && event.providerId !== query.providerId) {
+        return false;
+      }
+      if (query.provider) {
+        const needle = query.provider.toLowerCase();
+        if (!event.providerId.toLowerCase().includes(needle) && !event.providerLabel.toLowerCase().includes(needle)) {
+          return false;
+        }
+      }
+      if (query.state && event.state !== query.state) {
+        return false;
+      }
+      if (query.eventType && event.eventType !== query.eventType) {
+        return false;
+      }
+      if (query.sourceReceiptId && event.sourceReceiptId !== query.sourceReceiptId) {
+        return false;
+      }
+      const createdAt = Date.parse(event.createdAt);
+      if (query.from && createdAt < Date.parse(query.from)) {
+        return false;
+      }
+      if (query.to && createdAt > Date.parse(query.to)) {
+        return false;
+      }
+      return true;
+    })
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+function filterPayoutBatches(batches: PayoutBatch[], events: PayoutEvent[], query: PayoutQuery) {
+  const hasEventFilter = Boolean(query.provider || query.providerId || query.state || query.eventType || query.sourceReceiptId || query.from || query.to);
+  if (!hasEventFilter) {
+    return batches;
+  }
+  const eventIds = new Set(events.map((event) => event.payoutEventId));
+  return batches.filter((batch) => batch.eventIds.some((eventId) => eventIds.has(eventId)));
+}
+
+function buildProviderSummaries(events: PayoutEvent[]): PayoutProviderSummary[] {
+  const byProvider = new Map<string, PayoutEvent[]>();
+  for (const event of events) {
+    byProvider.set(event.providerId, [...(byProvider.get(event.providerId) ?? []), event]);
+  }
+
+  return Array.from(byProvider.entries())
+    .map(([providerId, providerEvents]) => {
+      const sorted = providerEvents.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+      return {
+        providerId,
+        providerLabel: sorted.at(-1)?.providerLabel ?? providerId,
+        eventCount: providerEvents.length,
+        receiptLinkedEvents: providerEvents.filter((event) => event.sourceReceiptId).length,
+        manualAdjustmentEvents: providerEvents.filter((event) => !event.sourceReceiptId).length,
+        latestEventAt: sorted.at(-1)?.createdAt ?? null,
+        totals: buildPayoutTotals(providerEvents)
+      };
+    })
+    .sort((a, b) => b.totals.outstandingUsd - a.totals.outstandingUsd || a.providerLabel.localeCompare(b.providerLabel));
+}
+
 function defaultStateForEventType(eventType: PayoutEventType): PayoutState {
   if (eventType === "job_accrued" || eventType === "benchmark_stipend") {
     return "accrued";
@@ -350,6 +499,7 @@ function toPublicPayoutEvent(event: PayoutEvent): PublicPayoutEvent {
   const { operatorOwner: _operatorOwner, reason, transactionRef, ...publicEvent } = event;
   return {
     ...publicEvent,
+    sourceKind: sourceKindForEvent(event),
     hasOperatorReason: Boolean(reason),
     hasTransactionRef: Boolean(transactionRef)
   };
@@ -360,9 +510,30 @@ function toPublicPayoutBatch(batch: PayoutBatch): PublicPayoutBatch {
   return {
     ...publicBatch,
     visibility: "public",
+    exportUrl: `/api/proof/payouts/batches/${batch.payoutBatchId}/export`,
     hasOperatorReason: Boolean(reason),
     hasTransactionRefs: transactionRefs.length > 0
   };
+}
+
+function sourceKindForEvent(event: PayoutEvent): PublicPayoutEvent["sourceKind"] {
+  return event.sourceReceiptId ? "receipt" : "manual_adjustment";
+}
+
+function isDateLike(value: string) {
+  return Number.isFinite(Date.parse(value));
+}
+
+function queryObject(searchParams: URLSearchParams) {
+  const fields = ["provider", "providerId", "state", "eventType", "sourceReceiptId", "from", "to", "limit"];
+  const entries: Array<[string, string]> = [];
+  for (const field of fields) {
+    const value = searchParams.get(field);
+    if (value && value.trim()) {
+      entries.push([field, value]);
+    }
+  }
+  return Object.fromEntries(entries);
 }
 
 function toCsv(headers: string[], rows: Array<Array<string | number>>) {

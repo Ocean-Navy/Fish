@@ -305,6 +305,17 @@ transaction references
 - Operators can export a payout batch before payment.
 - Providers can see their own payout history after authentication.
 
+Prototype route coverage:
+
+```text
+GET /api/proof/payouts
+GET /api/proof/payouts/export
+GET /api/proof/payouts/batches
+GET /api/proof/payouts/batches/{batchId}/export
+```
+
+Provider-owned history still needs the provider authentication lane. The public-safe payout summary now has provider filters and provider-level rollups, but it is not a replacement for provider auth.
+
 ## Milestone D2.5 - Benchmark Matrix View
 
 ### Outcome

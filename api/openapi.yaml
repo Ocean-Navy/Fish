@@ -366,6 +366,47 @@ paths:
   /api/proof/payouts:
     get:
       summary: Public-safe provider payout accounting summary
+      parameters:
+        - in: query
+          name: provider
+          schema:
+            type: string
+          description: Provider id or public label substring.
+        - in: query
+          name: providerId
+          schema:
+            type: string
+        - in: query
+          name: state
+          schema:
+            type: string
+            enum: [accrued, review, approved, paid, disputed, voided]
+        - in: query
+          name: eventType
+          schema:
+            type: string
+            enum: [job_accrued, benchmark_stipend, manual_adjustment, refund, payout_approved, payout_paid, payout_voided]
+        - in: query
+          name: sourceReceiptId
+          schema:
+            type: string
+        - in: query
+          name: from
+          schema:
+            type: string
+          description: Inclusive createdAt lower bound.
+        - in: query
+          name: to
+          schema:
+            type: string
+          description: Inclusive createdAt upper bound.
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 100
+            minimum: 1
+            maximum: 500
       responses:
         '200':
           description: Provider payout summary
@@ -489,11 +530,59 @@ paths:
                     type: boolean
                   batch:
                     $ref: '#/components/schemas/PayoutBatch'
+  /api/proof/payouts/batches/{batchId}/export:
+    get:
+      summary: Admin-only payout batch CSV export
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: batchId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: CSV export for one payout batch and its payable events
+          content:
+            text/csv:
+              schema:
+                type: string
+        '401':
+          description: Admin token required
+        '404':
+          description: Payout batch not found
   /api/proof/payouts/export:
     get:
       summary: Admin-only provider payout CSV export
       security:
         - bearerAuth: []
+      parameters:
+        - in: query
+          name: provider
+          schema:
+            type: string
+        - in: query
+          name: providerId
+          schema:
+            type: string
+        - in: query
+          name: state
+          schema:
+            type: string
+            enum: [accrued, review, approved, paid, disputed, voided]
+        - in: query
+          name: eventType
+          schema:
+            type: string
+            enum: [job_accrued, benchmark_stipend, manual_adjustment, refund, payout_approved, payout_paid, payout_voided]
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 100
+            minimum: 1
+            maximum: 500
       responses:
         '200':
           description: CSV payout event export
@@ -1264,6 +1353,9 @@ components:
           type: string
           enum: [not_required, valid, invalid, missing]
           nullable: true
+        sourceKind:
+          type: string
+          enum: [receipt, manual_adjustment]
         eventType:
           type: string
           enum: [job_accrued, benchmark_stipend, manual_adjustment, refund, payout_approved, payout_paid, payout_voided]
@@ -1865,10 +1957,47 @@ components:
         paidAt:
           type: string
           nullable: true
+        exportUrl:
+          type: string
         hasOperatorReason:
           type: boolean
         hasTransactionRefs:
           type: boolean
+    PayoutProviderSummary:
+      type: object
+      properties:
+        providerId:
+          type: string
+        providerLabel:
+          type: string
+        eventCount:
+          type: integer
+        receiptLinkedEvents:
+          type: integer
+        manualAdjustmentEvents:
+          type: integer
+        latestEventAt:
+          type: string
+          nullable: true
+        totals:
+          type: object
+          properties:
+            accrued:
+              type: number
+            review:
+              type: number
+            approved:
+              type: number
+            paid:
+              type: number
+            disputed:
+              type: number
+            voided:
+              type: number
+            outstandingUsd:
+              type: number
+            excludedUsd:
+              type: number
     PayoutSummary:
       type: object
       properties:
@@ -1877,6 +2006,8 @@ components:
           enum: [live, snapshot, sample, unavailable]
         lastUpdated:
           type: string
+        filters:
+          type: object
         providerCount:
           type: integer
         eventCount:
@@ -1902,6 +2033,10 @@ components:
               type: number
             excludedUsd:
               type: number
+        providerSummaries:
+          type: array
+          items:
+            $ref: '#/components/schemas/PayoutProviderSummary'
         events:
           type: array
           items:

@@ -40,6 +40,7 @@ const endpoints = [
   { method: "GET", path: "/api/proof/payouts", state: "Prototype" },
   { method: "POST", path: "/api/proof/payouts", state: "Prototype" },
   { method: "GET", path: "/api/proof/payouts/batches", state: "Prototype" },
+  { method: "GET", path: "/api/proof/payouts/batches/:batchId/export", state: "Prototype" },
   { method: "POST", path: "/api/proof/payouts/batches", state: "Prototype" },
   { method: "GET", path: "/api/proof/payouts/export", state: "Prototype" },
   { method: "POST", path: "/api/waitlist", state: "Live" },
