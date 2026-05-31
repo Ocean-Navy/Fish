@@ -7,6 +7,8 @@ import { formatDateTime, formatNumber, formatUsd } from "@/lib/format";
 type AccountPayload = {
   account: {
     label: string;
+    planId: string;
+    plan: FishPlan;
     creditBalance: number;
     totalCreditsGranted: number;
     totalCreditsSpent: number;
@@ -50,6 +52,19 @@ type CreditLaneSummary = {
   adjustments: number;
   entries: number;
   expiresAt: string | null;
+};
+
+type FishPlan = {
+  planId: string;
+  label: string;
+  state: "prototype" | "future";
+  monthlyCreditGrant: number;
+  rateLimitPerMinute: number;
+  monthlyRequestLimit: number;
+  maxStoredThreadItems: number;
+  allowedModels: string[];
+  externalFallbackAllowed: boolean;
+  oceanProviderAllowed: boolean;
 };
 
 function getErrorMessage(payload: unknown) {
@@ -171,6 +186,7 @@ export function FishAccountPanel() {
               <Metric label="Provider cost" value={formatUsd(account.totals.providerCostUsd)} />
               <Metric label="Gross margin" value={formatUsd(account.totals.grossMarginUsd)} />
             </div>
+            <PlanDock plan={account.account.plan} />
             <CreditLaneNet lanes={account.creditLanes} />
             <ReceiptNet receipts={receipts} />
           </div>
@@ -179,6 +195,27 @@ export function FishAccountPanel() {
             <p className="max-w-sm text-xl font-black leading-8 text-fish-primary">Paste a pilot key to see credits, receipts, and route costs.</p>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+function PlanDock({ plan }: { plan: FishPlan }) {
+  return (
+    <div className="rounded-3xl border border-fish-accent/15 bg-fish-navy950/55 p-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="text-sm font-black uppercase tracking-[0.1em] text-fish-gold">Plan</p>
+          <h3 className="mt-2 text-2xl font-black text-white">{plan.label}</h3>
+        </div>
+        <span className={`w-fit rounded-full px-3 py-1 text-xs font-black uppercase tracking-[0.08em] ${plan.state === "prototype" ? "bg-emerald-400/15 text-emerald-200" : "bg-fish-gold/15 text-fish-gold"}`}>
+          {plan.state}
+        </span>
+      </div>
+      <div className="mt-4 grid gap-2 sm:grid-cols-3">
+        <MiniMetric label="Monthly grant" value={formatNumber(plan.monthlyCreditGrant)} />
+        <MiniMetric label="Rate limit" value={`${formatNumber(plan.rateLimitPerMinute)}/min`} />
+        <MiniMetric label="Monthly limit" value={formatNumber(plan.monthlyRequestLimit)} />
       </div>
     </div>
   );
@@ -203,6 +240,15 @@ function CreditLaneNet({ lanes }: { lanes: CreditLaneSummary[] }) {
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+function MiniMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-3">
+      <p className="text-[0.68rem] font-black uppercase tracking-[0.08em] text-fish-secondary">{label}</p>
+      <p className="mt-1 text-lg font-black text-white">{value}</p>
     </div>
   );
 }

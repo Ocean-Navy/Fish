@@ -84,6 +84,25 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/FishRoutePolicy'
+  /api/billing/plans:
+    get:
+      summary: Public Fish plan catalog
+      description: Prototype/future plan metadata with limits and routing permissions. This does not enable checkout.
+      responses:
+        '200':
+          description: Plan catalog
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  object:
+                    type: string
+                    example: list
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/FishPlan'
   /api/providers/pilot:
     get:
       summary: Public-safe provider pilot registry and selected allowlist
@@ -814,6 +833,10 @@ paths:
                   type: integer
                   minimum: 1
                   maximum: 100000
+                planId:
+                  type: string
+                  enum: [free, pro, team-api, provider-test]
+                  default: free
       responses:
         '200':
           description: Prototype key created
@@ -2443,6 +2466,11 @@ components:
           type: string
         createdAt:
           type: string
+        planId:
+          type: string
+          enum: [free, pro, team-api, provider-test]
+        plan:
+          $ref: '#/components/schemas/FishPlan'
         creditBalance:
           type: integer
         totalCreditsGranted:
@@ -2483,6 +2511,33 @@ components:
           type: number
         grossMarginUsd:
           type: number
+    FishPlan:
+      type: object
+      properties:
+        planId:
+          type: string
+          enum: [free, pro, team-api, provider-test]
+        label:
+          type: string
+        state:
+          type: string
+          enum: [prototype, future]
+        monthlyCreditGrant:
+          type: integer
+        rateLimitPerMinute:
+          type: integer
+        monthlyRequestLimit:
+          type: integer
+        maxStoredThreadItems:
+          type: integer
+        allowedModels:
+          type: array
+          items:
+            type: string
+        externalFallbackAllowed:
+          type: boolean
+        oceanProviderAllowed:
+          type: boolean
     FishCreditLane:
       type: object
       properties:

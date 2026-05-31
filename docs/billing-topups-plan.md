@@ -80,6 +80,8 @@ operatorReason
 
 Fish has a simple pricing/limits model without over-promising token mechanics.
 
+Current prototype status: `/api/billing/plans` exposes Free, Pro, Team/API, and Provider-test plan metadata. `/v1/balance` and `/account` show the account plan, but checkout and paid-plan activation are still future-gated.
+
 ### Initial Plan Shape
 
 ```text

@@ -11,6 +11,7 @@ const CREDIT_ENTRIES_PATH = path.join(LEDGER_DIR, "credit_entries.json");
 const RECEIPTS_DIR = path.join(LEDGER_DIR, "receipts");
 const FISH_CREDIT_USD = 0.001;
 const CREDIT_LANES = ["grant", "subscription", "prepaid", "staking", "adjustment", "refund"] as const;
+const FISH_PLAN_IDS = ["free", "pro", "team-api", "provider-test"] as const;
 
 export const FISH_MODELS = [
   {
@@ -42,7 +43,8 @@ export const FISH_MODELS = [
 
 const keyRequestSchema = z.object({
   label: z.string().trim().min(1).max(80).optional().default("Pilot key"),
-  creditGrant: z.number().int().min(1).max(100000).optional().default(1000)
+  creditGrant: z.number().int().min(1).max(100000).optional().default(1000),
+  planId: z.enum(FISH_PLAN_IDS).optional().default("free")
 });
 
 export const chatCompletionSchema = z.object({
@@ -67,6 +69,7 @@ type Account = {
   label: string;
   keyHash: string;
   createdAt: string;
+  planId?: FishPlanId;
   creditBalance: number;
   totalCreditsGranted: number;
   totalCreditsSpent: number;
@@ -80,6 +83,71 @@ type Ledger = {
 
 export type CreditLane = (typeof CREDIT_LANES)[number];
 export type CreditEntryKind = "grant" | "debit" | "refund" | "adjustment";
+export type FishPlanId = (typeof FISH_PLAN_IDS)[number];
+
+export type FishPlan = {
+  planId: FishPlanId;
+  label: string;
+  state: "prototype" | "future";
+  monthlyCreditGrant: number;
+  rateLimitPerMinute: number;
+  monthlyRequestLimit: number;
+  maxStoredThreadItems: number;
+  allowedModels: string[];
+  externalFallbackAllowed: boolean;
+  oceanProviderAllowed: boolean;
+};
+
+export const FISH_PLANS: FishPlan[] = [
+  {
+    planId: "free",
+    label: "Free pilot",
+    state: "prototype",
+    monthlyCreditGrant: 1000,
+    rateLimitPerMinute: 12,
+    monthlyRequestLimit: 1000,
+    maxStoredThreadItems: 20,
+    allowedModels: ["fish-demo-chat"],
+    externalFallbackAllowed: false,
+    oceanProviderAllowed: false
+  },
+  {
+    planId: "pro",
+    label: "Pro harbor",
+    state: "future",
+    monthlyCreditGrant: 20000,
+    rateLimitPerMinute: 60,
+    monthlyRequestLimit: 20000,
+    maxStoredThreadItems: 200,
+    allowedModels: ["fish-demo-chat", "external-compatible"],
+    externalFallbackAllowed: true,
+    oceanProviderAllowed: false
+  },
+  {
+    planId: "team-api",
+    label: "Team/API boat",
+    state: "future",
+    monthlyCreditGrant: 100000,
+    rateLimitPerMinute: 180,
+    monthlyRequestLimit: 100000,
+    maxStoredThreadItems: 1000,
+    allowedModels: ["fish-demo-chat", "external-compatible", "selected-ocean-provider"],
+    externalFallbackAllowed: true,
+    oceanProviderAllowed: true
+  },
+  {
+    planId: "provider-test",
+    label: "Provider test",
+    state: "prototype",
+    monthlyCreditGrant: 5000,
+    rateLimitPerMinute: 30,
+    monthlyRequestLimit: 5000,
+    maxStoredThreadItems: 50,
+    allowedModels: ["fish-demo-chat", "ocean-batch-placeholder"],
+    externalFallbackAllowed: false,
+    oceanProviderAllowed: true
+  }
+];
 
 type CreditLedger = {
   entries: CreditLedgerEntry[];
@@ -173,7 +241,7 @@ export function requireAdmin(request: Request): { ok: true } | { ok: false; stat
   };
 }
 
-export async function createApiKey(label: string, creditGrant: number) {
+export async function createApiKey(label: string, creditGrant: number, planId: FishPlanId = "free") {
   const ledger = await readLedger();
   const key = `fish_sk_${randomBytes(24).toString("base64url")}`;
   const now = new Date().toISOString();
@@ -182,6 +250,7 @@ export async function createApiKey(label: string, creditGrant: number) {
     label,
     keyHash: hashSecret(key),
     createdAt: now,
+    planId,
     creditBalance: creditGrant,
     totalCreditsGranted: creditGrant,
     totalCreditsSpent: 0,
@@ -642,16 +711,23 @@ function sumReceiptNumber(receipts: UsageReceipt[], key: "userChargeUsd" | "prov
 }
 
 function publicAccount(account: Account) {
+  const plan = getFishPlan(account.planId);
   return {
     id: account.id,
     label: account.label,
     createdAt: account.createdAt,
+    planId: plan.planId,
+    plan,
     creditBalance: account.creditBalance,
     totalCreditsGranted: account.totalCreditsGranted,
     totalCreditsSpent: account.totalCreditsSpent,
     requestCount: account.requestCount,
     lastUsedAt: account.lastUsedAt
   };
+}
+
+export function getFishPlan(planId: string | undefined | null) {
+  return FISH_PLANS.find((plan) => plan.planId === planId) ?? FISH_PLANS[0];
 }
 
 function isCreditEntry(entry: unknown): entry is CreditLedgerEntry {

@@ -23,7 +23,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const result = await createApiKey(parsed.data.label, parsed.data.creditGrant);
+  const result = await createApiKey(parsed.data.label, parsed.data.creditGrant, parsed.data.planId);
   return NextResponse.json({
     object: "api_key",
     key: result.key,

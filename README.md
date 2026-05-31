@@ -45,6 +45,7 @@ Useful local routes:
 /api/health
 /api/ocean/summary
 /api/ocean/resources
+/api/billing/plans
 /api/routing/policy
 /api/providers/pilot
 /api/proof/summary
@@ -176,7 +177,7 @@ Create a pilot key:
 curl -sS http://127.0.0.1:3000/v1/api_keys \
   -H 'content-type: application/json' \
   -H "x-fish-admin-token: $FISH_ADMIN_TOKEN" \
-  -d '{"label":"Local pilot","creditGrant":1000}'
+  -d '{"label":"Local pilot","creditGrant":1000,"planId":"free"}'
 ```
 
 In local development, `FISH_ADMIN_TOKEN` may be empty. Set it in production before issuing keys.
@@ -201,6 +202,12 @@ Check balance, credit lanes, and receipts:
 ```bash
 curl -sS http://127.0.0.1:3000/v1/balance -H "authorization: Bearer $FISH_API_KEY"
 curl -sS http://127.0.0.1:3000/v1/usage -H "authorization: Bearer $FISH_API_KEY"
+```
+
+Plan metadata is visible in balances and in the public catalog:
+
+```bash
+curl -sS http://127.0.0.1:3000/api/billing/plans
 ```
 
 Runtime API keys, lane-based credit entries, and receipts are written under `data/fish/`, which is ignored by git. The prototype stores hashed API keys and receipt hashes, but it is not a production ledger yet.

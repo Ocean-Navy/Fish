@@ -139,5 +139,6 @@ Then browser-check:
 - `/api/proof/market-making`
 - `/api/proof/payouts`
 - `/api/proof/payouts?state=accrued&limit=10`
+- `/api/billing/plans`
 - `/api/routing/policy`
 - `/api/staking/summary`
