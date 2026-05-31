@@ -131,6 +131,8 @@ Success criteria:
 
 **Goal:** create supply-side OCEAN utility.
 
+Planning detail: see `docs/provider-bonds-plan.md`.
+
 Deliverables:
 
 - provider bond contract;

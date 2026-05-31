@@ -104,6 +104,7 @@ export async function POST(request: Request) {
     ledger: auth.ledger,
     account: auth.account,
     input,
+    model: responseModel,
     promptTokens,
     completionTokens,
     content,

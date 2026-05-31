@@ -17,6 +17,7 @@ operator verifies OCEAN lock intent
 - Public summaries expose only a wallet hash prefix, not the raw wallet reference.
 - API keys are returned once on creation and only a hash is stored in the Fish credit ledger.
 - This is not an onchain staking contract and must be labeled `offchain_prototype`.
+- Provider bonds are a separate supply-side utility lane. See `docs/provider-bonds-plan.md`; staking credits must not be mixed with provider bond custody or routing eligibility.
 
 ## Endpoints
 

@@ -238,6 +238,7 @@ export async function recordChatUsage(params: {
   ledger: Ledger;
   account: Account;
   input: ChatCompletionInput;
+  model?: string;
   promptTokens: number;
   completionTokens: number;
   content: string;
@@ -271,7 +272,7 @@ export async function recordChatUsage(params: {
     id: randomUUID(),
     accountId: params.account.id,
     createdAt: now,
-    model: params.input.model,
+    model: params.model ?? params.input.model,
     route: params.route ?? "mock",
     costState: params.costState ?? "prototype_estimate",
     promptTokens: params.promptTokens,
