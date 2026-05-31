@@ -9,7 +9,7 @@ This plan follows the deployable V0 site. It is scoped to product, data, and eng
 ## Pilot Principles
 
 - Start selected, not open. The first pilot should use 3-5 manually approved providers.
-- Route batch workloads first. Streaming chat and warm inference belong to a later milestone.
+- Route batch workloads first. Streaming chat and warm inference belong to the later Fish Runner milestone in `docs/fish-runner-plan.md`.
 - Prove every job with receipts. A useful receipt is better than a polished but unverifiable chart.
 - Keep prompts private. Receipts may include hashes and usage numbers, but not prompt or output text.
 - Account for payouts before automating settlement. Manual payout is acceptable if the ledger is complete.

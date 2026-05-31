@@ -110,6 +110,8 @@ Success criteria:
 
 **Goal:** move from batch jobs to faster API experience.
 
+Planning detail: see `docs/fish-runner-plan.md`.
+
 Deliverables:
 
 - provider `fish-runner`;
@@ -166,4 +168,3 @@ Success criteria:
 **Goal:** gradually match the valuable product layers of Venice, not just its token loop.
 
 See `VENICE_PARITY_ROADMAP.md`.
-
