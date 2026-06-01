@@ -138,6 +138,8 @@ curl -fsS http://127.0.0.1/api/health
 
 Use `make preview-down` to stop it.
 
+For tiny VMs, use the no-Docker systemd/nginx path in `docs/deployment.md`.
+
 ### Signup Access
 
 The homepage form writes one JSON file per signup to the persistent Docker volume mounted at:

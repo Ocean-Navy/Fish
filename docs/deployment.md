@@ -65,6 +65,48 @@ http://<server-ip>/
 
 The browser will ask for the nginx username and password. For a public launch, remove the preview auth proxy or replace it with a TLS/public nginx configuration while keeping `FISH_ADMIN_TOKEN` enabled for admin API exports.
 
+## Small VM No-Docker Deployment
+
+Use this path on very small servers where Docker builds are too memory-heavy. Build locally, copy the Next.js standalone output, and run it with systemd behind host nginx.
+
+Local build:
+
+```bash
+npm run verify
+```
+
+Copy runtime files:
+
+```bash
+ssh root@<server-ip> 'mkdir -p /opt/fish-web /opt/fish-web/.next/static /opt/fish-web/public'
+rsync -az --delete .next/standalone/ root@<server-ip>:/opt/fish-web/
+rsync -az --delete .next/static/ root@<server-ip>:/opt/fish-web/.next/static/
+rsync -az --delete public/ root@<server-ip>:/opt/fish-web/public/
+```
+
+Server setup:
+
+```bash
+apt-get update
+apt-get install -y nginx apache2-utils curl xz-utils
+```
+
+Install Node.js 22, create `/opt/fish-web/.env.production`, then install the service and nginx templates:
+
+```bash
+cp deploy/systemd/fish-web.service /etc/systemd/system/fish-web.service
+cp deploy/nginx/host-fish.conf /etc/nginx/sites-available/fish
+ln -sf /etc/nginx/sites-available/fish /etc/nginx/sites-enabled/fish
+rm -f /etc/nginx/sites-enabled/default
+htpasswd -cB /etc/nginx/fish.htpasswd fish
+systemctl daemon-reload
+systemctl enable --now fish-web nginx
+nginx -t
+systemctl reload nginx
+```
+
+Keep generated credentials in a root-only file such as `/root/fish-deploy-secrets.txt`.
+
 ## Run With Docker
 
 ```bash

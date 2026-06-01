@@ -1,0 +1,19 @@
+[Unit]
+Description=Fish Next.js web app
+After=network.target
+
+[Service]
+Type=simple
+User=fishweb
+Group=fishweb
+WorkingDirectory=/opt/fish-web
+EnvironmentFile=/opt/fish-web/.env.production
+Environment=NODE_ENV=production
+Environment=PORT=3000
+Environment=HOSTNAME=127.0.0.1
+ExecStart=/usr/local/bin/node /opt/fish-web/server.js
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
