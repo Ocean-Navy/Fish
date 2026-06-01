@@ -61,3 +61,28 @@ textarea {
 ::selection {
   background: rgba(18, 216, 255, 0.34);
 }
+
+.fish-home-hero-bg {
+  background-image: url("/assets/generated/fish-market-hero.png");
+  background-position: 72% center;
+  background-size: cover;
+}
+
+.fish-proof-hero-image {
+  object-position: 72% center;
+}
+
+.fish-role-image {
+  object-position: center 72%;
+}
+
+@media (min-width: 768px) {
+  .fish-home-hero-bg {
+    background-position: center;
+  }
+
+  .fish-proof-hero-image,
+  .fish-role-image {
+    object-position: center;
+  }
+}

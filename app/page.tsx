@@ -13,6 +13,7 @@ import type { Route as NextRoute } from "next";
 import Link from "next/link";
 import { InterestForm } from "@/components/InterestForm";
 import { MarketEntrances } from "@/components/MarketEntrances";
+import { VisualExplainers } from "@/components/VisualExplainers";
 
 const flow = [
   { title: "Stake OCEAN", image: "/assets/generated/fish-flow-stake.png", icon: LockKeyhole },
@@ -36,6 +37,7 @@ export default function Home() {
           <nav className="hidden items-center gap-6 text-sm font-black text-fish-secondary md:flex" aria-label="Primary navigation">
             <a className="hover:text-white" href="#market">Market</a>
             <a className="hover:text-white" href="#flow">Flow</a>
+            <a className="hover:text-white" href="#maps">Maps</a>
             <Link className="hover:text-white" href={"/proof" as NextRoute}>Proof</Link>
             <Link className="hover:text-white" href="/dashboard">Dashboard</Link>
           </nav>
@@ -46,15 +48,7 @@ export default function Home() {
       </header>
 
       <section id="top" className="relative min-h-screen px-4 pt-28 sm:px-6 lg:px-8">
-        <div
-          className="absolute inset-0"
-          style={{
-            backgroundImage: "url('/assets/generated/fish-market-hero.png')",
-            backgroundPosition: "center",
-            backgroundSize: "cover"
-          }}
-          aria-hidden="true"
-        />
+        <div className="absolute inset-0 fish-home-hero-bg" aria-hidden="true" />
         <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(2,10,30,0.98)_0%,rgba(2,10,30,0.86)_38%,rgba(2,10,30,0.22)_100%)]" aria-hidden="true" />
         <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-fish-navy950 to-transparent" aria-hidden="true" />
 
@@ -122,6 +116,8 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      <VisualExplainers />
 
       <section className="px-4 py-16 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl overflow-hidden rounded-[2rem] border border-fish-accent/25 bg-fish-surface shadow-harbor">

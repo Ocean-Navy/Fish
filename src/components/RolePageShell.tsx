@@ -79,7 +79,7 @@ export function RolePageShell({
 
       <section className="relative px-4 pt-28 sm:px-6 lg:px-8">
         <div className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-[0.95fr_1.05fr] lg:items-stretch">
-          <div className="flex min-h-[34rem] flex-col justify-between rounded-[2rem] border border-fish-accent/25 bg-fish-surface/82 p-6 shadow-harbor backdrop-blur sm:p-9">
+          <div className="order-2 flex min-h-[28rem] flex-col justify-between rounded-[2rem] border border-fish-accent/25 bg-fish-surface/82 p-6 shadow-harbor backdrop-blur sm:p-9 lg:order-1 lg:min-h-[34rem]">
             <div>
               <Link href="/" className="mb-8 inline-flex items-center gap-2 text-sm font-black text-fish-secondary hover:text-white">
                 <ArrowLeft className="h-4 w-4" aria-hidden="true" />
@@ -116,8 +116,8 @@ export function RolePageShell({
             </div>
           </div>
 
-          <div className="relative min-h-[28rem] overflow-hidden rounded-[2rem] border border-fish-accent/25 bg-fish-surface shadow-harbor lg:min-h-[34rem]">
-            <Image src={image} alt={imageAlt} fill priority sizes="(min-width: 1024px) 48vw, 100vw" className="object-cover" />
+          <div className="order-1 relative min-h-[22rem] overflow-hidden rounded-[2rem] border border-fish-accent/25 bg-fish-surface shadow-harbor sm:min-h-[28rem] lg:order-2 lg:min-h-[34rem]">
+            <Image src={image} alt={imageAlt} fill priority sizes="(min-width: 1024px) 48vw, 100vw" className="fish-role-image object-cover" />
             <div className="absolute inset-0 bg-gradient-to-t from-fish-navy950/85 via-fish-navy950/10 to-transparent" aria-hidden="true" />
           </div>
         </div>

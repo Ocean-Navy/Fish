@@ -39,7 +39,7 @@ export function PublicProofPage({ proof, scorecard, benchmarks }: { proof: Proof
       </header>
 
       <section className="relative min-h-[92vh] px-4 pt-28 sm:px-6 lg:px-8">
-        <Image src="/assets/generated/fish-market-hero.png" alt="" fill priority sizes="100vw" className="object-cover" />
+        <Image src="/assets/generated/fish-market-hero.png" alt="" fill priority sizes="100vw" className="fish-proof-hero-image object-cover" />
         <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(2,10,30,0.98)_0%,rgba(2,10,30,0.84)_44%,rgba(2,10,30,0.24)_100%)]" aria-hidden="true" />
         <div className="absolute inset-x-0 bottom-0 h-36 bg-gradient-to-t from-fish-navy950 to-transparent" aria-hidden="true" />
 
