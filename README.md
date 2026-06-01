@@ -16,8 +16,8 @@ The public V0 is intentionally simple: a visual Venice fish-market homepage, rol
 - Waitlist/provider intake APIs that persist JSON submissions locally.
 - Admin-only signup export for launch lead follow-up.
 - Prototype `/v1` AI API with local API keys, Fish Credits debits, and usage receipts.
-- `/boxes` with simple Ask, Code, Explain, Summarize, Proposal Writer, and Ocean Helper counters.
-- `/chat` remains available as the same pilot AI boxes surface for existing links.
+- `/ask` with a Fish meal counter: Quick Catch, Code Roll, Clear Broth, Docs Bento, Image Catch, Proposal Platter, and Ocean Special.
+- `/chat` remains available as the same pilot AI meal counter for chat-oriented links.
 - Production Docker image, Docker Compose service, and public nginx/systemd deployment.
 - Warm inference operator runbook for a private vLLM / Fish Runner MVP path.
 
@@ -45,7 +45,7 @@ Useful local routes:
 /proof
 /routing
 /account
-/boxes
+/ask
 /api/health
 /api/ocean/summary
 /api/ocean/resources
@@ -488,10 +488,12 @@ node_modules/
 
 Fish should feel like entering a Venice fish market with Ocean Navy energy:
 
-- users enter the chat counter;
+- users enter the meal counter;
 - builders enter the API hatch;
-- providers enter the dock master;
+- providers bring fishing boats and GPU crews;
 - OCEAN holders enter the vault door.
+
+Keep the first product surface simple: Ask, Code, Docs, Images, API, Dashboard. Fish can handle routing, cost caps, receipts, and Ocean proof behind the counter.
 
 Generated images should be text-free and used as scene assets. Render copy, buttons, forms, and metrics in accessible HTML.
 

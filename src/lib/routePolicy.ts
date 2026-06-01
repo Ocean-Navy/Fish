@@ -46,6 +46,14 @@ export type FishRoutePolicy = {
     privacy: string;
     proof: string;
   }>;
+  features: Array<{
+    id: "ask" | "code" | "docs" | "ocean-helper" | "images" | "api";
+    label: string;
+    state: "live-beta" | "beta" | "coming-soon";
+    primary: string;
+    fallback: string;
+    cap: string;
+  }>;
   rules: Array<{
     title: string;
     body: string;
@@ -57,6 +65,11 @@ export function getFishRoutePolicy(): FishRoutePolicy {
   const router = getFishRouterConfig();
   const configuredRoute = router.routes[router.activeRouteId];
   const activeRoute = activeRoutePolicy(configuredRoute.id, configuredRoute.status);
+  const externalFallbackLabel = router.routes["external-fallback"].configured
+    ? router.guardrails.externalFallbackFreeAllowed
+      ? "External fallback allowed"
+      : "External fallback for paid plans"
+    : "No fallback configured";
 
   return {
     dataState: "live",
@@ -137,6 +150,56 @@ export function getFishRoutePolicy(): FishRoutePolicy {
         short: "Hardware-backed route much later.",
         privacy: "Hardware-backed execution boundary.",
         proof: "Hardware proof plus provider proof."
+      }
+    ],
+    features: [
+      {
+        id: "ask",
+        label: "Ask",
+        state: router.routes["ocean-demo-vllm"].configured ? "live-beta" : "beta",
+        primary: "Ocean demo vLLM",
+        fallback: externalFallbackLabel,
+        cap: `${router.guardrails.maxInputTokens} in / ${router.guardrails.maxOutputTokens} out`
+      },
+      {
+        id: "code",
+        label: "Code",
+        state: router.routes["ocean-demo-vllm"].configured ? "live-beta" : "beta",
+        primary: "Ocean demo vLLM",
+        fallback: externalFallbackLabel,
+        cap: `${router.guardrails.maxInputTokens} in / ${router.guardrails.maxOutputTokens} out`
+      },
+      {
+        id: "docs",
+        label: "Docs",
+        state: "beta",
+        primary: "Text route now, Ocean batch later",
+        fallback: "External fallback only when paid and enabled",
+        cap: "Paste text only in V0"
+      },
+      {
+        id: "ocean-helper",
+        label: "Ocean helper",
+        state: "beta",
+        primary: "Ocean demo vLLM plus Fish/Ocean prompt",
+        fallback: "None by default",
+        cap: `${router.guardrails.maxOutputTokens} output tokens`
+      },
+      {
+        id: "images",
+        label: "Images",
+        state: "coming-soon",
+        primary: "External paid beta first",
+        fallback: "Ocean-native later",
+        cap: "Disabled in V0"
+      },
+      {
+        id: "api",
+        label: "API",
+        state: "beta",
+        primary: "Fish Gateway",
+        fallback: "Route policy decides",
+        cap: `${router.guardrails.dailyKeyedQuota} keyed requests/day`
       }
     ],
     rules: [

@@ -8,13 +8,13 @@ const entrances = [
   {
     id: "users",
     title: "Users",
-    stall: "AI boxes",
+    stall: "Meal counter",
     image: "/assets/generated/fish-flow-use.png",
     icon: MessageSquareText,
-    cta: "Open boxes",
-    href: "/boxes",
-    chips: ["Pick a box", "Use credits", "See route"],
-    scene: ["Choose a box", "Ask Fish", "Read the tab"]
+    cta: "Ask Fish",
+    href: "/ask",
+    chips: ["Pick a dish", "Use credits", "See route"],
+    scene: ["Choose a dish", "Place order", "Read the tab"]
   },
   {
     id: "builders",
@@ -30,13 +30,13 @@ const entrances = [
   {
     id: "providers",
     title: "Providers",
-    stall: "Dock master",
+    stall: "Fishing boats",
     image: "/assets/generated/fish-flow-paid.png",
     icon: ServerCog,
     cta: "List compute",
     href: "/providers",
-    chips: ["Share GPUs", "Get demand", "Get paid"],
-    scene: ["Apply", "Run jobs", "Earn"]
+    chips: ["Bring GPUs", "Get demand", "Get paid"],
+    scene: ["Apply", "Join a crew", "Earn"]
   },
   {
     id: "holders",

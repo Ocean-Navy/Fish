@@ -73,7 +73,11 @@ export async function POST(request: Request) {
   let providerId: string | null = activeRoute.providerId;
   const requestedMaxOutputTokens = input.max_tokens ?? routerConfig.guardrails.maxOutputTokens;
 
-  if (!activeRoute.configured) {
+  if (!activeRoute.configured && activeRoute.id === "ocean-demo-vllm" && canUseExternalFallback(routerConfig, auth.account.planId)) {
+    route = "external-fallback";
+    costState = "fallback_verified";
+    providerId = routerConfig.routes["external-fallback"].providerId;
+  } else if (!activeRoute.configured) {
     return NextResponse.json(
       {
         error: {
@@ -115,8 +119,7 @@ export async function POST(request: Request) {
   }
 
   if (route === "external-fallback") {
-    const plan = getFishPlan(auth.account.planId);
-    if (!plan.externalFallbackAllowed && !routerConfig.guardrails.externalFallbackFreeAllowed) {
+    if (!canUseExternalFallback(routerConfig, auth.account.planId)) {
       return NextResponse.json(
         {
           error: {
@@ -176,17 +179,47 @@ export async function POST(request: Request) {
       providerCostUsd = warm.providerCostUsd;
       providerId = warm.providerId;
     } catch (error) {
-      const message = error instanceof VllmChatError ? error.message : "ocean_demo_vllm_backend_error";
-      return NextResponse.json(
-        {
-          error: {
-            message,
-            type: "warm_inference_backend_error",
-            route
-          }
-        },
-        { status: error instanceof VllmChatError ? error.status : 502 }
-      );
+      if (canUseExternalFallback(routerConfig, auth.account.planId)) {
+        try {
+          const external = await runExternalChat(routeInput, {
+            promptTokens,
+            completionTokens: estimateTokens("")
+          });
+          content = external.content;
+          responseModel = external.model;
+          promptTokens = external.promptTokens ?? promptTokens;
+          completionTokens = external.completionTokens ?? estimateTokens(content);
+          providerCostUsd = external.providerCostUsd;
+          providerId = external.providerId;
+          route = "external-fallback";
+          costState = "fallback_verified";
+        } catch (fallbackError) {
+          const fallbackMessage = fallbackError instanceof ExternalChatError ? fallbackError.message : "external_chat_backend_error";
+          return NextResponse.json(
+            {
+              error: {
+                message: fallbackMessage,
+                type: "external_backend_error",
+                primaryRoute: "ocean-demo-vllm",
+                fallbackRoute: "external-fallback"
+              }
+            },
+            { status: fallbackError instanceof ExternalChatError ? fallbackError.status : 502 }
+          );
+        }
+      } else {
+        const message = error instanceof VllmChatError ? error.message : "ocean_demo_vllm_backend_error";
+        return NextResponse.json(
+          {
+            error: {
+              message,
+              type: "warm_inference_backend_error",
+              route
+            }
+          },
+          { status: error instanceof VllmChatError ? error.status : 502 }
+        );
+      }
     }
   } else if (route === "external-fallback") {
     try {
@@ -272,10 +305,11 @@ export async function POST(request: Request) {
     },
     fish: {
       route: usage.receipt.route,
+      feature: usage.receipt.feature,
       costState: usage.receipt.costState,
       receiptId: usage.receipt.id,
       status: usage.receipt.status,
-      routeLabel: activeRoute.publicLabel,
+      routeLabel: routerConfig.routes[route].publicLabel,
       providerId: usage.receipt.providerId,
       latencyMs: usage.receipt.latencyMs,
       quotaRemaining: quota.remaining,
@@ -296,4 +330,9 @@ function routeNotConfiguredMessage(route: FishChatRouteId) {
     return "external_fallback_not_configured";
   }
   return "mock_route_not_configured";
+}
+
+function canUseExternalFallback(routerConfig: ReturnType<typeof getFishRouterConfig>, planId: string | undefined) {
+  const plan = getFishPlan(planId);
+  return routerConfig.routes["external-fallback"].configured && (plan.externalFallbackAllowed || routerConfig.guardrails.externalFallbackFreeAllowed);
 }

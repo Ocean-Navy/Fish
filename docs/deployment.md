@@ -283,7 +283,7 @@ Then browser-check:
 - `/proof`
 - `/routing`
 - `/account`
-- `/boxes`
+- `/ask`
 - `/dashboard`
 - `/api`
 - `/docs`

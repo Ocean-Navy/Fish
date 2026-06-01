@@ -1,16 +1,21 @@
-import { BadgeDollarSign, KeyRound, ReceiptText, Route } from "lucide-react";
+import { BadgeDollarSign, KeyRound, ReceiptText, Route, Waves } from "lucide-react";
 import { formatDateTime, formatNumber, formatUsd } from "@/lib/format";
 import type { FishUsageSummary as FishUsageSummaryData } from "@/lib/fishLedger";
 import { StatusBadge } from "@/components/StatusBadge";
 
-const cards = [
-  { key: "accounts", label: "API keys", icon: KeyRound },
-  { key: "requests", label: "Requests", icon: ReceiptText },
-  { key: "creditsSpent", label: "Credits spent", icon: BadgeDollarSign },
-  { key: "mockJobs", label: "Demo jobs", icon: Route }
-] as const;
-
 export function FishUsageSummary({ summary }: { summary: FishUsageSummaryData }) {
+  const oceanNativeShare = `${formatNumber(summary.oceanNativeShare * 100)}%`;
+  const cards = [
+    { label: "API keys", value: formatNumber(summary.accounts), icon: KeyRound },
+    { label: "Requests", value: formatNumber(summary.requests), icon: ReceiptText },
+    { label: "Ocean-native", value: formatNumber(summary.oceanNativeJobs), icon: Waves },
+    { label: "External fallback", value: formatNumber(summary.externalFallbackJobs), icon: Route },
+    { label: "Tokens served", value: formatNumber(summary.tokensServed), icon: ReceiptText },
+    { label: "Ocean share", value: oceanNativeShare, icon: Waves },
+    { label: "Credits spent", value: formatNumber(summary.creditsSpent), icon: BadgeDollarSign },
+    { label: "Demo jobs", value: formatNumber(summary.mockJobs), icon: Route }
+  ];
+
   return (
     <section className="mx-auto max-w-7xl px-4 pb-20 sm:px-6 lg:px-8">
       <div className="rounded-[2rem] border border-fish-accent/25 bg-fish-surface/80 p-5 shadow-harbor sm:p-7">
@@ -32,12 +37,12 @@ export function FishUsageSummary({ summary }: { summary: FishUsageSummaryData })
           {cards.map((card) => {
             const Icon = card.icon;
             return (
-              <div key={card.key} className="rounded-3xl border border-fish-accent/15 bg-white/[0.035] p-5">
+              <div key={card.label} className="rounded-3xl border border-fish-accent/15 bg-white/[0.035] p-5">
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-sm font-black text-fish-secondary">{card.label}</p>
                   <Icon className="h-5 w-5 text-fish-accent" aria-hidden="true" />
                 </div>
-                <strong className="mt-3 block text-3xl font-black text-white">{formatNumber(summary[card.key])}</strong>
+                <strong className="mt-3 block text-3xl font-black text-white">{card.value}</strong>
               </div>
             );
           })}
@@ -64,7 +69,7 @@ export function FishUsageSummary({ summary }: { summary: FishUsageSummaryData })
         )}
 
         <div className="mt-4 rounded-2xl border border-fish-gold/25 bg-fish-gold/10 p-4 text-sm font-bold leading-6 text-fish-primary">
-          Ocean-native jobs: {formatNumber(summary.oceanNativeJobs)}. Outside AI jobs: {formatNumber(summary.externalFallbackJobs)}. Provider payouts stay at {formatUsd(summary.providerPayoutUsd)} until selected Ocean providers run real jobs.
+          Ocean-native share: {oceanNativeShare}. Outside AI jobs: {formatNumber(summary.externalFallbackJobs)}. Provider payouts stay at {formatUsd(summary.providerPayoutUsd)} until selected Ocean providers run real jobs.
         </div>
       </div>
     </section>

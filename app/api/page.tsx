@@ -92,8 +92,8 @@ export default function ApiPage() {
             <Link className="inline-flex h-10 items-center rounded-full border border-fish-accent/35 px-4 text-xs font-black text-fish-accent hover:text-white" href="/account">
               Open account tab
             </Link>
-            <Link className="inline-flex h-10 items-center rounded-full border border-fish-accent/35 px-4 text-xs font-black text-fish-accent hover:text-white" href="/chat">
-              Open chat counter
+            <Link className="inline-flex h-10 items-center rounded-full border border-fish-accent/35 px-4 text-xs font-black text-fish-accent hover:text-white" href={"/ask" as NextRoute}>
+              Open meal counter
             </Link>
             <Link className="inline-flex h-10 items-center rounded-full border border-fish-accent/35 px-4 text-xs font-black text-fish-accent hover:text-white" href={"/routing" as NextRoute}>
               Open route compass

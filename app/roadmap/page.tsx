@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 
 const steps = [
   { title: "Market opens", body: "Landing page, dashboard, pilot forms, and public proof points." },
-  { title: "AI counter", body: "One simple app/API with keys, usage records, and metered usage." },
+  { title: "Meal counter", body: "One simple app/API with keys, usage records, and metered usage." },
   { title: "Provider dock", body: "Selected Ocean providers run real jobs behind Fish." },
   { title: "Proof board", body: "Supply, demand, reliability, and payouts become visible." },
   { title: "OCEAN credits", body: "Staked OCEAN can earn AI credits from funded budgets." },
@@ -21,7 +21,7 @@ const steps = [
 
 const cards = [
   { label: "Now", title: "Make demand visible", body: "Show the market clearly: who wants AI, who has compute, and where the first route can work." },
-  { label: "Next", title: "Ship the AI counter", body: "A useful chat/API surface comes before complex token mechanics." },
+  { label: "Next", title: "Ship the meal counter", body: "A useful chat/API surface comes before complex token mechanics." },
   { label: "Then", title: "Pay real providers", body: "Provider payouts come from usage, reserves, or funded budgets, not from staking magic." },
   { label: "Later", title: "Add stronger utility", body: "Credits, bonds, and capacity markets make more sense once the product has traffic." }
 ];
@@ -91,8 +91,8 @@ export default function RoadmapPage() {
           </div>
 
           <div className="mt-6 flex flex-wrap gap-3">
-            <Link className="inline-flex h-12 items-center rounded-full bg-gradient-to-r from-fish-accent to-fish-aqua px-6 text-sm font-black text-fish-navy950" href="/chat">
-              Try the API counter
+            <Link className="inline-flex h-12 items-center rounded-full bg-gradient-to-r from-fish-accent to-fish-aqua px-6 text-sm font-black text-fish-navy950" href={"/ask" as NextRoute}>
+              Ask Fish
             </Link>
             <Link className="inline-flex h-12 items-center rounded-full border border-fish-accent/40 px-6 text-sm font-black text-fish-accent" href="/credits">
               Credits guardrails

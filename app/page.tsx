@@ -5,6 +5,7 @@ import {
   Fish,
   LockKeyhole,
   Route,
+  Send,
   Sparkles,
   Waves
 } from "lucide-react";
@@ -38,7 +39,7 @@ export default function Home() {
             <a className="hover:text-white" href="#market">Market</a>
             <a className="hover:text-white" href="#flow">Flow</a>
             <a className="hover:text-white" href="#maps">Maps</a>
-            <Link className="hover:text-white" href={"/boxes" as NextRoute}>Boxes</Link>
+            <Link className="hover:text-white" href={"/ask" as NextRoute}>Ask Fish</Link>
             <Link className="hover:text-white" href={"/proof" as NextRoute}>Proof</Link>
             <Link className="hover:text-white" href="/dashboard">Dashboard</Link>
           </nav>
@@ -60,19 +61,30 @@ export default function Home() {
             </p>
             <h1 className="text-7xl font-black leading-none text-white sm:text-8xl lg:text-[11rem]">Fish</h1>
             <p className="mt-6 text-4xl font-black leading-tight text-fish-primary sm:text-6xl">
-              A Venice market for Ocean AI.
+              Turn Ocean Network compute into easy AI.
             </p>
-            <div className="mt-8 flex flex-wrap gap-3 text-lg font-black text-white">
-              <span className="rounded-full border border-fish-accent/25 bg-fish-navy950/55 px-4 py-2">Pick a door</span>
-              <span className="rounded-full border border-fish-accent/25 bg-fish-navy950/55 px-4 py-2">Catch FISH</span>
-              <span className="rounded-full border border-fish-accent/25 bg-fish-navy950/55 px-4 py-2">Use AI</span>
+            <Link
+              className="mt-8 flex min-h-16 max-w-2xl items-center justify-between gap-4 rounded-full border border-fish-accent/35 bg-white/95 px-5 text-left shadow-harbor transition hover:scale-[1.01]"
+              href={"/ask" as NextRoute}
+            >
+              <span className="truncate text-base font-black text-fish-navy900 sm:text-xl">Ask Fish anything...</span>
+              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-gradient-to-r from-fish-accent to-fish-aqua text-fish-navy950">
+                <Send className="h-5 w-5" aria-hidden="true" />
+              </span>
+            </Link>
+            <div className="mt-5 flex flex-wrap gap-3 text-base font-black text-white">
+              {["Ask", "Code", "Docs", "Images", "API", "Dashboard"].map((item) => (
+                <span key={item} className="rounded-full border border-fish-accent/25 bg-fish-navy950/55 px-4 py-2">
+                  {item}
+                </span>
+              ))}
             </div>
             <div className="mt-9 flex flex-wrap gap-3">
               <a className="inline-flex h-12 items-center gap-2 rounded-full bg-gradient-to-r from-fish-accent to-fish-aqua px-6 text-sm font-black text-fish-navy950" href="#market">
                 Enter market <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </a>
-              <Link className="inline-flex h-12 items-center rounded-full border border-fish-accent/40 bg-fish-navy950/60 px-6 text-sm font-black text-white" href={"/boxes" as NextRoute}>
-                Try boxes
+              <Link className="inline-flex h-12 items-center rounded-full border border-fish-accent/40 bg-fish-navy950/60 px-6 text-sm font-black text-white" href={"/ask" as NextRoute}>
+                Ask Fish
               </Link>
             </div>
           </div>

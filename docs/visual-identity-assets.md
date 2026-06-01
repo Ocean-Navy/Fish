@@ -27,9 +27,9 @@ If the current tooling cannot explicitly select GPT Image 2.0, generated images 
 
 The public V0 should feel like a Venice fish market, not a static poster. Visitors choose an entrance based on their role:
 
-- Users: chat counter.
+- Users: meal counter.
 - Builders: API hatch.
-- Providers: dock master.
+- Providers: fishing boats.
 - OCEAN holders: vault door.
 
 Each entrance can expose a different lightweight interface while still feeding the same shared Fish loop.

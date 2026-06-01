@@ -6,12 +6,12 @@ import { collectProviderPilotRegistry } from "@/lib/providerPilot";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Fish Provider Pilot - List compute at the dock",
+  title: "Fish Provider Pilot - Bring a fishing boat",
   description: "Join the first Fish provider crew and help route real AI demand to Ocean Network compute."
 };
 
 const steps = [
-  { title: "Show GPUs", body: "Share your compute details and payout preference." },
+  { title: "Show GPUs", body: "Share your boat, compute details, and payout preference." },
   { title: "Run approved jobs", body: "Start with selected workloads and clear rules." },
   { title: "Get proof", body: "Fish tracks usage, reliability, and payout evidence." },
   { title: "Earn trust", body: "Reliable providers can qualify for scorecards and future OCEAN bond utility." }
@@ -29,12 +29,12 @@ export default async function ProvidersPage() {
 
   return (
     <RolePageShell
-      eyebrow="Dock master"
+      eyebrow="Fishing boats"
       title="Have compute?"
-      subtitle="Bring GPUs to the Fish market and catch real AI demand."
+      subtitle="Bring a GPU boat to the Fish market and catch real AI demand."
       image="/assets/generated/fish-flow-paid.png"
       imageAlt="Ocean Navy provider dock with compute gear and glowing payouts"
-      chips={["List compute", "Run jobs", "Get paid", "Build trust"]}
+      chips={["List boat", "Run jobs", "Get paid", "Build trust"]}
       primaryAction={{ label: "Join provider crew", href: "/#pilot" }}
       secondaryAction={{ label: "View supply", href: "/dashboard" }}
       steps={steps}

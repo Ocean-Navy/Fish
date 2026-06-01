@@ -39,6 +39,12 @@ const modeIcons = {
   "tee-runner": BadgeCheck
 };
 
+const featureStyles = {
+  "live-beta": "border-emerald-300/35 bg-emerald-300/15 text-emerald-100",
+  beta: "border-fish-accent/35 bg-fish-accent/15 text-fish-accent",
+  "coming-soon": "border-white/20 bg-white/[0.05] text-fish-secondary"
+};
+
 export default function RoutingPage() {
   const policy = getFishRoutePolicy();
 
@@ -50,7 +56,7 @@ export default function RoutingPage() {
       image="/assets/generated/fish-role-builder.png"
       imageAlt="Fish route compass in a Venice Ocean Navy workshop"
       chips={["Demo", "Outside AI", "Ocean providers", "Private later"]}
-      primaryAction={{ label: "Try boxes", href: "/boxes" as Route }}
+      primaryAction={{ label: "Ask Fish", href: "/ask" as Route }}
       secondaryAction={{ label: "Open API board", href: "/api" }}
       steps={steps}
       note="Fish labels every route. If selected Ocean providers did not run the work, Fish will say so."
@@ -90,6 +96,35 @@ export default function RoutingPage() {
                 </article>
               );
             })}
+          </div>
+        </div>
+      </section>
+
+      <section className="px-4 pb-14 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl rounded-[2rem] border border-fish-accent/25 bg-fish-surface/80 p-6 shadow-harbor sm:p-8">
+          <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">AI menu policy</p>
+              <h2 className="mt-2 text-3xl font-black text-white sm:text-5xl">Ocean-first, fallback-safe.</h2>
+            </div>
+            <p className="max-w-lg text-base font-bold leading-7 text-fish-secondary">The meal counter stays simple. Fish keeps the route rules behind the counter.</p>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {policy.features.map((feature) => (
+              <article key={feature.id} className="rounded-3xl border border-fish-accent/15 bg-white/[0.035] p-5">
+                <div className="flex items-start justify-between gap-3">
+                  <h3 className="text-2xl font-black text-white">{feature.label}</h3>
+                  <span className={`rounded-full border px-3 py-1 text-xs font-black uppercase tracking-[0.08em] ${featureStyles[feature.state]}`}>
+                    {feature.state.replace("-", " ")}
+                  </span>
+                </div>
+                <div className="mt-4 grid gap-2 text-sm font-bold leading-6 text-fish-secondary">
+                  <p><span className="text-fish-primary">Primary:</span> {feature.primary}</p>
+                  <p><span className="text-fish-primary">Fallback:</span> {feature.fallback}</p>
+                  <p><span className="text-fish-primary">Cap:</span> {feature.cap}</p>
+                </div>
+              </article>
+            ))}
           </div>
         </div>
       </section>

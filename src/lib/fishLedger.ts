@@ -70,7 +70,8 @@ export const chatCompletionSchema = z.object({
     .min(1),
   stream: z.boolean().optional().default(false),
   temperature: z.number().min(0).max(2).optional(),
-  max_tokens: z.number().int().min(1).max(4096).optional()
+  max_tokens: z.number().int().min(1).max(4096).optional(),
+  metadata: z.record(z.unknown()).optional()
 });
 
 export type ChatCompletionInput = z.infer<typeof chatCompletionSchema>;
@@ -195,6 +196,7 @@ type UsageReceipt = {
   creditLane: CreditLane;
   createdAt: string;
   model: string;
+  feature: string | null;
   route: "mock" | "ocean-demo-vllm" | "ocean-provider" | "external-fallback";
   costState: "prototype_estimate" | "provider_verified" | "fallback_verified";
   status: "succeeded" | "failed";
@@ -217,6 +219,8 @@ export type FishUsageSummary = {
   oceanNativeJobs: number;
   externalFallbackJobs: number;
   mockJobs: number;
+  tokensServed: number;
+  oceanNativeShare: number;
   providerPayoutUsd: number;
   creditsSpent: number;
   creditsRemaining: number;
@@ -388,6 +392,10 @@ export async function summarizeFishUsage(): Promise<FishUsageSummary> {
   const [receipts, creditEntries] = await Promise.all([readAllReceipts(), readCreditEntries()]);
   const costs = summarizeReceiptCosts(receipts);
   const dataState: DataState = receipts.length > 0 ? "live" : "sample";
+  const oceanNativeJobs = receipts.filter((receipt) => receipt.route === "ocean-provider" || receipt.route === "ocean-demo-vllm").length;
+  const externalFallbackJobs = receipts.filter((receipt) => receipt.route === "external-fallback").length;
+  const mockJobs = receipts.filter((receipt) => receipt.route === "mock").length;
+  const tokensServed = receipts.reduce((sum, receipt) => sum + receipt.totalTokens, 0);
   const creditLanes = summarizeCreditLanes(includeLegacyCreditSeeds(ledger.accounts, creditEntries), {
     creditBalance: ledger.accounts.reduce((sum, account) => sum + account.creditBalance, 0),
     totalCreditsGranted: ledger.accounts.reduce((sum, account) => sum + account.totalCreditsGranted, 0),
@@ -397,9 +405,11 @@ export async function summarizeFishUsage(): Promise<FishUsageSummary> {
     dataState,
     requests: ledger.accounts.reduce((sum, account) => sum + account.requestCount, 0),
     accounts: ledger.accounts.length,
-    oceanNativeJobs: receipts.filter((receipt) => receipt.route === "ocean-provider" || receipt.route === "ocean-demo-vllm").length,
-    externalFallbackJobs: receipts.filter((receipt) => receipt.route === "external-fallback").length,
-    mockJobs: receipts.filter((receipt) => receipt.route === "mock").length,
+    oceanNativeJobs,
+    externalFallbackJobs,
+    mockJobs,
+    tokensServed,
+    oceanNativeShare: receipts.length ? oceanNativeJobs / receipts.length : 0,
     providerPayoutUsd: costs.providerCostUsd,
     creditsSpent: ledger.accounts.reduce((sum, account) => sum + account.totalCreditsSpent, 0),
     creditsRemaining: ledger.accounts.reduce((sum, account) => sum + account.creditBalance, 0),
@@ -486,6 +496,7 @@ export async function recordChatUsage(params: {
     creditLane: "grant",
     createdAt: now,
     model: params.model ?? params.input.model,
+    feature: readFishFeature(params.input.metadata),
     route: params.route ?? "mock",
     costState: params.costState ?? "prototype_estimate",
     status: params.status ?? "succeeded",
@@ -521,6 +532,11 @@ export async function recordChatUsage(params: {
     receipt,
     creditsRemaining: params.account.creditBalance
   };
+}
+
+function readFishFeature(metadata: Record<string, unknown> | undefined) {
+  const feature = metadata?.fish_feature;
+  return typeof feature === "string" && feature.trim() ? feature.trim().slice(0, 80) : null;
 }
 
 export function buildMockCompletion(input: ChatCompletionInput) {

@@ -10,7 +10,7 @@ Baseline assumptions:
 - Existing `tailwind.config.ts` already contains the core Fish color tokens and should be extended, not replaced.
 - The concept artwork is available at `public/assets/fish-ocean-navy-venice.png`. `WEBSITE_SPEC.md` mentions `app/assets/...`; use the existing public asset path unless the image is moved during implementation.
 - The current static prototype under `legacy/static-prototype/` is reference material only. Do not port it wholesale without applying the production component structure below.
-- V0 may ship all public URL targets as sections on `/`, but code should be split so `/boxes`, `/dashboard`, `/roadmap`, `/providers`, `/credits`, `/docs`, and `/api` can become real routes without rewriting content.
+- V0 may ship all public URL targets as sections on `/`, but code should be split so `/ask`, `/dashboard`, `/roadmap`, `/providers`, `/credits`, `/docs`, and `/api` can become real routes without rewriting content.
 
 ## Delivery Target
 
@@ -490,7 +490,7 @@ Implementation:
 V0 can ship these as sections, but reserve the route names:
 
 - `/dashboard`: full Ocean Network supply dashboard. Start with status header, KPI cards, GPU supply table, provider scorecard, usage proof placeholder, and OCEAN utility proof placeholder.
-- `/boxes`: pilot AI boxes for Ask, Code, Explain, Summarize, Proposal Writer, and Ocean Helper, powered by the `/v1/chat/completions` contract with visible route and credit feedback.
+- `/ask`: pilot Fish meal counter for Quick Catch, Code Roll, Clear Broth, Docs Bento, Image Catch, Proposal Platter, and Ocean Special, powered by the `/v1/chat/completions` contract with visible route and credit feedback. Image Catch stays disabled until paid image fallback or Ocean-native image routes exist.
 - `/roadmap`: roadmap cards plus principle banner and launch caveats.
 - `/providers`: provider pilot form, provider promise, eligibility notes, scorecard explanation.
 - `/credits`: OCEAN staking, provider bonds, credits, and future-support explanation with caveats.

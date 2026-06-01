@@ -43,7 +43,7 @@ export function getExternalChatConfig(): ExternalChatConfig {
 }
 
 export function isExternalChatEnabled(config = getExternalChatConfig()) {
-  return config.backend === "external" && Boolean(config.baseUrl && config.apiKey);
+  return Boolean(config.baseUrl && config.apiKey && config.model);
 }
 
 export async function runExternalChat(input: ChatCompletionInput, fallbackTokenEstimate: { promptTokens: number; completionTokens: number }): Promise<ExternalChatSuccess> {
