@@ -76,7 +76,7 @@ export const chatCompletionSchema = z.object({
 
 export type ChatCompletionInput = z.infer<typeof chatCompletionSchema>;
 
-type Account = {
+export type Account = {
   id: string;
   label: string;
   keyHash: string;
@@ -89,7 +89,7 @@ type Account = {
   lastUsedAt: string | null;
 };
 
-type Ledger = {
+export type Ledger = {
   accounts: Account[];
 };
 
@@ -329,6 +329,52 @@ export async function createApiKey(label: string, creditGrant: number, planId: F
   return {
     key,
     account: publicAccount(account)
+  };
+}
+
+export async function getOrCreateGuestAccount(guestId: string, creditGrant = 25) {
+  const ledger = await readLedger();
+  const keyHash = hashSecret(`guest:${guestId}`);
+  const existing = ledger.accounts.find((candidate) => candidate.keyHash === keyHash);
+  if (existing) {
+    return {
+      ledger,
+      account: existing
+    };
+  }
+
+  const now = new Date().toISOString();
+  const account: Account = {
+    id: randomUUID(),
+    label: `Guest ${guestId.slice(0, 8)}`,
+    keyHash,
+    createdAt: now,
+    planId: "free",
+    creditBalance: creditGrant,
+    totalCreditsGranted: creditGrant,
+    totalCreditsSpent: 0,
+    requestCount: 0,
+    lastUsedAt: null
+  };
+
+  ledger.accounts.push(account);
+  await writeLedger(ledger);
+  await appendCreditEntry({
+    entryId: randomUUID(),
+    accountId: account.id,
+    lane: "grant",
+    kind: "grant",
+    amount: creditGrant,
+    requestId: null,
+    receiptId: null,
+    expiresAt: null,
+    createdAt: now,
+    operatorReason: "guest_demo_grant"
+  });
+
+  return {
+    ledger,
+    account
   };
 }
 

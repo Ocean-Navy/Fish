@@ -1,0 +1,261 @@
+import {
+  buildMockCompletion,
+  estimateTokens,
+  getFishPlan,
+  recordChatUsage,
+  type Account,
+  type ChatCompletionInput,
+  type Ledger
+} from "@/lib/fishLedger";
+import { ExternalChatError, runExternalChat } from "@/lib/externalChat";
+import { spendDailyQuota } from "@/lib/fishQuota";
+import { getActiveFishRoute, getFishRouterConfig, type FishChatRouteId, type FishCostState, type FishRouterConfig } from "@/lib/fishRouter";
+import { VllmChatError, runVllmChat } from "@/lib/vllmChat";
+
+export type FishChatGatewayContext = {
+  ledger: Ledger;
+  account: Account;
+  principalId: string;
+  dailyQuotaLimit: number;
+  allowExternalFallback: boolean;
+};
+
+export type FishChatGatewayResult =
+  | {
+      ok: true;
+      body: Record<string, unknown>;
+    }
+  | {
+      ok: false;
+      status: number;
+      body: Record<string, unknown>;
+    };
+
+type FishChatGatewayError = Extract<FishChatGatewayResult, { ok: false }>;
+
+export async function runFishChatGateway(input: ChatCompletionInput, context: FishChatGatewayContext): Promise<FishChatGatewayResult> {
+  if (input.stream) {
+    return jsonError(400, "streaming_is_not_enabled_in_the_v1_prototype", "unsupported_feature");
+  }
+
+  const promptText = input.messages.map((message) => (typeof message.content === "string" ? message.content : JSON.stringify(message.content))).join("\n");
+  const routerConfig = getFishRouterConfig();
+  const activeRoute = getActiveFishRoute(routerConfig);
+  if (routerConfig.killSwitch || routerConfig.paused) {
+    return jsonError(503, routerConfig.killSwitch ? "fish_router_disabled" : "fish_router_paused", "router_unavailable", {
+      route: activeRoute.id
+    });
+  }
+
+  let content = "";
+  let responseModel = input.model;
+  let promptTokens = estimateTokens(promptText);
+  let completionTokens = 0;
+  let providerCostUsd = 0;
+  let route: FishChatRouteId = activeRoute.id;
+  let costState: FishCostState = activeRoute.costState;
+  let providerId: string | null = activeRoute.providerId;
+  const requestedMaxOutputTokens = input.max_tokens ?? routerConfig.guardrails.maxOutputTokens;
+
+  if (!activeRoute.configured && activeRoute.id === "ocean-demo-vllm" && canUseExternalFallback(routerConfig, context)) {
+    route = "external-fallback";
+    costState = "fallback_verified";
+    providerId = routerConfig.routes["external-fallback"].providerId;
+  } else if (!activeRoute.configured) {
+    return jsonError(503, routeNotConfiguredMessage(activeRoute.id), "routing_policy_error", { route });
+  }
+
+  if (promptTokens > routerConfig.guardrails.maxInputTokens) {
+    return jsonError(400, "max_input_tokens_exceeded", "guardrail_error", {
+      limit: routerConfig.guardrails.maxInputTokens,
+      estimated: promptTokens
+    });
+  }
+
+  if (requestedMaxOutputTokens > routerConfig.guardrails.maxOutputTokens) {
+    return jsonError(400, "max_output_tokens_exceeded", "guardrail_error", {
+      limit: routerConfig.guardrails.maxOutputTokens,
+      requested: requestedMaxOutputTokens
+    });
+  }
+
+  if (route === "external-fallback" && !canUseExternalFallback(routerConfig, context)) {
+    return jsonError(403, "external_fallback_not_allowed_for_plan", "routing_policy_error", { route });
+  }
+
+  const estimatedMaxCredits = Math.max(1, Math.ceil((promptTokens + requestedMaxOutputTokens) / 1000));
+  if (context.account.creditBalance < estimatedMaxCredits) {
+    return jsonError(402, "insufficient_fish_credits", "billing_error", {
+      needed: estimatedMaxCredits,
+      available: context.account.creditBalance
+    });
+  }
+
+  const quota = await spendDailyQuota(context.principalId, route, context.dailyQuotaLimit);
+  if (!quota.ok) {
+    return jsonError(quota.status, quota.error, "quota_error", {
+      limit: quota.limit,
+      used: quota.used,
+      remaining: quota.remaining
+    });
+  }
+
+  const routeInput = { ...input, max_tokens: requestedMaxOutputTokens };
+  const startedAt = Date.now();
+  if (route === "ocean-demo-vllm") {
+    try {
+      const warm = await runVllmChat(routeInput, {
+        promptTokens,
+        completionTokens: estimateTokens("")
+      });
+      content = warm.content;
+      responseModel = warm.model;
+      promptTokens = warm.promptTokens ?? promptTokens;
+      completionTokens = warm.completionTokens ?? estimateTokens(content);
+      providerCostUsd = warm.providerCostUsd;
+      providerId = warm.providerId;
+    } catch (error) {
+      if (!canUseExternalFallback(routerConfig, context)) {
+        const message = error instanceof VllmChatError ? error.message : "ocean_demo_vllm_backend_error";
+        return jsonError(error instanceof VllmChatError ? error.status : 502, message, "warm_inference_backend_error", { route });
+      }
+
+      const fallback = await runExternalFallback(routeInput, promptTokens);
+      if (!fallback.ok) {
+        return fallback;
+      }
+      ({ content, responseModel, promptTokens, completionTokens, providerCostUsd, providerId } = fallback);
+      route = "external-fallback";
+      costState = "fallback_verified";
+    }
+  } else if (route === "external-fallback") {
+    const fallback = await runExternalFallback(routeInput, promptTokens);
+    if (!fallback.ok) {
+      return fallback;
+    }
+    ({ content, responseModel, promptTokens, completionTokens, providerCostUsd, providerId } = fallback);
+    costState = "fallback_verified";
+  } else {
+    content = buildMockCompletion(routeInput);
+    completionTokens = estimateTokens(content);
+  }
+  const latencyMs = Date.now() - startedAt;
+
+  const usage = await recordChatUsage({
+    ledger: context.ledger,
+    account: context.account,
+    input,
+    model: responseModel,
+    promptTokens,
+    completionTokens,
+    content,
+    route,
+    costState,
+    status: "succeeded",
+    latencyMs,
+    providerCostUsd,
+    providerId
+  });
+
+  if (!usage.ok) {
+    return jsonError(usage.status, usage.error, "billing_error", {
+      needed: usage.needed,
+      available: usage.available
+    });
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  return {
+    ok: true,
+    body: {
+      id: `chatcmpl_${usage.receipt.id}`,
+      object: "chat.completion",
+      created: now,
+      model: responseModel,
+      choices: [
+        {
+          index: 0,
+          message: {
+            role: "assistant",
+            content
+          },
+          finish_reason: "stop"
+        }
+      ],
+      usage: {
+        prompt_tokens: promptTokens,
+        completion_tokens: completionTokens,
+        total_tokens: promptTokens + completionTokens
+      },
+      fish: {
+        route: usage.receipt.route,
+        feature: usage.receipt.feature,
+        costState: usage.receipt.costState,
+        receiptId: usage.receipt.id,
+        status: usage.receipt.status,
+        routeLabel: routerConfig.routes[route].publicLabel,
+        providerId: usage.receipt.providerId,
+        latencyMs: usage.receipt.latencyMs,
+        quotaRemaining: quota.remaining,
+        creditsSpent: usage.receipt.creditsSpent,
+        creditsRemaining: usage.creditsRemaining,
+        userChargeUsd: usage.receipt.userChargeUsd,
+        providerCostUsd: usage.receipt.providerCostUsd,
+        grossMarginUsd: usage.receipt.grossMarginUsd
+      }
+    }
+  };
+}
+
+async function runExternalFallback(input: ChatCompletionInput, promptTokens: number) {
+  try {
+    const external = await runExternalChat(input, {
+      promptTokens,
+      completionTokens: estimateTokens("")
+    });
+    return {
+      ok: true as const,
+      content: external.content,
+      responseModel: external.model,
+      promptTokens: external.promptTokens ?? promptTokens,
+      completionTokens: external.completionTokens ?? estimateTokens(external.content),
+      providerCostUsd: external.providerCostUsd,
+      providerId: external.providerId
+    };
+  } catch (error) {
+    const message = error instanceof ExternalChatError ? error.message : "external_chat_backend_error";
+    return jsonError(message === "external_chat_not_configured" ? 503 : error instanceof ExternalChatError ? error.status : 502, message, "external_backend_error");
+  }
+}
+
+function canUseExternalFallback(routerConfig: FishRouterConfig, context: FishChatGatewayContext) {
+  if (!context.allowExternalFallback) {
+    return false;
+  }
+  const plan = getFishPlan(context.account.planId);
+  return routerConfig.routes["external-fallback"].configured && (plan.externalFallbackAllowed || routerConfig.guardrails.externalFallbackFreeAllowed);
+}
+
+function routeNotConfiguredMessage(route: FishChatRouteId) {
+  if (route === "ocean-demo-vllm") {
+    return "ocean_demo_vllm_not_configured";
+  }
+  if (route === "external-fallback") {
+    return "external_fallback_not_configured";
+  }
+  return "mock_route_not_configured";
+}
+
+function jsonError(status: number, message: string, type: string, extra: Record<string, unknown> = {}): FishChatGatewayError {
+  return {
+    ok: false,
+    status,
+    body: {
+      error: {
+        message,
+        type,
+        ...extra
+      }
+    }
+  };
+}

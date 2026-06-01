@@ -53,6 +53,8 @@ type DishResult = {
   userChargeUsd?: number;
   providerCostUsd?: number;
   totalTokens?: number;
+  quotaRemaining?: number;
+  accessMode: "guest" | "key";
 };
 
 const dishes: FishDish[] = [
@@ -238,10 +240,6 @@ export function FishMealCounter() {
   async function sendPrompt() {
     const key = apiKey.trim();
     const userPrompt = prompt.trim();
-    if (!key) {
-      setError("Add a Fish API key first.");
-      return;
-    }
     if (activeDish.disabled) {
       setError(`${activeDish.title} is coming soon.`);
       return;
@@ -256,11 +254,12 @@ export function FishMealCounter() {
     setResult(null);
 
     try {
-      const response = await fetch("/v1/chat/completions", {
+      const accessMode = key ? "key" : "guest";
+      const response = await fetch(key ? "/v1/chat/completions" : "/api/meal/order", {
         method: "POST",
         headers: {
-          authorization: `Bearer ${key}`,
-          "content-type": "application/json"
+          "content-type": "application/json",
+          ...(key ? { authorization: `Bearer ${key}` } : {})
         },
         body: JSON.stringify({
           model: selectedModel,
@@ -297,7 +296,9 @@ export function FishMealCounter() {
         creditsRemaining: payload.fish?.creditsRemaining,
         userChargeUsd: payload.fish?.userChargeUsd,
         providerCostUsd: payload.fish?.providerCostUsd,
-        totalTokens: payload.usage?.total_tokens
+        totalTokens: payload.usage?.total_tokens,
+        quotaRemaining: payload.fish?.quotaRemaining,
+        accessMode
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Request failed.");
@@ -376,12 +377,12 @@ export function FishMealCounter() {
             </span>
             <div>
               <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">Pilot access</p>
-              <h2 className="text-2xl font-black text-white">Credits and route labels</h2>
+              <h2 className="text-2xl font-black text-white">Free taste or API key</h2>
             </div>
           </div>
 
           <label className="block text-sm font-black text-fish-primary" htmlFor="fish-meal-api-key">
-            Fish API key
+            Fish API key <span className="text-fish-secondary">(optional)</span>
           </label>
           <input
             id="fish-meal-api-key"
@@ -389,7 +390,7 @@ export function FishMealCounter() {
             onChange={(event) => setApiKey(event.target.value)}
             type="password"
             autoComplete="off"
-            placeholder="fish_sk_..."
+            placeholder="Leave empty for a small daily demo"
             className="mt-2 h-12 w-full rounded-2xl border border-fish-accent/25 bg-fish-navy950/70 px-4 text-sm font-bold text-white outline-none transition placeholder:text-fish-muted focus:border-fish-accent"
           />
 
@@ -412,7 +413,7 @@ export function FishMealCounter() {
           <div className="mt-5 grid gap-3 sm:grid-cols-3">
             <StatusTile label="Dish" value={activeDish.status} />
             <StatusTile label="Route" value={result?.route ? formatBadge(result.route) : activeDish.routeLabel} />
-            <StatusTile label="Credits" value={result ? `${result.creditsSpent ?? 0} spent` : "Pilot cap"} />
+            <StatusTile label="Access" value={apiKey.trim() ? "API key" : "Free taste"} />
           </div>
         </div>
       </section>
@@ -475,7 +476,7 @@ export function FishMealCounter() {
         </div>
 
         <div className="mt-5 rounded-[1.5rem] border border-fish-accent/15 bg-white/[0.035] p-4 text-sm font-bold leading-6 text-fish-secondary">
-          Pilot keys have caps. Fish shows the route and credits after each answer.
+          No key needed for a small daily demo. API keys unlock balances, usage history, and higher caps.
         </div>
 
         <div className="mt-5 min-h-80 rounded-[1.5rem] border border-fish-accent/18 bg-fish-navy950/45 p-5">
@@ -496,7 +497,7 @@ export function FishMealCounter() {
                 <Metric label="Credits spent" value={String(result.creditsSpent ?? 0)} />
                 <Metric label="Credits left" value={String(result.creditsRemaining ?? 0)} />
                 <Metric label="Tokens" value={String(result.totalTokens ?? 0)} />
-                <Metric label="User price" value={`$${(result.userChargeUsd ?? 0).toFixed(4)}`} />
+                <Metric label={result.accessMode === "guest" ? "Orders left" : "User price"} value={result.accessMode === "guest" ? String(result.quotaRemaining ?? 0) : `$${(result.userChargeUsd ?? 0).toFixed(4)}`} />
               </div>
               {result.receiptId ? (
                 <p className="mt-3 break-all rounded-2xl border border-fish-accent/15 bg-white/[0.035] p-4 text-xs font-bold leading-6 text-fish-secondary">

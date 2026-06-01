@@ -17,6 +17,7 @@ The public V0 is intentionally simple: a visual Venice fish-market homepage, rol
 - Admin-only signup export for launch lead follow-up.
 - Prototype `/v1` AI API with local API keys, Fish Credits debits, and usage receipts.
 - `/ask` with a Fish meal counter: Quick Catch, Code Roll, Clear Broth, Docs Bento, Image Catch, Proposal Platter, and Ocean Special.
+- `/api/meal/order` for a capped guest meal-counter demo without exposing a Fish API key.
 - `/chat` remains available as the same pilot AI meal counter for chat-oriented links.
 - Production Docker image, Docker Compose service, and public nginx/systemd deployment.
 - Warm inference operator runbook for a private vLLM / Fish Runner MVP path.
@@ -52,6 +53,7 @@ Useful local routes:
 /api/billing/plans
 /api/billing/usage-analytics
 /api/routing/policy
+/api/meal/order
 /api/providers/pilot
 /api/submissions/export
 /api/proof/summary
@@ -180,6 +182,7 @@ FISH_MAX_INPUT_TOKENS=1000
 FISH_MAX_OUTPUT_TOKENS=512
 FISH_DAILY_KEYED_QUOTA=20
 FISH_DAILY_ANONYMOUS_QUOTA=5
+FISH_GUEST_CREDIT_GRANT=25
 FISH_CHAT_PAUSED=false
 FISH_ROUTER_KILL_SWITCH=false
 FISH_OCEAN_DEMO_VLLM_BASE_URL=
