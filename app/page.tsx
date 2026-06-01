@@ -38,6 +38,7 @@ export default function Home() {
             <a className="hover:text-white" href="#market">Market</a>
             <a className="hover:text-white" href="#flow">Flow</a>
             <a className="hover:text-white" href="#maps">Maps</a>
+            <Link className="hover:text-white" href={"/boxes" as NextRoute}>Boxes</Link>
             <Link className="hover:text-white" href={"/proof" as NextRoute}>Proof</Link>
             <Link className="hover:text-white" href="/dashboard">Dashboard</Link>
           </nav>
@@ -70,9 +71,9 @@ export default function Home() {
               <a className="inline-flex h-12 items-center gap-2 rounded-full bg-gradient-to-r from-fish-accent to-fish-aqua px-6 text-sm font-black text-fish-navy950" href="#market">
                 Enter market <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </a>
-              <a className="inline-flex h-12 items-center rounded-full border border-fish-accent/40 bg-fish-navy950/60 px-6 text-sm font-black text-white" href="#pilot">
-                Join pilot
-              </a>
+              <Link className="inline-flex h-12 items-center rounded-full border border-fish-accent/40 bg-fish-navy950/60 px-6 text-sm font-black text-white" href={"/boxes" as NextRoute}>
+                Try boxes
+              </Link>
             </div>
           </div>
         </div>

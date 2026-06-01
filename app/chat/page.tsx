@@ -1,44 +1,44 @@
 import type { Metadata } from "next";
-import { FishChatPrototype } from "@/components/FishChatPrototype";
+import { FishAiBoxes } from "@/components/FishAiBoxes";
 import { RolePageShell } from "@/components/RolePageShell";
 
 export const metadata: Metadata = {
-  title: "Fish Chat - AI counter",
-  description: "Try the Fish chat counter with a pilot key and Fish credits."
+  title: "Fish Boxes - AI counters",
+  description: "Try Fish AI boxes for ask, code, explain, summarize, proposal writing, and Ocean help."
 };
 
 const steps = [
+  { title: "Pick a box", body: "Choose Ask, Code, Explain, Summarize, Proposal Writer, or Ocean Helper." },
   { title: "Bring a key", body: "Use the Fish key from your pilot invite." },
-  { title: "Pick a model", body: "Choose what Fish should use for the answer." },
-  { title: "Ask Fish", body: "Type a question and send it." },
-  { title: "See your tab", body: "Fish shows how many credits were used." }
+  { title: "Send a prompt", body: "Each box wraps the prompt for the same API route." },
+  { title: "Read the tab", body: "Fish shows route, credits, and activity id." }
 ];
 
 const cards = [
-  { label: "Now", title: "Simple chat", body: "Ask a question and see the answer in one place." },
-  { label: "Credits", title: "Clear spend", body: "Each answer shows the credits used and the credits left." },
-  { label: "Private key", title: "No key saved", body: "The page can remember the chat, but it does not store your Fish key." },
-  { label: "Next", title: "Ocean providers", body: "Selected Ocean providers come next after pilot testing." }
+  { label: "Now", title: "Many boxes", body: "One backend route can feel like several useful tools." },
+  { label: "Credits", title: "Plain spend", body: "Each answer shows credits used, credits left, and an activity id." },
+  { label: "Private key", title: "No key saved", body: "The page does not store your Fish API key." },
+  { label: "Next", title: "More routes", body: "Selected Ocean provider routes come after pilot testing." }
 ];
 
 export default function ChatPage() {
   return (
     <RolePageShell
-      eyebrow="Chat counter"
-      title="Ask Fish."
-      subtitle="One small counter for questions, answers, and credits."
+      eyebrow="AI boxes"
+      title="Pick a Fish box."
+      subtitle="Ask, code, explain, summarize, draft, or get Ocean help from one simple counter."
       image="/assets/generated/fish-flow-use.png"
       imageAlt="Venice market AI counter with Fish Ocean Navy styling"
-      chips={["Pilot key", "Model menu", "Saved chat", "Credits"]}
+      chips={["Pilot key", "Box prompts", "Route labels", "Credits"]}
       primaryAction={{ label: "Read API docs", href: "/docs" }}
       secondaryAction={{ label: "Check account", href: "/account" }}
       steps={steps}
       cards={cards}
-      note="Fish will always label how your answer was made. Selected Ocean provider answers come after provider testing."
+      note="Fish labels demo, beta, and outside routes plainly. Selected Ocean provider answers come after provider testing."
     >
       <section className="px-4 pb-14 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl">
-          <FishChatPrototype />
+          <FishAiBoxes />
         </div>
       </section>
     </RolePageShell>

@@ -8,13 +8,13 @@ const entrances = [
   {
     id: "users",
     title: "Users",
-    stall: "Chat counter",
+    stall: "AI boxes",
     image: "/assets/generated/fish-flow-use.png",
     icon: MessageSquareText,
-    cta: "Ask for AI",
-    href: "/chat",
-    chips: ["Fresh answers", "No setup", "Use credits"],
-    scene: ["Choose a task", "Ask Fish", "Get an answer"]
+    cta: "Open boxes",
+    href: "/boxes",
+    chips: ["Pick a box", "Use credits", "See route"],
+    scene: ["Choose a box", "Ask Fish", "Read the tab"]
   },
   {
     id: "builders",

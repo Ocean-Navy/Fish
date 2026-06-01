@@ -64,6 +64,9 @@ export function RolePageShell({
             <Link className="hover:text-white" href="/#market">
               Market
             </Link>
+            <Link className="hover:text-white" href="/boxes">
+              Boxes
+            </Link>
             <Link className="hover:text-white" href="/dashboard">
               Dashboard
             </Link>

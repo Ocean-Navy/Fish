@@ -16,7 +16,8 @@ The public V0 is intentionally simple: a visual Venice fish-market homepage, rol
 - Waitlist/provider intake APIs that persist JSON submissions locally.
 - Admin-only signup export for launch lead follow-up.
 - Prototype `/v1` AI API with local API keys, Fish Credits debits, and usage receipts.
-- `/chat` with a model selector, short local browser thread, credit spend, and receipt display.
+- `/boxes` with simple Ask, Code, Explain, Summarize, Proposal Writer, and Ocean Helper counters.
+- `/chat` remains available as the same pilot AI boxes surface for existing links.
 - Production Docker image, Docker Compose service, and public nginx/systemd deployment.
 - Warm inference operator runbook for a private vLLM / Fish Runner MVP path.
 
@@ -44,6 +45,7 @@ Useful local routes:
 /proof
 /routing
 /account
+/boxes
 /api/health
 /api/ocean/summary
 /api/ocean/resources
