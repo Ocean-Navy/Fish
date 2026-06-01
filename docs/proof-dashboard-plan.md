@@ -95,6 +95,8 @@ Allowed `sourceState` values must stay aligned with `DASHBOARD_SPEC.md`:
 live | snapshot | sample | unavailable
 ```
 
+Mock adapter receipts and mock benchmark rows must use `sample`. They may test the proof UI, but they must not count as live Ocean proof or create automatic provider payout accrual.
+
 Proof-specific verification fields:
 
 ```text

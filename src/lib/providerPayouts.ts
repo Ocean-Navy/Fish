@@ -173,6 +173,9 @@ export async function recordPayoutEventForReceipt(receipt: ProviderJobReceipt) {
   if (receipt.status !== "succeeded" || receipt.cost.providerCostUsd <= 0) {
     return null;
   }
+  if (receipt.sourceState === "sample" || receipt.providerJobId?.startsWith("mock_")) {
+    return null;
+  }
 
   const event: PayoutEvent = {
     payoutEventId: `pay_${shortHash(`${receipt.receiptId}:job_accrued`)}`,
@@ -246,7 +249,7 @@ export async function createPayoutBatch(input: PayoutBatchRequestInput) {
     eventCount: payableEvents.length,
     amountUsd: sum(payableEvents.map((event) => event.amountUsd)),
     currency: "USD",
-    sourceState: payableEvents.length ? "live" : "sample",
+    sourceState: sourceStateSummary(payableEvents.map((event) => event.sourceState)),
     visibility: "operator",
     createdAt: now,
     createdBy: input.operatorOwner,
@@ -270,7 +273,7 @@ export async function summarizePayouts(query: PayoutQuery = { limit: 100 }): Pro
   const totals = buildPayoutTotals(filteredEvents);
 
   return {
-    dataState: events.length || batches.length ? "live" : "sample",
+    dataState: sourceStateSummary([...events.map((event) => event.sourceState), ...batches.map((batch) => batch.sourceState)]),
     lastUpdated: lastUpdated ?? new Date().toISOString(),
     filters: query,
     providerCount: new Set(filteredEvents.filter((event) => !["disputed", "voided"].includes(event.state)).map((event) => event.providerId)).size,
@@ -282,6 +285,19 @@ export async function summarizePayouts(query: PayoutQuery = { limit: 100 }): Pro
     batches: sortedBatches.slice(-10).reverse().map(toPublicPayoutBatch),
     warnings: events.length ? (filteredEvents.length ? [] : ["No payout events match the current filters."]) : ["No provider payout events yet. Successful selected-provider jobs create accrued payout events."]
   };
+}
+
+function sourceStateSummary(states: DataState[]): DataState {
+  if (states.includes("live")) {
+    return "live";
+  }
+  if (states.includes("snapshot")) {
+    return "snapshot";
+  }
+  if (states.includes("sample")) {
+    return "sample";
+  }
+  return "sample";
 }
 
 export async function listPayoutBatches() {

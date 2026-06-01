@@ -237,6 +237,7 @@ payout_event_receipt
 - A verification tool can confirm signature validity for a stored receipt.
 - Public receipt views exclude private data by default.
 - Failed and fallback jobs have receipts too.
+- Mock adapter receipts are `sample` proof only and do not create automatic payout accrual.
 
 ## Milestone P2.3 - Payout Accounting
 

@@ -288,7 +288,7 @@ export async function summarizeBenchmarks(query: BenchmarkQuery = { selectedOnly
   const lastUpdated = sortedRuns.at(-1)?.createdAt ?? new Date().toISOString();
 
   return {
-    dataState: runs.length ? "live" : "sample",
+    dataState: sourceStateSummary(runs.map(effectiveBenchmarkSourceState)),
     lastUpdated,
     filters: query,
     definitions,
@@ -307,6 +307,7 @@ export async function summarizeBenchmarks(query: BenchmarkQuery = { selectedOnly
     warnings: [
       ...(providers.length ? [] : ["No providers match the current benchmark filters."]),
       ...(providers.some((provider) => provider.selected) ? [] : ["No selected providers are allowlisted for benchmark runs yet."]),
+      ...(runs.length && runs.every((run) => effectiveBenchmarkSourceState(run) === "sample") ? ["Only sample benchmark runs exist. Run a non-mock provider benchmark before treating scores as live routing evidence."] : []),
       ...(runs.length ? [] : ["No benchmark runs recorded yet. Start with the tiny smoke benchmark for each selected provider."])
     ]
   };
@@ -346,6 +347,23 @@ function buildBenchmarkRun(definition: (typeof benchmarkDefinitions)[number], re
     costPer1kTokensUsd: tokens ? Number(((receipt.cost.providerCostUsd / tokens) * 1000).toFixed(6)) : null,
     createdAt: receipt.completedAt
   };
+}
+
+function effectiveBenchmarkSourceState(run: BenchmarkRun): DataState {
+  return run.adapterVersion.startsWith("mock-") ? "sample" : run.sourceState;
+}
+
+function sourceStateSummary(states: DataState[]): DataState {
+  if (states.includes("live")) {
+    return "live";
+  }
+  if (states.includes("snapshot")) {
+    return "snapshot";
+  }
+  if (states.includes("sample")) {
+    return "sample";
+  }
+  return "sample";
 }
 
 function buildMatrixRow(provider: BenchmarkProvider, definition: BenchmarkDefinition, runs: BenchmarkRun[]): BenchmarkMatrixRow {

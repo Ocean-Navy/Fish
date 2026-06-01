@@ -353,7 +353,7 @@ curl -sS http://127.0.0.1:3000/api/providers/jobs \
   }'
 ```
 
-The adapter checks the selected-provider allowlist before writing a receipt. Each new provider job receipt gets a canonical hash and an Ed25519 signature. The first run creates a local prototype signing key at `data/proof/signing-key.json`; keep that proof volume backed up if you want stable signing identity across deploys.
+The adapter checks the selected-provider allowlist before writing a receipt. Mock adapter runs are marked `sample` and are useful for testing the proof UI only. Non-sample selected-provider receipts get a canonical hash and an Ed25519 signature. The first run creates a local prototype signing key at `data/proof/signing-key.json`; keep that proof volume backed up if you want stable signing identity across deploys.
 
 Public proof endpoints are:
 
@@ -370,7 +370,7 @@ The receipt ledger supports `provider`, `providerId`, `status`, `backend`, `rece
 
 The payout summary supports `provider`, `providerId`, `state`, `eventType`, `sourceReceiptId`, `from`, `to`, and `limit` filters. It includes provider-level rollups, payable totals, excluded disputed/voided totals, and public-safe event rows that identify receipt-linked versus manual-adjustment sources.
 
-Successful provider job receipts automatically create `job_accrued` payout events. Public payout summaries omit operator owners, operator reasons, and transaction references; the admin CSV exports keep those details for settlement review.
+Successful non-sample provider job receipts automatically create `job_accrued` payout events. Public payout summaries omit operator owners, operator reasons, and transaction references; the admin CSV exports keep those details for settlement review.
 
 Operators can add manual payout events, create review batches, and export CSVs:
 
