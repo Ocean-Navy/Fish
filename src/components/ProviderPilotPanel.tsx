@@ -1,4 +1,4 @@
-import { CheckCircle2, ClipboardList, ShipWheel, UserCheck } from "lucide-react";
+import { CheckCircle2, ClipboardList, UserCheck } from "lucide-react";
 import { formatDateTime, formatNumber, formatUsd } from "@/lib/format";
 import type { ProviderPilotRegistry } from "@/lib/providerPilot";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -6,8 +6,8 @@ import { StatusBadge } from "@/components/StatusBadge";
 const stats = [
   { key: "applications", label: "Applications", icon: ClipboardList },
   { key: "allowed", label: "Allowed", icon: CheckCircle2 },
-  { key: "applied", label: "In review", icon: UserCheck },
-  { key: "paused", label: "Paused", icon: ShipWheel }
+  { key: "fishReady", label: "Fish-ready", icon: CheckCircle2 },
+  { key: "applied", label: "In review", icon: UserCheck }
 ] as const;
 
 export function ProviderPilotPanel({ registry, compact = false }: { registry: ProviderPilotRegistry; compact?: boolean }) {
@@ -62,9 +62,28 @@ export function ProviderPilotPanel({ registry, compact = false }: { registry: Pr
                   </div>
                   <p className="mt-4 text-sm font-bold leading-6 text-fish-secondary">{provider.capacitySummary}</p>
                   <p className="mt-2 text-sm font-bold text-fish-secondary">{provider.region}</p>
+                  <div className="mt-4 rounded-2xl border border-fish-accent/15 bg-white/[0.035] p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-xs font-black uppercase tracking-[0.1em] text-fish-secondary">Fish-ready</p>
+                      <span className="rounded-full bg-fish-accent/15 px-3 py-1 text-xs font-black text-fish-accent">{provider.readiness.label}</span>
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {provider.readiness.checks.map((check) => (
+                        <span
+                          key={check.id}
+                          className={`rounded-full border px-2.5 py-1 text-[0.68rem] font-black uppercase tracking-[0.06em] ${
+                            check.ready ? "border-emerald-300/30 bg-emerald-300/10 text-emerald-100" : "border-white/15 bg-white/[0.03] text-fish-muted"
+                          }`}
+                        >
+                          {check.label}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
                   {allowlist ? (
                     <div className="mt-4 rounded-2xl border border-fish-accent/15 bg-white/[0.035] p-4 text-sm font-bold leading-6 text-fish-primary">
                       {allowlist.allowedWorkloadTypes.join(", ")} · {allowlist.allowedModels.join(", ")} · max {formatUsd(allowlist.maxDailySpendUsd)}/day
+                      {allowlist.noPromptOutputLogging ? " · no logs" : ""}
                     </div>
                   ) : null}
                 </article>

@@ -45,9 +45,14 @@ function toCsv(rows: StoredSubmission[]) {
     "useCase",
     "expectedUsage",
     "nodeEndpoint",
+    "healthEndpoint",
     "gpuType",
     "region",
+    "priceHint",
     "payoutPreference",
+    "supportContact",
+    "approvedContainer",
+    "noLoggingPolicy",
     "notes"
   ];
   const values = rows.map((row) => [
@@ -59,9 +64,14 @@ function toCsv(rows: StoredSubmission[]) {
     row.body.useCase,
     row.body.expectedUsage,
     row.body.nodeEndpoint,
+    row.body.healthEndpoint,
     row.body.gpuType,
     row.body.region,
+    row.body.priceHint,
     row.body.payoutPreference,
+    row.body.supportContact,
+    row.body.approvedContainer,
+    String(row.body.noLoggingPolicy),
     row.body.notes
   ]);
 

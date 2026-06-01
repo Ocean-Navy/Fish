@@ -340,7 +340,7 @@ Public-safe registry data is available at:
 /api/providers/pilot
 ```
 
-The endpoint hides contacts, exact endpoints, private payout preferences, and operator notes. It exposes only public labels, status, capacity summary, and allowlist constraints.
+The endpoint hides contacts, exact endpoints, private payout preferences, and operator notes. It exposes only public labels, status, capacity summary, allowlist constraints, and a Fish-ready checklist. Provider applications can include optional health endpoint, price hint, payout readiness, ops contact, approved runner/container, and no prompt/output logging policy fields. Public responses keep exact values private and use hashes, booleans, or counts instead.
 
 Admin-only operator export is available at:
 

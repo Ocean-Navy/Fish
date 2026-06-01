@@ -1513,6 +1513,8 @@ components:
               type: integer
             allowed:
               type: integer
+            fishReady:
+              type: integer
             paused:
               type: integer
             rejected:
@@ -1573,6 +1575,9 @@ components:
         nodeEndpointHash:
           type: string
           nullable: true
+        healthEndpointHash:
+          type: string
+          nullable: true
         region:
           type: string
         gpuTypes:
@@ -1581,6 +1586,37 @@ components:
             type: string
         capacitySummary:
           type: string
+        priceShared:
+          type: boolean
+        payoutReady:
+          type: boolean
+        supportReady:
+          type: boolean
+        noLoggingPolicy:
+          type: boolean
+        approvedContainerReady:
+          type: boolean
+        readiness:
+          type: object
+          properties:
+            readyCount:
+              type: integer
+            totalCount:
+              type: integer
+            label:
+              type: string
+            checks:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    enum: [node, gpu, region, health, price, privacy, payout, support, container, allowlist]
+                  label:
+                    type: string
+                  ready:
+                    type: boolean
         pilotStatus:
           type: string
           enum: [applied, contacted, verified, allowed, probation, paused, rejected, exited]
@@ -1608,6 +1644,19 @@ components:
         maxDailySpendUsd:
           type: number
         benchmarkRequired:
+          type: boolean
+        healthEndpointHash:
+          type: string
+          nullable: true
+        priceShared:
+          type: boolean
+        payoutReady:
+          type: boolean
+        noPromptOutputLogging:
+          type: boolean
+        approvedContainerCount:
+          type: integer
+        supportReady:
           type: boolean
         operatorOwner:
           type: string
@@ -1647,6 +1696,16 @@ components:
                 type: string
               payoutPreference:
                 type: string
+              healthEndpoint:
+                type: string
+              priceHint:
+                type: string
+              supportContact:
+                type: string
+              approvedContainer:
+                type: string
+              noLoggingPolicy:
+                type: boolean
               notes:
                 type: string
               publicLabel:
@@ -2805,12 +2864,22 @@ components:
           type: string
         nodeEndpoint:
           type: string
+        healthEndpoint:
+          type: string
         gpuType:
           type: string
         region:
           type: string
+        priceHint:
+          type: string
         payoutPreference:
           type: string
+        supportContact:
+          type: string
+        approvedContainer:
+          type: string
+        noLoggingPolicy:
+          type: boolean
         notes:
           type: string
         apiInterest:

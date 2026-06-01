@@ -44,6 +44,11 @@ region
 country
 gpuTypes[]
 capacitySummary
+healthEndpoint
+priceHint
+noPromptOutputLogging
+approvedContainer
+supportContact
 payoutPreference
 operatorNotes
 createdAt
@@ -77,6 +82,7 @@ expiresAt
 - Oncompute `/nodes` and `/envs` data can enrich node identity, region, GPU inventory, HTTP/P2P status, version, and eligibility.
 - `pilotEligible` is a Fish decision. It must not be a direct copy of Ocean node eligibility.
 - Public labels should use a friendly display name or shortened node id. Do not publish contact data, exact IPs, admin addresses, or private payout details.
+- Public readiness should use hashes, booleans, and counts for health endpoints, pricing, payout, support, logging policy, and approved runner/container state.
 - The allowlist should be checked before every provider-routed job, including benchmark jobs.
 
 ### Definition Of Done

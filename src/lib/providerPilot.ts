@@ -14,9 +14,14 @@ const submissionSchema = z.object({
   body: z.object({
     contact: z.string().optional().default(""),
     nodeEndpoint: z.string().optional().default(""),
+    healthEndpoint: z.string().optional().default(""),
     gpuType: z.string().optional().default(""),
     region: z.string().optional().default(""),
+    priceHint: z.string().optional().default(""),
     payoutPreference: z.string().optional().default(""),
+    supportContact: z.string().optional().default(""),
+    approvedContainer: z.string().optional().default(""),
+    noLoggingPolicy: z.boolean().optional().default(false),
     notes: z.string().optional().default("")
   })
 });
@@ -28,12 +33,18 @@ const allowlistFileSchema = z.object({
         providerId: z.string().optional(),
         sourceApplicationId: z.string().optional(),
         nodeEndpoint: z.string().optional(),
+        healthEndpoint: z.string().optional(),
         jobEndpoint: z.string().optional(),
         allowedWorkloadTypes: z.array(z.string()).optional().default(["chat_batch"]),
         allowedModels: z.array(z.string()).optional().default(["fish-demo-chat"]),
         maxConcurrentJobs: z.number().int().positive().optional().default(1),
         maxDailySpendUsd: z.number().positive().optional().default(5),
         benchmarkRequired: z.boolean().optional().default(true),
+        priceHint: z.string().optional().default(""),
+        payoutReady: z.boolean().optional().default(false),
+        noPromptOutputLogging: z.boolean().optional().default(false),
+        approvedContainers: z.array(z.string()).optional().default([]),
+        supportContact: z.string().optional().default(""),
         operatorOwner: z.string().optional().default("unassigned"),
         decisionReason: z.string().optional().default("Manual pilot allowlist"),
         startsAt: z.string().optional(),
@@ -51,13 +62,33 @@ export type ProviderProfile = {
   displayName: string;
   sourceApplicationId: string | null;
   nodeEndpointHash: string | null;
+  healthEndpointHash: string | null;
   region: string;
   gpuTypes: string[];
   capacitySummary: string;
+  priceShared: boolean;
+  payoutReady: boolean;
+  supportReady: boolean;
+  noLoggingPolicy: boolean;
+  approvedContainerReady: boolean;
+  readiness: ProviderReadinessSummary;
   pilotStatus: ProviderPilotStatus;
   publicLabel: string;
   createdAt: string;
   updatedAt: string;
+};
+
+export type ProviderReadinessCheck = {
+  id: "node" | "gpu" | "region" | "health" | "price" | "privacy" | "payout" | "support" | "container" | "allowlist";
+  label: string;
+  ready: boolean;
+};
+
+export type ProviderReadinessSummary = {
+  readyCount: number;
+  totalCount: number;
+  label: string;
+  checks: ProviderReadinessCheck[];
 };
 
 export type ProviderAllowlistEntry = {
@@ -67,6 +98,12 @@ export type ProviderAllowlistEntry = {
   maxConcurrentJobs: number;
   maxDailySpendUsd: number;
   benchmarkRequired: boolean;
+  healthEndpointHash: string | null;
+  priceShared: boolean;
+  payoutReady: boolean;
+  noPromptOutputLogging: boolean;
+  approvedContainerCount: number;
+  supportReady: boolean;
   operatorOwner: string;
   decisionReason: string;
   startsAt: string;
@@ -80,6 +117,7 @@ export type ProviderPilotRegistry = {
     applications: number;
     applied: number;
     allowed: number;
+    fishReady: number;
     paused: number;
     rejected: number;
   };
@@ -100,6 +138,11 @@ export type ProviderPilotOperatorExport = {
     gpuType: string;
     region: string;
     payoutPreference: string;
+    healthEndpoint: string;
+    priceHint: string;
+    supportContact: string;
+    approvedContainer: string;
+    noLoggingPolicy: boolean;
     notes: string;
     publicLabel: string;
     createdAt: string;
@@ -113,10 +156,16 @@ export async function collectProviderPilotRegistry(): Promise<ProviderPilotRegis
   const providers = submissions.map((submission) => buildProviderProfile(submission));
   const allowlist = buildAllowlist(providers, allowlistCandidates);
   const allowedProviderIds = new Set(allowlist.map((entry) => entry.providerId));
-  const publicProviders = providers.map((provider) => ({
-    ...provider,
-    pilotStatus: allowedProviderIds.has(provider.providerId) ? ("allowed" as const) : provider.pilotStatus
-  }));
+  const allowlistByProvider = new Map(allowlist.map((entry) => [entry.providerId, entry]));
+  const publicProviders = providers.map((provider) =>
+    withReadiness(
+      {
+        ...provider,
+        pilotStatus: allowedProviderIds.has(provider.providerId) ? ("allowed" as const) : provider.pilotStatus
+      },
+      allowlistByProvider.get(provider.providerId)
+    )
+  );
 
   return {
     dataState: publicProviders.length || allowlist.length ? "live" : "sample",
@@ -125,6 +174,7 @@ export async function collectProviderPilotRegistry(): Promise<ProviderPilotRegis
       applications: publicProviders.length,
       applied: publicProviders.filter((provider) => provider.pilotStatus === "applied").length,
       allowed: publicProviders.filter((provider) => provider.pilotStatus === "allowed").length,
+      fishReady: publicProviders.filter((provider) => provider.readiness.readyCount === provider.readiness.totalCount).length,
       paused: publicProviders.filter((provider) => provider.pilotStatus === "paused").length,
       rejected: publicProviders.filter((provider) => provider.pilotStatus === "rejected").length
     },
@@ -188,6 +238,11 @@ export async function collectProviderPilotOperatorExport(): Promise<ProviderPilo
           gpuType: submission.body.gpuType,
           region: submission.body.region,
           payoutPreference: submission.body.payoutPreference,
+          healthEndpoint: submission.body.healthEndpoint,
+          priceHint: submission.body.priceHint,
+          supportContact: submission.body.supportContact,
+          approvedContainer: submission.body.approvedContainer,
+          noLoggingPolicy: submission.body.noLoggingPolicy,
           notes: submission.body.notes,
           publicLabel: provider.publicLabel,
           createdAt: submission.createdAt
@@ -242,6 +297,11 @@ function readAllowlistEnv(): AllowlistCandidate[] {
       maxConcurrentJobs: 1,
       maxDailySpendUsd: 5,
       benchmarkRequired: true,
+      priceHint: "",
+      payoutReady: false,
+      noPromptOutputLogging: false,
+      approvedContainers: [],
+      supportContact: "",
       operatorOwner: "env",
       decisionReason: "FISH_PROVIDER_ALLOWLIST"
     }));
@@ -277,9 +337,16 @@ function buildProviderProfile(submission: z.infer<typeof submissionSchema>): Pro
     displayName: displayNameForSubmission(submission, providerId),
     sourceApplicationId: submission.id,
     nodeEndpointHash: submission.body.nodeEndpoint ? shortHash(submission.body.nodeEndpoint) : null,
+    healthEndpointHash: submission.body.healthEndpoint ? shortHash(submission.body.healthEndpoint) : null,
     region,
     gpuTypes,
     capacitySummary: gpuTypes.length ? gpuTypes.join(", ") : "GPU details pending",
+    priceShared: Boolean(submission.body.priceHint.trim()),
+    payoutReady: Boolean(submission.body.payoutPreference.trim()),
+    supportReady: Boolean(submission.body.supportContact.trim()),
+    noLoggingPolicy: submission.body.noLoggingPolicy,
+    approvedContainerReady: Boolean(submission.body.approvedContainer.trim()),
+    readiness: emptyReadiness(),
     pilotStatus: "applied",
     publicLabel: `${providerId.slice(0, 10)}-${region.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "review"}`,
     createdAt: submission.createdAt,
@@ -302,6 +369,12 @@ function buildAllowlist(providers: ProviderProfile[], candidates: AllowlistCandi
         maxConcurrentJobs: candidate.maxConcurrentJobs,
         maxDailySpendUsd: candidate.maxDailySpendUsd,
         benchmarkRequired: candidate.benchmarkRequired,
+        healthEndpointHash: candidate.healthEndpoint?.trim() ? shortHash(candidate.healthEndpoint) : provider.healthEndpointHash,
+        priceShared: Boolean(candidate.priceHint?.trim()) || provider.priceShared,
+        payoutReady: candidate.payoutReady || provider.payoutReady,
+        noPromptOutputLogging: candidate.noPromptOutputLogging || provider.noLoggingPolicy,
+        approvedContainerCount: candidate.approvedContainers.length || Number(provider.approvedContainerReady),
+        supportReady: Boolean(candidate.supportContact?.trim()) || provider.supportReady,
         operatorOwner: candidate.operatorOwner,
         decisionReason: candidate.decisionReason,
         startsAt: candidate.startsAt ?? new Date().toISOString(),
@@ -309,6 +382,46 @@ function buildAllowlist(providers: ProviderProfile[], candidates: AllowlistCandi
       }
     ];
   });
+}
+
+function withReadiness(provider: ProviderProfile, allowlist?: ProviderAllowlistEntry): ProviderProfile {
+  const checks: ProviderReadinessCheck[] = [
+    { id: "node", label: "Ocean Node", ready: Boolean(provider.nodeEndpointHash) },
+    { id: "gpu", label: "GPU", ready: provider.gpuTypes.length > 0 },
+    { id: "region", label: "Region", ready: provider.region !== "Review needed" },
+    { id: "health", label: "Health", ready: Boolean(provider.healthEndpointHash || allowlist?.healthEndpointHash) },
+    { id: "price", label: "Price", ready: provider.priceShared || Boolean(allowlist?.priceShared) },
+    { id: "privacy", label: "No logs", ready: provider.noLoggingPolicy || Boolean(allowlist?.noPromptOutputLogging) },
+    { id: "payout", label: "Payout", ready: provider.payoutReady || Boolean(allowlist?.payoutReady) },
+    { id: "support", label: "Ops", ready: provider.supportReady || Boolean(allowlist?.supportReady) },
+    { id: "container", label: "Runner", ready: provider.approvedContainerReady || Boolean(allowlist?.approvedContainerCount) },
+    { id: "allowlist", label: "Selected", ready: Boolean(allowlist) }
+  ];
+  const readyCount = checks.filter((check) => check.ready).length;
+  return {
+    ...provider,
+    healthEndpointHash: allowlist?.healthEndpointHash ?? provider.healthEndpointHash,
+    priceShared: provider.priceShared || Boolean(allowlist?.priceShared),
+    payoutReady: provider.payoutReady || Boolean(allowlist?.payoutReady),
+    supportReady: provider.supportReady || Boolean(allowlist?.supportReady),
+    noLoggingPolicy: provider.noLoggingPolicy || Boolean(allowlist?.noPromptOutputLogging),
+    approvedContainerReady: provider.approvedContainerReady || Boolean(allowlist?.approvedContainerCount),
+    readiness: {
+      readyCount,
+      totalCount: checks.length,
+      label: `${readyCount}/${checks.length} ready`,
+      checks
+    }
+  };
+}
+
+function emptyReadiness(): ProviderReadinessSummary {
+  return {
+    readyCount: 0,
+    totalCount: 10,
+    label: "0/10 ready",
+    checks: []
+  };
 }
 
 function findCandidateProvider(providers: ProviderProfile[], candidate: AllowlistCandidate) {

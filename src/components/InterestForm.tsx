@@ -25,9 +25,14 @@ export function InterestForm() {
       useCase: String(data.get("useCase") ?? ""),
       expectedUsage: String(data.get("expectedUsage") ?? ""),
       nodeEndpoint: String(data.get("nodeEndpoint") ?? ""),
+      healthEndpoint: String(data.get("healthEndpoint") ?? ""),
       gpuType: String(data.get("gpuType") ?? ""),
       region: String(data.get("region") ?? ""),
+      priceHint: String(data.get("priceHint") ?? ""),
       payoutPreference: String(data.get("payoutPreference") ?? ""),
+      supportContact: String(data.get("supportContact") ?? ""),
+      approvedContainer: String(data.get("approvedContainer") ?? ""),
+      noLoggingPolicy: data.get("noLoggingPolicy") === "on",
       notes: String(data.get("notes") ?? ""),
       company: String(data.get("company") ?? "")
     };
@@ -90,7 +95,17 @@ export function InterestForm() {
         <summary className="cursor-pointer font-black text-fish-accent">Provider details</summary>
         <div className="mt-4 grid gap-3 md:grid-cols-2">
           <input name="nodeEndpoint" placeholder="Node endpoint" className="h-11 rounded-xl border border-fish-accent/25 bg-fish-navy950/70 px-3 text-fish-primary outline-none focus:border-fish-accent" />
-          <input name="gpuType" placeholder="GPU / region" className="h-11 rounded-xl border border-fish-accent/25 bg-fish-navy950/70 px-3 text-fish-primary outline-none focus:border-fish-accent" />
+          <input name="healthEndpoint" placeholder="Runner health URL" className="h-11 rounded-xl border border-fish-accent/25 bg-fish-navy950/70 px-3 text-fish-primary outline-none focus:border-fish-accent" />
+          <input name="gpuType" placeholder="GPU type" className="h-11 rounded-xl border border-fish-accent/25 bg-fish-navy950/70 px-3 text-fish-primary outline-none focus:border-fish-accent" />
+          <input name="region" placeholder="Region" className="h-11 rounded-xl border border-fish-accent/25 bg-fish-navy950/70 px-3 text-fish-primary outline-none focus:border-fish-accent" />
+          <input name="priceHint" placeholder="Price hint" className="h-11 rounded-xl border border-fish-accent/25 bg-fish-navy950/70 px-3 text-fish-primary outline-none focus:border-fish-accent" />
+          <input name="payoutPreference" placeholder="Payout wallet or preference" className="h-11 rounded-xl border border-fish-accent/25 bg-fish-navy950/70 px-3 text-fish-primary outline-none focus:border-fish-accent" />
+          <input name="supportContact" placeholder="Ops contact" className="h-11 rounded-xl border border-fish-accent/25 bg-fish-navy950/70 px-3 text-fish-primary outline-none focus:border-fish-accent" />
+          <input name="approvedContainer" placeholder="Runner/container image" className="h-11 rounded-xl border border-fish-accent/25 bg-fish-navy950/70 px-3 text-fish-primary outline-none focus:border-fish-accent md:col-span-2" />
+          <label className="flex min-h-12 items-center gap-3 rounded-xl border border-fish-accent/20 bg-white/[0.03] px-3 text-sm font-black text-fish-primary md:col-span-2">
+            <input name="noLoggingPolicy" type="checkbox" className="h-5 w-5 accent-fish-accent" />
+            I can run with no prompt or output logging for Fish jobs
+          </label>
         </div>
       </details>
 

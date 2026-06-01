@@ -13,9 +13,17 @@ export const interestSubmissionSchema = z.object({
   useCase: z.string().trim().max(800).optional().default(""),
   expectedUsage: z.string().trim().max(200).optional().default(""),
   nodeEndpoint: z.string().trim().max(500).optional().default(""),
+  healthEndpoint: z.string().trim().max(500).optional().default(""),
   gpuType: z.string().trim().max(200).optional().default(""),
   region: z.string().trim().max(120).optional().default(""),
+  priceHint: z.string().trim().max(160).optional().default(""),
   payoutPreference: z.string().trim().max(120).optional().default(""),
+  supportContact: z.string().trim().max(240).optional().default(""),
+  approvedContainer: z.string().trim().max(240).optional().default(""),
+  noLoggingPolicy: z
+    .preprocess((value) => value === true || value === "true" || value === "yes" || value === "on", z.boolean())
+    .optional()
+    .default(false),
   notes: z.string().trim().max(1200).optional().default(""),
   company: z.string().trim().max(0).optional().default("")
 });
