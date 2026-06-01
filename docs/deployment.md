@@ -26,12 +26,12 @@ Server assumptions:
 - Ubuntu 22.04/24.04 or another Docker-friendly Linux image.
 - Ports `22` and `80` open.
 - Docker Engine with the Compose plugin installed.
-- Repository checked out from `https://github.com/Ocean-Navy/Fish.git`.
+- Repository checked out from the deploy branch at `https://github.com/Ocean-Navy/Fish.git`.
 
 On the VM:
 
 ```bash
-git clone https://github.com/Ocean-Navy/Fish.git
+git clone --branch codex/finish-fish-v0-website https://github.com/Ocean-Navy/Fish.git Fish
 cd Fish
 cp .env.production.example .env.production
 ```
