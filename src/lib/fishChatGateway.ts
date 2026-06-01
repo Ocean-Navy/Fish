@@ -3,8 +3,11 @@ import {
   estimateTokens,
   getFishPlan,
   recordChatUsage,
+  releaseFishCreditReservation,
+  reserveFishCredits,
   type Account,
   type ChatCompletionInput,
+  type CreditReservation,
   type Ledger,
   type RunnerReceiptSummary
 } from "@/lib/fishLedger";
@@ -113,6 +116,20 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
     });
   }
 
+  const reservationResult = await reserveFishCredits({
+    ledger: context.ledger,
+    account: context.account,
+    credits: estimatedMaxCredits,
+    reason: "credit_reserve_before_backend_call"
+  });
+  if (!reservationResult.ok) {
+    return jsonError(reservationResult.status, reservationResult.error, "billing_error", {
+      needed: reservationResult.needed,
+      available: reservationResult.available
+    });
+  }
+  const reservation = reservationResult.reservation;
+
   const routeInput = { ...input, max_tokens: requestedMaxOutputTokens };
   const startedAt = Date.now();
   if (route === "ocean-demo-vllm") {
@@ -131,7 +148,12 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
     } catch (error) {
       if (!canUseExternalFallback(routerConfig, context)) {
         const message = error instanceof VllmChatError ? error.message : "ocean_demo_vllm_backend_error";
-        return jsonError(error instanceof VllmChatError ? error.status : 502, message, "warm_inference_backend_error", { route });
+        return releaseReservationAndReturn(
+          context,
+          reservation,
+          jsonError(error instanceof VllmChatError ? error.status : 502, message, "warm_inference_backend_error", { route }),
+          "credit_reserve_release_backend_error"
+        );
       }
 
       const fallbackBudgetCheck = await checkRouteDailyBudget({
@@ -141,13 +163,13 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
         routerConfig
       });
       if (!fallbackBudgetCheck.ok) {
-        return budgetExceededError(fallbackBudgetCheck);
+        return releaseReservationAndReturn(context, reservation, budgetExceededError(fallbackBudgetCheck), "credit_reserve_release_fallback_budget_error");
       }
       budgetCheck = fallbackBudgetCheck;
 
       const fallback = await runExternalFallback(routeInput, promptTokens);
       if (!fallback.ok) {
-        return fallback;
+        return releaseReservationAndReturn(context, reservation, fallback, "credit_reserve_release_fallback_error");
       }
       ({ content, responseModel, promptTokens, completionTokens, providerCostUsd, providerId, runnerReceipt } = fallback);
       route = "external-fallback";
@@ -156,7 +178,7 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
   } else if (route === "external-fallback") {
     const fallback = await runExternalFallback(routeInput, promptTokens);
     if (!fallback.ok) {
-      return fallback;
+      return releaseReservationAndReturn(context, reservation, fallback, "credit_reserve_release_fallback_error");
     }
     ({ content, responseModel, promptTokens, completionTokens, providerCostUsd, providerId, runnerReceipt } = fallback);
     costState = "fallback_verified";
@@ -180,7 +202,8 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
     latencyMs,
     providerCostUsd,
     providerId,
-    runnerReceipt
+    runnerReceipt,
+    reservation
   });
 
   if (!usage.ok) {
@@ -229,6 +252,9 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
         dailyBudgetRemainingUsd: budgetCheck.remainingUsd,
         estimatedProviderCostUsd: budgetCheck.estimatedCostUsd,
         quotaRemaining: quota.remaining,
+        creditReserveId: reservation.reserveEntryId,
+        creditsReserved: reservation.credits,
+        creditsReleased: Math.max(0, reservation.credits - usage.receipt.creditsSpent),
         creditsSpent: usage.receipt.creditsSpent,
         creditsRemaining: usage.creditsRemaining,
         userChargeUsd: usage.receipt.userChargeUsd,
@@ -247,6 +273,21 @@ function budgetExceededError(check: Extract<RouteBudgetCheck, { ok: false }>) {
     estimatedProviderCostUsd: check.estimatedCostUsd,
     remainingUsd: check.remainingUsd
   });
+}
+
+async function releaseReservationAndReturn(
+  context: FishChatGatewayContext,
+  reservation: CreditReservation,
+  result: FishChatGatewayError,
+  reason: string
+) {
+  await releaseFishCreditReservation({
+    ledger: context.ledger,
+    account: context.account,
+    reservation,
+    reason
+  });
+  return result;
 }
 
 async function runExternalFallback(input: ChatCompletionInput, promptTokens: number) {

@@ -190,6 +190,15 @@ export type CreditLedgerEntry = {
   operatorReason: string | null;
 };
 
+export type CreditReservation = {
+  requestId: string;
+  reserveEntryId: string;
+  accountId: string;
+  lane: CreditLane;
+  credits: number;
+  createdAt: string;
+};
+
 export type CreditLaneSummary = {
   lane: CreditLane;
   balance: number;
@@ -448,6 +457,80 @@ export async function summarizeAccountById(accountId: string) {
   return account ? summarizeAccount(account) : null;
 }
 
+export async function reserveFishCredits(params: { ledger: Ledger; account: Account; credits: number; reason: string }) {
+  const credits = Math.max(0, Math.ceil(params.credits));
+  if (credits === 0) {
+    return {
+      ok: false as const,
+      status: 400,
+      error: "invalid_credit_reserve",
+      needed: 0,
+      available: params.account.creditBalance
+    };
+  }
+  if (params.account.creditBalance < credits) {
+    return {
+      ok: false as const,
+      status: 402,
+      error: "insufficient_fish_credits",
+      needed: credits,
+      available: params.account.creditBalance
+    };
+  }
+
+  const now = new Date().toISOString();
+  const reservation: CreditReservation = {
+    requestId: randomUUID(),
+    reserveEntryId: randomUUID(),
+    accountId: params.account.id,
+    lane: "grant",
+    credits,
+    createdAt: now
+  };
+
+  await ensureAccountCreditSeed(params.account, now);
+  params.account.creditBalance -= credits;
+  await writeLedger(params.ledger);
+  await appendCreditEntry({
+    entryId: reservation.reserveEntryId,
+    accountId: params.account.id,
+    lane: reservation.lane,
+    kind: "adjustment",
+    amount: -credits,
+    requestId: reservation.requestId,
+    receiptId: null,
+    expiresAt: null,
+    createdAt: now,
+    operatorReason: params.reason
+  });
+
+  return {
+    ok: true as const,
+    reservation
+  };
+}
+
+export async function releaseFishCreditReservation(params: { ledger: Ledger; account: Account; reservation: CreditReservation; receiptId?: string | null; reason: string }) {
+  if (params.reservation.credits <= 0) {
+    return;
+  }
+  const now = new Date().toISOString();
+  params.account.creditBalance += params.reservation.credits;
+  await writeLedger(params.ledger);
+  await appendCreditEntry({
+    entryId: randomUUID(),
+    accountId: params.account.id,
+    lane: params.reservation.lane,
+    kind: "adjustment",
+    amount: params.reservation.credits,
+    requestId: params.reservation.requestId,
+    receiptId: params.receiptId ?? null,
+    expiresAt: null,
+    createdAt: now,
+    operatorReason: params.reason
+  });
+}
+
 export async function summarizeFishUsage(): Promise<FishUsageSummary> {
   const ledger = await readLedger();
   const [receipts, creditEntries] = await Promise.all([readAllReceipts(), readCreditEntries()]);
@@ -529,9 +612,19 @@ export async function recordChatUsage(params: {
   providerCostUsd?: number;
   providerId?: string | null;
   runnerReceipt?: RunnerReceiptSummary | null;
+  reservation?: CreditReservation | null;
 }) {
   const totalTokens = params.promptTokens + params.completionTokens;
   const creditsSpent = Math.max(1, Math.ceil(totalTokens / 1000));
+  if (params.reservation) {
+    await releaseFishCreditReservation({
+      ledger: params.ledger,
+      account: params.account,
+      reservation: params.reservation,
+      receiptId: null,
+      reason: "credit_reserve_release_before_debit"
+    });
+  }
   if (params.account.creditBalance < creditsSpent) {
     return {
       ok: false as const,
@@ -552,7 +645,7 @@ export async function recordChatUsage(params: {
   params.account.requestCount += 1;
   params.account.lastUsedAt = now;
 
-  const requestId = randomUUID();
+  const requestId = params.reservation?.requestId ?? randomUUID();
   const receiptId = randomUUID();
   const creditEntryId = randomUUID();
   const receipt: UsageReceipt = {

@@ -280,6 +280,8 @@ curl -sS http://127.0.0.1:3000/v1/chat/completions \
   -d '{"model":"fish-demo-chat","messages":[{"role":"user","content":"Explain Fish in one line"}]}'
 ```
 
+Before Fish calls a configured backend, Gateway reserves the maximum estimated credits for the request. Successful requests release the unused reserve and debit the measured usage. Backend failures release the reserve without recording a usage charge.
+
 Check balance, credit lanes, and receipts:
 
 ```bash
