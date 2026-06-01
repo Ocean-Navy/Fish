@@ -41,6 +41,17 @@ type FishDish = {
   disabled?: boolean;
 };
 
+type FishRoutePolicySummary = {
+  activeRoute?: {
+    id: string;
+    label: string;
+    isRealAi: boolean;
+  };
+  guardrails?: {
+    maxOutputTokens: number;
+  };
+};
+
 type DishResult = {
   dishTitle: string;
   content: string;
@@ -62,8 +73,8 @@ const dishes: FishDish[] = [
     id: "ask",
     title: "Quick Catch",
     subtitle: "Simple answers",
-    status: "Ocean demo node",
-    routeLabel: "Warm model",
+    status: "AI beta",
+    routeLabel: "Smart route",
     short: "General questions with a short direct answer.",
     placeholder: "What should Fish do first for pilot users?",
     systemPrompt: "You are Fish Quick Catch. Answer plainly in a helpful, concise way. Avoid hype and label uncertainty.",
@@ -75,8 +86,8 @@ const dishes: FishDish[] = [
     id: "code",
     title: "Code Roll",
     subtitle: "Coding help",
-    status: "Ocean demo node",
-    routeLabel: "Warm model",
+    status: "AI beta",
+    routeLabel: "Smart route",
     short: "Small coding help, review notes, and snippets.",
     placeholder: "Write a TypeScript helper that formats Fish credits.",
     systemPrompt: "You are Fish Code Roll. Give practical coding help with concise explanations and safe assumptions.",
@@ -88,8 +99,8 @@ const dishes: FishDish[] = [
     id: "explain",
     title: "Clear Broth",
     subtitle: "Simple explanation",
-    status: "Ocean demo node",
-    routeLabel: "Warm model",
+    status: "AI beta",
+    routeLabel: "Smart route",
     short: "Simple explanations without heavy jargon.",
     placeholder: "Explain warm inference like I am new to AI.",
     systemPrompt: "You are Fish Clear Broth. Explain like a patient product guide. Use simple language and concrete examples.",
@@ -141,8 +152,8 @@ const dishes: FishDish[] = [
     id: "ocean",
     title: "Ocean Special",
     subtitle: "Fish and Ocean context",
-    status: "Beta",
-    routeLabel: "Ocean context",
+    status: "Ocean guide",
+    routeLabel: "Smart route",
     short: "Fish and Ocean wording for non-technical users.",
     placeholder: "How should we describe Ocean-first routing on the site?",
     systemPrompt:
@@ -192,6 +203,7 @@ export function FishMealCounter() {
   const [models, setModels] = useState<FishModel[]>([{ id: "fish-demo-chat", owned_by: "ocean-navy" }]);
   const [selectedModel, setSelectedModel] = useState("fish-demo-chat");
   const [activeDishId, setActiveDishId] = useState("ask");
+  const [routePolicy, setRoutePolicy] = useState<FishRoutePolicySummary | null>(null);
   const [prompt, setPrompt] = useState("");
   const [result, setResult] = useState<DishResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -199,6 +211,9 @@ export function FishMealCounter() {
 
   const activeDish = useMemo(() => dishes.find((dish) => dish.id === activeDishId) ?? dishes[0], [activeDishId]);
   const ActiveIcon = activeDish.icon;
+  const maxOutputTokens = routePolicy?.guardrails?.maxOutputTokens ?? 512;
+  const orderMaxTokens = Math.min(activeDish.maxTokens, maxOutputTokens);
+  const currentRouteLabel = routePolicy?.activeRoute?.label ? formatRouteLabel(routePolicy.activeRoute.label) : activeDish.routeLabel;
 
   useEffect(() => {
     Promise.resolve().then(() => {
@@ -212,6 +227,15 @@ export function FishMealCounter() {
         if (payload && Array.isArray(payload.data) && payload.data.length) {
           setModels(payload.data);
           setSelectedModel((current) => (payload.data.some((model: FishModel) => model.id === current) ? current : payload.data[0].id));
+        }
+      })
+      .catch(() => undefined);
+
+    fetch("/api/routing/policy")
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload) => {
+        if (payload && typeof payload === "object") {
+          setRoutePolicy(payload as FishRoutePolicySummary);
         }
       })
       .catch(() => undefined);
@@ -263,7 +287,7 @@ export function FishMealCounter() {
         },
         body: JSON.stringify({
           model: selectedModel,
-          max_tokens: activeDish.maxTokens,
+          max_tokens: orderMaxTokens,
           metadata: {
             fish_feature: activeDish.id,
             fish_dish: activeDish.title
@@ -271,7 +295,7 @@ export function FishMealCounter() {
           messages: [
             {
               role: "system",
-              content: `${activeDish.systemPrompt}\n\nFish dish: ${activeDish.title}. Plain task label: ${activeDish.subtitle}. Public status label: ${activeDish.status}. Route label shown to the user: ${activeDish.routeLabel}.`
+              content: `${activeDish.systemPrompt}\n\nFish dish: ${activeDish.title}. Plain task label: ${activeDish.subtitle}. Public status label: ${activeDish.status}. Route label shown to the user: ${currentRouteLabel}.`
             },
             {
               role: "user",
@@ -412,7 +436,7 @@ export function FishMealCounter() {
 
           <div className="mt-5 grid gap-3 sm:grid-cols-3">
             <StatusTile label="Dish" value={activeDish.status} />
-            <StatusTile label="Route" value={result?.route ? formatBadge(result.route) : activeDish.routeLabel} />
+            <StatusTile label="Route" value={result?.route ? formatBadge(result.route) : currentRouteLabel} />
             <StatusTile label="Access" value={apiKey.trim() ? "API key" : "Free taste"} />
           </div>
         </div>
@@ -431,7 +455,7 @@ export function FishMealCounter() {
             </div>
           </div>
           <span className="inline-flex h-9 items-center rounded-full border border-fish-accent/25 bg-fish-accent/10 px-3 text-xs font-black uppercase tracking-[0.08em] text-fish-accent">
-            {activeDish.routeLabel}
+            {currentRouteLabel}
           </span>
         </div>
 
@@ -554,4 +578,17 @@ function formatBadge(value: string) {
     return "provider checked";
   }
   return value.replaceAll("-", " ").replaceAll("_", " ");
+}
+
+function formatRouteLabel(value: string) {
+  if (value === "Demo mock") {
+    return "Demo";
+  }
+  if (value === "Ocean demo vLLM") {
+    return "Ocean demo";
+  }
+  if (value === "External fallback") {
+    return "Outside AI";
+  }
+  return value;
 }
