@@ -73,6 +73,52 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/ProviderScore'
+  /api/ocean/batch/jobs:
+    get:
+      summary: Public-safe Ocean batch job summary
+      description: Lists recent Ocean batch receipts without prompt text, output text, endpoint URLs, API keys, or private provider contact data.
+      responses:
+        '200':
+          description: Ocean batch summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OceanBatchSummary'
+    post:
+      summary: Submit a capped Ocean batch job
+      description: Fish API-key route for Docs-style batch jobs. The request accepts input references only; raw document text and full output text are not accepted or stored by this contract.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OceanBatchJobRequest'
+      responses:
+        '200':
+          description: Ocean batch job completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  receipt:
+                    $ref: '#/components/schemas/OceanBatchReceipt'
+                  usageReceipt:
+                    $ref: '#/components/schemas/FishUsageReceipt'
+                  creditsRemaining:
+                    type: integer
+        '401':
+          description: Fish API key required
+        '402':
+          description: Insufficient Fish Credits
+        '502':
+          description: Ocean batch backend failed
+        '504':
+          description: Ocean batch backend timed out
   /api/routing/policy:
     get:
       summary: Public Fish routing policy
@@ -1170,6 +1216,155 @@ components:
           type: string
         pilotEligible:
           type: boolean
+    OceanBatchJobRequest:
+      type: object
+      additionalProperties: false
+      required: [inputRef]
+      properties:
+        taskType:
+          type: string
+          enum: [document_summary, structured_extraction, embeddings, batch_chat]
+          default: document_summary
+        inputRef:
+          type: string
+          description: Hash or storage reference for the batch input. Raw document text must not be submitted.
+        estimatedInputTokens:
+          type: integer
+          minimum: 1
+          maximum: 200000
+        maxOutputTokens:
+          type: integer
+          minimum: 1
+          maximum: 8192
+          default: 512
+        maxRuntimeSeconds:
+          type: integer
+          minimum: 1
+          maximum: 3600
+          default: 600
+        maxCostUsd:
+          type: number
+          minimum: 0
+          maximum: 100
+          default: 1
+        adapterMode:
+          type: string
+          enum: [sample_success, sample_failure, ocean_http]
+          default: sample_success
+    OceanBatchSummary:
+      type: object
+      properties:
+        dataState:
+          type: string
+          enum: [live, snapshot, sample, unavailable]
+        lastUpdated:
+          type: string
+        jobs:
+          type: integer
+        succeededJobs:
+          type: integer
+        failedJobs:
+          type: integer
+        timedOutJobs:
+          type: integer
+        tokensProcessed:
+          type: integer
+        providerCostUsd:
+          type: number
+        storesPromptOutputText:
+          type: boolean
+          enum: [false]
+        receipts:
+          type: array
+          items:
+            $ref: '#/components/schemas/OceanBatchReceipt'
+        warnings:
+          type: array
+          items:
+            type: string
+    OceanBatchReceipt:
+      type: object
+      properties:
+        receiptVersion:
+          type: integer
+        receiptType:
+          type: string
+          enum: [ocean_batch_job_receipt]
+        receiptId:
+          type: string
+        jobId:
+          type: string
+        providerJobId:
+          type: string
+          nullable: true
+        providerId:
+          type: string
+        taskType:
+          type: string
+          enum: [document_summary, structured_extraction, embeddings, batch_chat]
+        model:
+          type: string
+          enum: [ocean-batch-placeholder]
+        backend:
+          type: string
+          enum: [ocean_batch]
+        status:
+          type: string
+          enum: [succeeded, failed, timed_out]
+        sourceState:
+          type: string
+          enum: [live, snapshot, sample, unavailable]
+        adapterMode:
+          type: string
+          enum: [sample_success, sample_failure, ocean_http]
+        visibility:
+          type: string
+          enum: [public]
+        storesPromptOutputText:
+          type: boolean
+          enum: [false]
+        createdAt:
+          type: string
+        startedAt:
+          type: string
+        completedAt:
+          type: string
+        usage:
+          type: object
+          properties:
+            inputTokens:
+              type: integer
+            outputTokens:
+              type: integer
+            totalTokens:
+              type: integer
+            gpuSeconds:
+              type: number
+            items:
+              type: integer
+        cost:
+          type: object
+          properties:
+            userChargeUsd:
+              type: number
+            providerCostUsd:
+              type: number
+            pricingState:
+              type: string
+              enum: [prototype_estimate, provider_verified, not_applicable]
+        hashes:
+          type: object
+          properties:
+            inputHash:
+              type: string
+            outputHash:
+              type: string
+              nullable: true
+            canonicalReceiptHash:
+              type: string
+        errorCode:
+          type: string
+          nullable: true
     FishRoutePolicy:
       type: object
       required: [dataState, generatedAt, activeRoute, backend, guardrails, modes, features, rules, nextMilestone]

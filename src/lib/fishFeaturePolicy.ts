@@ -63,7 +63,7 @@ const FEATURE_DEFINITIONS: FishFeatureDefinition[] = [
     id: "docs",
     label: "Docs",
     state: "beta",
-    primary: "Text route now, Ocean batch later",
+    primary: "Text route now, Ocean batch adapter ready",
     fallback: "Paid fallback only when enabled",
     enabled: true,
     defaultMaxInputTokens: 4000,

@@ -18,6 +18,7 @@ const steps = [
 const cards = [
   { label: "Live now", title: "/api/health", body: "Simple readiness check for deploys and server monitoring." },
   { label: "Live now", title: "/api/ocean/summary", body: "Dashboard summary with source-state labels and Ocean compute supply." },
+  { label: "Pilot", title: "/api/ocean/batch/jobs", body: "Hash-only Docs batch receipt path, sample until a private Ocean batch adapter is connected." },
   { label: "Live now", title: "/api/waitlist", body: "Demand intake for users, builders, holders, and ecosystem partners." },
   { label: "Live now", title: "/api/warm/status", body: "Public-safe readiness for the Ocean demo vLLM route." },
   { label: "Pilot", title: "/v1/chat/completions", body: "Familiar chat route with Fish keys, credits, and clear usage records." },
@@ -33,6 +34,8 @@ const endpoints = [
   { method: "GET", path: "/api/ocean/summary", state: "Live" },
   { method: "GET", path: "/api/ocean/resources", state: "Live" },
   { method: "GET", path: "/api/ocean/providers", state: "Live" },
+  { method: "GET", path: "/api/ocean/batch/jobs", state: "Pilot" },
+  { method: "POST", path: "/api/ocean/batch/jobs", state: "Pilot" },
   { method: "GET", path: "/api/billing/plans", state: "Pilot" },
   { method: "GET", path: "/api/billing/usage-analytics", state: "Pilot" },
   { method: "GET", path: "/api/routing/policy", state: "Live" },

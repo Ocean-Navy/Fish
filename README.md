@@ -19,6 +19,7 @@ The public V0 is intentionally simple: a visual Venice fish-market homepage, rol
 - `/ask` with a Fish meal counter: Quick Catch, Code Roll, Clear Broth, Docs Bento, Image Catch, Proposal Platter, and Ocean Special.
 - `/api/meal/order` for a capped guest meal-counter demo without exposing a Fish API key.
 - `/api/warm/status` for public-safe warm Ocean demo readiness without endpoint URLs or secrets.
+- `/api/ocean/batch/jobs` for hash-only Docs/Ocean batch receipts, sample by default until a private batch adapter is configured.
 - `/chat` remains available as the same pilot AI meal counter for chat-oriented links.
 - Production Docker image, Docker Compose service, and public nginx/systemd deployment.
 - Warm inference operator runbook and minimal Fish Runner sidecar for a private vLLM MVP path.
@@ -51,6 +52,7 @@ Useful local routes:
 /api/health
 /api/ocean/summary
 /api/ocean/resources
+/api/ocean/batch/jobs
 /api/billing/plans
 /api/billing/usage-analytics
 /api/routing/policy
@@ -180,6 +182,9 @@ FISH_ADMIN_TOKEN=
 FISH_PROVIDER_ALLOWLIST=
 FISH_PROVIDER_JOB_ENDPOINTS=
 FISH_PROVIDER_JOB_API_KEY=
+FISH_OCEAN_BATCH_ENDPOINT=
+FISH_OCEAN_BATCH_API_KEY=
+FISH_OCEAN_BATCH_PROVIDER_ID=ocean-batch-provider
 FISH_CHAT_ROUTE=mock
 FISH_CHAT_BACKEND=mock
 FISH_MAX_INPUT_TOKENS=1000
@@ -323,6 +328,8 @@ cp data/provider_allowlist.example.json data/provider_allowlist.json
 FISH_PROVIDER_ALLOWLIST=prov_abc123,prov_def456
 FISH_PROVIDER_JOB_ENDPOINTS=prov_abc123=https://provider.example.com/fish/jobs
 FISH_PROVIDER_JOB_API_KEY=shared-provider-adapter-secret
+FISH_OCEAN_BATCH_ENDPOINT=https://batch-provider.example.com/fish/ocean-batch
+FISH_OCEAN_BATCH_API_KEY=shared-batch-adapter-secret
 ```
 
 Public-safe registry data is available at:
@@ -471,6 +478,19 @@ The Phase 3 market-making report combines supply, Fish demand, scorecards, and b
 
 The report returns route rules, route candidates, conservative price bands, margin estimates, and warnings. It is public-safe and does not store or expose prompt text, output text, provider contacts, endpoint URLs, or private payout settlement data. See `docs/market-making-report.md` for the report contract.
 
+## Ocean Batch Jobs
+
+The first Docs/Ocean batch contract is available at:
+
+```text
+GET /api/ocean/batch/jobs
+POST /api/ocean/batch/jobs
+```
+
+`POST` requires a Fish API key and accepts only hash/reference input through `inputRef`; it does not accept or store raw document text. `adapterMode: "sample_success"` is the default local proof mode. Set `adapterMode: "ocean_http"` only when `FISH_OCEAN_BATCH_ENDPOINT` points to a private Oncompute/Ocean batch adapter.
+
+Batch receipts are written under `data/ocean-batch/`, and successful jobs also write Fish usage receipts so the public dashboard can count them as Ocean-native usage. See `docs/ocean-batch-jobs-plan.md` for the adapter contract.
+
 ## Repository Structure
 
 ```text
@@ -501,6 +521,7 @@ data/submissions/
 data/forms/
 data/fish/
 data/proof/
+data/ocean-batch/
 data/staking/
 .env*
 .next/

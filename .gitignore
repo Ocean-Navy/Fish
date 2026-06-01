@@ -16,6 +16,7 @@ data/forms/
 data/submissions/
 data/fish/
 data/proof/
+data/ocean-batch/
 data/staking/
 data/provider_allowlist.json
 deploy/nginx/auth/.htpasswd
