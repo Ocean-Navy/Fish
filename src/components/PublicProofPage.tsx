@@ -1,4 +1,4 @@
-import { CircleDollarSign, Fish, Gauge, ReceiptText, Ship } from "lucide-react";
+import { CircleDollarSign, FileText, Fish, Gauge, ReceiptText, Ship } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -6,12 +6,13 @@ import type { Route } from "next";
 import type { ReactNode } from "react";
 import { formatCompact, formatDateTime, formatNumber, formatUsd } from "@/lib/format";
 import type { BenchmarkSummary } from "@/lib/providerBenchmarks";
+import type { OceanBatchSummary } from "@/lib/oceanBatch";
 import type { ProofSummary } from "@/lib/providerJobs";
 import type { ProviderScorecardSummary } from "@/lib/providerScorecard";
 import type { DataState } from "@/lib/types";
 import { StatusBadge } from "@/components/StatusBadge";
 
-export function PublicProofPage({ proof, scorecard, benchmarks }: { proof: ProofSummary; scorecard: ProviderScorecardSummary; benchmarks: BenchmarkSummary }) {
+export function PublicProofPage({ proof, scorecard, benchmarks, batch }: { proof: ProofSummary; scorecard: ProviderScorecardSummary; benchmarks: BenchmarkSummary; batch: OceanBatchSummary }) {
   const hasLiveProof = proof.dataState === "live" && proof.verifiedReceipts > 0;
   const providerRows = scorecard.rows.filter((row) => row.selected || row.jobsRouted || row.benchmarkRuns).slice(0, 4);
   const receiptRows = proof.receipts.slice(0, 5);
@@ -63,8 +64,8 @@ export function PublicProofPage({ proof, scorecard, benchmarks }: { proof: Proof
           <div className="grid gap-3 sm:grid-cols-2">
             <HeroCounter icon={ReceiptText} label="Proof records" value={formatCompact(proof.verifiedReceipts)} />
             <HeroCounter icon={Ship} label="Ocean jobs" value={formatCompact(proof.oceanJobsRouted)} />
+            <HeroCounter icon={FileText} label="Docs batch" value={formatCompact(batch.succeededJobs)} />
             <HeroCounter icon={CircleDollarSign} label="Provider chest" value={formatUsd(proof.providerPayoutUsd)} />
-            <HeroCounter icon={Gauge} label="Benchmark pass" value={proof.benchmarkPassRate === null ? "-" : `${formatNumber(proof.benchmarkPassRate * 100)}%`} />
           </div>
         </div>
       </section>
@@ -73,9 +74,35 @@ export function PublicProofPage({ proof, scorecard, benchmarks }: { proof: Proof
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <ProofTile label="Jobs routed" value={formatCompact(proof.oceanJobsRouted)} detail={`${formatCompact(proof.failedJobs + proof.timedOutJobs)} need review`} />
           <ProofTile label="Proof records" value={formatCompact(proof.verifiedReceipts)} detail={`${formatCompact(proof.receiptVerificationFailures)} need review`} />
+          <ProofTile label="Docs batch" value={formatCompact(batch.jobs)} detail={batch.dataState === "sample" ? "sample path" : "private adapter"} />
           <ProofTile label="Providers paid" value={formatUsd(proof.payouts.totals.paid)} detail={`${formatUsd(proof.payouts.totals.outstandingUsd)} still open`} />
           <ProofTile label="Benchmark runs" value={formatCompact(benchmarks.totals.benchmarkRuns)} detail={`${formatCompact(benchmarks.totals.untestedCells)} untested routes`} />
         </div>
+      </MetricGroup>
+
+      <MetricGroup title="Docs Batch" eyebrow="Ocean batch path" state={batch.dataState}>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <ProofTile label="Batch jobs" value={formatCompact(batch.jobs)} />
+          <ProofTile label="Succeeded" value={formatCompact(batch.succeededJobs)} />
+          <ProofTile label="Tokens" value={formatCompact(batch.tokensProcessed)} />
+          <ProofTile label="Provider cost" value={formatUsd(batch.providerCostUsd)} />
+        </div>
+        {batch.receipts.length ? (
+          <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {batch.receipts.slice(0, 4).map((receipt) => (
+              <article key={receipt.receiptId} className="rounded-[1.5rem] border border-fish-accent/20 bg-fish-surface/80 p-5 shadow-harbor">
+                <p className="text-xs font-black uppercase tracking-[0.12em] text-fish-gold">{receipt.taskType.replaceAll("_", " ")}</p>
+                <h3 className="mt-3 text-xl font-black text-white">{receipt.status.replaceAll("_", " ")}</h3>
+                <p className="mt-3 text-sm font-bold text-fish-secondary">{formatCompact(receipt.usage.totalTokens)} tokens / {formatNumber(receipt.usage.gpuSeconds)} GPU sec</p>
+                <p className="mt-3 break-all text-xs font-bold leading-5 text-fish-secondary">{receipt.hashes.canonicalReceiptHash.slice(0, 28)}...</p>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <div className="mt-3">
+            <EmptyHarbor text="No Docs batch receipts yet. The first hash-only batch job will appear here." />
+          </div>
+        )}
       </MetricGroup>
 
       <MetricGroup id="boats" title="Provider Boats" eyebrow="Selected routes" state={scorecard.dataState}>
