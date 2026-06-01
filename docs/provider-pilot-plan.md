@@ -118,10 +118,11 @@ Provider job request:
     "temperature": 0.2
   },
   "maxRuntimeSeconds": 600,
-  "maxCostUsd": 1.0,
-  "receiptPublicKey": "..."
+  "maxCostUsd": 1.0
 }
 ```
+
+Fish sends this body to the private `jobEndpoint` configured for a selected provider through `FISH_PROVIDER_JOB_ENDPOINTS` or `data/provider_allowlist.json`. The adapter sends `inputRef` only, not raw prompt text.
 
 Provider job result:
 
@@ -141,7 +142,7 @@ Provider job result:
   "cost": {
     "amount": 0.12,
     "currency": "USDC",
-    "pricingState": "verified"
+    "pricingState": "provider_verified"
   },
   "outputRef": "sha256:...",
   "errorCode": null
@@ -208,7 +209,7 @@ payout_event_receipt
   "cost": {
     "userChargeUsd": 0.2,
     "providerCostUsd": 0.12,
-    "pricingState": "verified"
+    "pricingState": "provider_verified"
   },
   "hashes": {
     "inputHash": "sha256:...",

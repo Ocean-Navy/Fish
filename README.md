@@ -178,6 +178,8 @@ PORT=3000
 HOSTNAME=0.0.0.0
 FISH_ADMIN_TOKEN=
 FISH_PROVIDER_ALLOWLIST=
+FISH_PROVIDER_JOB_ENDPOINTS=
+FISH_PROVIDER_JOB_API_KEY=
 FISH_CHAT_ROUTE=mock
 FISH_CHAT_BACKEND=mock
 FISH_MAX_INPUT_TOKENS=1000
@@ -319,6 +321,8 @@ cp data/provider_allowlist.example.json data/provider_allowlist.json
 
 ```text
 FISH_PROVIDER_ALLOWLIST=prov_abc123,prov_def456
+FISH_PROVIDER_JOB_ENDPOINTS=prov_abc123=https://provider.example.com/fish/jobs
+FISH_PROVIDER_JOB_API_KEY=shared-provider-adapter-secret
 ```
 
 Public-safe registry data is available at:
@@ -353,7 +357,9 @@ curl -sS http://127.0.0.1:3000/api/providers/jobs \
   }'
 ```
 
-The adapter checks the selected-provider allowlist before writing a receipt. Mock adapter runs are marked `sample` and are useful for testing the proof UI only. Non-sample selected-provider receipts get a canonical hash and an Ed25519 signature. The first run creates a local prototype signing key at `data/proof/signing-key.json`; keep that proof volume backed up if you want stable signing identity across deploys.
+The adapter checks the selected-provider allowlist before writing a receipt. `adapterMode` defaults to `mock_success`, which is marked `sample` and is useful for testing the proof UI only. Set `adapterMode: "provider_http"` after a selected provider has a private job endpoint in `FISH_PROVIDER_JOB_ENDPOINTS` or `data/provider_allowlist.json`.
+
+The HTTP adapter posts only `jobId`, `providerId`, `workloadType`, `model`, `inputRef`, `parameters`, `maxRuntimeSeconds`, and `maxCostUsd`; it does not send raw prompt or output text. Provider HTTP receipts are marked `snapshot` until a stronger Ocean-native job proof path exists. Successful non-sample selected-provider receipts get a canonical hash and an Ed25519 signature. The first run creates a local prototype signing key at `data/proof/signing-key.json`; keep that proof volume backed up if you want stable signing identity across deploys.
 
 Public proof endpoints are:
 

@@ -69,7 +69,10 @@ summary_batch
 mock_success
 mock_failure
 mock_timeout
+provider_http
 ```
+
+Use `provider_http` only after the provider has a private job endpoint configured through `FISH_PROVIDER_JOB_ENDPOINTS` or `data/provider_allowlist.json`. These runs are public `snapshot` evidence, not live Ocean-native proof yet.
 
 ## Definition Of Done
 

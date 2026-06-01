@@ -2,6 +2,7 @@
   "providers": [
     {
       "sourceApplicationId": "replace-with-provider-application-id",
+      "jobEndpoint": "https://provider.example.com/fish/jobs",
       "allowedWorkloadTypes": ["chat_batch"],
       "allowedModels": ["fish-demo-chat"],
       "maxConcurrentJobs": 1,

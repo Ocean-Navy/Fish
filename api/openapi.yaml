@@ -248,7 +248,7 @@ paths:
                   type: number
                 adapterMode:
                   type: string
-                  enum: [mock_success, mock_failure, mock_timeout]
+                  enum: [mock_success, mock_failure, mock_timeout, provider_http]
       responses:
         '200':
           description: Provider job completed
@@ -464,7 +464,7 @@ paths:
                   enum: [tiny_smoke, small_chat, summary_batch]
                 adapterMode:
                   type: string
-                  enum: [mock_success, mock_failure, mock_timeout]
+                  enum: [mock_success, mock_failure, mock_timeout, provider_http]
       responses:
         '200':
           description: Benchmark run completed
@@ -1715,7 +1715,7 @@ components:
           type: number
         pricingState:
           type: string
-          enum: [prototype_estimate, not_applicable]
+          enum: [prototype_estimate, provider_verified, not_applicable]
     PayoutEvent:
       type: object
       properties:

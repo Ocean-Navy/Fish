@@ -8,7 +8,9 @@ import type { ProviderJobReceipt, ProviderJobRequestInput } from "@/lib/provider
 import type { DataState } from "@/lib/types";
 
 const BENCHMARK_RUNS_DIR = path.join(process.cwd(), "data", "proof", "benchmark-runs");
-const ADAPTER_VERSION = "mock-provider-v0";
+const ADAPTER_VERSIONS = ["mock-provider-v0", "provider-http-v0"] as const;
+type AdapterVersion = (typeof ADAPTER_VERSIONS)[number];
+const DEFAULT_ADAPTER_VERSION: AdapterVersion = "mock-provider-v0";
 
 const benchmarkIdSchema = z.enum(["tiny_smoke", "small_chat", "summary_batch"]);
 const benchmarkStatusSchema = z.enum(["succeeded", "failed", "timed_out", "not_allowed"]);
@@ -79,7 +81,7 @@ const benchmarkDefinitions = [
 const benchmarkRequestSchema = z.object({
   providerId: z.string().trim().min(1),
   benchmarkId: benchmarkIdSchema.default("tiny_smoke"),
-  adapterMode: z.enum(["mock_success", "mock_failure", "mock_timeout"]).optional().default("mock_success")
+  adapterMode: z.enum(["mock_success", "mock_failure", "mock_timeout", "provider_http"]).optional().default("mock_success")
 }).strict();
 
 const benchmarkQuerySchema = z.object({
@@ -92,7 +94,6 @@ const benchmarkQuerySchema = z.object({
 });
 
 type BenchmarkId = z.infer<typeof benchmarkRequestSchema>["benchmarkId"];
-
 export type BenchmarkDefinition = {
   benchmarkId: BenchmarkId;
   title: string;
@@ -106,7 +107,7 @@ export type BenchmarkDefinition = {
   parameters: ProviderJobRequestInput["parameters"];
   maxRuntimeSeconds: number;
   maxCostUsd: number;
-  adapterVersion: typeof ADAPTER_VERSION;
+  adapterVersion: AdapterVersion;
 };
 
 export type BenchmarkRequestInput = z.infer<typeof benchmarkRequestSchema>;
@@ -126,7 +127,7 @@ export type BenchmarkRun = {
   inputSizeBucket: string;
   outputSizeBucket: string;
   batchSize: number;
-  adapterVersion: typeof ADAPTER_VERSION;
+  adapterVersion: AdapterVersion;
   status: Exclude<BenchmarkStatus, "untested">;
   sourceState: DataState;
   visibility: "public";
@@ -156,7 +157,7 @@ export type BenchmarkMatrixRow = {
   inputSizeBucket: string;
   outputSizeBucket: string;
   batchSize: number;
-  adapterVersion: typeof ADAPTER_VERSION;
+  adapterVersion: AdapterVersion;
   latestStatus: BenchmarkStatus;
   sampleSize: number;
   successRate: number | null;
@@ -228,7 +229,7 @@ const benchmarkRunSchema: z.ZodType<BenchmarkRun> = z.object({
   inputSizeBucket: z.string().trim().min(1),
   outputSizeBucket: z.string().trim().min(1),
   batchSize: z.number().int().positive(),
-  adapterVersion: z.literal(ADAPTER_VERSION),
+  adapterVersion: z.enum(ADAPTER_VERSIONS),
   status: benchmarkStatusSchema,
   sourceState: dataStateSchema,
   visibility: z.literal("public"),
@@ -267,7 +268,7 @@ export async function runProviderBenchmark(input: BenchmarkRequestInput) {
     maxCostUsd: definition.maxCostUsd,
     adapterMode: input.adapterMode
   } satisfies ProviderJobRequestInput);
-  const run = buildBenchmarkRun(definition, result.receipt);
+  const run = buildBenchmarkRun(definition, result.receipt, adapterVersionForMode(input.adapterMode));
   await writeBenchmarkRun(run);
 
   return result.ok ? { ok: true as const, status: 200, run, receipt: result.receipt } : { ok: false as const, status: result.status, run, receipt: result.receipt, error: result.error };
@@ -277,7 +278,7 @@ export async function summarizeBenchmarks(query: BenchmarkQuery = { selectedOnly
   const [registry, runs] = await Promise.all([collectProviderPilotRegistry(), readBenchmarkRuns()]);
   const selectedProviderIds = new Set(registry.allowlist.map((entry) => entry.providerId));
   const providers = buildBenchmarkProviders({ selectedProviderIds, registryProviders: registry.providers, runs, selectedOnly: query.selectedOnly }).filter((provider) => providerMatchesQuery(provider, query));
-  const definitions: BenchmarkDefinition[] = benchmarkDefinitions.map((definition) => ({ ...definition, adapterVersion: ADAPTER_VERSION as typeof ADAPTER_VERSION })).filter((definition) => !query.benchmarkId || definition.benchmarkId === query.benchmarkId);
+  const definitions: BenchmarkDefinition[] = benchmarkDefinitions.map((definition) => ({ ...definition, adapterVersion: DEFAULT_ADAPTER_VERSION })).filter((definition) => !query.benchmarkId || definition.benchmarkId === query.benchmarkId);
   const matrix = providers
     .flatMap((provider) => definitions.map((definition) => buildMatrixRow(provider, definition, runs)))
     .filter((row) => !query.status || row.latestStatus === query.status);
@@ -313,7 +314,7 @@ export async function summarizeBenchmarks(query: BenchmarkQuery = { selectedOnly
   };
 }
 
-function buildBenchmarkRun(definition: (typeof benchmarkDefinitions)[number], receipt: ProviderJobReceipt): BenchmarkRun {
+function buildBenchmarkRun(definition: (typeof benchmarkDefinitions)[number], receipt: ProviderJobReceipt, adapterVersion: AdapterVersion): BenchmarkRun {
   const tokens = receipt.usage.inputTokens + receipt.usage.outputTokens;
   const runtimeSeconds = Math.max(receipt.usage.gpuSeconds, 1);
 
@@ -329,7 +330,7 @@ function buildBenchmarkRun(definition: (typeof benchmarkDefinitions)[number], re
     inputSizeBucket: definition.inputSizeBucket,
     outputSizeBucket: definition.outputSizeBucket,
     batchSize: definition.batchSize,
-    adapterVersion: ADAPTER_VERSION,
+    adapterVersion,
     status: receipt.status,
     sourceState: receipt.sourceState,
     visibility: "public",
@@ -350,7 +351,11 @@ function buildBenchmarkRun(definition: (typeof benchmarkDefinitions)[number], re
 }
 
 function effectiveBenchmarkSourceState(run: BenchmarkRun): DataState {
-  return run.adapterVersion.startsWith("mock-") ? "sample" : run.sourceState;
+  return run.adapterVersion === "mock-provider-v0" ? "sample" : run.sourceState;
+}
+
+function adapterVersionForMode(adapterMode: BenchmarkRequestInput["adapterMode"]): AdapterVersion {
+  return adapterMode === "provider_http" ? "provider-http-v0" : "mock-provider-v0";
 }
 
 function sourceStateSummary(states: DataState[]): DataState {
@@ -383,7 +388,7 @@ function buildMatrixRow(provider: BenchmarkProvider, definition: BenchmarkDefini
     inputSizeBucket: definition.inputSizeBucket,
     outputSizeBucket: definition.outputSizeBucket,
     batchSize: definition.batchSize,
-    adapterVersion: definition.adapterVersion,
+    adapterVersion: latest?.adapterVersion ?? definition.adapterVersion,
     latestStatus: latest?.status ?? "untested",
     sampleSize: matchingRuns.length,
     successRate: matchingRuns.length ? successful.length / matchingRuns.length : null,

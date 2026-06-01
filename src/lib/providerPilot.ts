@@ -28,6 +28,7 @@ const allowlistFileSchema = z.object({
         providerId: z.string().optional(),
         sourceApplicationId: z.string().optional(),
         nodeEndpoint: z.string().optional(),
+        jobEndpoint: z.string().optional(),
         allowedWorkloadTypes: z.array(z.string()).optional().default(["chat_batch"]),
         allowedModels: z.array(z.string()).optional().default(["fish-demo-chat"]),
         maxConcurrentJobs: z.number().int().positive().optional().default(1),
@@ -146,6 +147,23 @@ export function isProviderAllowed(registry: ProviderPilotRegistry, providerId: s
   return entry.allowedWorkloadTypes.includes(workloadType) && entry.allowedModels.includes(model);
 }
 
+export async function resolveProviderJobEndpoint(providerId: string) {
+  const envEndpoint = readProviderJobEndpointEnv(providerId);
+  if (envEndpoint) {
+    return envEndpoint;
+  }
+
+  const [submissions, allowlistCandidates] = await Promise.all([readProviderSubmissions(), readAllowlistCandidates()]);
+  const providers = submissions.map((submission) => buildProviderProfile(submission));
+  for (const candidate of allowlistCandidates) {
+    const provider = findCandidateProvider(providers, candidate);
+    if (provider?.providerId === providerId && candidate.jobEndpoint?.trim()) {
+      return candidate.jobEndpoint.trim();
+    }
+  }
+  return null;
+}
+
 export async function collectProviderPilotOperatorExport(): Promise<ProviderPilotOperatorExport> {
   const registry = await collectProviderPilotRegistry();
   const submissions = await readProviderSubmissions();
@@ -227,6 +245,26 @@ function readAllowlistEnv(): AllowlistCandidate[] {
       operatorOwner: "env",
       decisionReason: "FISH_PROVIDER_ALLOWLIST"
     }));
+}
+
+function readProviderJobEndpointEnv(providerId: string) {
+  return (process.env.FISH_PROVIDER_JOB_ENDPOINTS ?? "")
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .flatMap((entry) => {
+      const separator = entry.indexOf("=");
+      if (separator < 1) {
+        return [];
+      }
+      return [
+        {
+          providerId: entry.slice(0, separator).trim(),
+          endpoint: entry.slice(separator + 1).trim()
+        }
+      ];
+    })
+    .find((entry) => entry.providerId === providerId && entry.endpoint)?.endpoint ?? null;
 }
 
 function buildProviderProfile(submission: z.infer<typeof submissionSchema>): ProviderProfile {

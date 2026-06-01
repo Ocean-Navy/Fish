@@ -2,7 +2,7 @@ import { createHash, createPrivateKey, createPublicKey, generateKeyPairSync, ran
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
-import { collectProviderPilotRegistry, isProviderAllowed } from "@/lib/providerPilot";
+import { collectProviderPilotRegistry, isProviderAllowed, resolveProviderJobEndpoint } from "@/lib/providerPilot";
 import { recordPayoutEventForReceipt, summarizePayouts } from "@/lib/providerPayouts";
 import type { PayoutSummary } from "@/lib/providerPayouts";
 import type { DataState } from "@/lib/types";
@@ -25,7 +25,7 @@ const jobRequestSchema = z.object({
     .default({ maxOutputTokens: 256, temperature: 0.2 }),
   maxRuntimeSeconds: z.number().int().min(1).max(600).optional().default(60),
   maxCostUsd: z.number().min(0).max(100).optional().default(1),
-  adapterMode: z.enum(["mock_success", "mock_failure", "mock_timeout"]).optional().default("mock_success")
+  adapterMode: z.enum(["mock_success", "mock_failure", "mock_timeout", "provider_http"]).optional().default("mock_success")
 });
 
 const signingKeySchema = z.object({
@@ -65,7 +65,7 @@ export type ProviderJobReceipt = {
   cost: {
     userChargeUsd: number;
     providerCostUsd: number;
-    pricingState: "prototype_estimate" | "not_applicable";
+    pricingState: "prototype_estimate" | "provider_verified" | "not_applicable";
   };
   hashes: {
     inputHash: string;
@@ -88,6 +88,15 @@ export type ReceiptVerification = {
   receiptId: string;
   canonicalReceiptHash: string;
   error: string | null;
+};
+
+type ProviderAdapterOutcome = {
+  status: "succeeded" | "failed" | "timed_out";
+  providerJobId: string | null;
+  outputHash: string | null;
+  usage: ProviderJobReceipt["usage"];
+  cost: ProviderJobReceipt["cost"];
+  errorCode: string | null;
 };
 
 const receiptStatusSchema = z.enum(["succeeded", "failed", "timed_out", "not_allowed"]);
@@ -271,10 +280,10 @@ export async function runProviderJob(input: ProviderJobRequestInput) {
     return { ok: false as const, status: 403, receipt, payoutEvent, error: "provider_not_allowed" };
   }
 
-  const outcome = runMockAdapter(input);
+  const outcome = input.adapterMode === "provider_http" ? await runProviderHttpAdapter(input, receiptBase.jobId) : runMockAdapter(input);
   const receipt = await finalizeReceipt({
     ...receiptBase,
-    providerJobId: outcome.status === "succeeded" ? `mock_${randomUUID()}` : null,
+    providerJobId: outcome.providerJobId,
     status: outcome.status,
     completedAt: new Date().toISOString(),
     usage: outcome.usage,
@@ -491,10 +500,11 @@ export function verifyProviderJobReceipt(receipt: ProviderJobReceipt): ReceiptVe
   }
 }
 
-function runMockAdapter(input: ProviderJobRequestInput) {
+function runMockAdapter(input: ProviderJobRequestInput): ProviderAdapterOutcome {
   if (input.adapterMode === "mock_failure") {
     return {
       status: "failed" as const,
+      providerJobId: null,
       outputHash: null,
       usage: { inputTokens: estimateInputTokens(input.inputRef), outputTokens: 0, gpuSeconds: 1 },
       cost: { userChargeUsd: 0, providerCostUsd: 0, pricingState: "not_applicable" as const },
@@ -505,6 +515,7 @@ function runMockAdapter(input: ProviderJobRequestInput) {
   if (input.adapterMode === "mock_timeout") {
     return {
       status: "timed_out" as const,
+      providerJobId: null,
       outputHash: null,
       usage: { inputTokens: estimateInputTokens(input.inputRef), outputTokens: 0, gpuSeconds: input.maxRuntimeSeconds },
       cost: { userChargeUsd: 0, providerCostUsd: 0, pricingState: "not_applicable" as const },
@@ -519,6 +530,7 @@ function runMockAdapter(input: ProviderJobRequestInput) {
 
   return {
     status: "succeeded" as const,
+    providerJobId: `mock_${randomUUID()}`,
     outputHash,
     usage: {
       inputTokens: estimateInputTokens(input.inputRef),
@@ -532,6 +544,121 @@ function runMockAdapter(input: ProviderJobRequestInput) {
     },
     errorCode: null
   };
+}
+
+async function runProviderHttpAdapter(input: ProviderJobRequestInput, jobId: string): Promise<ProviderAdapterOutcome> {
+  const endpoint = await resolveProviderJobEndpoint(input.providerId);
+  if (!endpoint) {
+    return providerAdapterFailure(input, "provider_job_endpoint_not_configured");
+  }
+
+  try {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: providerJobHeaders(),
+      body: JSON.stringify({
+        jobId,
+        idempotencyKey: jobId,
+        providerId: input.providerId,
+        workloadType: input.workloadType,
+        model: input.model,
+        inputRef: input.inputRef,
+        parameters: input.parameters,
+        maxRuntimeSeconds: input.maxRuntimeSeconds,
+        maxCostUsd: input.maxCostUsd
+      }),
+      signal: AbortSignal.timeout(Math.min(input.maxRuntimeSeconds * 1000, Number(process.env.FISH_PROVIDER_JOB_TIMEOUT_MS ?? "600000")))
+    });
+    const payload = await response.json().catch(() => null);
+    if (!response.ok || !isRecord(payload)) {
+      return providerAdapterFailure(input, response.status === 504 ? "provider_job_timeout" : "provider_job_http_error", response.status === 504 ? "timed_out" : "failed");
+    }
+    return providerAdapterOutcome(input, payload);
+  } catch (error) {
+    const timeout = error instanceof Error && error.name === "TimeoutError";
+    return providerAdapterFailure(input, timeout ? "provider_job_timeout" : "provider_job_http_error", timeout ? "timed_out" : "failed");
+  }
+}
+
+function providerAdapterOutcome(input: ProviderJobRequestInput, payload: Record<string, unknown>): ProviderAdapterOutcome {
+  const status = readProviderStatus(payload);
+  const providerCostUsd = readProviderCostUsd(payload);
+  if (providerCostUsd > input.maxCostUsd) {
+    return providerAdapterFailure(input, "provider_cost_cap_exceeded");
+  }
+  if (status !== "succeeded") {
+    return {
+      ...providerAdapterFailure(input, readString(payload, ["errorCode"]) ?? "provider_job_failed", status),
+      providerJobId: readString(payload, ["providerJobId"]) ?? readString(payload, ["jobId"])
+    };
+  }
+
+  const outputHash = readResultHash(payload);
+  if (!outputHash) {
+    return providerAdapterFailure(input, "provider_output_hash_missing");
+  }
+
+  return {
+    status,
+    providerJobId: readString(payload, ["providerJobId"]) ?? readString(payload, ["jobId"]),
+    outputHash,
+    usage: readProviderUsage(input, payload),
+    cost: {
+      userChargeUsd: Number((providerCostUsd * 1.25).toFixed(6)),
+      providerCostUsd,
+      pricingState: "provider_verified" as const
+    },
+    errorCode: null
+  };
+}
+
+function providerAdapterFailure(input: ProviderJobRequestInput, errorCode: string, status: "failed" | "timed_out" = "failed"): ProviderAdapterOutcome {
+  return {
+    status,
+    providerJobId: null as string | null,
+    outputHash: null,
+    usage: { inputTokens: estimateInputTokens(input.inputRef), outputTokens: 0, gpuSeconds: status === "timed_out" ? input.maxRuntimeSeconds : 1 },
+    cost: { userChargeUsd: 0, providerCostUsd: 0, pricingState: "not_applicable" as const },
+    errorCode
+  };
+}
+
+function providerJobHeaders() {
+  const headers: Record<string, string> = {
+    "content-type": "application/json"
+  };
+  const apiKey = process.env.FISH_PROVIDER_JOB_API_KEY?.trim();
+  if (apiKey) {
+    headers.authorization = `Bearer ${apiKey}`;
+  }
+  return headers;
+}
+
+function readProviderStatus(payload: Record<string, unknown>): ProviderAdapterOutcome["status"] {
+  const status = readString(payload, ["status"]);
+  if (status === "succeeded" || status === "failed" || status === "timed_out") {
+    return status;
+  }
+  return "failed";
+}
+
+function readProviderUsage(input: ProviderJobRequestInput, payload: Record<string, unknown>) {
+  return {
+    inputTokens: Math.max(1, Math.round(readNumber(payload, ["usage", "inputTokens"]) ?? estimateInputTokens(input.inputRef))),
+    outputTokens: Math.max(0, Math.round(readNumber(payload, ["usage", "outputTokens"]) ?? 0)),
+    gpuSeconds: Math.max(1, Math.round(readNumber(payload, ["usage", "gpuSeconds"]) ?? 1))
+  };
+}
+
+function readProviderCostUsd(payload: Record<string, unknown>) {
+  const currency = readString(payload, ["cost", "currency"])?.toUpperCase();
+  const amount = readNumber(payload, ["cost", "providerCostUsd"]) ?? readNumber(payload, ["cost", "amount"]) ?? 0;
+  return currency && !["USD", "USDC"].includes(currency) ? 0 : Number(Math.max(0, amount).toFixed(6));
+}
+
+function readResultHash(payload: Record<string, unknown>) {
+  const hash = readString(payload, ["outputHash"]) ?? readString(payload, ["outputRef"]);
+  return hash ? normalizeHash(hash) : null;
 }
 
 function sourceStateForAdapter(input: ProviderJobRequestInput): DataState {
@@ -807,6 +934,31 @@ function hashPrefix(hash: string) {
 
 function isDateLike(value: string) {
   return Number.isFinite(Date.parse(value));
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+function readString(value: Record<string, unknown>, path: string[]) {
+  const result = readPath(value, path);
+  return typeof result === "string" && result.trim() ? result.trim() : null;
+}
+
+function readNumber(value: Record<string, unknown>, path: string[]) {
+  const result = readPath(value, path);
+  return typeof result === "number" && Number.isFinite(result) ? result : null;
+}
+
+function readPath(value: Record<string, unknown>, path: string[]) {
+  let current: unknown = value;
+  for (const part of path) {
+    if (!isRecord(current)) {
+      return undefined;
+    }
+    current = current[part];
+  }
+  return current;
 }
 
 function queryObject(searchParams: URLSearchParams) {
