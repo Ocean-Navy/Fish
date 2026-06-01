@@ -105,6 +105,22 @@ nginx -t
 systemctl reload nginx
 ```
 
+For HTTPS, issue the certificate after DNS points at the VM:
+
+```bash
+apt-get install -y certbot
+mkdir -p /var/www/letsencrypt /etc/letsencrypt/renewal-hooks/deploy
+certbot certonly --webroot \
+  -w /var/www/letsencrypt \
+  -d op.fish \
+  --non-interactive \
+  --agree-tos \
+  --email robin@dataunion.app
+printf '#!/bin/sh\nsystemctl reload nginx\n' > /etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh
+chmod +x /etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh
+certbot renew --dry-run
+```
+
 Keep generated credentials in a root-only file such as `/root/fish-deploy-secrets.txt`.
 
 ## Run With Docker
