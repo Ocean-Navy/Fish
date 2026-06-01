@@ -212,11 +212,11 @@ data/node_endpoints.txt
 
 The Phase 1 API prototype is local-first. It proves API keys, credit debits, and usage receipts before selected Ocean provider routing is live.
 
-Default chat is a deterministic mock. To test the warm Ocean Navy demo route, point the same Fish API route at a private OpenAI-compatible vLLM endpoint:
+Default chat is a deterministic mock. To test the warm Ocean Navy demo route, point the same Fish API route at a private Fish Runner or OpenAI-compatible vLLM endpoint:
 
 ```text
 FISH_CHAT_ROUTE=ocean-demo-vllm
-FISH_OCEAN_DEMO_VLLM_BASE_URL=https://your-private-vllm.example/v1
+FISH_OCEAN_DEMO_VLLM_BASE_URL=https://your-private-runner.example/v1
 FISH_OCEAN_DEMO_VLLM_API_KEY=...
 FISH_OCEAN_DEMO_VLLM_MODEL=fish-warm-chat
 FISH_OCEAN_DEMO_PROVIDER_ID=ocean-navy-demo-node

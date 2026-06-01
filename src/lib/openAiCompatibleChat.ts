@@ -1,4 +1,4 @@
-import type { ChatCompletionInput } from "@/lib/fishLedger";
+import type { ChatCompletionInput, RunnerReceiptSummary } from "@/lib/fishLedger";
 
 export type OpenAiCompatibleRouteConfig = {
   baseUrl: string | null;
@@ -15,6 +15,7 @@ export type OpenAiCompatibleChatSuccess = {
   completionTokens: number | null;
   providerCostUsd: number;
   providerId: string;
+  runnerReceipt: RunnerReceiptSummary | null;
 };
 
 export class OpenAiCompatibleChatError extends Error {
@@ -80,7 +81,27 @@ export async function runOpenAiCompatibleChat(
     promptTokens,
     completionTokens,
     providerCostUsd,
-    providerId: config.providerId
+    providerId: config.providerId,
+    runnerReceipt: readRunnerReceipt(payload)
+  };
+}
+
+function readRunnerReceipt(payload: unknown): RunnerReceiptSummary | null {
+  const receipt = readPath(payload, ["fish_runner"]);
+  if (!receipt || typeof receipt !== "object") {
+    return null;
+  }
+  const signature = readPath(receipt, ["signature"]);
+  return {
+    runnerReceiptVersion: readNumber(receipt, ["runnerReceiptVersion"]),
+    jobId: readString(receipt, ["jobId"]),
+    routeId: readString(receipt, ["routeId"]),
+    providerId: readString(receipt, ["providerId"]),
+    runnerId: readString(receipt, ["runnerId"]),
+    status: readString(receipt, ["status"]),
+    canonicalReceiptHash: readString(receipt, ["hashes", "canonicalReceiptHash"]),
+    signerKeyId: readString(receipt, ["signer", "keyId"]),
+    signatureState: typeof signature === "string" && signature.trim() ? "signed" : "unsigned"
   };
 }
 

@@ -110,6 +110,18 @@ export type FishPlan = {
   oceanProviderAllowed: boolean;
 };
 
+export type RunnerReceiptSummary = {
+  runnerReceiptVersion: number | null;
+  jobId: string | null;
+  routeId: string | null;
+  providerId: string | null;
+  runnerId: string | null;
+  status: string | null;
+  canonicalReceiptHash: string | null;
+  signerKeyId: string | null;
+  signatureState: "signed" | "unsigned";
+};
+
 export const FISH_PLANS: FishPlan[] = [
   {
     planId: "free",
@@ -210,6 +222,7 @@ type UsageReceipt = {
   grossMarginUsd: number;
   providerId: string | null;
   requestHash: string;
+  runnerReceipt?: RunnerReceiptSummary | null;
 };
 
 export type FishUsageSummary = {
@@ -509,6 +522,7 @@ export async function recordChatUsage(params: {
   latencyMs?: number;
   providerCostUsd?: number;
   providerId?: string | null;
+  runnerReceipt?: RunnerReceiptSummary | null;
 }) {
   const totalTokens = params.promptTokens + params.completionTokens;
   const creditsSpent = Math.max(1, Math.ceil(totalTokens / 1000));
@@ -555,7 +569,8 @@ export async function recordChatUsage(params: {
     providerCostUsd,
     grossMarginUsd,
     providerId: params.providerId ?? null,
-    requestHash: hashSecret(JSON.stringify(params.input.messages))
+    requestHash: hashSecret(JSON.stringify(params.input.messages)),
+    runnerReceipt: params.runnerReceipt ?? null
   };
 
   await writeLedger(params.ledger);

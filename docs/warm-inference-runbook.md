@@ -171,7 +171,7 @@ Keep Ocean Node ports and admin surfaces private or explicitly documented by the
 
 ## Fish Gateway Configuration
 
-Current Fish V0 supports a mock route, an Ocean Navy demo vLLM route, and an external OpenAI-compatible fallback. Use the Ocean demo route for the warm inference MVP:
+Current Fish V0 supports a mock route, an Ocean Navy demo vLLM route, and an external OpenAI-compatible fallback. When Fish Runner is deployed, point Fish Gateway at the runner's OpenAI-compatible `/v1` surface, not raw vLLM:
 
 ```text
 FISH_CHAT_ROUTE=ocean-demo-vllm
@@ -182,8 +182,8 @@ FISH_MAX_OUTPUT_TOKENS=512
 FISH_DAILY_KEYED_QUOTA=20
 FISH_DAILY_ANONYMOUS_QUOTA=5
 FISH_GUEST_CREDIT_GRANT=25
-FISH_OCEAN_DEMO_VLLM_BASE_URL=http://127.0.0.1:8000/v1
-FISH_OCEAN_DEMO_VLLM_API_KEY=
+FISH_OCEAN_DEMO_VLLM_BASE_URL=http://127.0.0.1:8088/v1
+FISH_OCEAN_DEMO_VLLM_API_KEY=<same value as FISH_RUNNER_API_KEY>
 FISH_OCEAN_DEMO_VLLM_MODEL=fish-warm-chat
 FISH_OCEAN_DEMO_PROVIDER_ID=ocean-navy-demo-node
 FISH_OCEAN_DEMO_COST_USD_PER_1K_TOKENS=<operator estimate>

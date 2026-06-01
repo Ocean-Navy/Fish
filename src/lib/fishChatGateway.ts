@@ -5,7 +5,8 @@ import {
   recordChatUsage,
   type Account,
   type ChatCompletionInput,
-  type Ledger
+  type Ledger,
+  type RunnerReceiptSummary
 } from "@/lib/fishLedger";
 import { ExternalChatError, runExternalChat } from "@/lib/externalChat";
 import { spendDailyQuota } from "@/lib/fishQuota";
@@ -55,6 +56,7 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
   let route: FishChatRouteId = activeRoute.id;
   let costState: FishCostState = activeRoute.costState;
   let providerId: string | null = activeRoute.providerId;
+  let runnerReceipt: RunnerReceiptSummary | null = null;
   const requestedMaxOutputTokens = input.max_tokens ?? routerConfig.guardrails.maxOutputTokens;
 
   if (!activeRoute.configured && activeRoute.id === "ocean-demo-vllm" && canUseExternalFallback(routerConfig, context)) {
@@ -114,6 +116,7 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
       completionTokens = warm.completionTokens ?? estimateTokens(content);
       providerCostUsd = warm.providerCostUsd;
       providerId = warm.providerId;
+      runnerReceipt = warm.runnerReceipt;
     } catch (error) {
       if (!canUseExternalFallback(routerConfig, context)) {
         const message = error instanceof VllmChatError ? error.message : "ocean_demo_vllm_backend_error";
@@ -124,7 +127,7 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
       if (!fallback.ok) {
         return fallback;
       }
-      ({ content, responseModel, promptTokens, completionTokens, providerCostUsd, providerId } = fallback);
+      ({ content, responseModel, promptTokens, completionTokens, providerCostUsd, providerId, runnerReceipt } = fallback);
       route = "external-fallback";
       costState = "fallback_verified";
     }
@@ -133,7 +136,7 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
     if (!fallback.ok) {
       return fallback;
     }
-    ({ content, responseModel, promptTokens, completionTokens, providerCostUsd, providerId } = fallback);
+    ({ content, responseModel, promptTokens, completionTokens, providerCostUsd, providerId, runnerReceipt } = fallback);
     costState = "fallback_verified";
   } else {
     content = buildMockCompletion(routeInput);
@@ -154,7 +157,8 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
     status: "succeeded",
     latencyMs,
     providerCostUsd,
-    providerId
+    providerId,
+    runnerReceipt
   });
 
   if (!usage.ok) {
@@ -195,6 +199,9 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
         status: usage.receipt.status,
         routeLabel: routerConfig.routes[route].publicLabel,
         providerId: usage.receipt.providerId,
+        runnerReceiptHash: usage.receipt.runnerReceipt?.canonicalReceiptHash ?? null,
+        runnerSignatureState: usage.receipt.runnerReceipt?.signatureState ?? null,
+        runnerId: usage.receipt.runnerReceipt?.runnerId ?? null,
         latencyMs: usage.receipt.latencyMs,
         quotaRemaining: quota.remaining,
         creditsSpent: usage.receipt.creditsSpent,
@@ -220,7 +227,8 @@ async function runExternalFallback(input: ChatCompletionInput, promptTokens: num
       promptTokens: external.promptTokens ?? promptTokens,
       completionTokens: external.completionTokens ?? estimateTokens(external.content),
       providerCostUsd: external.providerCostUsd,
-      providerId: external.providerId
+      providerId: external.providerId,
+      runnerReceipt: null
     };
   } catch (error) {
     const message = error instanceof ExternalChatError ? error.message : "external_chat_backend_error";
