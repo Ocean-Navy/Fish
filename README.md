@@ -243,6 +243,8 @@ FISH_EXTERNAL_FALLBACK_FREE_ALLOWED=false
 
 Fish stores usage numbers, route metadata, latency, cost estimates, and request hashes in local receipts. The raw prompt is sent to the configured backend, so that backend's privacy policy applies.
 
+Feature caps are layered under the global token limits. For example, Code can have a larger cap than Ask when `FISH_MAX_OUTPUT_TOKENS` is raised, while Images remain disabled until a paid image route exists.
+
 The public route compass shows what is active without exposing secrets:
 
 ```bash

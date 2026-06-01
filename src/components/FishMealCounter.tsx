@@ -79,7 +79,7 @@ const dishes: FishDish[] = [
     placeholder: "What should Fish do first for pilot users?",
     systemPrompt: "You are Fish Quick Catch. Answer plainly in a helpful, concise way. Avoid hype and label uncertainty.",
     userWrapper: (input) => `Answer this user question in a short, useful way:\n\n${input}`,
-    maxTokens: 512,
+    maxTokens: 700,
     icon: MessageSquareText
   },
   {
@@ -92,7 +92,7 @@ const dishes: FishDish[] = [
     placeholder: "Write a TypeScript helper that formats Fish credits.",
     systemPrompt: "You are Fish Code Roll. Give practical coding help with concise explanations and safe assumptions.",
     userWrapper: (input) => `Help with this coding task. Include code only when useful:\n\n${input}`,
-    maxTokens: 700,
+    maxTokens: 1200,
     icon: Code2
   },
   {
@@ -105,7 +105,7 @@ const dishes: FishDish[] = [
     placeholder: "Explain warm inference like I am new to AI.",
     systemPrompt: "You are Fish Clear Broth. Explain like a patient product guide. Use simple language and concrete examples.",
     userWrapper: (input) => `Explain this simply, with no marketing claims:\n\n${input}`,
-    maxTokens: 520,
+    maxTokens: 700,
     icon: Lightbulb
   },
   {
@@ -118,7 +118,7 @@ const dishes: FishDish[] = [
     placeholder: "Paste docs or notes to summarize for a pilot update.",
     systemPrompt: "You are Fish Docs Bento. Extract the main points, risks, and next step. Do not invent facts.",
     userWrapper: (input) => `Summarize this document text into bullets and one next step:\n\n${input}`,
-    maxTokens: 560,
+    maxTokens: 900,
     icon: FileText
   },
   {
@@ -145,7 +145,7 @@ const dishes: FishDish[] = [
     placeholder: "Draft a small proposal for a Fish warm inference demo node.",
     systemPrompt: "You are Fish Proposal Platter. Produce a practical proposal with scope, benefits, limits, and next steps.",
     userWrapper: (input) => `Turn these notes into a short proposal. Keep it honest and implementation-oriented:\n\n${input}`,
-    maxTokens: 760,
+    maxTokens: 900,
     icon: PenTool
   },
   {
@@ -159,7 +159,7 @@ const dishes: FishDish[] = [
     systemPrompt:
       "You are Fish Ocean Special. Help explain Fish, Ocean Network, Oncompute, credits, and provider routing. Never claim full decentralization, live payouts, unlimited free AI, or staking yield.",
     userWrapper: (input) => `Answer using Fish/Ocean context and clear caveats where needed:\n\n${input}`,
-    maxTokens: 620,
+    maxTokens: 700,
     icon: Waves
   }
 ];

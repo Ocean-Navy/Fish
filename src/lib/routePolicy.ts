@@ -1,3 +1,4 @@
+import { listFishFeaturePolicies, type FishFeatureId } from "@/lib/fishFeaturePolicy";
 import { getFishRouterConfig, type FishChatRouteId } from "@/lib/fishRouter";
 import type { DataState } from "@/lib/types";
 
@@ -48,7 +49,7 @@ export type FishRoutePolicy = {
     proof: string;
   }>;
   features: Array<{
-    id: "ask" | "code" | "docs" | "ocean-helper" | "images" | "api";
+    id: FishFeatureId;
     label: string;
     state: "live-beta" | "beta" | "coming-soon";
     primary: string;
@@ -66,11 +67,6 @@ export function getFishRoutePolicy(): FishRoutePolicy {
   const router = getFishRouterConfig();
   const configuredRoute = router.routes[router.activeRouteId];
   const activeRoute = activeRoutePolicy(configuredRoute.id, configuredRoute.status);
-  const externalFallbackLabel = router.routes["external-fallback"].configured
-    ? router.guardrails.externalFallbackFreeAllowed
-      ? "External fallback allowed"
-      : "External fallback for paid plans"
-    : "No fallback configured";
 
   return {
     dataState: "live",
@@ -154,56 +150,16 @@ export function getFishRoutePolicy(): FishRoutePolicy {
         proof: "Hardware proof plus provider proof."
       }
     ],
-    features: [
-      {
-        id: "ask",
-        label: "Ask",
-        state: router.routes["ocean-demo-vllm"].configured ? "live-beta" : "beta",
-        primary: "Ocean demo vLLM",
-        fallback: externalFallbackLabel,
-        cap: `${router.guardrails.maxInputTokens} in / ${router.guardrails.maxOutputTokens} out / ${formatDailyBudget(router.budgets.dailyUsdByRoute["ocean-demo-vllm"])} daily`
-      },
-      {
-        id: "code",
-        label: "Code",
-        state: router.routes["ocean-demo-vllm"].configured ? "live-beta" : "beta",
-        primary: "Ocean demo vLLM",
-        fallback: externalFallbackLabel,
-        cap: `${router.guardrails.maxInputTokens} in / ${router.guardrails.maxOutputTokens} out / ${formatDailyBudget(router.budgets.dailyUsdByRoute["ocean-demo-vllm"])} daily`
-      },
-      {
-        id: "docs",
-        label: "Docs",
-        state: "beta",
-        primary: "Text route now, Ocean batch later",
-        fallback: "External fallback only when paid and enabled",
-        cap: "Paste text only in V0"
-      },
-      {
-        id: "ocean-helper",
-        label: "Ocean helper",
-        state: "beta",
-        primary: "Ocean demo vLLM plus Fish/Ocean prompt",
-        fallback: "None by default",
-        cap: `${router.guardrails.maxOutputTokens} output tokens / ${formatDailyBudget(router.budgets.dailyUsdByRoute["ocean-demo-vllm"])} daily`
-      },
-      {
-        id: "images",
-        label: "Images",
-        state: "coming-soon",
-        primary: "External paid beta first",
-        fallback: "Ocean-native later",
-        cap: "Disabled in V0"
-      },
-      {
-        id: "api",
-        label: "API",
-        state: "beta",
-        primary: "Fish Gateway",
-        fallback: "Route policy decides",
-        cap: `${router.guardrails.dailyKeyedQuota} keyed requests/day / ${formatDailyBudget(router.budgets.dailyUsdByRoute["external-fallback"])} fallback daily`
-      }
-    ],
+    features: listFishFeaturePolicies(router).map((feature) => ({
+      id: feature.id,
+      label: feature.label,
+      state: feature.state,
+      primary: feature.primary,
+      fallback: feature.fallback,
+      cap: feature.enabled
+        ? `${feature.cap} / ${feature.id === "api" ? `${router.guardrails.dailyKeyedQuota} keyed orders/day` : `${formatDailyBudget(router.budgets.dailyUsdByRoute["ocean-demo-vllm"])} daily`}`
+        : feature.cap
+    })),
     rules: [
       {
         title: "Name the route",

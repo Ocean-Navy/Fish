@@ -12,6 +12,7 @@ import {
   type RunnerReceiptSummary
 } from "@/lib/fishLedger";
 import { ExternalChatError, runExternalChat } from "@/lib/externalChat";
+import { getFishFeaturePolicy } from "@/lib/fishFeaturePolicy";
 import { checkRouteDailyBudget, type RouteBudgetCheck } from "@/lib/fishBudget";
 import { spendDailyQuota } from "@/lib/fishQuota";
 import { getActiveFishRoute, getFishRouterConfig, type FishChatRouteId, type FishCostState, type FishRouterConfig } from "@/lib/fishRouter";
@@ -45,6 +46,7 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
 
   const promptText = input.messages.map((message) => (typeof message.content === "string" ? message.content : JSON.stringify(message.content))).join("\n");
   const routerConfig = getFishRouterConfig();
+  const featurePolicy = getFishFeaturePolicy(input.metadata, routerConfig);
   const activeRoute = getActiveFishRoute(routerConfig);
   if (routerConfig.killSwitch || routerConfig.paused) {
     return jsonError(503, routerConfig.killSwitch ? "fish_router_disabled" : "fish_router_paused", "router_unavailable", {
@@ -61,7 +63,14 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
   let costState: FishCostState = activeRoute.costState;
   let providerId: string | null = activeRoute.providerId;
   let runnerReceipt: RunnerReceiptSummary | null = null;
-  const requestedMaxOutputTokens = input.max_tokens ?? routerConfig.guardrails.maxOutputTokens;
+  const requestedMaxOutputTokens = input.max_tokens ?? featurePolicy.maxOutputTokens;
+
+  if (!featurePolicy.enabled) {
+    return jsonError(501, "fish_feature_not_enabled", "feature_not_enabled", {
+      feature: featurePolicy.id,
+      label: featurePolicy.label
+    });
+  }
 
   if (!activeRoute.configured && activeRoute.id === "ocean-demo-vllm" && canUseExternalFallback(routerConfig, context)) {
     route = "external-fallback";
@@ -71,16 +80,18 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
     return jsonError(503, routeNotConfiguredMessage(activeRoute.id), "routing_policy_error", { route });
   }
 
-  if (promptTokens > routerConfig.guardrails.maxInputTokens) {
+  if (promptTokens > featurePolicy.maxInputTokens) {
     return jsonError(400, "max_input_tokens_exceeded", "guardrail_error", {
-      limit: routerConfig.guardrails.maxInputTokens,
+      feature: featurePolicy.id,
+      limit: featurePolicy.maxInputTokens,
       estimated: promptTokens
     });
   }
 
-  if (requestedMaxOutputTokens > routerConfig.guardrails.maxOutputTokens) {
+  if (requestedMaxOutputTokens > featurePolicy.maxOutputTokens) {
     return jsonError(400, "max_output_tokens_exceeded", "guardrail_error", {
-      limit: routerConfig.guardrails.maxOutputTokens,
+      feature: featurePolicy.id,
+      limit: featurePolicy.maxOutputTokens,
       requested: requestedMaxOutputTokens
     });
   }
@@ -239,6 +250,7 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
       fish: {
         route: usage.receipt.route,
         feature: usage.receipt.feature,
+        featureLabel: featurePolicy.label,
         costState: usage.receipt.costState,
         receiptId: usage.receipt.id,
         status: usage.receipt.status,
