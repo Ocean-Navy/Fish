@@ -19,7 +19,7 @@ docker build -t opfish-web:latest .
 
 ## Fresh VM Preview Deployment
 
-This is the quickest safe launch path for a new server: Docker Compose runs the Fish app and nginx protects the whole site with a username and password.
+This is the quickest preview path for a new server: Docker Compose runs the Fish app and nginx protects the whole site with a username and password.
 
 Server assumptions:
 
@@ -88,7 +88,7 @@ Server setup:
 
 ```bash
 apt-get update
-apt-get install -y nginx apache2-utils curl xz-utils
+apt-get install -y nginx curl xz-utils
 ```
 
 Install Node.js 22, create `/opt/fish-web/.env.production`, then install the service and nginx templates:
@@ -98,12 +98,13 @@ cp deploy/systemd/fish-web.service /etc/systemd/system/fish-web.service
 cp deploy/nginx/host-fish.conf /etc/nginx/sites-available/fish
 ln -sf /etc/nginx/sites-available/fish /etc/nginx/sites-enabled/fish
 rm -f /etc/nginx/sites-enabled/default
-htpasswd -cB /etc/nginx/fish.htpasswd fish
 systemctl daemon-reload
 systemctl enable --now fish-web nginx
 nginx -t
 systemctl reload nginx
 ```
+
+The host nginx template is public by default. Keep `FISH_ADMIN_TOKEN` enabled for export and admin-only endpoints.
 
 For HTTPS, issue the certificate after DNS points at the VM:
 
@@ -121,7 +122,7 @@ chmod +x /etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh
 certbot renew --dry-run
 ```
 
-Keep generated credentials in a root-only file such as `/root/fish-deploy-secrets.txt`.
+Keep generated admin tokens in a root-only file such as `/root/fish-deploy-secrets.txt`.
 
 ## Run With Docker
 
@@ -200,8 +201,7 @@ Public forms write one JSON file per submission in `/app/data/submissions` insid
 Admin export endpoint:
 
 ```bash
-curl -u fish:'<nginx password>' \
-  -H "x-fish-admin-token: $FISH_ADMIN_TOKEN" \
+curl -H "x-fish-admin-token: $FISH_ADMIN_TOKEN" \
   "http://<server-ip>/api/submissions/export?format=csv" \
   -o fish-submissions.csv
 ```

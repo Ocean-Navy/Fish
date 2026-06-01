@@ -77,7 +77,7 @@ export function VisualExplainers() {
           <ExplainerCard
             title="How money moves"
             subtitle="Money enters Fish Credits. The market feeds GPUs, staking, and ecosystem growth."
-            image="/assets/generated/fish-money-flow-labeled-v6.png"
+            image="/assets/generated/fish-money-flow-labeled-v5.png"
             imageAlt="Visual map of Fish Credits receiving subscription and API money, rewarding GPU providers, staking holders, and ecosystem growth"
             labels={moneyLabels}
           />

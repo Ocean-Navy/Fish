@@ -17,7 +17,7 @@ The public V0 is intentionally simple: a visual Venice fish-market homepage, rol
 - Admin-only signup export for launch lead follow-up.
 - Prototype `/v1` AI API with local API keys, Fish Credits debits, and usage receipts.
 - `/chat` with a model selector, short local browser thread, credit spend, and receipt display.
-- Production Docker image, Docker Compose service, and nginx-protected preview deployment.
+- Production Docker image, Docker Compose service, and public nginx/systemd deployment.
 
 ## Quick Start
 
@@ -151,8 +151,7 @@ The homepage form writes one JSON file per signup to the persistent Docker volum
 Export leads through the admin-only endpoint:
 
 ```bash
-curl -u fish:'your-nginx-password' \
-  -H "x-fish-admin-token: $FISH_ADMIN_TOKEN" \
+curl -H "x-fish-admin-token: $FISH_ADMIN_TOKEN" \
   "http://your-server/api/submissions/export?format=csv" \
   -o fish-submissions.csv
 ```
