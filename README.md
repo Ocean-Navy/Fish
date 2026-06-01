@@ -174,24 +174,25 @@ PORT=3000
 HOSTNAME=0.0.0.0
 FISH_ADMIN_TOKEN=
 FISH_PROVIDER_ALLOWLIST=
+FISH_CHAT_ROUTE=mock
 FISH_CHAT_BACKEND=mock
+FISH_MAX_INPUT_TOKENS=1000
+FISH_MAX_OUTPUT_TOKENS=512
+FISH_DAILY_KEYED_QUOTA=20
+FISH_DAILY_ANONYMOUS_QUOTA=5
+FISH_CHAT_PAUSED=false
+FISH_ROUTER_KILL_SWITCH=false
+FISH_OCEAN_DEMO_VLLM_BASE_URL=
+FISH_OCEAN_DEMO_VLLM_API_KEY=
+FISH_OCEAN_DEMO_VLLM_MODEL=
+FISH_OCEAN_DEMO_PROVIDER_ID=ocean-navy-demo-node
+FISH_OCEAN_DEMO_COST_USD_PER_1K_TOKENS=0
 FISH_EXTERNAL_CHAT_BASE_URL=
 FISH_EXTERNAL_CHAT_API_KEY=
 FISH_EXTERNAL_CHAT_MODEL=
 FISH_EXTERNAL_PROVIDER_ID=external-compatible
 FISH_EXTERNAL_COST_USD_PER_1K_TOKENS=0
-FISH_WARM_ROUTE_ENABLED=false
-FISH_WARM_KILL_SWITCH=true
-FISH_WARM_OPENAI_BASE_URL=
-FISH_WARM_OPENAI_API_KEY=
-FISH_WARM_MODEL=fish-warm-chat
-FISH_WARM_PROVIDER_ID=ocean-navy-demo-vllm
-FISH_WARM_ROUTE_LABEL=ocean-navy-demo-warm-vllm
-FISH_WARM_MAX_INPUT_TOKENS=1000
-FISH_WARM_MAX_OUTPUT_TOKENS=512
-FISH_WARM_MAX_CONCURRENT_REQUESTS=2
-FISH_WARM_DAILY_REQUEST_LIMIT=100
-FISH_WARM_DAILY_COST_LIMIT_USD=25
+FISH_EXTERNAL_FALLBACK_FREE_ALLOWED=false
 FISH_STAKING_CREDIT_BUDGET=10000
 FISH_STAKING_CREDITS_PER_OCEAN_MONTH=0.1
 ```
@@ -206,18 +207,31 @@ data/node_endpoints.txt
 
 The Phase 1 API prototype is local-first. It proves API keys, credit debits, and usage receipts before selected Ocean provider routing is live.
 
-Default chat is a deterministic mock. To test real AI calls before Ocean provider routing, point the same Fish API route at an OpenAI-compatible backend:
+Default chat is a deterministic mock. To test the warm Ocean Navy demo route, point the same Fish API route at a private OpenAI-compatible vLLM endpoint:
 
 ```text
+FISH_CHAT_ROUTE=ocean-demo-vllm
+FISH_OCEAN_DEMO_VLLM_BASE_URL=https://your-private-vllm.example/v1
+FISH_OCEAN_DEMO_VLLM_API_KEY=...
+FISH_OCEAN_DEMO_VLLM_MODEL=fish-warm-chat
+FISH_OCEAN_DEMO_PROVIDER_ID=ocean-navy-demo-node
+FISH_OCEAN_DEMO_COST_USD_PER_1K_TOKENS=0
+```
+
+External fallback is separate and should stay capped:
+
+```text
+FISH_CHAT_ROUTE=external-fallback
 FISH_CHAT_BACKEND=external
 FISH_EXTERNAL_CHAT_BASE_URL=https://api.openai.com/v1
 FISH_EXTERNAL_CHAT_API_KEY=...
 FISH_EXTERNAL_CHAT_MODEL=...
 FISH_EXTERNAL_PROVIDER_ID=openai-compatible
 FISH_EXTERNAL_COST_USD_PER_1K_TOKENS=0
+FISH_EXTERNAL_FALLBACK_FREE_ALLOWED=false
 ```
 
-Fish still stores only usage numbers and a request hash in local receipts. The raw prompt is sent to the configured external backend, so that provider's privacy policy applies.
+Fish stores usage numbers, route metadata, latency, cost estimates, and request hashes in local receipts. The raw prompt is sent to the configured backend, so that backend's privacy policy applies.
 
 The public route compass shows what is active without exposing secrets:
 

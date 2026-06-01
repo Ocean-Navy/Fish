@@ -50,7 +50,7 @@ export default function RoutingPage() {
       image="/assets/generated/fish-role-builder.png"
       imageAlt="Fish route compass in a Venice Ocean Navy workshop"
       chips={["Demo", "Outside AI", "Ocean providers", "Private later"]}
-      primaryAction={{ label: "Try boxes", href: "/boxes" }}
+      primaryAction={{ label: "Try boxes", href: "/boxes" as Route }}
       secondaryAction={{ label: "Open API board", href: "/api" }}
       steps={steps}
       note="Fish labels every route. If selected Ocean providers did not run the work, Fish will say so."

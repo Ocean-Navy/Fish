@@ -142,32 +142,33 @@ Keep Ocean Node ports and admin surfaces private or explicitly documented by the
 
 ## Fish Gateway Configuration
 
-Current Fish V0 supports a mock route and an external OpenAI-compatible backend. A warm route should use explicit config names when the gateway/router implementation lands:
+Current Fish V0 supports a mock route, an Ocean Navy demo vLLM route, and an external OpenAI-compatible fallback. Use the Ocean demo route for the warm inference MVP:
 
 ```text
-FISH_WARM_ROUTE_ENABLED=false
-FISH_WARM_KILL_SWITCH=true
-FISH_WARM_OPENAI_BASE_URL=http://127.0.0.1:8000/v1
-FISH_WARM_OPENAI_API_KEY=
-FISH_WARM_MODEL=fish-warm-chat
-FISH_WARM_PROVIDER_ID=ocean-navy-demo-vllm
-FISH_WARM_ROUTE_LABEL=ocean-navy-demo-warm-vllm
-FISH_WARM_MAX_INPUT_TOKENS=1000
-FISH_WARM_MAX_OUTPUT_TOKENS=512
-FISH_WARM_MAX_CONCURRENT_REQUESTS=2
-FISH_WARM_DAILY_REQUEST_LIMIT=100
-FISH_WARM_DAILY_COST_LIMIT_USD=25
+FISH_CHAT_ROUTE=ocean-demo-vllm
+FISH_CHAT_PAUSED=false
+FISH_ROUTER_KILL_SWITCH=false
+FISH_MAX_INPUT_TOKENS=1000
+FISH_MAX_OUTPUT_TOKENS=512
+FISH_DAILY_KEYED_QUOTA=20
+FISH_DAILY_ANONYMOUS_QUOTA=5
+FISH_OCEAN_DEMO_VLLM_BASE_URL=http://127.0.0.1:8000/v1
+FISH_OCEAN_DEMO_VLLM_API_KEY=
+FISH_OCEAN_DEMO_VLLM_MODEL=fish-warm-chat
+FISH_OCEAN_DEMO_PROVIDER_ID=ocean-navy-demo-node
+FISH_OCEAN_DEMO_COST_USD_PER_1K_TOKENS=<operator estimate>
 ```
 
-Until those names are wired into the route, the existing prototype can smoke an OpenAI-compatible endpoint through:
+External fallback is intentionally separate:
 
 ```text
-FISH_CHAT_BACKEND=external
-FISH_EXTERNAL_CHAT_BASE_URL=<private vLLM or runner /v1 base URL>
+FISH_CHAT_ROUTE=external-fallback
+FISH_EXTERNAL_CHAT_BASE_URL=<external OpenAI-compatible /v1 base URL>
 FISH_EXTERNAL_CHAT_API_KEY=<runner or vLLM API key>
-FISH_EXTERNAL_CHAT_MODEL=fish-warm-chat
-FISH_EXTERNAL_PROVIDER_ID=ocean-navy-demo-vllm
+FISH_EXTERNAL_CHAT_MODEL=<fallback model>
+FISH_EXTERNAL_PROVIDER_ID=external-compatible
 FISH_EXTERNAL_COST_USD_PER_1K_TOKENS=<operator estimate>
+FISH_EXTERNAL_FALLBACK_FREE_ALLOWED=false
 ```
 
 Use this only in private preview or controlled beta. Keep public route labels clear that this is a selected warm demo backend until Fish Runner receipts and selected-provider proof are live.
@@ -295,16 +296,19 @@ curl -fsS http://127.0.0.1:3000/v1/usage \
 Immediate kill switch:
 
 ```bash
-export FISH_WARM_KILL_SWITCH=true
+export FISH_ROUTER_KILL_SWITCH=true
 ```
 
 For the current prototype route, switch back to mock:
 
 ```text
+FISH_CHAT_ROUTE=mock
 FISH_CHAT_BACKEND=mock
 FISH_EXTERNAL_CHAT_BASE_URL=
 FISH_EXTERNAL_CHAT_API_KEY=
 FISH_EXTERNAL_CHAT_MODEL=
+FISH_OCEAN_DEMO_VLLM_BASE_URL=
+FISH_OCEAN_DEMO_VLLM_API_KEY=
 ```
 
 Restart Fish Gateway after config changes:
