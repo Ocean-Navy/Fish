@@ -1423,6 +1423,10 @@ components:
               nullable: true
             externalProviderId:
               type: string
+            oceanBatchConfigured:
+              type: boolean
+            oceanBatchProviderId:
+              type: string
         guardrails:
           type: object
           properties:
@@ -1450,7 +1454,7 @@ components:
             properties:
               id:
                 type: string
-                enum: [mock, ocean-demo-vllm, external-fallback, selected-ocean-provider, ocean-private, hardened-runner, tee-runner]
+                enum: [mock, ocean-demo-vllm, external-fallback, ocean-batch, selected-ocean-provider, ocean-private, hardened-runner, tee-runner]
               title:
                 type: string
               state:

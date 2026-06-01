@@ -47,6 +47,9 @@ type FishRoutePolicySummary = {
     label: string;
     isRealAi: boolean;
   };
+  backend?: {
+    oceanBatchConfigured?: boolean;
+  };
   guardrails?: {
     maxOutputTokens: number;
   };
@@ -65,6 +68,11 @@ type DishResult = {
   providerCostUsd?: number;
   totalTokens?: number;
   quotaRemaining?: number;
+  batchReceiptId?: string;
+  batchJobId?: string;
+  batchSourceState?: string;
+  batchAdapterMode?: string;
+  inputRef?: string;
   accessMode: "guest" | "key";
 };
 
@@ -113,8 +121,8 @@ const dishes: FishDish[] = [
     title: "Docs Bento",
     subtitle: "Summarize docs",
     status: "Beta",
-    routeLabel: "Text only",
-    short: "Turn pasted notes or docs into a compact summary.",
+    routeLabel: "Text + batch",
+    short: "Summaries now, plus hash-only batch receipts with a key.",
     placeholder: "Paste docs or notes to summarize for a pilot update.",
     systemPrompt: "You are Fish Docs Bento. Extract the main points, risks, and next step. Do not invent facts.",
     userWrapper: (input) => `Summarize this document text into bullets and one next step:\n\n${input}`,
@@ -331,6 +339,82 @@ export function FishMealCounter() {
     }
   }
 
+  async function createDocsBatchReceipt() {
+    const key = apiKey.trim();
+    const userPrompt = prompt.trim();
+    if (activeDish.id !== "docs") {
+      setError("Batch receipts are for Docs Bento.");
+      return;
+    }
+    if (!key) {
+      setError("Add a Fish API key for batch receipts.");
+      return;
+    }
+    if (!userPrompt) {
+      setError("Add docs or notes first.");
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+    setResult(null);
+
+    try {
+      const inputRef = await sha256Ref(userPrompt);
+      const adapterMode = routePolicy?.backend?.oceanBatchConfigured ? "ocean_http" : "sample_success";
+      const response = await fetch("/api/ocean/batch/jobs", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${key}`
+        },
+        body: JSON.stringify({
+          taskType: "document_summary",
+          inputRef,
+          estimatedInputTokens: estimateInputTokens(userPrompt),
+          maxOutputTokens: Math.min(orderMaxTokens, 512),
+          maxRuntimeSeconds: 600,
+          maxCostUsd: 1,
+          adapterMode
+        })
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(getErrorMessage(payload));
+      }
+
+      const receipt = payload.receipt;
+      const usageReceipt = payload.usageReceipt;
+      const sourceState = receipt?.sourceState ?? "sample";
+      setResult({
+        dishTitle: activeDish.title,
+        content:
+          sourceState === "snapshot"
+            ? "Docs batch receipt created. Fish sent a hash-only job reference to the private batch adapter."
+            : "Sample Docs batch receipt created. Fish kept this hash-only while the private Ocean batch adapter is not configured.",
+        model: receipt?.model ?? "ocean-batch-placeholder",
+        route: usageReceipt?.route ?? "ocean-provider",
+        costState: usageReceipt?.costState ?? receipt?.cost?.pricingState,
+        receiptId: usageReceipt?.id,
+        creditsSpent: usageReceipt?.creditsSpent,
+        creditsRemaining: payload.creditsRemaining,
+        userChargeUsd: usageReceipt?.userChargeUsd,
+        providerCostUsd: receipt?.cost?.providerCostUsd,
+        totalTokens: receipt?.usage?.totalTokens,
+        batchReceiptId: receipt?.receiptId,
+        batchJobId: receipt?.jobId,
+        batchSourceState: sourceState,
+        batchAdapterMode: receipt?.adapterMode,
+        inputRef,
+        accessMode: "key"
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Request failed.");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
   return (
     <div className="grid gap-5 lg:grid-cols-[0.9fr_1.1fr]">
       <section className="space-y-4">
@@ -499,6 +583,22 @@ export function FishMealCounter() {
           </button>
         </div>
 
+        {activeDish.id === "docs" ? (
+          <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto]">
+            <div className="rounded-2xl border border-fish-accent/15 bg-white/[0.035] p-4 text-sm font-bold leading-6 text-fish-secondary">
+              Batch receipts use a hash of your docs, not the raw text.
+            </div>
+            <button
+              type="button"
+              onClick={createDocsBatchReceipt}
+              disabled={isLoading}
+              className="inline-flex h-12 items-center justify-center rounded-full border border-fish-accent/30 px-5 text-sm font-black text-fish-accent hover:border-fish-accent hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Batch receipt
+            </button>
+          </div>
+        ) : null}
+
         <div className="mt-5 rounded-[1.5rem] border border-fish-accent/15 bg-white/[0.035] p-4 text-sm font-bold leading-6 text-fish-secondary">
           No key needed for a small daily demo. API keys unlock balances, usage history, and higher caps.
         </div>
@@ -527,6 +627,22 @@ export function FishMealCounter() {
                 <p className="mt-3 break-all rounded-2xl border border-fish-accent/15 bg-white/[0.035] p-4 text-xs font-bold leading-6 text-fish-secondary">
                   Activity id: <span className="text-fish-accent">{result.receiptId}</span>
                 </p>
+              ) : null}
+              {result.batchReceiptId ? (
+                <div className="mt-3 rounded-2xl border border-fish-accent/15 bg-white/[0.035] p-4 text-xs font-bold leading-6 text-fish-secondary">
+                  <p>
+                    Batch receipt: <span className="break-all text-fish-accent">{result.batchReceiptId}</span>
+                  </p>
+                  <p>
+                    Job: <span className="break-all text-fish-primary">{result.batchJobId}</span>
+                  </p>
+                  <p>
+                    State: <span className="text-fish-primary">{formatBadge(result.batchSourceState ?? "")}</span> / {formatBadge(result.batchAdapterMode ?? "")}
+                  </p>
+                  <p>
+                    Input ref: <span className="break-all text-fish-primary">{result.inputRef}</span>
+                  </p>
+                </div>
               ) : null}
             </article>
           ) : (
@@ -591,4 +707,16 @@ function formatRouteLabel(value: string) {
     return "Outside AI";
   }
   return value;
+}
+
+function estimateInputTokens(value: string) {
+  return Math.max(1, Math.ceil(value.length / 4));
+}
+
+async function sha256Ref(value: string) {
+  const bytes = new TextEncoder().encode(value);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return `sha256:${Array.from(new Uint8Array(digest))
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("")}`;
 }

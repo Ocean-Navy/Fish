@@ -1,4 +1,4 @@
-import { Anchor, BadgeCheck, Compass, Fish, LockKeyhole, Route as RouteIcon, ShieldCheck } from "lucide-react";
+import { Anchor, BadgeCheck, Compass, FileText, Fish, LockKeyhole, Route as RouteIcon, ShieldCheck } from "lucide-react";
 import type { Metadata } from "next";
 import type { Route } from "next";
 import Link from "next/link";
@@ -33,6 +33,7 @@ const modeIcons = {
   mock: Fish,
   "ocean-demo-vllm": Anchor,
   "external-fallback": RouteIcon,
+  "ocean-batch": FileText,
   "selected-ocean-provider": Anchor,
   "ocean-private": ShieldCheck,
   "hardened-runner": LockKeyhole,

@@ -2,7 +2,7 @@ import { listFishFeaturePolicies, type FishFeatureId } from "@/lib/fishFeaturePo
 import { getFishRouterConfig, type FishChatRouteId } from "@/lib/fishRouter";
 import type { DataState } from "@/lib/types";
 
-export type RouteModeId = FishChatRouteId | "selected-ocean-provider" | "ocean-private" | "hardened-runner" | "tee-runner";
+export type RouteModeId = FishChatRouteId | "ocean-batch" | "selected-ocean-provider" | "ocean-private" | "hardened-runner" | "tee-runner";
 export type RouteModeState = "active" | "ready" | "needs-config" | "paused" | "disabled" | "pilot" | "future";
 
 export type FishRoutePolicy = {
@@ -30,6 +30,8 @@ export type FishRoutePolicy = {
     externalApiKeyConfigured: boolean;
     externalModel: string | null;
     externalProviderId: string;
+    oceanBatchConfigured: boolean;
+    oceanBatchProviderId: string;
   };
   guardrails: {
     maxInputTokens: number;
@@ -67,6 +69,8 @@ export function getFishRoutePolicy(): FishRoutePolicy {
   const router = getFishRouterConfig();
   const configuredRoute = router.routes[router.activeRouteId];
   const activeRoute = activeRoutePolicy(configuredRoute.id, configuredRoute.status);
+  const oceanBatchConfigured = Boolean(process.env.FISH_OCEAN_BATCH_ENDPOINT?.trim());
+  const oceanBatchProviderId = process.env.FISH_OCEAN_BATCH_PROVIDER_ID?.trim() || "ocean-batch-provider";
 
   return {
     dataState: "live",
@@ -85,7 +89,9 @@ export function getFishRoutePolicy(): FishRoutePolicy {
       externalBaseUrlConfigured: Boolean(router.external.baseUrl),
       externalApiKeyConfigured: Boolean(router.external.apiKey),
       externalModel: router.external.model,
-      externalProviderId: router.external.providerId
+      externalProviderId: router.external.providerId,
+      oceanBatchConfigured,
+      oceanBatchProviderId
     },
     guardrails: {
       ...router.guardrails,
@@ -116,6 +122,14 @@ export function getFishRoutePolicy(): FishRoutePolicy {
         short: "Explicit fallback through an outside provider.",
         privacy: "Outside provider policy applies.",
         proof: "Outside AI usage record."
+      },
+      {
+        id: "ocean-batch",
+        title: "Docs batch",
+        state: oceanBatchConfigured ? "ready" : "pilot",
+        short: "Hash-only Docs jobs for batch work.",
+        privacy: "Fish sends input references, not raw document text.",
+        proof: "Ocean batch receipt plus normal Fish usage record."
       },
       {
         id: "selected-ocean-provider",
