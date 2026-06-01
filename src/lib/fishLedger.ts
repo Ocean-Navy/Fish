@@ -232,6 +232,8 @@ export type FishUsageSummary = {
   oceanNativeJobs: number;
   externalFallbackJobs: number;
   mockJobs: number;
+  runnerProofJobs: number;
+  runnerSignedJobs: number;
   tokensServed: number;
   oceanNativeShare: number;
   providerPayoutUsd: number;
@@ -454,6 +456,8 @@ export async function summarizeFishUsage(): Promise<FishUsageSummary> {
   const oceanNativeJobs = receipts.filter((receipt) => receipt.route === "ocean-provider" || receipt.route === "ocean-demo-vllm").length;
   const externalFallbackJobs = receipts.filter((receipt) => receipt.route === "external-fallback").length;
   const mockJobs = receipts.filter((receipt) => receipt.route === "mock").length;
+  const runnerProofJobs = receipts.filter((receipt) => receipt.runnerReceipt?.canonicalReceiptHash).length;
+  const runnerSignedJobs = receipts.filter((receipt) => receipt.runnerReceipt?.signatureState === "signed").length;
   const tokensServed = receipts.reduce((sum, receipt) => sum + receipt.totalTokens, 0);
   const creditLanes = summarizeCreditLanes(includeLegacyCreditSeeds(ledger.accounts, creditEntries), {
     creditBalance: ledger.accounts.reduce((sum, account) => sum + account.creditBalance, 0),
@@ -467,6 +471,8 @@ export async function summarizeFishUsage(): Promise<FishUsageSummary> {
     oceanNativeJobs,
     externalFallbackJobs,
     mockJobs,
+    runnerProofJobs,
+    runnerSignedJobs,
     tokensServed,
     oceanNativeShare: receipts.length ? oceanNativeJobs / receipts.length : 0,
     providerPayoutUsd: costs.providerCostUsd,
