@@ -167,7 +167,7 @@ Do not use flat black backgrounds. Always use layered navy gradients with subtle
 
 Use a modern grotesk such as Inter or a close system equivalent. Headlines should be very large, tight, and confident. Body copy should be minimal and plain.
 
-Wording must be ELI5:
+Wording must be simple:
 
 - Good: “Users buy AI. Providers get paid. OCEAN gains utility.”
 - Bad: “A composable dual-tokenized compute-credit primitive for decentralized inference.”

@@ -90,7 +90,7 @@ export default function Home() {
         <div className="mx-auto max-w-7xl">
           <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">ELI5</p>
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">Simple flow</p>
               <h2 className="mt-2 text-4xl font-black text-white sm:text-6xl">The Fish flow</h2>
             </div>
             <p className="text-xl font-black text-fish-accent">Users buy AI. Providers get paid.</p>
@@ -127,10 +127,10 @@ export default function Home() {
         <div className="mx-auto max-w-7xl overflow-hidden rounded-[2rem] border border-fish-accent/25 bg-fish-surface shadow-harbor">
           <div className="grid lg:grid-cols-[1.15fr_0.85fr]">
             <div className="p-6 sm:p-10">
-              <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">Proof, not homepage clutter</p>
-              <h2 className="mt-3 text-4xl font-black leading-tight text-white sm:text-6xl">The proof harbor lives one click away.</h2>
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">Want details?</p>
+              <h2 className="mt-3 text-4xl font-black leading-tight text-white sm:text-6xl">See what is live.</h2>
               <p className="mt-5 max-w-xl text-xl font-bold leading-8 text-fish-secondary">
-                Average users get simple proof. Builders can still open the full dashboard.
+                Start with the simple proof page. Open the dashboard when you want the full numbers.
               </p>
               <div className="mt-8 flex flex-wrap gap-3">
                 <Link className="inline-flex h-12 items-center gap-2 rounded-full bg-gradient-to-r from-fish-accent to-fish-aqua px-6 text-sm font-black text-fish-navy950" href={"/proof" as NextRoute}>

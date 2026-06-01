@@ -4,8 +4,8 @@ import { StakingCreditsPanel } from "@/components/StakingCreditsPanel";
 import { summarizeStakingCredits } from "@/lib/stakingCredits";
 
 export const metadata: Metadata = {
-  title: "Fish Credits - OCEAN utility without magic",
-  description: "A simple public explainer for future Fish Credits, OCEAN staking utility, provider bonds, and tokenized credits."
+  title: "Fish Credits - Simple AI access",
+  description: "A simple public explainer for Fish credits, OCEAN staking utility, provider bonds, and future credit options."
 };
 
 const steps = [
@@ -16,17 +16,17 @@ const steps = [
 ];
 
 const cards = [
-  { label: "Holders", title: "Stake. Lock. Utility.", body: "The simple target is OCEAN-backed access to useful AI, not a token promise on day one." },
-  { label: "Providers", title: "Bonds can come later", body: "Bonded providers may earn routing eligibility once scorecards and settlement are real." },
+  { label: "Holders", title: "Stake. Lock. Utility.", body: "The simple target is OCEAN-backed access to useful AI, not a day-one token promise." },
+  { label: "Providers", title: "Bonds can come later", body: "Provider bonds may help routing once jobs and payments are real." },
   { label: "Credits", title: "FISH is an access idea first", body: "Credits should represent usable AI access before they become transferable assets." },
-  { label: "Risk rule", title: "No unfunded payouts", body: "Fish should not create provider liabilities before revenue, reserve, or budget policy exists." }
+  { label: "Safety", title: "No unpaid promises", body: "Fish should not promise provider payouts before real money or budgets exist." }
 ];
 
 const tokenGuardrails = [
   { title: "Not V0", body: "The first lane is useful AI credits, not a public token launch." },
-  { title: "Usage gate", body: "Credits become composable only after real usage and receipts exist." },
-  { title: "Coverage gate", body: "Outstanding credits need visible reserves and provider settlement coverage." },
-  { title: "Review gate", body: "Legal, audit, pause controls, and risk copy come before transferability." }
+  { title: "Usage first", body: "Credits become more flexible only after real usage exists." },
+  { title: "Money first", body: "Open credits need visible backing and provider payment coverage." },
+  { title: "Review first", body: "Legal, audits, pause controls, and clear risk copy come before transfers." }
 ];
 
 export default async function CreditsPage() {
@@ -44,7 +44,7 @@ export default async function CreditsPage() {
       secondaryAction={{ label: "Read roadmap", href: "/roadmap" }}
       steps={steps}
       cards={cards}
-      note="Credit rule: product first, token utility after usage. Fish Credits should be backed by real demand and settlement work."
+      note="Credit rule: product first, token utility after usage. Fish credits should be backed by real demand and real payment coverage."
     >
       <StakingCreditsPanel summary={stakingSummary} />
       <section className="px-4 pb-14 sm:px-6 lg:px-8">
@@ -52,9 +52,9 @@ export default async function CreditsPage() {
           <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">Token later</p>
           <div className="mt-4 grid gap-5 lg:grid-cols-[0.85fr_1.15fr] lg:items-start">
             <div>
-              <h2 className="text-3xl font-black leading-tight text-white sm:text-5xl">No magic coin chest.</h2>
+              <h2 className="text-3xl font-black leading-tight text-white sm:text-5xl">Credits come after real use.</h2>
               <p className="mt-3 text-lg font-bold leading-8 text-fish-primary">
-                Tokenized credits only make sense after the market proves usage, settlement, reserves, and controls.
+                Transferable credits only make sense after usage, reserves, payments, and controls are clear.
               </p>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">

@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Fish Proof Harbor",
-  description: "A simple public proof page for Fish pilot receipts, provider boats, payouts, and benchmark route tests."
+  description: "A simple public proof page for Fish pilot activity, provider runs, payouts, and route tests."
 };
 
 export default async function ProofPage() {

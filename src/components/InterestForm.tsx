@@ -4,10 +4,10 @@ import { Send } from "lucide-react";
 import { FormEvent, useState, useTransition } from "react";
 
 const roles = [
-  { value: "user", label: "User" },
-  { value: "developer", label: "Developer" },
-  { value: "provider", label: "Provider" },
-  { value: "oceanHolder", label: "OCEAN holder" }
+  { value: "user", label: "Use AI" },
+  { value: "developer", label: "Build with API" },
+  { value: "provider", label: "Provide compute" },
+  { value: "oceanHolder", label: "Hold OCEAN" }
 ];
 
 export function InterestForm() {
@@ -47,7 +47,7 @@ export function InterestForm() {
       }
 
       form.reset();
-      setStatus("You are on the first crew list.");
+      setStatus("You are on the list.");
     });
   }
 
@@ -59,7 +59,7 @@ export function InterestForm() {
       </label>
 
       <label className="grid gap-2 text-sm font-black uppercase tracking-[0.12em] text-fish-gold">
-        Your signal
+        Contact
         <input
           name="contact"
           required
@@ -69,7 +69,7 @@ export function InterestForm() {
       </label>
 
       <fieldset className="grid gap-3">
-        <legend className="text-sm font-black uppercase tracking-[0.12em] text-fish-gold">I am</legend>
+        <legend className="text-sm font-black uppercase tracking-[0.12em] text-fish-gold">I want to</legend>
         <div className="grid grid-cols-2 gap-3">
           {roles.map((role) => (
             <label key={role.value} className="flex min-h-16 cursor-pointer items-center gap-3 rounded-2xl border border-fish-accent/20 bg-white/[0.03] p-4 transition hover:border-fish-accent/50">

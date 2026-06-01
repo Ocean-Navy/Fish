@@ -29,7 +29,7 @@ export function PublicProofPage({ proof, scorecard, benchmarks }: { proof: Proof
           </Link>
           <nav className="hidden items-center gap-6 text-sm font-black text-fish-secondary md:flex" aria-label="Proof navigation">
             <a className="hover:text-white" href="#boats">Boats</a>
-            <a className="hover:text-white" href="#receipts">Receipts</a>
+            <a className="hover:text-white" href="#activity">Activity</a>
             <Link className="hover:text-white" href="/dashboard">Dashboard</Link>
           </nav>
           <Link className="inline-flex h-10 items-center rounded-full bg-gradient-to-r from-fish-accent to-fish-aqua px-4 text-sm font-black text-fish-navy950" href="/#pilot">
@@ -48,9 +48,9 @@ export function PublicProofPage({ proof, scorecard, benchmarks }: { proof: Proof
             <p className="mb-5 inline-flex rounded-full border border-fish-gold/35 bg-fish-gold/10 px-4 py-2 text-xs font-black uppercase tracking-[0.14em] text-fish-gold">
               Public proof harbor
             </p>
-            <h1 className="max-w-4xl text-5xl font-black leading-none text-white sm:text-7xl lg:text-8xl">Is Fish real yet?</h1>
+            <h1 className="max-w-4xl text-5xl font-black leading-none text-white sm:text-7xl lg:text-8xl">What is live?</h1>
             <p className="mt-6 max-w-2xl text-2xl font-black leading-tight text-fish-primary sm:text-4xl">
-              {hasLiveProof ? "Yes. There are stamped catches in the net." : "The market is open, but proof is still early."}
+              {hasLiveProof ? "Selected provider runs have public proof." : "The market is open, and proof is still early."}
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-3">
               <StatusBadge state={proof.dataState} />
@@ -61,7 +61,7 @@ export function PublicProofPage({ proof, scorecard, benchmarks }: { proof: Proof
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <HeroCounter icon={ReceiptText} label="Stamped receipts" value={formatCompact(proof.verifiedReceipts)} />
+            <HeroCounter icon={ReceiptText} label="Proof records" value={formatCompact(proof.verifiedReceipts)} />
             <HeroCounter icon={Ship} label="Ocean jobs" value={formatCompact(proof.oceanJobsRouted)} />
             <HeroCounter icon={CircleDollarSign} label="Provider chest" value={formatUsd(proof.providerPayoutUsd)} />
             <HeroCounter icon={Gauge} label="Benchmark pass" value={proof.benchmarkPassRate === null ? "-" : `${formatNumber(proof.benchmarkPassRate * 100)}%`} />
@@ -72,8 +72,8 @@ export function PublicProofPage({ proof, scorecard, benchmarks }: { proof: Proof
       <MetricGroup title="Market Counters" eyebrow="Harbor signs" state={proof.dataState}>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <ProofTile label="Jobs routed" value={formatCompact(proof.oceanJobsRouted)} detail={`${formatCompact(proof.failedJobs + proof.timedOutJobs)} need review`} />
-          <ProofTile label="Verified receipts" value={formatCompact(proof.verifiedReceipts)} detail={`${formatCompact(proof.receiptVerificationFailures)} stamp warnings`} />
-          <ProofTile label="Providers paid" value={formatUsd(proof.payouts.totals.paid)} detail={`${formatUsd(proof.payouts.totals.outstandingUsd)} still in chest`} />
+          <ProofTile label="Proof records" value={formatCompact(proof.verifiedReceipts)} detail={`${formatCompact(proof.receiptVerificationFailures)} need review`} />
+          <ProofTile label="Providers paid" value={formatUsd(proof.payouts.totals.paid)} detail={`${formatUsd(proof.payouts.totals.outstandingUsd)} still open`} />
           <ProofTile label="Benchmark runs" value={formatCompact(benchmarks.totals.benchmarkRuns)} detail={`${formatCompact(benchmarks.totals.untestedCells)} untested routes`} />
         </div>
       </MetricGroup>
@@ -96,11 +96,11 @@ export function PublicProofPage({ proof, scorecard, benchmarks }: { proof: Proof
             ))}
           </div>
         ) : (
-          <EmptyHarbor text="No provider boats have proof rows yet. The first selected provider smoke run will make this section light up." />
+          <EmptyHarbor text="No provider proof yet. The first selected provider test will make this section light up." />
         )}
       </MetricGroup>
 
-      <MetricGroup id="receipts" title="Receipt Net" eyebrow="Public stamps" state={proof.dataState}>
+      <MetricGroup id="activity" title="Activity Net" eyebrow="Public proof" state={proof.dataState}>
         {receiptRows.length ? (
           <div className="grid gap-3 lg:grid-cols-5">
             {receiptRows.map((receipt) => (
@@ -113,7 +113,7 @@ export function PublicProofPage({ proof, scorecard, benchmarks }: { proof: Proof
             ))}
           </div>
         ) : (
-          <EmptyHarbor text="No receipt fish in the net yet. Run selected provider jobs to publish public-safe hashes." />
+          <EmptyHarbor text="No public activity yet. Run selected provider jobs to publish public-safe proof." />
         )}
       </MetricGroup>
 
@@ -152,7 +152,7 @@ export function PublicProofPage({ proof, scorecard, benchmarks }: { proof: Proof
 
       <footer className="border-t border-fish-accent/15 px-4 py-8 text-sm font-bold text-fish-secondary sm:px-6 lg:px-8">
         <div className="mx-auto flex max-w-7xl flex-col gap-2 md:flex-row md:items-center md:justify-between">
-          <p>Public proof only. Operator-only details stay out of this page.</p>
+          <p>Public proof only. Private operating details stay out of this page.</p>
           <Link className="text-fish-accent hover:text-white" href="/dashboard">Open builder dashboard</Link>
         </div>
       </footer>

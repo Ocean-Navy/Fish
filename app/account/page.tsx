@@ -4,28 +4,28 @@ import { RolePageShell } from "@/components/RolePageShell";
 
 export const metadata: Metadata = {
   title: "Fish Account - Credit tab",
-  description: "Check Fish Credits, usage receipts, and route cost fields with a prototype Fish API key."
+  description: "Check Fish credits and recent activity with a pilot key."
 };
 
 const steps = [
-  { title: "Paste key", body: "Use a prototype Fish API key." },
-  { title: "Read credits", body: "See granted, spent, and remaining credits." },
-  { title: "Check receipts", body: "Review routes, hashes, costs, and timestamps." },
-  { title: "Keep building", body: "Use the same key in chat or API tests." }
+  { title: "Paste key", body: "Use your Fish pilot key." },
+  { title: "See credits", body: "Check what came in, what was used, and what is left." },
+  { title: "See activity", body: "Review recent AI use without seeing prompt text." },
+  { title: "Keep going", body: "Use the same key in chat or API tests." }
 ];
 
 const cards = [
-  { label: "Balance", title: "Credits left", body: "The account tab reads `/v1/balance` using your Fish key." },
-  { label: "Usage", title: "Receipt net", body: "The latest receipts come from `/v1/usage` and stay prompt-free." },
-  { label: "Costs", title: "Route money", body: "User charge, provider cost, and margin fields stay visible." },
-  { label: "Local", title: "No key storage", body: "The page does not persist the API key in browser storage." }
+  { label: "Balance", title: "Credits left", body: "See your current Fish credit balance." },
+  { label: "Activity", title: "Recent use", body: "See when credits were used and by which model." },
+  { label: "Costs", title: "Simple numbers", body: "Fish shows the basic cost numbers behind each use." },
+  { label: "Private key", title: "No key saved", body: "The page does not store your Fish key." }
 ];
 
 const billingLanes = [
-  { title: "Free grant", body: "Starter credits can prove the product loop before checkout exists." },
-  { title: "Plan credits", body: "Subscriptions need limits, expiry rules, and provider-payment coverage." },
-  { title: "Top-ups", body: "Prepaid balance comes later with refunds, fraud checks, and liability caps." },
-  { title: "Hard settlement", body: "Providers still need real settlement funds, not unfunded credit promises." }
+  { title: "Free credits", body: "Starter credits help early users try Fish." },
+  { title: "Plans", body: "Monthly plans come after limits and safety checks are ready." },
+  { title: "Top-ups", body: "Prepaid credits come later with clear refund rules." },
+  { title: "Provider pay", body: "Providers are paid from real funds, not promises." }
 ];
 
 export default function AccountPage() {
@@ -33,15 +33,15 @@ export default function AccountPage() {
     <RolePageShell
       eyebrow="Credit tab"
       title="Count your FISH."
-      subtitle="Paste a key. See credits. Keep the receipts."
+      subtitle="Paste a key. See credits. Know what was used."
       image="/assets/generated/fish-flow-catch.png"
       imageAlt="Glowing Fish credits caught in a Venice market net"
-      chips={["Balance", "Receipts", "Costs", "Hashes"]}
+      chips={["Balance", "Recent use", "Costs", "No prompts"]}
       primaryAction={{ label: "Try chat", href: "/chat" }}
       secondaryAction={{ label: "API status", href: "/api" }}
       steps={steps}
       cards={cards}
-      note="Account rule: the key is only used to call Fish balance and usage endpoints. Receipt rows show hashes and metrics, not prompt text."
+      note="Your key is used only for this check. Fish shows usage numbers, not your prompt text."
     >
       <section className="px-4 pb-14 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl">
@@ -53,9 +53,9 @@ export default function AccountPage() {
           <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">Billing later</p>
           <div className="mt-4 grid gap-4 lg:grid-cols-[0.75fr_1.25fr] lg:items-start">
             <div>
-              <h2 className="text-3xl font-black leading-tight text-white sm:text-5xl">Tabs before checkout.</h2>
+              <h2 className="text-3xl font-black leading-tight text-white sm:text-5xl">Credits first. Checkout later.</h2>
               <p className="mt-3 text-lg font-bold leading-8 text-fish-secondary">
-                The account tab proves balances and receipts first. Plans and top-ups come after limits, refunds, and provider settlement coverage.
+                First we make balances and recent use clear. Paid plans and top-ups come after the rules are ready.
               </p>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">

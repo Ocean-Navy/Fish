@@ -43,17 +43,17 @@ export function getFishRoutePolicy(): FishRoutePolicy {
   const activeRoute = externalConfigured
     ? {
         id: "external-fallback" as const,
-        label: "External fallback",
+        label: "Outside AI route",
         isRealAi: true,
-        privacy: "Prompts go to the configured compatible backend. Fish receipts keep only usage numbers and a request hash.",
-        evidence: "Receipts are marked fallback_verified, not Ocean provider proof."
+        privacy: "Prompts go to the configured outside AI provider. Fish keeps usage numbers and a request hash.",
+        evidence: "Marked as outside AI, not Ocean provider proof."
       }
     : {
         id: "mock" as const,
-        label: "Mock market demo",
+        label: "Demo mode",
         isRealAi: false,
-        privacy: "Prompts stay inside the local app process for deterministic demo answers.",
-        evidence: "Receipts are marked prototype_estimate so nobody confuses them with real provider work."
+        privacy: "Demo answers stay inside the local app process.",
+        evidence: "Marked as a demo estimate so nobody confuses it with provider work."
       };
 
   return {
@@ -71,39 +71,39 @@ export function getFishRoutePolicy(): FishRoutePolicy {
     modes: [
       {
         id: "mock",
-        title: "Market Demo",
+        title: "Demo answer",
         state: activeRoute.id === "mock" ? "active" : "ready",
-        short: "Safe toy catch for V0.",
-        privacy: "Local deterministic answer.",
-        proof: "Prototype estimate receipt."
+        short: "Local answer for the first version.",
+        privacy: "No outside provider is called.",
+        proof: "Demo usage record."
       },
       {
         id: "external-fallback",
-        title: "Guest Kitchen",
+        title: "Outside AI",
         state: externalConfigured ? "active" : "needs-config",
-        short: "Real AI through a compatible backend.",
-        privacy: "External backend policy applies.",
-        proof: "Fallback verified receipt."
+        short: "Real AI through an outside provider.",
+        privacy: "Outside provider policy applies.",
+        proof: "Outside AI usage record."
       },
       {
         id: "selected-ocean-provider",
-        title: "Ocean Dock",
+        title: "Ocean providers",
         state: "pilot",
         short: "Selected Ocean providers run jobs.",
         privacy: "Provider terms and Fish routing policy apply.",
-        proof: "Signed provider receipt."
+        proof: "Signed provider proof."
       },
       {
         id: "ocean-private",
-        title: "Quiet Cabin",
+        title: "Private Ocean lane",
         state: "future",
-        short: "No-log Ocean provider lane.",
+        short: "Ocean provider with reviewed privacy rules.",
         privacy: "Provider commits to no prompt/output retention.",
-        proof: "Policy attestation plus receipts."
+        proof: "Policy review plus usage records."
       },
       {
         id: "hardened-runner",
-        title: "Locked Galley",
+        title: "Stronger runner",
         state: "future",
         short: "Controlled runner with tighter isolation.",
         privacy: "Runner-level storage and access controls.",
@@ -111,31 +111,31 @@ export function getFishRoutePolicy(): FishRoutePolicy {
       },
       {
         id: "tee-runner",
-        title: "Sealed Chest",
+        title: "Hardware proof",
         state: "future",
-        short: "TEE-backed route much later.",
-        privacy: "Attested execution boundary.",
-        proof: "Attestation plus provider receipt."
+        short: "Hardware-backed route much later.",
+        privacy: "Hardware-backed execution boundary.",
+        proof: "Hardware proof plus provider proof."
       }
     ],
     rules: [
       {
         title: "Name the route",
-        body: "Mock, fallback, and Ocean provider work must be labeled differently."
+        body: "Demo, outside AI, and Ocean provider work must be labeled differently."
       },
       {
         title: "No fake Ocean",
         body: "Fish must not claim Ocean routing until selected providers run jobs."
       },
       {
-        title: "Receipts stay clean",
-        body: "Usage receipts keep hashes, tokens, costs, and provider ids, not raw prompts or outputs."
+        title: "Usage stays clean",
+        body: "Usage records keep hashes, costs, and provider ids, not raw prompts or outputs."
       },
       {
         title: "Privacy is explicit",
-        body: "External fallback is useful for launch, but its provider privacy policy applies."
+        body: "Outside AI can help launch, but that provider's privacy policy applies."
       }
     ],
-    nextMilestone: "Connect selected Ocean provider jobs to the chat/API route behind an allowlist and public-safe receipts."
+    nextMilestone: "Connect selected Ocean provider jobs to the chat/API route behind an allowlist and public-safe proof."
   };
 }

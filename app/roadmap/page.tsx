@@ -10,28 +10,28 @@ export const metadata: Metadata = {
 
 const steps = [
   { title: "Market opens", body: "Landing page, dashboard, pilot forms, and public proof points." },
-  { title: "AI counter", body: "One simple app/API with keys, receipts, and metered usage." },
+  { title: "AI counter", body: "One simple app/API with keys, usage records, and metered usage." },
   { title: "Provider dock", body: "Selected Ocean providers run real jobs behind Fish." },
   { title: "Proof board", body: "Supply, demand, reliability, and payouts become visible." },
   { title: "OCEAN credits", body: "Staked OCEAN can earn AI credits from funded budgets." },
   { title: "Provider bonds", body: "Providers can bond OCEAN for routing eligibility." },
-  { title: "Venice parity", body: "Useful app, API, privacy, billing, and routing layers." },
+  { title: "Full loop", body: "Useful app, API, privacy, billing, and routing layers." },
   { title: "Tokenized credits", body: "Only later, after usage and settlement are real." }
 ];
 
 const cards = [
   { label: "Now", title: "Make demand visible", body: "Show the market clearly: who wants AI, who has compute, and where the first route can work." },
-  { label: "Next", title: "Ship the AI counter", body: "A boringly useful chat/API surface comes before complex token mechanics." },
+  { label: "Next", title: "Ship the AI counter", body: "A useful chat/API surface comes before complex token mechanics." },
   { label: "Then", title: "Pay real providers", body: "Provider payouts come from usage, reserves, or funded budgets, not from staking magic." },
   { label: "Later", title: "Add stronger utility", body: "Credits, bonds, and capacity markets make more sense once the product has traffic." }
 ];
 
 const parityGroups = [
   { title: "App + API", state: "Opening", body: "Chat, model menu, API keys, usage dashboard, and credit balance." },
-  { title: "Billing", state: "Prototype", body: "Internal credits first, then grants, top-ups, subscriptions, and receipts." },
-  { title: "Routing", state: "Pilot", body: "Ocean providers, external fallback, provider preference, cost-aware failover." },
-  { title: "Privacy", state: "Staged", body: "External, no-log Ocean providers, hardened runners, then TEE much later." },
-  { title: "OCEAN staking", state: "Prototype", body: "Funded-budget credits from locked OCEAN, tracked with clear caps." },
+  { title: "Billing", state: "Pilot", body: "Internal credits first, then grants, top-ups, subscriptions, and usage records." },
+  { title: "Routing", state: "Pilot", body: "Ocean providers, outside AI, provider preference, and cost-aware backup routes." },
+  { title: "Privacy", state: "Staged", body: "Outside AI, private Ocean providers, stronger runners, then hardware privacy much later." },
+  { title: "OCEAN staking", state: "Pilot", body: "Funded-budget credits from locked OCEAN, tracked with clear caps." },
   { title: "Credit minting", state: "Later", body: "Lock, mint, spend, burn, and unlock only after settlement is safe." },
   { title: "Provider bonds", state: "Later", body: "Bonds can boost eligibility, but score and reliability cap the boost." },
   { title: "Capacity pool", state: "Later", body: "Unused credits may route demand only after legal and reserve controls." },
@@ -59,11 +59,11 @@ export default function RoadmapPage() {
         <div className="mx-auto max-w-7xl rounded-[2rem] border border-fish-accent/25 bg-fish-surface/80 p-6 shadow-harbor sm:p-8">
           <div className="mb-6 grid gap-4 lg:grid-cols-[0.8fr_1.2fr] lg:items-end">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">Venice-style parity</p>
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">Full product loop</p>
               <h2 className="mt-2 text-3xl font-black leading-tight text-white sm:text-5xl">Build the whole loop.</h2>
             </div>
             <p className="text-lg font-bold leading-8 text-fish-secondary">
-              Fish should copy the useful product layers: app, API, billing, privacy, routing, credits, staking, provider settlement, and proof.
+              Fish should cover the useful product layers: app, API, billing, privacy, routing, credits, staking, provider payments, and proof.
             </p>
           </div>
 

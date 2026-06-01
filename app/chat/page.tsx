@@ -3,22 +3,22 @@ import { FishChatPrototype } from "@/components/FishChatPrototype";
 import { RolePageShell } from "@/components/RolePageShell";
 
 export const metadata: Metadata = {
-  title: "Fish Chat - Prototype AI counter",
-  description: "A simple Fish chat prototype that uses API keys, spends Fish Credits, and writes usage receipts."
+  title: "Fish Chat - AI counter",
+  description: "Try the Fish chat counter with a pilot key and Fish credits."
 };
 
 const steps = [
-  { title: "Bring a pilot key", body: "Admins issue keys from the prototype API." },
-  { title: "Pick a model", body: "The chat reads the Fish model list before sending a catch." },
-  { title: "Spend credits", body: "Every request debits the local Fish Credits ledger." },
-  { title: "Keep the receipt", body: "The response returns a receipt id for usage proof." }
+  { title: "Bring a key", body: "Use the Fish key from your pilot invite." },
+  { title: "Pick a model", body: "Choose what Fish should use for the answer." },
+  { title: "Ask Fish", body: "Type a question and send it." },
+  { title: "See your tab", body: "Fish shows how many credits were used." }
 ];
 
 const cards = [
-  { label: "Now", title: "Mock or fallback", body: "The default response is local. Operators can enable an external compatible backend for real AI calls." },
-  { label: "Tracked", title: "Credits and costs", body: "Requests record credits, estimated user charge, provider cost, and margin fields." },
-  { label: "Local", title: "Device thread", body: "The chat can remember a short thread in the browser without storing the API key." },
-  { label: "Next", title: "Ocean provider route", body: "Selected providers can replace the mock backend once the pilot allowlist is ready." }
+  { label: "Now", title: "Simple chat", body: "Ask a question and see the answer in one place." },
+  { label: "Credits", title: "Clear spend", body: "Each answer shows the credits used and the credits left." },
+  { label: "Private key", title: "No key saved", body: "The page can remember the chat, but it does not store your Fish key." },
+  { label: "Next", title: "Ocean providers", body: "Selected Ocean providers come next after pilot testing." }
 ];
 
 export default function ChatPage() {
@@ -26,15 +26,15 @@ export default function ChatPage() {
     <RolePageShell
       eyebrow="Chat counter"
       title="Ask Fish."
-      subtitle="One tiny AI counter for models, credits, and receipts."
+      subtitle="One small counter for questions, answers, and credits."
       image="/assets/generated/fish-flow-use.png"
       imageAlt="Venice market AI counter with Fish Ocean Navy styling"
-      chips={["Pilot key", "Model menu", "Local thread", "Receipt"]}
+      chips={["Pilot key", "Model menu", "Saved chat", "Credits"]}
       primaryAction={{ label: "Read API docs", href: "/docs" }}
       secondaryAction={{ label: "Check account", href: "/account" }}
       steps={steps}
       cards={cards}
-      note="Prototype rule: this chat tests the Fish product loop. External fallback is not Ocean routing; selected Ocean provider proof remains separate."
+      note="Fish will always label how your answer was made. Selected Ocean provider answers come after provider testing."
     >
       <section className="px-4 pb-14 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl">

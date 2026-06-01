@@ -66,7 +66,7 @@ export function BenchmarkMatrixPanel({ summary }: { summary: BenchmarkSummary })
                   <th className="border-b border-white/10 px-3 py-3">Samples</th>
                   <th className="border-b border-white/10 px-3 py-3">Runtime</th>
                   <th className="border-b border-white/10 px-3 py-3">Cost</th>
-                  <th className="border-b border-white/10 px-3 py-3">Receipt</th>
+                  <th className="border-b border-white/10 px-3 py-3">Proof</th>
                 </tr>
               </thead>
               <tbody>

@@ -5,40 +5,40 @@ import { RolePageShell } from "@/components/RolePageShell";
 
 export const metadata: Metadata = {
   title: "Fish Docs - API hatch",
-  description: "Developer docs placeholder for Fish API keys, model routing, usage receipts, and future provider proof."
+  description: "Builder notes for Fish API keys, model choices, usage records, and provider proof."
 };
 
 const steps = [
-  { title: "Get a key", body: "Developers should start with one Fish API key." },
-  { title: "Pick a model", body: "Fish can route model choices to healthy providers or fallback routes." },
-  { title: "Send a job", body: "The API should feel familiar and hide raw compute details." },
-  { title: "Keep receipts", body: "Every useful route needs usage, cost, and provider evidence." }
+  { title: "Get a key", body: "Start with one Fish API key." },
+  { title: "Pick a model", body: "Choose the model you want Fish to use." },
+  { title: "Send a request", body: "Use a familiar chat shape." },
+  { title: "Check usage", body: "See credits used and route status." }
 ];
 
 const cards = [
-  { label: "API", title: "OpenAI-style surface", body: "Target familiar chat completions, model list, and usage response shapes." },
-  { label: "Routing", title: "Mock, fallback, Ocean", body: "Start local, optionally call an external compatible backend, then graduate to selected Ocean providers." },
-  { label: "Credits", title: "Metered from day one", body: "Usage receipts and credit debits need to exist before advanced token flows." },
-  { label: "Providers", title: "Proof for every catch", body: "Provider receipts should back dashboards, payouts, and later scorecards." }
+  { label: "API", title: "Familiar chat", body: "Use a common chat request shape so builders can move fast." },
+  { label: "Routing", title: "Clear route labels", body: "Fish says whether an answer came from demo mode, outside AI, or selected Ocean providers." },
+  { label: "Credits", title: "Credits from day one", body: "Every request should show the credits it used." },
+  { label: "Providers", title: "Proof for provider work", body: "Provider jobs need public-safe proof before they become normal routes." }
 ];
 
 const privacyModes = [
-  { title: "External", body: "External fallback. The external provider policy applies." },
-  { title: "Ocean policy", body: "Selected Ocean provider with reviewed no-log or limited-log policy." },
-  { title: "Hardened", body: "Approved runner, redacted logs, and restricted telemetry." },
-  { title: "TEE", body: "Attested provider environment, later." },
-  { title: "E2EE to TEE", body: "Client-encrypted prompts to a verified enclave, much later." }
+  { title: "Outside AI", body: "An outside AI provider may receive the prompt. Their policy applies." },
+  { title: "Ocean policy", body: "Selected Ocean provider with reviewed privacy rules." },
+  { title: "Stronger runner", body: "More locked-down provider runner, later." },
+  { title: "Hardware proof", body: "Hardware-backed privacy, later." },
+  { title: "End-to-end private", body: "Encrypted all the way to the runner, much later." }
 ];
 
 export default function DocsPage() {
   return (
     <RolePageShell
       eyebrow="API hatch"
-      title="Docs are opening."
-      subtitle="One key for builders. Receipts now. Ocean providers next."
+      title="Build with Fish."
+      subtitle="One key. One chat request. Credits and route labels included."
       image="/assets/generated/fish-role-builder.png"
       imageAlt="Venice market API hatch with Ocean Navy compute tools"
-      chips={["API keys", "Model routes", "Usage receipts", "Privacy ladder"]}
+      chips={["API keys", "Models", "Usage", "Privacy"]}
       primaryAction={{ label: "Try chat", href: "/chat" }}
       secondaryAction={{ label: "See roadmap", href: "/roadmap" }}
       steps={steps}
@@ -46,10 +46,10 @@ export default function DocsPage() {
     >
       <section className="px-4 pb-14 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl rounded-[2rem] border border-fish-accent/25 bg-fish-surface/80 p-6 shadow-harbor sm:p-8">
-          <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">Builder placeholder</p>
+          <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">Builder start</p>
           <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_auto] lg:items-center">
             <p className="max-w-3xl text-2xl font-black leading-tight text-white">
-              The prototype hatch has keys, models, chat, balance, and usage receipts. Chat can stay mock or use a configured external compatible backend until selected Ocean providers run jobs.
+              Fish starts with keys, models, chat, balance, and usage records. Selected Ocean provider routes come after provider testing.
             </p>
             <div className="flex flex-wrap gap-3">
               <Link className="inline-flex h-12 items-center justify-center rounded-full border border-fish-accent/40 px-6 text-sm font-black text-fish-accent" href="/roadmap">
@@ -70,7 +70,7 @@ export default function DocsPage() {
               <h2 className="mt-2 text-3xl font-black leading-tight text-white sm:text-5xl">Honest modes only.</h2>
             </div>
             <p className="text-lg font-bold leading-8 text-fish-secondary">
-              Fish stores hashes and usage in receipts. Strong privacy claims only arrive when the actual route supports them.
+              Fish should say the truth about privacy. Stronger privacy labels arrive only when the route really supports them.
             </p>
           </div>
 
@@ -85,7 +85,7 @@ export default function DocsPage() {
           </div>
 
           <p className="mt-5 rounded-3xl border border-fish-gold/25 bg-fish-gold/10 p-5 text-base font-black leading-7 text-fish-primary">
-            V1 should not say cryptographically private. External fallback means the external provider receives the prompt.
+            For now, do not treat Fish as private encryption. If outside AI is used, that provider receives the prompt.
           </p>
         </div>
       </section>

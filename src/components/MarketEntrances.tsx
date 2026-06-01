@@ -13,8 +13,8 @@ const entrances = [
     icon: MessageSquareText,
     cta: "Ask for AI",
     href: "/chat",
-    chips: ["Fresh answers", "No compute setup", "Spend FISH"],
-    scene: ["Pick a fish", "Ask a question", "Get useful AI"]
+    chips: ["Fresh answers", "No setup", "Use credits"],
+    scene: ["Choose a task", "Ask Fish", "Get an answer"]
   },
   {
     id: "builders",
@@ -24,8 +24,8 @@ const entrances = [
     icon: KeyRound,
     cta: "Get a key",
     href: "/api",
-    chips: ["One key", "Route jobs", "Ship fast"],
-    scene: ["Choose model", "Send job", "Return result"]
+    chips: ["One key", "Send requests", "Build faster"],
+    scene: ["Choose a model", "Send a request", "Read the result"]
   },
   {
     id: "providers",
@@ -35,8 +35,8 @@ const entrances = [
     icon: ServerCog,
     cta: "List compute",
     href: "/providers",
-    chips: ["Show GPUs", "Catch demand", "Get paid"],
-    scene: ["Connect node", "Accept orders", "Earn OCEAN"]
+    chips: ["Share GPUs", "Get demand", "Get paid"],
+    scene: ["Apply", "Run jobs", "Earn"]
   },
   {
     id: "holders",
@@ -46,8 +46,8 @@ const entrances = [
     icon: Coins,
     cta: "Stake OCEAN",
     href: "/credits",
-    chips: ["Lock utility", "Catch FISH", "Grow Ocean"],
-    scene: ["Stake", "Support supply", "Share upside"]
+    chips: ["Use OCEAN", "Earn credits", "Grow Ocean"],
+    scene: ["Lock OCEAN", "Earn credits", "Use AI"]
   }
 ];
 
@@ -126,7 +126,7 @@ export function MarketEntrances() {
                   </span>
                   <div>
                     <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">{active.stall}</p>
-                    <h3 className="text-4xl font-black text-white">{active.title} interface</h3>
+                    <h3 className="text-4xl font-black text-white">{active.title} door</h3>
                   </div>
                 </div>
 

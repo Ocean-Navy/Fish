@@ -19,16 +19,16 @@ export function ProofSummaryPanel({ summary }: { summary: ProofSummary }) {
         <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">Proof board</p>
-            <h2 className="mt-2 text-3xl font-black text-white sm:text-5xl">Provider job receipts</h2>
+            <h2 className="mt-2 text-3xl font-black text-white sm:text-5xl">Provider job proof</h2>
             <p className="mt-3 max-w-2xl text-base font-bold leading-7 text-fish-secondary">
-              Selected provider smoke jobs create public-safe receipts with signatures, hashes, usage, cost, and status. Prompt and output text are not stored here.
+              Selected provider test jobs create public-safe proof with signatures, hashes, usage, cost, and status. Prompt and output text are not stored here.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <StatusBadge state={summary.dataState} />
             <span className="text-sm font-bold text-fish-secondary">Updated {formatDateTime(summary.lastUpdated)}</span>
             <Link className="rounded-full border border-fish-accent/35 px-4 py-2 text-xs font-black text-fish-accent" href="/api/proof/receipts?limit=20">
-              JSON ledger
+              JSON proof
             </Link>
           </div>
         </div>
@@ -58,7 +58,7 @@ export function ProofSummaryPanel({ summary }: { summary: ProofSummary }) {
           <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p className="text-xs font-black uppercase tracking-[0.1em] text-fish-gold">Payout chest</p>
-              <p className="mt-1 text-sm font-bold text-fish-primary">Payable events are linked to signed receipts or manual adjustments.</p>
+              <p className="mt-1 text-sm font-bold text-fish-primary">Payable events are linked to signed proof or manual adjustments.</p>
             </div>
             <p className="text-sm font-black text-fish-primary">{formatNumber(summary.payouts.eventCount)} event{summary.payouts.eventCount === 1 ? "" : "s"}</p>
           </div>
@@ -80,7 +80,7 @@ export function ProofSummaryPanel({ summary }: { summary: ProofSummary }) {
                       <div>
                         <p className="font-black text-white">{provider.providerLabel}</p>
                         <p className="text-xs font-bold text-fish-secondary">
-                          {provider.receiptLinkedEvents} receipt row{provider.receiptLinkedEvents === 1 ? "" : "s"} / {provider.manualAdjustmentEvents} manual
+                          {provider.receiptLinkedEvents} proof row{provider.receiptLinkedEvents === 1 ? "" : "s"} / {provider.manualAdjustmentEvents} manual
                         </p>
                       </div>
                       <div className="text-right">
@@ -106,7 +106,7 @@ export function ProofSummaryPanel({ summary }: { summary: ProofSummary }) {
                         <p className="text-xs font-bold text-fish-secondary">
                           {formatReceiptType(event.eventType)} / {formatReceiptType(event.state)} / {event.sourceKind === "receipt" && event.sourceReceiptId ? (
                             <Link className="text-fish-accent hover:text-white" href={`/api/proof/receipts/${event.sourceReceiptId}` as Route}>
-                              receipt
+                              proof
                             </Link>
                           ) : (
                             "manual"
@@ -190,7 +190,7 @@ export function ProofSummaryPanel({ summary }: { summary: ProofSummary }) {
           </div>
         ) : (
           <div className="mt-5 rounded-3xl border border-dashed border-fish-accent/25 bg-fish-navy950/40 p-6 text-lg font-black leading-8 text-fish-primary">
-            No provider job receipts yet. Select a provider, run a smoke job, and the first receipt appears here.
+            No provider job proof yet. Select a provider, run a test job, and the first proof row appears here.
           </div>
         )}
 

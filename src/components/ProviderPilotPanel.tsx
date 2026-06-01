@@ -21,7 +21,7 @@ export function ProviderPilotPanel({ registry, compact = false }: { registry: Pr
             <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">Provider pilot</p>
             <h2 className="mt-2 text-3xl font-black text-white sm:text-5xl">Dock registry</h2>
             <p className="mt-3 max-w-2xl text-base font-bold leading-7 text-fish-secondary">
-              Provider applications stay separate from the selected allowlist. Public labels hide contacts, exact endpoints, and payout details.
+              Provider applications stay separate from selected routes. Public labels hide contacts, exact endpoints, and payout details.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">

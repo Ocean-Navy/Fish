@@ -155,7 +155,7 @@ export function FishAccountPanel() {
         ) : null}
 
         <div className="mt-5 rounded-2xl border border-fish-accent/15 bg-white/[0.035] p-4 text-sm font-bold leading-6 text-fish-secondary">
-          Fish reads the key for this request only. Receipts show hashes and usage numbers, not prompt text.
+          Fish reads the key for this check only. Activity rows show usage numbers, not prompt text.
         </div>
       </div>
 
@@ -170,7 +170,7 @@ export function FishAccountPanel() {
               <h2 className="text-2xl font-black text-white">{account?.account.label ?? "No tab open"}</h2>
             </div>
           </div>
-          <span className="rounded-full border border-fish-accent/20 bg-fish-accent/10 px-3 py-1 text-xs font-black text-fish-accent">{formatNumber(account?.totals.requests ?? 0)} catches</span>
+          <span className="rounded-full border border-fish-accent/20 bg-fish-accent/10 px-3 py-1 text-xs font-black text-fish-accent">{formatNumber(account?.totals.requests ?? 0)} uses</span>
         </div>
 
         {account ? (
@@ -192,7 +192,7 @@ export function FishAccountPanel() {
           </div>
         ) : (
           <div className="grid min-h-72 place-items-center rounded-2xl border border-dashed border-fish-accent/25 bg-fish-navy950/40 p-8 text-center">
-            <p className="max-w-sm text-xl font-black leading-8 text-fish-primary">Paste a pilot key to see credits, receipts, and route costs.</p>
+            <p className="max-w-sm text-xl font-black leading-8 text-fish-primary">Paste a pilot key to see credits and recent use.</p>
           </div>
         )}
       </div>
@@ -209,7 +209,7 @@ function PlanDock({ plan }: { plan: FishPlan }) {
           <h3 className="mt-2 text-2xl font-black text-white">{plan.label}</h3>
         </div>
         <span className={`w-fit rounded-full px-3 py-1 text-xs font-black uppercase tracking-[0.08em] ${plan.state === "prototype" ? "bg-emerald-400/15 text-emerald-200" : "bg-fish-gold/15 text-fish-gold"}`}>
-          {plan.state}
+          {plan.state === "prototype" ? "pilot" : plan.state}
         </span>
       </div>
       <div className="mt-4 grid gap-2 sm:grid-cols-3">
@@ -227,7 +227,7 @@ function CreditLaneNet({ lanes }: { lanes: CreditLaneSummary[] }) {
     <div className="rounded-3xl border border-fish-accent/15 bg-fish-navy950/55 p-4">
       <div className="mb-3 flex items-center gap-3">
         <BadgeDollarSign className="h-5 w-5 text-fish-accent" aria-hidden="true" />
-        <p className="text-sm font-black uppercase tracking-[0.1em] text-fish-gold">Credit lanes</p>
+        <p className="text-sm font-black uppercase tracking-[0.1em] text-fish-gold">Credit buckets</p>
       </div>
       <div className="grid gap-2 md:grid-cols-3">
         {visibleLanes.map((lane) => (
@@ -258,7 +258,7 @@ function ReceiptNet({ receipts }: { receipts: Receipt[] }) {
     <div className="rounded-3xl border border-fish-accent/15 bg-fish-navy950/55 p-4">
       <div className="mb-3 flex items-center gap-3">
         <ReceiptText className="h-5 w-5 text-fish-accent" aria-hidden="true" />
-        <p className="text-sm font-black uppercase tracking-[0.1em] text-fish-gold">Receipt net</p>
+        <p className="text-sm font-black uppercase tracking-[0.1em] text-fish-gold">Recent use</p>
       </div>
       {receipts.length ? (
         <div className="space-y-2">
@@ -267,7 +267,7 @@ function ReceiptNet({ receipts }: { receipts: Receipt[] }) {
               <div>
                 <p className="font-black text-white">{receipt.model}</p>
                 <p className="mt-1 break-all text-xs font-bold leading-5 text-fish-secondary">
-                  {receipt.route.replaceAll("-", " ")} / {receipt.creditLane ?? "grant"} / {receipt.costState.replaceAll("_", " ")} / {receipt.requestHash.slice(0, 24)}...
+                  {formatRoute(receipt.route)} / {receipt.creditLane ?? "grant"} / {formatCostState(receipt.costState)}
                 </p>
               </div>
               <div className="text-left md:text-right">
@@ -278,7 +278,7 @@ function ReceiptNet({ receipts }: { receipts: Receipt[] }) {
           ))}
         </div>
       ) : (
-        <div className="rounded-2xl border border-dashed border-fish-accent/20 p-5 text-sm font-black text-fish-primary">No receipts yet.</div>
+        <div className="rounded-2xl border border-dashed border-fish-accent/20 p-5 text-sm font-black text-fish-primary">No activity yet.</div>
       )}
     </div>
   );
@@ -291,4 +291,24 @@ function Metric({ label, value }: { label: string; value: string }) {
       <p className="mt-2 text-xl font-black text-white">{value}</p>
     </div>
   );
+}
+
+function formatRoute(route: Receipt["route"]) {
+  if (route === "mock") {
+    return "demo";
+  }
+  if (route === "external-fallback") {
+    return "outside AI";
+  }
+  return "Ocean provider";
+}
+
+function formatCostState(state: Receipt["costState"]) {
+  if (state === "prototype_estimate") {
+    return "estimate";
+  }
+  if (state === "fallback_verified") {
+    return "outside AI";
+  }
+  return "provider checked";
 }

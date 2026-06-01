@@ -7,7 +7,7 @@ const cards = [
   { key: "accounts", label: "API keys", icon: KeyRound },
   { key: "requests", label: "Requests", icon: ReceiptText },
   { key: "creditsSpent", label: "Credits spent", icon: BadgeDollarSign },
-  { key: "mockJobs", label: "Mock jobs", icon: Route }
+  { key: "mockJobs", label: "Demo jobs", icon: Route }
 ] as const;
 
 export function FishUsageSummary({ summary }: { summary: FishUsageSummaryData }) {
@@ -19,12 +19,12 @@ export function FishUsageSummary({ summary }: { summary: FishUsageSummaryData })
             <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">Fish API proof</p>
             <h2 className="mt-2 text-3xl font-black text-white sm:text-5xl">Usage counter</h2>
             <p className="mt-3 max-w-2xl text-base font-bold leading-7 text-fish-secondary">
-              Phase 1 tracks keys, requests, credit debits, receipt timing, and estimated cost fields before provider routing goes live.
+              This view tracks keys, requests, credits used, timing, and cost estimates before provider routing goes live.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <StatusBadge state={summary.dataState} />
-            <span className="text-sm font-bold text-fish-secondary">Last receipt {formatDateTime(summary.lastReceiptAt)}</span>
+            <span className="text-sm font-bold text-fish-secondary">Last activity {formatDateTime(summary.lastReceiptAt)}</span>
           </div>
         </div>
 
@@ -64,7 +64,7 @@ export function FishUsageSummary({ summary }: { summary: FishUsageSummaryData })
         )}
 
         <div className="mt-4 rounded-2xl border border-fish-gold/25 bg-fish-gold/10 p-4 text-sm font-bold leading-6 text-fish-primary">
-          Ocean-native jobs: {formatNumber(summary.oceanNativeJobs)}. Fallback jobs: {formatNumber(summary.externalFallbackJobs)}. Provider payouts stay at {formatUsd(summary.providerPayoutUsd)} until selected Ocean providers run real jobs.
+          Ocean-native jobs: {formatNumber(summary.oceanNativeJobs)}. Outside AI jobs: {formatNumber(summary.externalFallbackJobs)}. Provider payouts stay at {formatUsd(summary.providerPayoutUsd)} until selected Ocean providers run real jobs.
         </div>
       </div>
     </section>

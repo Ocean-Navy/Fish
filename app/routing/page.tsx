@@ -9,14 +9,14 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Fish Routing - Route compass",
-  description: "Public Fish routing policy for mock chat, external fallback, selected Ocean providers, privacy stages, and receipts."
+  description: "Public Fish route guide for demo answers, outside AI, selected Ocean providers, and privacy stages."
 };
 
 const steps = [
   { title: "Ask Fish", body: "User sends one normal chat/API request." },
-  { title: "Pick route", body: "Fish chooses mock, fallback, or selected Ocean provider." },
-  { title: "Keep receipt", body: "The tab records usage numbers and proof state." },
-  { title: "Show truth", body: "The UI says what really happened." }
+  { title: "Choose path", body: "Fish chooses the best available route." },
+  { title: "Use credits", body: "The request shows what it used." },
+  { title: "Show status", body: "The UI says how the answer was made." }
 ];
 
 const stateStyles: Record<RouteModeState, string> = {
@@ -42,15 +42,15 @@ export default function RoutingPage() {
   return (
     <RolePageShell
       eyebrow="Route compass"
-      title="Where does the catch go?"
-      subtitle={`${policy.activeRoute.label}. ${policy.activeRoute.isRealAi ? "Real AI today." : "Toy catch today."}`}
+      title="Where does your request go?"
+      subtitle={`${policy.activeRoute.label}. ${policy.activeRoute.isRealAi ? "Real AI today." : "Demo answer today."}`}
       image="/assets/generated/fish-role-builder.png"
       imageAlt="Fish route compass in a Venice Ocean Navy workshop"
-      chips={["Mock", "Fallback", "Ocean dock", "Private later"]}
+      chips={["Demo", "Outside AI", "Ocean providers", "Private later"]}
       primaryAction={{ label: "Try chat", href: "/chat" }}
       secondaryAction={{ label: "Open API board", href: "/api" }}
       steps={steps}
-      note="Routing rule: if it did not run on a selected Ocean provider, Fish will not call it Ocean provider work."
+      note="Fish labels every route. If selected Ocean providers did not run the work, Fish will say so."
     >
       <section className="px-4 pb-14 sm:px-6 lg:px-8">
         <div className="mx-auto grid max-w-7xl gap-4 lg:grid-cols-[0.7fr_1.3fr]">

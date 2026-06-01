@@ -21,7 +21,7 @@ Build a polished public website that does four jobs quickly:
 - Recruit users, providers, developers, and OCEAN holders into the pilot.
 - Create a clean product foundation for later dashboard, API, provider, credit, and roadmap pages.
 
-The page should feel like a serious Ocean Navy product with a memorable mascot. Keep copy short, concrete, and ELI5. Do not make it look like a meme-token landing page.
+The page should feel like a serious Ocean Navy product with a memorable mascot. Keep copy short, concrete, and plain. Do not make it look like a meme-token landing page.
 
 ## Proposed File Structure
 

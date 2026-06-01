@@ -11,10 +11,10 @@ export const metadata: Metadata = {
 };
 
 const steps = [
-  { title: "Show GPUs", body: "Share node endpoint, GPU type, region, and payout preference." },
-  { title: "Run approved jobs", body: "Start with selected workloads and clear provider requirements." },
-  { title: "Get receipts", body: "Fish tracks usage, reliability, and payout evidence." },
-  { title: "Earn routing trust", body: "Good providers can qualify for scorecards and future OCEAN bond utility." }
+  { title: "Show GPUs", body: "Share your compute details and payout preference." },
+  { title: "Run approved jobs", body: "Start with selected workloads and clear rules." },
+  { title: "Get proof", body: "Fish tracks usage, reliability, and payout evidence." },
+  { title: "Earn trust", body: "Reliable providers can qualify for scorecards and future OCEAN bond utility." }
 ];
 
 const cards = [
@@ -39,7 +39,7 @@ export default async function ProvidersPage() {
       secondaryAction={{ label: "View supply", href: "/dashboard" }}
       steps={steps}
       cards={cards}
-      note="Provider caveat: staking does not pay providers by itself. Fish needs real usage, reserves, or funded budgets for payouts."
+      note="Provider rule: staking does not pay providers by itself. Fish needs real usage, reserves, or funded budgets for payouts."
     >
       <section className="px-4 pb-14 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl">

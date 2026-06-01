@@ -43,10 +43,10 @@ export function DashboardPreview({ initialSummary }: { initialSummary: OceanSumm
     <section id="dashboard" className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
       <div className="mb-8 flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
         <div className="max-w-3xl">
-          <p className="mb-3 text-xs font-black uppercase tracking-[0.14em] text-fish-gold">Market-making first</p>
+          <p className="mb-3 text-xs font-black uppercase tracking-[0.14em] text-fish-gold">Supply first</p>
           <h2 className="text-4xl font-black tracking-normal text-fish-primary md:text-6xl">Ocean Network supply dashboard</h2>
           <p className="mt-4 max-w-2xl text-lg leading-8 text-fish-secondary">
-            Fish starts by mapping compute supply, provider availability, network usage, and pricing signals before routing AI demand.
+            Fish starts by mapping compute supply, provider availability, network usage, and pricing before routing AI demand.
           </p>
         </div>
         <button

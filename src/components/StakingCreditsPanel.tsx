@@ -19,7 +19,7 @@ export function StakingCreditsPanel({ summary }: { summary: StakingCreditSummary
             <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">Credit vault</p>
             <h2 className="mt-2 text-3xl font-black text-white sm:text-5xl">Stake. Catch credits.</h2>
             <p className="mt-3 max-w-2xl text-base font-bold leading-7 text-fish-secondary">
-              Offchain pilot records can lock OCEAN intent, issue a Fish API key, and track whether earned credits are actually spent.
+              Pilot records can lock OCEAN intent, issue a Fish API key, and track whether earned credits are actually spent.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
@@ -45,7 +45,7 @@ export function StakingCreditsPanel({ summary }: { summary: StakingCreditSummary
 
         <div className="mt-4 grid gap-3 md:grid-cols-3">
           <Small label="Budget policy" value={`${formatNumber(summary.policy.creditsPerOceanMonth)} credits / OCEAN / month`} />
-          <Small label="Onchain state" value={summary.policy.onchainState.replaceAll("_", " ")} />
+          <Small label="Record state" value={formatChainState(summary.policy.onchainState)} />
           <Small label="Average lock" value={summary.totals.averageLockDays === null ? "-" : `${formatNumber(summary.totals.averageLockDays)} days`} />
         </div>
 
@@ -88,4 +88,11 @@ function Small({ label, value }: { label: string; value: string }) {
       <p className="mt-1 text-base font-black text-white">{value}</p>
     </div>
   );
+}
+
+function formatChainState(state: string) {
+  if (state === "offchain_prototype") {
+    return "pilot records";
+  }
+  return state.replaceAll("_", " ");
 }

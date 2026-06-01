@@ -5,26 +5,26 @@ import { RolePageShell } from "@/components/RolePageShell";
 
 export const metadata: Metadata = {
   title: "Fish API - Status and future hatch",
-  description: "Public Fish API status placeholder for health, Ocean supply data, pilot forms, and the future AI API."
+  description: "Public Fish API status for health checks, Ocean supply, pilot forms, and AI access."
 };
 
 const steps = [
   { title: "Check the dock", body: "Use the health endpoint to confirm the service is awake." },
-  { title: "Read supply", body: "Ocean supply endpoints expose dashboard-ready GPU and provider data." },
-  { title: "Create a pilot key", body: "Admins can issue local keys with a starting Fish Credits balance." },
-  { title: "Send a test catch", body: "Chat requests debit credits and write usage receipts before real provider routing." }
+  { title: "Read supply", body: "See available Ocean compute for the dashboard." },
+  { title: "Create a pilot key", body: "Issue a Fish key with starter credits." },
+  { title: "Send a test request", body: "Use credits and get a clear response." }
 ];
 
 const cards = [
   { label: "Live now", title: "/api/health", body: "Simple readiness check for deploys and server monitoring." },
   { label: "Live now", title: "/api/ocean/summary", body: "Dashboard summary with source-state labels and Ocean compute supply." },
   { label: "Live now", title: "/api/waitlist", body: "Demand intake for users, builders, holders, and ecosystem partners." },
-  { label: "Prototype", title: "/v1/chat/completions", body: "OpenAI-style route with API-key auth, credit debits, receipts, and optional external fallback." },
-  { label: "Prototype", title: "/api/billing/plans", body: "Public plan catalog with limits, routing permissions, and prototype/future state." },
-  { label: "Prototype", title: "/api/billing/usage-analytics", body: "Aggregate billing analytics without API keys, prompts, outputs, or account rows." },
-  { label: "Live now", title: "/api/routing/policy", body: "Public route compass for mock, fallback, selected Ocean providers, and privacy stages." },
-  { label: "Prototype", title: "/api/proof/receipts", body: "Filterable provider receipt ledger with public-safe detail links." },
-  { label: "Admin", title: "/api/proof/receipts/export", body: "CSV or JSON receipt export for operator review." }
+  { label: "Pilot", title: "/v1/chat/completions", body: "Familiar chat route with Fish keys, credits, and clear usage records." },
+  { label: "Pilot", title: "/api/billing/plans", body: "Simple plan list with current and later options." },
+  { label: "Pilot", title: "/api/billing/usage-analytics", body: "Total usage numbers without keys, prompts, outputs, or account rows." },
+  { label: "Live now", title: "/api/routing/policy", body: "Public route guide for demo, outside AI, Ocean providers, and later privacy stages." },
+  { label: "Pilot", title: "/api/proof/receipts", body: "Provider proof records with public-safe detail links." },
+  { label: "Crew only", title: "/api/proof/receipts/export", body: "CSV or JSON export for the operating team." }
 ];
 
 const endpoints = [
@@ -32,35 +32,35 @@ const endpoints = [
   { method: "GET", path: "/api/ocean/summary", state: "Live" },
   { method: "GET", path: "/api/ocean/resources", state: "Live" },
   { method: "GET", path: "/api/ocean/providers", state: "Live" },
-  { method: "GET", path: "/api/billing/plans", state: "Prototype" },
-  { method: "GET", path: "/api/billing/usage-analytics", state: "Prototype" },
+  { method: "GET", path: "/api/billing/plans", state: "Pilot" },
+  { method: "GET", path: "/api/billing/usage-analytics", state: "Pilot" },
   { method: "GET", path: "/api/routing/policy", state: "Live" },
   { method: "GET", path: "/api/providers/pilot", state: "Live" },
-  { method: "POST", path: "/api/providers/jobs", state: "Prototype" },
-  { method: "GET", path: "/api/proof/summary", state: "Prototype" },
-  { method: "GET", path: "/api/proof/receipts", state: "Prototype" },
-  { method: "GET", path: "/api/proof/receipts/:receiptId", state: "Prototype" },
-  { method: "GET", path: "/api/proof/receipts/export", state: "Prototype" },
-  { method: "GET", path: "/api/proof/providers", state: "Prototype" },
-  { method: "GET", path: "/api/proof/benchmarks", state: "Prototype" },
-  { method: "POST", path: "/api/proof/benchmarks", state: "Prototype" },
-  { method: "GET", path: "/api/proof/market-making", state: "Prototype" },
-  { method: "GET", path: "/api/proof/payouts", state: "Prototype" },
-  { method: "POST", path: "/api/proof/payouts", state: "Prototype" },
-  { method: "GET", path: "/api/proof/payouts/batches", state: "Prototype" },
-  { method: "GET", path: "/api/proof/payouts/batches/:batchId/export", state: "Prototype" },
-  { method: "POST", path: "/api/proof/payouts/batches", state: "Prototype" },
-  { method: "GET", path: "/api/proof/payouts/export", state: "Prototype" },
-  { method: "GET", path: "/api/staking/summary", state: "Prototype" },
-  { method: "GET", path: "/api/staking/positions", state: "Prototype" },
-  { method: "POST", path: "/api/staking/positions", state: "Prototype" },
+  { method: "POST", path: "/api/providers/jobs", state: "Pilot" },
+  { method: "GET", path: "/api/proof/summary", state: "Pilot" },
+  { method: "GET", path: "/api/proof/receipts", state: "Pilot" },
+  { method: "GET", path: "/api/proof/receipts/:receiptId", state: "Pilot" },
+  { method: "GET", path: "/api/proof/receipts/export", state: "Pilot" },
+  { method: "GET", path: "/api/proof/providers", state: "Pilot" },
+  { method: "GET", path: "/api/proof/benchmarks", state: "Pilot" },
+  { method: "POST", path: "/api/proof/benchmarks", state: "Pilot" },
+  { method: "GET", path: "/api/proof/market-making", state: "Pilot" },
+  { method: "GET", path: "/api/proof/payouts", state: "Pilot" },
+  { method: "POST", path: "/api/proof/payouts", state: "Pilot" },
+  { method: "GET", path: "/api/proof/payouts/batches", state: "Pilot" },
+  { method: "GET", path: "/api/proof/payouts/batches/:batchId/export", state: "Pilot" },
+  { method: "POST", path: "/api/proof/payouts/batches", state: "Pilot" },
+  { method: "GET", path: "/api/proof/payouts/export", state: "Pilot" },
+  { method: "GET", path: "/api/staking/summary", state: "Pilot" },
+  { method: "GET", path: "/api/staking/positions", state: "Pilot" },
+  { method: "POST", path: "/api/staking/positions", state: "Pilot" },
   { method: "POST", path: "/api/waitlist", state: "Live" },
   { method: "POST", path: "/api/providers/apply", state: "Live" },
-  { method: "POST", path: "/v1/api_keys", state: "Prototype" },
-  { method: "GET", path: "/v1/models", state: "Prototype" },
-  { method: "POST", path: "/v1/chat/completions", state: "Prototype" },
-  { method: "GET", path: "/v1/balance", state: "Prototype" },
-  { method: "GET", path: "/v1/usage", state: "Prototype" }
+  { method: "POST", path: "/v1/api_keys", state: "Pilot" },
+  { method: "GET", path: "/v1/models", state: "Pilot" },
+  { method: "POST", path: "/v1/chat/completions", state: "Pilot" },
+  { method: "GET", path: "/v1/balance", state: "Pilot" },
+  { method: "GET", path: "/v1/usage", state: "Pilot" }
 ];
 
 export default function ApiPage() {
@@ -68,15 +68,15 @@ export default function ApiPage() {
     <RolePageShell
       eyebrow="Signal flags"
       title="API status."
-      subtitle="The hatch is small today. It proves keys, credits, and receipts before provider routing."
+      subtitle="The hatch is small today: keys, credits, and clear AI requests."
       image="/assets/generated/fish-role-builder.png"
       imageAlt="Ocean Navy API hatch in a Venice market workshop"
-      chips={["Health", "Supply", "Keys", "Mock AI"]}
+      chips={["Health", "Supply", "Keys", "AI route"]}
       primaryAction={{ label: "Try chat", href: "/chat" }}
       secondaryAction={{ label: "Read docs", href: "/docs" }}
       steps={steps}
       cards={cards}
-      note="API rule: the prototype can mock model output, but it must not fake Ocean provider routing. Provider proof comes after selected providers run jobs."
+      note="Fish will not call a route Ocean-powered until selected Ocean providers are really running the work."
     >
       <section className="px-4 pb-14 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl rounded-[2rem] border border-fish-accent/25 bg-fish-surface/80 p-6 shadow-harbor sm:p-8">

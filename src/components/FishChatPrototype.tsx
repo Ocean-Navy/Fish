@@ -224,8 +224,8 @@ export function FishChatPrototype() {
         </select>
 
         <div className="mt-4 grid gap-2 sm:grid-cols-2">
-          <RouteBadge icon={Waves} label="Route" value={latestReceipt?.route ? formatBadge(latestReceipt.route) : "Market test"} />
-          <RouteBadge icon={Fish} label="Mode" value={latestReceipt?.costState ? formatBadge(latestReceipt.costState) : "Local proof"} />
+          <RouteBadge icon={Waves} label="Route" value={latestReceipt?.route ? formatBadge(latestReceipt.route) : "Demo"} />
+          <RouteBadge icon={Fish} label="Mode" value={latestReceipt?.costState ? formatBadge(latestReceipt.costState) : "Estimate"} />
         </div>
 
         <label className="mt-5 flex items-center gap-3 rounded-2xl border border-fish-accent/15 bg-white/[0.035] p-4 text-sm font-black text-fish-primary" htmlFor="fish-remember">
@@ -258,7 +258,7 @@ export function FishChatPrototype() {
             className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-fish-accent to-fish-aqua px-6 text-sm font-black text-fish-navy950 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isLoading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Send className="h-4 w-4" aria-hidden="true" />}
-            Send catch
+            Send
           </button>
           <button
             type="button"
@@ -278,7 +278,7 @@ export function FishChatPrototype() {
               <MessageSquareText className="h-5 w-5" aria-hidden="true" />
             </span>
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">Receipt counter</p>
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">Chat counter</p>
               <h2 className="text-2xl font-black text-white">Market thread</h2>
             </div>
           </div>
@@ -307,10 +307,10 @@ export function FishChatPrototype() {
                   <div className="mt-4 grid gap-3 sm:grid-cols-2">
                     <Metric label="Spent" value={String(message.creditsSpent ?? 0)} />
                     <Metric label="Left" value={String(message.creditsRemaining ?? 0)} />
-                    <Metric label="User charge" value={`$${(message.userChargeUsd ?? 0).toFixed(4)}`} />
+                    <Metric label="Price" value={`$${(message.userChargeUsd ?? 0).toFixed(4)}`} />
                     <Metric label="Provider cost" value={`$${(message.providerCostUsd ?? 0).toFixed(4)}`} />
                     <p className="break-all rounded-2xl border border-fish-accent/15 bg-fish-navy950/55 p-4 text-xs font-bold leading-6 text-fish-secondary sm:col-span-2">
-                      Receipt: <span className="text-fish-accent">{message.receiptId}</span>
+                      Activity id: <span className="text-fish-accent">{message.receiptId}</span>
                     </p>
                   </div>
                 ) : null}
@@ -319,13 +319,13 @@ export function FishChatPrototype() {
             {isLoading ? (
               <div className="flex items-center gap-3 rounded-3xl border border-fish-accent/20 bg-white/[0.035] p-5 text-sm font-black text-fish-primary">
                 <Loader2 className="h-4 w-4 animate-spin text-fish-accent" aria-hidden="true" />
-                Fishing...
+                Fish is answering...
               </div>
             ) : null}
           </div>
         ) : (
           <div className="grid min-h-72 place-items-center rounded-2xl border border-dashed border-fish-accent/25 bg-fish-navy950/40 p-8 text-center">
-            <p className="max-w-sm text-xl font-black leading-8 text-fish-primary">Paste a pilot key, ask a small question, and Fish writes a receipt.</p>
+            <p className="max-w-sm text-xl font-black leading-8 text-fish-primary">Paste a pilot key and ask a small question.</p>
           </div>
         )}
       </div>
@@ -355,6 +355,21 @@ function Metric({ label, value }: { label: string; value: string }) {
 }
 
 function formatBadge(value: string) {
+  if (value === "mock") {
+    return "demo";
+  }
+  if (value === "external-fallback") {
+    return "outside AI";
+  }
+  if (value === "prototype_estimate") {
+    return "estimate";
+  }
+  if (value === "fallback_verified") {
+    return "outside AI";
+  }
+  if (value === "provider_verified") {
+    return "provider checked";
+  }
   return value.replaceAll("-", " ").replaceAll("_", " ");
 }
 
