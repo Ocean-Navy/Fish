@@ -34,22 +34,22 @@ const moneyLabels = [
   {
     label: "Users",
     icon: BrainCircuit,
-    detail: "Credits + requests"
+    detail: "Subscription"
   },
   {
     label: "Builders",
     icon: Code2,
-    detail: "API + USDC"
+    detail: "API spend"
   },
   {
     label: "Providers",
     icon: Server,
-    detail: "GPUs + payouts"
+    detail: "GPUs"
   },
   {
     label: "Holders",
     icon: Coins,
-    detail: "Stake $OCEAN"
+    detail: "Staking"
   }
 ];
 
@@ -76,9 +76,9 @@ export function VisualExplainers() {
 
           <ExplainerCard
             title="How money moves"
-            subtitle="Credits and USDC move through the market. $OCEAN stays with staking."
-            image="/assets/generated/fish-money-flow-labeled.png"
-            imageAlt="Visual map of Fish credits, subscriptions, USDC, provider payouts, reserves, and holder staking"
+            subtitle="Money enters Fish Credits. The market feeds GPUs, staking, and ecosystem growth."
+            image="/assets/generated/fish-money-flow-labeled-v4.png"
+            imageAlt="Visual map of Fish Credits receiving subscription and API money, rewarding GPU providers, staking holders, and ecosystem growth"
             labels={moneyLabels}
           />
         </div>
