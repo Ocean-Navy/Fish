@@ -36,6 +36,7 @@ export type FishRoutePolicy = {
     dailyKeyedQuota: number;
     dailyAnonymousQuota: number;
     externalFallbackFreeAllowed: boolean;
+    dailyUsdBudgets: Record<FishChatRouteId, number>;
     quotaStorage: "local-json";
   };
   modes: Array<{
@@ -92,6 +93,7 @@ export function getFishRoutePolicy(): FishRoutePolicy {
     },
     guardrails: {
       ...router.guardrails,
+      dailyUsdBudgets: router.budgets.dailyUsdByRoute,
       quotaStorage: "local-json"
     },
     modes: [
@@ -159,7 +161,7 @@ export function getFishRoutePolicy(): FishRoutePolicy {
         state: router.routes["ocean-demo-vllm"].configured ? "live-beta" : "beta",
         primary: "Ocean demo vLLM",
         fallback: externalFallbackLabel,
-        cap: `${router.guardrails.maxInputTokens} in / ${router.guardrails.maxOutputTokens} out`
+        cap: `${router.guardrails.maxInputTokens} in / ${router.guardrails.maxOutputTokens} out / ${formatDailyBudget(router.budgets.dailyUsdByRoute["ocean-demo-vllm"])} daily`
       },
       {
         id: "code",
@@ -167,7 +169,7 @@ export function getFishRoutePolicy(): FishRoutePolicy {
         state: router.routes["ocean-demo-vllm"].configured ? "live-beta" : "beta",
         primary: "Ocean demo vLLM",
         fallback: externalFallbackLabel,
-        cap: `${router.guardrails.maxInputTokens} in / ${router.guardrails.maxOutputTokens} out`
+        cap: `${router.guardrails.maxInputTokens} in / ${router.guardrails.maxOutputTokens} out / ${formatDailyBudget(router.budgets.dailyUsdByRoute["ocean-demo-vllm"])} daily`
       },
       {
         id: "docs",
@@ -183,7 +185,7 @@ export function getFishRoutePolicy(): FishRoutePolicy {
         state: "beta",
         primary: "Ocean demo vLLM plus Fish/Ocean prompt",
         fallback: "None by default",
-        cap: `${router.guardrails.maxOutputTokens} output tokens`
+        cap: `${router.guardrails.maxOutputTokens} output tokens / ${formatDailyBudget(router.budgets.dailyUsdByRoute["ocean-demo-vllm"])} daily`
       },
       {
         id: "images",
@@ -199,7 +201,7 @@ export function getFishRoutePolicy(): FishRoutePolicy {
         state: "beta",
         primary: "Fish Gateway",
         fallback: "Route policy decides",
-        cap: `${router.guardrails.dailyKeyedQuota} keyed requests/day`
+        cap: `${router.guardrails.dailyKeyedQuota} keyed requests/day / ${formatDailyBudget(router.budgets.dailyUsdByRoute["external-fallback"])} fallback daily`
       }
     ],
     rules: [
@@ -213,7 +215,7 @@ export function getFishRoutePolicy(): FishRoutePolicy {
       },
       {
         title: "Caps before calls",
-        body: "Input tokens, output tokens, daily quota, and pause switches are checked before backend calls."
+        body: "Input tokens, output tokens, daily quota, daily route budget, and pause switches are checked before backend calls."
       },
       {
         title: "Usage stays clean",
@@ -226,6 +228,10 @@ export function getFishRoutePolicy(): FishRoutePolicy {
     ],
     nextMilestone: "Operate the warm demo node, then connect selected Ocean provider jobs behind an allowlist and public-safe proof."
   };
+}
+
+function formatDailyBudget(value: number) {
+  return `$${value.toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
 }
 
 function activeRoutePolicy(id: FishChatRouteId, status: RouteModeState): FishRoutePolicy["activeRoute"] {

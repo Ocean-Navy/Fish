@@ -28,6 +28,9 @@ export type FishRouterConfig = {
     dailyAnonymousQuota: number;
     externalFallbackFreeAllowed: boolean;
   };
+  budgets: {
+    dailyUsdByRoute: Record<FishChatRouteId, number>;
+  };
   warm: OpenAiCompatibleRouteConfig;
   external: ReturnType<typeof getExternalChatConfig>;
   routes: Record<FishChatRouteId, FishRouteConfig>;
@@ -52,6 +55,13 @@ export function getFishRouterConfig(): FishRouterConfig {
       dailyKeyedQuota: readPositiveInt(process.env.FISH_DAILY_KEYED_QUOTA, 20),
       dailyAnonymousQuota: readPositiveInt(process.env.FISH_DAILY_ANONYMOUS_QUOTA, 5),
       externalFallbackFreeAllowed: parseBoolean(process.env.FISH_EXTERNAL_FALLBACK_FREE_ALLOWED)
+    },
+    budgets: {
+      dailyUsdByRoute: {
+        mock: readNonNegativeNumber(process.env.FISH_MOCK_DAILY_BUDGET_USD, 0),
+        "ocean-demo-vllm": readNonNegativeNumber(process.env.FISH_OCEAN_DEMO_DAILY_BUDGET_USD, 50),
+        "external-fallback": readNonNegativeNumber(process.env.FISH_EXTERNAL_FALLBACK_DAILY_BUDGET_USD, 10)
+      }
     },
     warm,
     external,
@@ -130,6 +140,11 @@ function routeStatus(paused: boolean, killSwitch: boolean, enabled: boolean, con
 function readPositiveInt(value: string | undefined, fallback: number) {
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function readNonNegativeNumber(value: string | undefined, fallback: number) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
 }
 
 function parseBoolean(value: string | undefined) {

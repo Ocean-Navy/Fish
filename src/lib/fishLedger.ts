@@ -634,6 +634,11 @@ function hashSecret(secret: string) {
   return createHash("sha256").update(secret).digest("hex");
 }
 
+export async function sumProviderCostForRouteSince(route: UsageReceipt["route"], sinceIso: string) {
+  const receipts = await readAllReceipts();
+  return Number(receipts.filter((receipt) => receipt.route === route && receipt.createdAt >= sinceIso).reduce((sum, receipt) => sum + receipt.providerCostUsd, 0).toFixed(6));
+}
+
 async function readLedger(): Promise<Ledger> {
   try {
     const raw = await readFile(ACCOUNTS_PATH, "utf8");

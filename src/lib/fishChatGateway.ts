@@ -9,6 +9,7 @@ import {
   type RunnerReceiptSummary
 } from "@/lib/fishLedger";
 import { ExternalChatError, runExternalChat } from "@/lib/externalChat";
+import { checkRouteDailyBudget, type RouteBudgetCheck } from "@/lib/fishBudget";
 import { spendDailyQuota } from "@/lib/fishQuota";
 import { getActiveFishRoute, getFishRouterConfig, type FishChatRouteId, type FishCostState, type FishRouterConfig } from "@/lib/fishRouter";
 import { VllmChatError, runVllmChat } from "@/lib/vllmChat";
@@ -85,6 +86,16 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
     return jsonError(403, "external_fallback_not_allowed_for_plan", "routing_policy_error", { route });
   }
 
+  let budgetCheck = await checkRouteDailyBudget({
+    route,
+    promptTokens,
+    maxOutputTokens: requestedMaxOutputTokens,
+    routerConfig
+  });
+  if (!budgetCheck.ok) {
+    return budgetExceededError(budgetCheck);
+  }
+
   const estimatedMaxCredits = Math.max(1, Math.ceil((promptTokens + requestedMaxOutputTokens) / 1000));
   if (context.account.creditBalance < estimatedMaxCredits) {
     return jsonError(402, "insufficient_fish_credits", "billing_error", {
@@ -122,6 +133,17 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
         const message = error instanceof VllmChatError ? error.message : "ocean_demo_vllm_backend_error";
         return jsonError(error instanceof VllmChatError ? error.status : 502, message, "warm_inference_backend_error", { route });
       }
+
+      const fallbackBudgetCheck = await checkRouteDailyBudget({
+        route: "external-fallback",
+        promptTokens,
+        maxOutputTokens: requestedMaxOutputTokens,
+        routerConfig
+      });
+      if (!fallbackBudgetCheck.ok) {
+        return budgetExceededError(fallbackBudgetCheck);
+      }
+      budgetCheck = fallbackBudgetCheck;
 
       const fallback = await runExternalFallback(routeInput, promptTokens);
       if (!fallback.ok) {
@@ -203,6 +225,9 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
         runnerSignatureState: usage.receipt.runnerReceipt?.signatureState ?? null,
         runnerId: usage.receipt.runnerReceipt?.runnerId ?? null,
         latencyMs: usage.receipt.latencyMs,
+        dailyBudgetUsd: budgetCheck.dailyBudgetUsd,
+        dailyBudgetRemainingUsd: budgetCheck.remainingUsd,
+        estimatedProviderCostUsd: budgetCheck.estimatedCostUsd,
         quotaRemaining: quota.remaining,
         creditsSpent: usage.receipt.creditsSpent,
         creditsRemaining: usage.creditsRemaining,
@@ -212,6 +237,16 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
       }
     }
   };
+}
+
+function budgetExceededError(check: Extract<RouteBudgetCheck, { ok: false }>) {
+  return jsonError(429, "daily_route_budget_exceeded", "budget_error", {
+    route: check.route,
+    dailyBudgetUsd: check.dailyBudgetUsd,
+    spentUsd: check.spentUsd,
+    estimatedProviderCostUsd: check.estimatedCostUsd,
+    remainingUsd: check.remainingUsd
+  });
 }
 
 async function runExternalFallback(input: ChatCompletionInput, promptTokens: number) {
