@@ -84,6 +84,34 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/FishRoutePolicy'
+  /api/warm/status:
+    get:
+      summary: Public-safe warm inference status
+      description: Shows whether the configured warm demo route is ready without exposing endpoint URLs, API keys, prompts, or outputs.
+      responses:
+        '200':
+          description: Warm route status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WarmInferenceStatus'
+  /api/meal/order:
+    post:
+      summary: Guest Fish meal-counter order
+      description: Capped guest route for the public meal counter. Uses the same chat request shape without exposing a Fish API key.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FishChatRequest'
+      responses:
+        '200':
+          description: Meal order completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FishChatCompletion'
   /api/billing/plans:
     get:
       summary: Public Fish plan catalog
@@ -144,7 +172,7 @@ paths:
     get:
       summary: Admin-only provider pilot outreach export
       security:
-        - bearerAuth: []
+        - adminToken: []
       responses:
         '200':
           description: Provider pilot operator export with private outreach fields
@@ -156,7 +184,7 @@ paths:
     get:
       summary: Admin-only waitlist and provider signup export
       security:
-        - bearerAuth: []
+        - adminToken: []
       parameters:
         - in: query
           name: kind
@@ -185,9 +213,9 @@ paths:
   /api/providers/jobs:
     post:
       summary: Run a selected-provider prototype batch job
-      description: Admin-only controlled adapter. Checks provider allowlist, never stores prompt/output text, and writes a public-safe signed provider job receipt.
+      description: Admin-only controlled adapter. Checks provider allowlist, never stores prompt/output text, and writes a public-safe signed provider job receipt. Mock adapter modes are marked sample and do not auto-accrue payout events.
       security:
-        - bearerAuth: []
+        - adminToken: []
       requestBody:
         required: true
         content:
@@ -326,7 +354,7 @@ paths:
     get:
       summary: Admin-only provider receipt ledger export
       security:
-        - bearerAuth: []
+        - adminToken: []
       parameters:
         - in: query
           name: format
@@ -419,7 +447,7 @@ paths:
       summary: Admin-only selected-provider benchmark run
       description: Runs one fixed benchmark definition through the provider-job proof adapter. The request accepts provider id, benchmark id, and prototype adapter mode only; prompt and output text are never accepted or stored.
       security:
-        - bearerAuth: []
+        - adminToken: []
       requestBody:
         required: true
         content:
@@ -521,7 +549,7 @@ paths:
     post:
       summary: Admin-only manual provider payout event
       security:
-        - bearerAuth: []
+        - adminToken: []
       requestBody:
         required: true
         content:
@@ -579,7 +607,7 @@ paths:
     get:
       summary: Admin-only payout batch list
       security:
-        - bearerAuth: []
+        - adminToken: []
       responses:
         '200':
           description: Payout batch list
@@ -601,7 +629,7 @@ paths:
     post:
       summary: Admin-only payout review batch creation
       security:
-        - bearerAuth: []
+        - adminToken: []
       requestBody:
         required: false
         content:
@@ -638,7 +666,7 @@ paths:
     get:
       summary: Admin-only payout batch CSV export
       security:
-        - bearerAuth: []
+        - adminToken: []
       parameters:
         - in: path
           name: batchId
@@ -660,7 +688,7 @@ paths:
     get:
       summary: Admin-only provider payout CSV export
       security:
-        - bearerAuth: []
+        - adminToken: []
       parameters:
         - in: query
           name: provider
@@ -773,7 +801,7 @@ paths:
     post:
       summary: Admin-only offchain OCEAN stake record and Fish Credit issuance
       security:
-        - bearerAuth: []
+        - adminToken: []
       requestBody:
         required: true
         content:
@@ -861,6 +889,8 @@ paths:
     post:
       summary: Create a prototype Fish API key
       description: Requires an admin token in production. The returned key is shown once and stored only as a hash.
+      security:
+        - adminToken: []
       requestBody:
         required: false
         content:
@@ -924,39 +954,17 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              required: [messages]
-              properties:
-                model:
-                  type: string
-                  default: fish-demo-chat
-                messages:
-                  type: array
-                  items:
-                    type: object
-                    properties:
-                      role:
-                        type: string
-                        enum: [system, user, assistant, tool]
-                      content:
-                        oneOf:
-                          - type: string
-                          - type: array
-                            items: {}
-                stream:
-                  type: boolean
-                  default: false
-                temperature:
-                  type: number
-                max_tokens:
-                  type: integer
+              $ref: '#/components/schemas/FishChatRequest'
       responses:
         '200':
-          description: Chat completion
+          description: Chat completion. When `stream` is true, the same settled completion is returned as OpenAI-style server-sent events.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/FishChatCompletion'
+            text/event-stream:
+              schema:
+                type: string
   /v1/balance:
     get:
       summary: Get prototype account balance
@@ -1012,6 +1020,10 @@ components:
     bearerAuth:
       type: http
       scheme: bearer
+    adminToken:
+      type: apiKey
+      in: header
+      name: x-fish-admin-token
   schemas:
     OceanSummary:
       type: object
@@ -1160,7 +1172,7 @@ components:
           type: boolean
     FishRoutePolicy:
       type: object
-      required: [dataState, generatedAt, activeRoute, backend, modes, rules, nextMilestone]
+      required: [dataState, generatedAt, activeRoute, backend, guardrails, modes, features, rules, nextMilestone]
       properties:
         dataState:
           type: string
@@ -1172,7 +1184,7 @@ components:
           properties:
             id:
               type: string
-              enum: [mock, external-fallback]
+              enum: [mock, ocean-demo-vllm, external-fallback]
             label:
               type: string
             isRealAi:
@@ -1181,12 +1193,30 @@ components:
               type: string
             evidence:
               type: string
+            status:
+              type: string
+              enum: [active, ready, needs-config, paused, disabled, pilot, future]
         backend:
           type: object
           properties:
-            chatBackend:
+            chatRoute:
               type: string
-              enum: [mock, external]
+              enum: [mock, ocean-demo-vllm, external-fallback]
+            paused:
+              type: boolean
+            killSwitch:
+              type: boolean
+            warmConfigured:
+              type: boolean
+            warmBaseUrlConfigured:
+              type: boolean
+            warmApiKeyConfigured:
+              type: boolean
+            warmModel:
+              type: string
+              nullable: true
+            warmProviderId:
+              type: string
             externalConfigured:
               type: boolean
             externalBaseUrlConfigured:
@@ -1198,6 +1228,26 @@ components:
               nullable: true
             externalProviderId:
               type: string
+        guardrails:
+          type: object
+          properties:
+            maxInputTokens:
+              type: integer
+            maxOutputTokens:
+              type: integer
+            dailyKeyedQuota:
+              type: integer
+            dailyAnonymousQuota:
+              type: integer
+            externalFallbackFreeAllowed:
+              type: boolean
+            dailyUsdBudgets:
+              type: object
+              additionalProperties:
+                type: number
+            quotaStorage:
+              type: string
+              enum: [local-json]
         modes:
           type: array
           items:
@@ -1205,17 +1255,36 @@ components:
             properties:
               id:
                 type: string
-                enum: [mock, external-fallback, selected-ocean-provider, ocean-private, hardened-runner, tee-runner]
+                enum: [mock, ocean-demo-vllm, external-fallback, selected-ocean-provider, ocean-private, hardened-runner, tee-runner]
               title:
                 type: string
               state:
                 type: string
-                enum: [active, ready, needs-config, pilot, future]
+                enum: [active, ready, needs-config, paused, disabled, pilot, future]
               short:
                 type: string
               privacy:
                 type: string
               proof:
+                type: string
+        features:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                enum: [ask, code, explain, docs, images, proposal, ocean, api]
+              label:
+                type: string
+              state:
+                type: string
+                enum: [live-beta, beta, coming-soon]
+              primary:
+                type: string
+              fallback:
+                type: string
+              cap:
                 type: string
         rules:
           type: array
@@ -1257,13 +1326,41 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/ProviderAllowlistEntry'
+        allowedFor:
+          nullable: true
+          type: object
         warnings:
           type: array
           items:
             type: string
-        allowedFor:
+    WarmInferenceStatus:
+      type: object
+      properties:
+        dataState:
+          type: string
+          enum: [live, snapshot, sample, unavailable]
+        generatedAt:
+          type: string
+        route:
+          type: string
+          enum: [ocean-demo-vllm]
+        configured:
+          type: boolean
+        ready:
+          type: boolean
+        publicLabel:
+          type: string
+        providerId:
+          type: string
+        model:
+          type: string
           nullable: true
+        checks:
           type: object
+        warnings:
+          type: array
+          items:
+            type: string
     ProviderPilotProfile:
       type: object
       properties:
@@ -2689,7 +2786,7 @@ components:
             properties:
               route:
                 type: string
-                enum: [mock, ocean-provider, external-fallback]
+                enum: [mock, ocean-demo-vllm, ocean-provider, external-fallback]
               requests:
                 type: integer
               creditsSpent:
@@ -2698,6 +2795,47 @@ components:
                 type: number
               providerCostUsd:
                 type: number
+    FishChatRequest:
+      type: object
+      required: [messages]
+      properties:
+        model:
+          type: string
+          default: fish-demo-chat
+        messages:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            properties:
+              role:
+                type: string
+                enum: [system, user, assistant, tool]
+              content:
+                oneOf:
+                  - type: string
+                  - type: array
+                    items: {}
+        stream:
+          type: boolean
+          default: false
+        temperature:
+          type: number
+          minimum: 0
+          maximum: 2
+        max_tokens:
+          type: integer
+          minimum: 1
+          maximum: 4096
+        metadata:
+          type: object
+          additionalProperties: true
+          properties:
+            fish_feature:
+              type: string
+              enum: [ask, code, explain, docs, images, proposal, ocean, api]
+            fish_dish:
+              type: string
     FishUsageReceipt:
       type: object
       properties:
@@ -2717,10 +2855,16 @@ components:
           type: string
         route:
           type: string
-          enum: [mock, ocean-provider, external-fallback]
+          enum: [mock, ocean-demo-vllm, ocean-provider, external-fallback]
+        feature:
+          type: string
+          nullable: true
         costState:
           type: string
           enum: [prototype_estimate, provider_verified, fallback_verified]
+        status:
+          type: string
+          enum: [succeeded, failed]
         promptTokens:
           type: integer
         completionTokens:
@@ -2740,6 +2884,9 @@ components:
           nullable: true
         requestHash:
           type: string
+        runnerReceipt:
+          type: object
+          nullable: true
     FishChatCompletion:
       type: object
       properties:
@@ -2770,12 +2917,49 @@ components:
           properties:
             route:
               type: string
-              enum: [mock, ocean-provider, external-fallback]
+              enum: [mock, ocean-demo-vllm, ocean-provider, external-fallback]
+            feature:
+              type: string
+              nullable: true
+            featureLabel:
+              type: string
             costState:
               type: string
               enum: [prototype_estimate, provider_verified, fallback_verified]
             receiptId:
               type: string
+            status:
+              type: string
+            routeLabel:
+              type: string
+            providerId:
+              type: string
+              nullable: true
+            runnerReceiptHash:
+              type: string
+              nullable: true
+            runnerSignatureState:
+              type: string
+              nullable: true
+            runnerId:
+              type: string
+              nullable: true
+            latencyMs:
+              type: integer
+            dailyBudgetUsd:
+              type: number
+            dailyBudgetRemainingUsd:
+              type: number
+            estimatedProviderCostUsd:
+              type: number
+            quotaRemaining:
+              type: integer
+            creditReserveId:
+              type: string
+            creditsReserved:
+              type: integer
+            creditsReleased:
+              type: integer
             creditsSpent:
               type: integer
             creditsRemaining:
