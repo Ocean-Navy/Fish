@@ -6,6 +6,7 @@ import { ProofSummaryPanel } from "@/components/ProofSummaryPanel";
 import { ProviderPilotPanel } from "@/components/ProviderPilotPanel";
 import { ProviderScorecardPanel } from "@/components/ProviderScorecardPanel";
 import { StakingCreditsPanel } from "@/components/StakingCreditsPanel";
+import { WarmInferenceStatusPanel } from "@/components/WarmInferenceStatusPanel";
 import { collectOceanData } from "@/lib/oceanSupply";
 import { summarizeFishUsage } from "@/lib/fishLedger";
 import { summarizeMarketMaking } from "@/lib/marketMaking";
@@ -14,20 +15,22 @@ import { summarizeProof } from "@/lib/providerJobs";
 import { collectProviderPilotRegistry } from "@/lib/providerPilot";
 import { summarizeProviderScorecard } from "@/lib/providerScorecard";
 import { summarizeStakingCredits } from "@/lib/stakingCredits";
+import { getWarmInferenceStatus } from "@/lib/warmInferenceStatus";
 import { Fish } from "lucide-react";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  const [oceanData, fishUsage, providerPilot, proof, providerScorecard, benchmarks, stakingCredits] = await Promise.all([
+  const [oceanData, fishUsage, providerPilot, proof, providerScorecard, benchmarks, stakingCredits, warmStatus] = await Promise.all([
     collectOceanData(),
     summarizeFishUsage(),
     collectProviderPilotRegistry(),
     summarizeProof(),
     summarizeProviderScorecard(),
     summarizeBenchmarks(),
-    summarizeStakingCredits()
+    summarizeStakingCredits(),
+    getWarmInferenceStatus()
   ]);
   const marketMaking = await summarizeMarketMaking({
     oceanSummary: oceanData.summary,
@@ -53,6 +56,7 @@ export default async function DashboardPage() {
       </header>
       <DashboardPreview initialSummary={oceanData.summary} />
       <FishUsageSummary summary={fishUsage} />
+      <WarmInferenceStatusPanel status={warmStatus} />
       <StakingCreditsPanel summary={stakingCredits} />
       <ProviderPilotPanel registry={providerPilot} />
       <ProviderScorecardPanel summary={providerScorecard} />

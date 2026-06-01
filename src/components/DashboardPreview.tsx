@@ -78,7 +78,7 @@ export function DashboardPreview({ initialSummary }: { initialSummary: OceanSumm
       <div className="mt-5 grid gap-5 lg:grid-cols-[1.08fr_0.92fr]">
         <div className="rounded-3xl border border-fish-accent/25 bg-fish-surface/75 p-5">
           <h3 className="mb-4 text-xl font-black tracking-normal text-fish-primary">GPU supply by type</h3>
-          <div className="overflow-x-auto">
+          <div className="fish-scroll-table">
             <table className="w-full min-w-[620px] border-collapse text-left text-sm">
               <thead className="text-xs uppercase tracking-[0.08em] text-fish-accent">
                 <tr>

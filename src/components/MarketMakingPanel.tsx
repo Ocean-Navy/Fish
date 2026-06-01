@@ -96,7 +96,7 @@ export function MarketMakingPanel({ summary }: { summary: MarketMakingSummary })
         ) : null}
 
         {summary.routes.length ? (
-          <div className="mt-5 overflow-x-auto">
+          <div className="fish-scroll-table mt-5">
             <table className="w-full min-w-[840px] border-collapse text-left text-sm">
               <thead className="text-xs uppercase tracking-[0.08em] text-fish-accent">
                 <tr>

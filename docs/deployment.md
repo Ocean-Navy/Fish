@@ -263,7 +263,7 @@ Set `FISH_ADMIN_TOKEN` in production-like environments before issuing prototype 
 Set `FISH_PROVIDER_ALLOWLIST` or mount `data/provider_allowlist.json` when the first selected providers are approved.
 Keep `FISH_CHAT_BACKEND=mock` for a no-secret local deployment. Set `FISH_CHAT_BACKEND=external`, `FISH_EXTERNAL_CHAT_BASE_URL`, `FISH_EXTERNAL_CHAT_API_KEY`, and `FISH_EXTERNAL_CHAT_MODEL` only when you want `/v1/chat/completions` to call a real OpenAI-compatible backend.
 
-Warm inference operations are covered in `docs/warm-inference-runbook.md`. The MVP path is a private vLLM endpoint, ideally behind Fish Runner, on a GPU host that may also run Ocean Node for provider identity and anchoring. Keep warm-route config disabled until the gateway/router implementation consumes it.
+Warm inference operations are covered in `docs/warm-inference-runbook.md`. The MVP path is a private vLLM endpoint, ideally behind Fish Runner, on a GPU host that may also run Ocean Node for provider identity and anchoring. Keep the warm route on mock until the private endpoint is ready, then switch `FISH_CHAT_ROUTE=ocean-demo-vllm` and check `/api/warm/status`.
 
 ## Verification
 
@@ -300,5 +300,6 @@ Then browser-check:
 - `/api/billing/plans`
 - `/api/billing/usage-analytics`
 - `/api/routing/policy`
+- `/api/warm/status`
 - `/api/staking/summary`
 - `/api/submissions/export?format=csv` with `x-fish-admin-token`

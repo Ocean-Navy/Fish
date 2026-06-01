@@ -18,6 +18,7 @@ The public V0 is intentionally simple: a visual Venice fish-market homepage, rol
 - Prototype `/v1` AI API with local API keys, Fish Credits debits, and usage receipts.
 - `/ask` with a Fish meal counter: Quick Catch, Code Roll, Clear Broth, Docs Bento, Image Catch, Proposal Platter, and Ocean Special.
 - `/api/meal/order` for a capped guest meal-counter demo without exposing a Fish API key.
+- `/api/warm/status` for public-safe warm Ocean demo readiness without endpoint URLs or secrets.
 - `/chat` remains available as the same pilot AI meal counter for chat-oriented links.
 - Production Docker image, Docker Compose service, and public nginx/systemd deployment.
 - Warm inference operator runbook for a private vLLM / Fish Runner MVP path.
@@ -53,6 +54,7 @@ Useful local routes:
 /api/billing/plans
 /api/billing/usage-analytics
 /api/routing/policy
+/api/warm/status
 /api/meal/order
 /api/providers/pilot
 /api/submissions/export
@@ -240,9 +242,10 @@ The public route compass shows what is active without exposing secrets:
 
 ```bash
 curl -sS http://127.0.0.1:3000/api/routing/policy
+curl -sS http://127.0.0.1:3000/api/warm/status
 ```
 
-Use `/routing` for the human-friendly view. It must label mock, external fallback, and selected Ocean provider work differently.
+Use `/routing` for the human-friendly route view and `/dashboard` for warm demo readiness. Both must label mock, external fallback, selected warm demo work, and later selected Ocean provider work differently.
 
 For the warm inference MVP, see `docs/warm-inference-runbook.md`. The practical first deployment is a GPU host with vLLM kept warm behind Fish Gateway or Fish Runner, optionally next to Ocean Node for provider identity and anchoring. Keep the vLLM endpoint private, cap usage, and do not claim Ocean-native live chat until selected-provider routing and proof labels support that claim.
 

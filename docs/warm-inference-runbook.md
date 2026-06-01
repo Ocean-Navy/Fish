@@ -205,6 +205,7 @@ Minimum checks before sending user traffic:
 
 ```bash
 curl -fsS http://127.0.0.1:3000/api/health
+curl -fsS http://127.0.0.1:3000/api/warm/status
 curl -fsS -H "authorization: Bearer $FISH_VLLM_API_KEY" http://127.0.0.1:8000/v1/models
 FISH_VLLM_BASE_URL=http://127.0.0.1:8000/v1 \
 FISH_VLLM_API_KEY="$FISH_VLLM_API_KEY" \
@@ -219,6 +220,7 @@ Operator readiness checks:
 - repeated smoke prompts do not grow memory without bound;
 - queue depth and concurrency limits are enforced by Runner or gateway policy;
 - route labels distinguish mock, warm demo, selected Ocean provider, and external fallback;
+- `/dashboard` shows warm demo readiness without endpoint URLs, API keys, prompts, or outputs;
 - public proof does not expose prompt or output text.
 
 ## Monitoring
