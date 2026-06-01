@@ -14,9 +14,10 @@ The public V0 is intentionally simple: a visual Venice fish-market homepage, rol
 - `/dashboard` with live Oncompute/Ocean supply signals and sample-data fallback.
 - `/proof` with a simple public proof harbor for receipts, provider boats, payouts, and benchmarks.
 - Waitlist/provider intake APIs that persist JSON submissions locally.
+- Admin-only signup export for launch lead follow-up.
 - Prototype `/v1` AI API with local API keys, Fish Credits debits, and usage receipts.
 - `/chat` with a model selector, short local browser thread, credit spend, and receipt display.
-- Production Docker image and Docker Compose service.
+- Production Docker image, Docker Compose service, and nginx-protected preview deployment.
 
 ## Quick Start
 
@@ -49,6 +50,7 @@ Useful local routes:
 /api/billing/usage-analytics
 /api/routing/policy
 /api/providers/pilot
+/api/submissions/export
 /api/proof/summary
 /api/proof/receipts
 /api/proof/providers
@@ -117,6 +119,43 @@ The container runs the Next.js standalone server as a non-root user. Form submis
 ```
 
 Compose mounts those paths as named volumes named `fish-submissions`, `fish-ledger`, `fish-proof`, and `fish-staking`.
+
+### Protected VM Preview
+
+For a fresh VM or password-protected preview, copy the production example, set a real admin token, and create an nginx password file:
+
+```bash
+cp .env.production.example .env.production
+make nginx-password BASIC_USER=fish BASIC_PASSWORD='replace-with-a-long-password'
+make preview-up
+```
+
+This runs the Next.js app behind nginx on port `80` with HTTP Basic Auth enabled for the whole site. The health route stays open for container checks:
+
+```bash
+curl -fsS http://127.0.0.1/api/health
+```
+
+Use `make preview-down` to stop it.
+
+### Signup Access
+
+The homepage form writes one JSON file per signup to the persistent Docker volume mounted at:
+
+```text
+/app/data/submissions
+```
+
+Export leads through the admin-only endpoint:
+
+```bash
+curl -u fish:'your-nginx-password' \
+  -H "x-fish-admin-token: $FISH_ADMIN_TOKEN" \
+  "http://your-server/api/submissions/export?format=csv" \
+  -o fish-submissions.csv
+```
+
+Use `kind=waitlist` or `kind=provider` to filter the export.
 
 ## Configuration
 

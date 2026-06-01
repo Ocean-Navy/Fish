@@ -152,6 +152,36 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ProviderPilotOperatorExport'
+  /api/submissions/export:
+    get:
+      summary: Admin-only waitlist and provider signup export
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: kind
+          schema:
+            type: string
+            enum: [all, waitlist, provider]
+            default: all
+        - in: query
+          name: format
+          schema:
+            type: string
+            enum: [json, csv]
+            default: json
+      responses:
+        '200':
+          description: Signup export
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubmissionExport'
+            text/csv:
+              schema:
+                type: string
+        '401':
+          description: Admin token required
   /api/providers/jobs:
     post:
       summary: Run a selected-provider prototype batch job
@@ -1327,6 +1357,29 @@ components:
                 type: string
               createdAt:
                 type: string
+    SubmissionExport:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        exportedAt:
+          type: string
+        rows:
+          type: array
+          items:
+            $ref: '#/components/schemas/SubmissionExportRow'
+    SubmissionExportRow:
+      type: object
+      properties:
+        id:
+          type: string
+        kind:
+          type: string
+          enum: [waitlist, provider]
+        createdAt:
+          type: string
+        body:
+          $ref: '#/components/schemas/WaitlistRequest'
     ProviderJobReceipt:
       type: object
       properties:

@@ -17,6 +17,54 @@ npm run verify
 docker build -t opfish-web:latest .
 ```
 
+## Fresh VM Preview Deployment
+
+This is the quickest safe launch path for a new server: Docker Compose runs the Fish app and nginx protects the whole site with a username and password.
+
+Server assumptions:
+
+- Ubuntu 22.04/24.04 or another Docker-friendly Linux image.
+- Ports `22` and `80` open.
+- Docker Engine with the Compose plugin installed.
+- Repository checked out from `https://github.com/Ocean-Navy/Fish.git`.
+
+On the VM:
+
+```bash
+git clone https://github.com/Ocean-Navy/Fish.git
+cd Fish
+cp .env.production.example .env.production
+```
+
+Edit `.env.production` and set at least:
+
+```text
+FISH_ADMIN_TOKEN=<long random secret>
+FISH_CHAT_BACKEND=mock
+```
+
+Create the nginx Basic Auth user:
+
+```bash
+make nginx-password BASIC_USER=fish BASIC_PASSWORD='<long preview password>'
+```
+
+Start the protected preview:
+
+```bash
+make preview-up
+docker compose -f deploy/docker-compose.preview.yml --env-file .env.production ps
+curl -fsS http://127.0.0.1/api/health
+```
+
+The site is then available at:
+
+```text
+http://<server-ip>/
+```
+
+The browser will ask for the nginx username and password. For a public launch, remove the preview auth proxy or replace it with a TLS/public nginx configuration while keeping `FISH_ADMIN_TOKEN` enabled for admin API exports.
+
 ## Run With Docker
 
 ```bash
@@ -54,10 +102,16 @@ docker compose down
 
 ## Reverse Proxy
 
-Put a TLS-terminating reverse proxy in front of the app and forward traffic to:
+For the protected preview, use:
+
+```bash
+docker compose -f deploy/docker-compose.preview.yml --env-file .env.production up --build -d
+```
+
+The included nginx config forwards traffic to:
 
 ```text
-http://127.0.0.1:3000
+http://fish-web:3000
 ```
 
 Required proxy headers:
@@ -80,6 +134,35 @@ The V0 form sink, prototype API ledger, provider proof receipts, payout accounti
 ```
 
 Back up these volumes or replace the sinks with a database/email/CRM integration and secret-managed signing key before running a public campaign.
+
+## Signup Exports
+
+Public forms write one JSON file per submission in `/app/data/submissions` inside the `fish-submissions` Docker volume.
+
+Admin export endpoint:
+
+```bash
+curl -u fish:'<nginx password>' \
+  -H "x-fish-admin-token: $FISH_ADMIN_TOKEN" \
+  "http://<server-ip>/api/submissions/export?format=csv" \
+  -o fish-submissions.csv
+```
+
+Filters:
+
+```text
+kind=all       default
+kind=waitlist  user, builder, and holder signups
+kind=provider  GPU provider applications
+format=json    JSON response instead of CSV
+```
+
+Direct volume fallback:
+
+```bash
+docker compose -f deploy/docker-compose.preview.yml --env-file .env.production exec fish-web \
+  sh -lc 'ls -lah /app/data/submissions'
+```
 
 ## Environment
 
@@ -143,3 +226,4 @@ Then browser-check:
 - `/api/billing/usage-analytics`
 - `/api/routing/policy`
 - `/api/staking/summary`
+- `/api/submissions/export?format=csv` with `x-fish-admin-token`
