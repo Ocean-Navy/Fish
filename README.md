@@ -21,7 +21,7 @@ The public V0 is intentionally simple: a visual Venice fish-market homepage, rol
 - `/api/warm/status` for public-safe warm Ocean demo readiness without endpoint URLs or secrets.
 - `/chat` remains available as the same pilot AI meal counter for chat-oriented links.
 - Production Docker image, Docker Compose service, and public nginx/systemd deployment.
-- Warm inference operator runbook for a private vLLM / Fish Runner MVP path.
+- Warm inference operator runbook and minimal Fish Runner sidecar for a private vLLM MVP path.
 
 ## Quick Start
 
@@ -467,7 +467,7 @@ data/sample_supply.json      Offline dashboard fallback
 data/node_endpoints.txt      Optional direct provider endpoints
 data/provider_allowlist.example.json Provider allowlist template
 docs/                        Implementation and visual identity notes
-deploy/warm-inference/       Private vLLM deployment examples
+deploy/warm-inference/       Private vLLM and Fish Runner deployment examples
 legacy/static-prototype/     Original static prototype
 Dockerfile                   Production standalone Next.js image
 docker-compose.yml           Production-like local service

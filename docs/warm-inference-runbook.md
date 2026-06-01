@@ -59,11 +59,13 @@ sudo mkdir -p /opt/fish-warm-inference
 sudo chown "$USER":"$USER" /opt/fish-warm-inference
 ```
 
-Copy the example compose file and smoke helper:
+Copy the example compose file, runner sidecar, and smoke helpers:
 
 ```bash
 cp deploy/warm-inference/docker-compose.vllm.example.yml /opt/fish-warm-inference/docker-compose.yml
+cp deploy/warm-inference/fish-runner.mjs /opt/fish-warm-inference/fish-runner.mjs
 cp scripts/smoke-vllm-openai-compatible.sh /opt/fish-warm-inference/smoke-vllm-openai-compatible.sh
+cp scripts/smoke-fish-runner.sh /opt/fish-warm-inference/smoke-fish-runner.sh
 cd /opt/fish-warm-inference
 ```
 
@@ -75,10 +77,25 @@ FISH_VLLM_MODEL=Qwen/Qwen2.5-14B-Instruct
 FISH_VLLM_SERVED_MODEL_NAME=fish-warm-chat
 FISH_VLLM_MAX_MODEL_LEN=4096
 FISH_VLLM_GPU_MEMORY_UTILIZATION=0.88
+FISH_RUNNER_ID=runner_ocean_navy_demo
+FISH_RUNNER_PROVIDER_ID=ocean-navy-demo-node
+FISH_RUNNER_API_KEY=<different long random secret>
+FISH_RUNNER_PRICE_USD_PER_1K_TOKENS=0
+FISH_RUNNER_MAX_QUEUE=2
+FISH_RUNNER_SIGNING_PRIVATE_KEY_PEM=
+FISH_RUNNER_SIGNING_KEY_ID=runner-ocean-navy-demo-ed25519
 HUGGING_FACE_HUB_TOKEN=
 ```
 
 Do not commit this file.
+
+To create an Ed25519 runner signing key for the env file, generate it on the operator machine and store the escaped private key as `FISH_RUNNER_SIGNING_PRIVATE_KEY_PEM`:
+
+```bash
+node -e 'const { generateKeyPairSync } = require("node:crypto"); const { privateKey, publicKey } = generateKeyPairSync("ed25519"); console.log("PRIVATE_ESCAPED=" + privateKey.export({ type: "pkcs8", format: "pem" }).replace(/\n/g, "\\n")); console.error(publicKey.export({ type: "spki", format: "pem" }));'
+```
+
+Keep the public key with provider onboarding notes. Keep the private key out of git.
 
 ## vLLM Launch
 
@@ -89,7 +106,7 @@ docker compose --env-file .env up -d
 docker compose logs -f vllm
 ```
 
-The example binds vLLM to `127.0.0.1:8000` on the GPU host. That is intentional. Expose it only to Fish Runner or Fish Gateway through private networking.
+The example binds vLLM to `127.0.0.1:8000` and Fish Runner to `127.0.0.1:8088` on the GPU host. That is intentional. Expose the runner only to Fish Gateway through private networking. Do not expose vLLM publicly.
 
 Check local health from the GPU host:
 
@@ -112,7 +129,7 @@ Expected result: the script verifies `/models`, posts a short `/chat/completions
 
 ## Fish Runner Sidecar
 
-The runner is the intended provider-side policy and proof layer between Fish Gateway and vLLM. Until that service exists, do not imply that the route has provider-side signed runner receipts.
+The runner is the intended provider-side policy and proof layer between Fish Gateway and vLLM. The repo includes a minimal no-dependency runner at `deploy/warm-inference/fish-runner.mjs`. It is still an MVP sidecar, not the final selected-provider network.
 
 Runner responsibilities:
 
@@ -123,6 +140,18 @@ Runner responsibilities:
 - record first-token latency, duration, token usage, status, and route id;
 - sign public-safe receipts without storing raw prompt or output text in public proof;
 - reject traffic when the model is cold, degraded, over budget, or queue depth is too high.
+
+Check runner health:
+
+```bash
+curl -fsS http://127.0.0.1:8088/healthz
+curl -fsS http://127.0.0.1:8088/models
+FISH_RUNNER_BASE_URL=http://127.0.0.1:8088 \
+FISH_RUNNER_API_KEY="$FISH_RUNNER_API_KEY" \
+./smoke-fish-runner.sh
+```
+
+Set `FISH_RUNNER_SMOKE_CHAT=1` on the smoke command only after vLLM is warm. Without that flag, the runner smoke checks health, model inventory, and receipt signing only.
 
 When Runner is not deployed, treat a direct Gateway-to-vLLM route as a controlled demo backend, not the final provider contract.
 
@@ -207,10 +236,14 @@ Minimum checks before sending user traffic:
 curl -fsS http://127.0.0.1:3000/api/health
 curl -fsS http://127.0.0.1:3000/api/warm/status
 curl -fsS -H "authorization: Bearer $FISH_VLLM_API_KEY" http://127.0.0.1:8000/v1/models
+curl -fsS http://127.0.0.1:8088/healthz
 FISH_VLLM_BASE_URL=http://127.0.0.1:8000/v1 \
 FISH_VLLM_API_KEY="$FISH_VLLM_API_KEY" \
 FISH_VLLM_MODEL="$FISH_VLLM_SERVED_MODEL_NAME" \
 ./smoke-vllm-openai-compatible.sh
+FISH_RUNNER_BASE_URL=http://127.0.0.1:8088 \
+FISH_RUNNER_API_KEY="$FISH_RUNNER_API_KEY" \
+./smoke-fish-runner.sh
 ```
 
 Operator readiness checks:
