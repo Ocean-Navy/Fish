@@ -60,6 +60,9 @@ type DishResult = {
   content: string;
   model: string;
   route?: string;
+  requestedRoute?: string;
+  fallbackFrom?: string | null;
+  fallbackReason?: string | null;
   costState?: string;
   receiptId?: string;
   creditsSpent?: number;
@@ -322,6 +325,9 @@ export function FishMealCounter() {
         content: payload.choices?.[0]?.message?.content ?? "",
         model: payload.model ?? selectedModel,
         route: payload.fish?.route,
+        requestedRoute: payload.fish?.requestedRoute,
+        fallbackFrom: payload.fish?.fallbackFrom,
+        fallbackReason: payload.fish?.fallbackReason,
         costState: payload.fish?.costState,
         receiptId: payload.fish?.receiptId,
         creditsSpent: payload.fish?.creditsSpent,
@@ -623,6 +629,12 @@ export function FishMealCounter() {
                 <Metric label="Tokens" value={String(result.totalTokens ?? 0)} />
                 <Metric label={result.accessMode === "guest" ? "Orders left" : "User price"} value={result.accessMode === "guest" ? String(result.quotaRemaining ?? 0) : `$${(result.userChargeUsd ?? 0).toFixed(4)}`} />
               </div>
+              {result.fallbackFrom ? (
+                <p className="mt-3 rounded-2xl border border-fish-gold/25 bg-fish-gold/10 p-4 text-sm font-black leading-6 text-fish-primary">
+                  Route changed: {formatBadge(result.fallbackFrom)} to {formatBadge(result.route ?? "")}
+                  {result.fallbackReason ? ` (${formatBadge(result.fallbackReason)})` : ""}.
+                </p>
+              ) : null}
               {result.receiptId ? (
                 <p className="mt-3 break-all rounded-2xl border border-fish-accent/15 bg-white/[0.035] p-4 text-xs font-bold leading-6 text-fish-secondary">
                   Activity id: <span className="text-fish-accent">{result.receiptId}</span>

@@ -60,6 +60,9 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
   let completionTokens = 0;
   let providerCostUsd = 0;
   let route: FishChatRouteId = activeRoute.id;
+  const requestedRoute: FishChatRouteId = activeRoute.id;
+  let fallbackFrom: FishChatRouteId | null = null;
+  let fallbackReason: string | null = null;
   let costState: FishCostState = activeRoute.costState;
   let providerId: string | null = activeRoute.providerId;
   let runnerReceipt: RunnerReceiptSummary | null = null;
@@ -74,6 +77,8 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
 
   if (!activeRoute.configured && activeRoute.id === "ocean-demo-vllm" && canUseExternalFallback(routerConfig, context)) {
     route = "external-fallback";
+    fallbackFrom = activeRoute.id;
+    fallbackReason = "primary_not_configured";
     costState = "fallback_verified";
     providerId = routerConfig.routes["external-fallback"].providerId;
   } else if (!activeRoute.configured) {
@@ -183,6 +188,8 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
         return releaseReservationAndReturn(context, reservation, fallback, "credit_reserve_release_fallback_error");
       }
       ({ content, responseModel, promptTokens, completionTokens, providerCostUsd, providerId, runnerReceipt } = fallback);
+      fallbackFrom = "ocean-demo-vllm";
+      fallbackReason = "primary_backend_error";
       route = "external-fallback";
       costState = "fallback_verified";
     }
@@ -213,6 +220,9 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
     latencyMs,
     providerCostUsd,
     providerId,
+    requestedRoute,
+    fallbackFrom,
+    fallbackReason,
     runnerReceipt,
     reservation
   });
@@ -249,6 +259,9 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
       },
       fish: {
         route: usage.receipt.route,
+        requestedRoute: usage.receipt.requestedRoute,
+        fallbackFrom: usage.receipt.fallbackFrom,
+        fallbackReason: usage.receipt.fallbackReason,
         feature: usage.receipt.feature,
         featureLabel: featurePolicy.label,
         costState: usage.receipt.costState,

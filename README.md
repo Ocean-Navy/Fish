@@ -222,10 +222,10 @@ data/node_endpoints.txt
 
 The Phase 1 API prototype is local-first. It proves API keys, credit debits, and usage receipts before selected Ocean provider routing is live.
 
-Default chat is a deterministic mock. To test the warm Ocean Navy demo route, point the same Fish API route at a private Fish Runner or OpenAI-compatible vLLM endpoint:
+Default chat is a deterministic mock. For a real demo deployment, use the Ocean-first route alias and point Fish Gateway at a private Fish Runner or OpenAI-compatible vLLM endpoint:
 
 ```text
-FISH_CHAT_ROUTE=ocean-demo-vllm
+FISH_CHAT_ROUTE=ocean-first
 FISH_OCEAN_DEMO_VLLM_BASE_URL=https://your-private-runner.example/v1
 FISH_OCEAN_DEMO_VLLM_API_KEY=...
 FISH_OCEAN_DEMO_VLLM_MODEL=fish-warm-chat
@@ -233,6 +233,8 @@ FISH_OCEAN_DEMO_PROVIDER_ID=ocean-navy-demo-node
 FISH_OCEAN_DEMO_COST_USD_PER_1K_TOKENS=0
 FISH_OCEAN_DEMO_DAILY_BUDGET_USD=50
 ```
+
+`FISH_CHAT_ROUTE=ocean-first`, `hybrid`, and `ocean-demo-vllm` all select the same warm demo route. If the warm route is selected but cannot serve a request, Fish may use the external fallback only when the account plan and fallback budget allow it. The response and receipt keep the final route plus `requestedRoute`, `fallbackFrom`, and `fallbackReason` so external use is visible.
 
 External fallback is separate and should stay capped:
 

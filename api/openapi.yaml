@@ -3055,6 +3055,17 @@ components:
         route:
           type: string
           enum: [mock, ocean-demo-vllm, ocean-provider, external-fallback]
+        requestedRoute:
+          type: string
+          nullable: true
+          enum: [mock, ocean-demo-vllm, ocean-provider, external-fallback]
+        fallbackFrom:
+          type: string
+          nullable: true
+          enum: [mock, ocean-demo-vllm, ocean-provider, external-fallback]
+        fallbackReason:
+          type: string
+          nullable: true
         feature:
           type: string
           nullable: true
@@ -3117,6 +3128,17 @@ components:
             route:
               type: string
               enum: [mock, ocean-demo-vllm, ocean-provider, external-fallback]
+            requestedRoute:
+              type: string
+              nullable: true
+              enum: [mock, ocean-demo-vllm, ocean-provider, external-fallback]
+            fallbackFrom:
+              type: string
+              nullable: true
+              enum: [mock, ocean-demo-vllm, ocean-provider, external-fallback]
+            fallbackReason:
+              type: string
+              nullable: true
             feature:
               type: string
               nullable: true

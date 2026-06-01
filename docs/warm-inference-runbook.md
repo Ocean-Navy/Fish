@@ -174,7 +174,7 @@ Keep Ocean Node ports and admin surfaces private or explicitly documented by the
 Current Fish V0 supports a mock route, an Ocean Navy demo vLLM route, and an external OpenAI-compatible fallback. When Fish Runner is deployed, point Fish Gateway at the runner's OpenAI-compatible `/v1` surface, not raw vLLM:
 
 ```text
-FISH_CHAT_ROUTE=ocean-demo-vllm
+FISH_CHAT_ROUTE=ocean-first
 FISH_CHAT_PAUSED=false
 FISH_ROUTER_KILL_SWITCH=false
 FISH_MAX_INPUT_TOKENS=1000
@@ -190,6 +190,8 @@ FISH_OCEAN_DEMO_PROVIDER_ID=ocean-navy-demo-node
 FISH_OCEAN_DEMO_COST_USD_PER_1K_TOKENS=<operator estimate>
 FISH_OCEAN_DEMO_DAILY_BUDGET_USD=<daily demo budget>
 ```
+
+`FISH_CHAT_ROUTE=ocean-first`, `hybrid`, and `ocean-demo-vllm` all choose the same warm demo lane. Use `ocean-first` in deployment files because it matches the product story; Fish still records the exact route that served each request.
 
 External fallback is intentionally separate:
 

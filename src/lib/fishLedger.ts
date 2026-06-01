@@ -231,6 +231,9 @@ type UsageReceipt = {
   grossMarginUsd: number;
   providerId: string | null;
   requestHash: string;
+  requestedRoute?: "mock" | "ocean-demo-vllm" | "ocean-provider" | "external-fallback" | null;
+  fallbackFrom?: "mock" | "ocean-demo-vllm" | "ocean-provider" | "external-fallback" | null;
+  fallbackReason?: string | null;
   runnerReceipt?: RunnerReceiptSummary | null;
 };
 
@@ -611,6 +614,9 @@ export async function recordChatUsage(params: {
   latencyMs?: number;
   providerCostUsd?: number;
   providerId?: string | null;
+  requestedRoute?: UsageReceipt["route"] | null;
+  fallbackFrom?: UsageReceipt["route"] | null;
+  fallbackReason?: string | null;
   runnerReceipt?: RunnerReceiptSummary | null;
   reservation?: CreditReservation | null;
 }) {
@@ -669,6 +675,9 @@ export async function recordChatUsage(params: {
     grossMarginUsd,
     providerId: params.providerId ?? null,
     requestHash: hashSecret(JSON.stringify(params.input.messages)),
+    requestedRoute: params.requestedRoute ?? null,
+    fallbackFrom: params.fallbackFrom ?? null,
+    fallbackReason: params.fallbackReason ?? null,
     runnerReceipt: params.runnerReceipt ?? null
   };
 

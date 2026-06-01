@@ -19,6 +19,9 @@ type ChatBubble = {
   content: string;
   model?: string;
   route?: string;
+  requestedRoute?: string;
+  fallbackFrom?: string | null;
+  fallbackReason?: string | null;
   costState?: string;
   receiptId?: string;
   creditsSpent?: number;
@@ -155,6 +158,9 @@ export function FishChatPrototype() {
         content: payload.choices?.[0]?.message?.content ?? "",
         model: payload.model ?? selectedModel,
         route: payload.fish?.route,
+        requestedRoute: payload.fish?.requestedRoute,
+        fallbackFrom: payload.fish?.fallbackFrom,
+        fallbackReason: payload.fish?.fallbackReason,
         costState: payload.fish?.costState,
         receiptId: payload.fish?.receiptId,
         creditsSpent: payload.fish?.creditsSpent ?? 0,
@@ -303,6 +309,12 @@ export function FishChatPrototype() {
                   {message.route ? <span className="rounded-full border border-fish-gold/25 bg-fish-gold/10 px-3 py-1 text-xs font-black text-fish-gold">{formatBadge(message.route)}</span> : null}
                 </div>
                 <p className="whitespace-pre-wrap text-base font-bold leading-7 text-white">{message.content}</p>
+                {message.fallbackFrom ? (
+                  <p className="mt-3 rounded-2xl border border-fish-gold/25 bg-fish-gold/10 p-4 text-sm font-black leading-6 text-fish-primary">
+                    Route changed: {formatBadge(message.fallbackFrom)} to {formatBadge(message.route ?? "")}
+                    {message.fallbackReason ? ` (${formatBadge(message.fallbackReason)})` : ""}.
+                  </p>
+                ) : null}
                 {message.receiptId ? (
                   <div className="mt-4 grid gap-3 sm:grid-cols-2">
                     <Metric label="Spent" value={String(message.creditsSpent ?? 0)} />

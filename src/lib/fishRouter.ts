@@ -118,7 +118,15 @@ export function getWarmInferenceConfig(): OpenAiCompatibleRouteConfig {
 }
 
 function normalizeRouteId(value: string | undefined): FishChatRouteId {
-  if (value === "ocean-demo-vllm" || value === "ocean_demo_vllm" || value === "vllm") {
+  if (
+    value === "ocean-demo-vllm" ||
+    value === "ocean_demo_vllm" ||
+    value === "vllm" ||
+    value === "ocean-first" ||
+    value === "ocean_first" ||
+    value === "hybrid" ||
+    value === "ocean-first-hybrid"
+  ) {
     return "ocean-demo-vllm";
   }
   if (value === "external" || value === "external-fallback" || value === "external_fallback") {
