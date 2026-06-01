@@ -69,7 +69,7 @@ export function VisualExplainers() {
           <ExplainerCard
             title="Who brings what?"
             subtitle="Users, builders, providers, and holders meet around the Fish vault."
-            image="/assets/generated/fish-system-map-labeled.png"
+            image="/assets/generated/fish-system-map-labeled-v3.png"
             imageAlt="Visual map of Fish users, builders, providers, and holders around a Venice fish market hub"
             labels={systemLabels}
           />
