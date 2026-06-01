@@ -111,10 +111,14 @@ paths:
                     $ref: '#/components/schemas/FishUsageReceipt'
                   creditsRemaining:
                     type: integer
+                  budget:
+                    $ref: '#/components/schemas/OceanBatchBudgetState'
         '401':
           description: Fish API key required
         '402':
           description: Insufficient Fish Credits
+        '429':
+          description: Ocean batch daily budget exceeded
         '502':
           description: Ocean batch backend failed
         '504':
@@ -1271,6 +1275,8 @@ components:
           type: integer
         providerCostUsd:
           type: number
+        budget:
+          $ref: '#/components/schemas/OceanBatchBudgetState'
         storesPromptOutputText:
           type: boolean
           enum: [false]
@@ -1282,6 +1288,17 @@ components:
           type: array
           items:
             type: string
+    OceanBatchBudgetState:
+      type: object
+      properties:
+        dailyBudgetUsd:
+          type: number
+        spentUsd:
+          type: number
+        estimatedCostUsd:
+          type: number
+        remainingUsd:
+          type: number
     OceanBatchReceipt:
       type: object
       properties:
@@ -1444,6 +1461,8 @@ components:
               type: object
               additionalProperties:
                 type: number
+            oceanBatchDailyBudgetUsd:
+              type: number
             quotaStorage:
               type: string
               enum: [local-json]

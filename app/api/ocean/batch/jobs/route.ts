@@ -40,7 +40,8 @@ export async function POST(request: Request) {
           message: result.error,
           type: result.status === 402 ? "billing_error" : "ocean_batch_error",
           needed: "needed" in result ? result.needed : undefined,
-          available: "available" in result ? result.available : undefined
+          available: "available" in result ? result.available : undefined,
+          budget: "budget" in result ? result.budget : undefined
         },
         receipt: "receipt" in result ? result.receipt : undefined
       },
@@ -52,6 +53,7 @@ export async function POST(request: Request) {
     ok: true,
     receipt: result.receipt,
     usageReceipt: result.usageReceipt,
-    creditsRemaining: result.creditsRemaining
+    creditsRemaining: result.creditsRemaining,
+    budget: result.budget
   });
 }

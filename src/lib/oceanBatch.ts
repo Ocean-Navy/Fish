@@ -98,9 +98,17 @@ export type OceanBatchSummary = {
   timedOutJobs: number;
   tokensProcessed: number;
   providerCostUsd: number;
+  budget: OceanBatchBudgetState;
   storesPromptOutputText: false;
   receipts: OceanBatchReceipt[];
   warnings: string[];
+};
+
+export type OceanBatchBudgetState = {
+  dailyBudgetUsd: number;
+  spentUsd: number;
+  estimatedCostUsd: number;
+  remainingUsd: number;
 };
 
 const oceanBatchReceiptSchema: z.ZodType<OceanBatchReceipt> = z.object({
@@ -147,6 +155,16 @@ export function parseOceanBatchJobRequest(body: unknown) {
 
 export async function runOceanBatchJob(request: OceanBatchJobRequestInput, context: OceanBatchJobContext) {
   const input = normalizeBatchInput(request);
+  const budget = await checkOceanBatchDailyBudget(input.maxCostUsd);
+  if (!budget.ok) {
+    return {
+      ok: false as const,
+      status: 429,
+      error: "ocean_batch_daily_budget_exceeded",
+      budget: budget.state
+    };
+  }
+
   const estimatedMaxCredits = Math.max(1, Math.ceil((input.estimatedInputTokens + input.maxOutputTokens) / 1000));
   const reservationResult = await reserveFishCredits({
     ledger: context.ledger,
@@ -267,7 +285,8 @@ export async function runOceanBatchJob(request: OceanBatchJobRequestInput, conte
     status: 200,
     receipt,
     usageReceipt: usage.receipt,
-    creditsRemaining: usage.creditsRemaining
+    creditsRemaining: usage.creditsRemaining,
+    budget: await oceanBatchBudgetState(0)
   };
 }
 
@@ -284,6 +303,7 @@ export async function summarizeOceanBatchJobs(): Promise<OceanBatchSummary> {
     timedOutJobs: receipts.filter((receipt) => receipt.status === "timed_out").length,
     tokensProcessed: receipts.reduce((sum, receipt) => sum + receipt.usage.totalTokens, 0),
     providerCostUsd: Number(receipts.reduce((sum, receipt) => sum + receipt.cost.providerCostUsd, 0).toFixed(6)),
+    budget: await oceanBatchBudgetState(0),
     storesPromptOutputText: false,
     receipts: selected,
     warnings: [
@@ -291,6 +311,36 @@ export async function summarizeOceanBatchJobs(): Promise<OceanBatchSummary> {
       ...(receipts.length && receipts.every((receipt) => receipt.sourceState === "sample") ? ["Only sample Ocean batch jobs exist. Configure an Ocean batch endpoint before treating this as live Ocean execution."] : [])
     ]
   };
+}
+
+async function checkOceanBatchDailyBudget(estimatedCostUsd: number) {
+  const state = await oceanBatchBudgetState(estimatedCostUsd);
+  return {
+    ok: state.spentUsd + state.estimatedCostUsd <= state.dailyBudgetUsd,
+    state
+  };
+}
+
+async function oceanBatchBudgetState(estimatedCostUsd: number): Promise<OceanBatchBudgetState> {
+  const dailyBudgetUsd = readOceanBatchDailyBudgetUsd();
+  const spentUsd = await sumOceanBatchProviderCostSince(startOfUtcDayIso());
+  const normalizedEstimate = Number(Math.max(0, estimatedCostUsd).toFixed(6));
+  return {
+    dailyBudgetUsd,
+    spentUsd,
+    estimatedCostUsd: normalizedEstimate,
+    remainingUsd: Number(Math.max(0, dailyBudgetUsd - spentUsd - normalizedEstimate).toFixed(6))
+  };
+}
+
+async function sumOceanBatchProviderCostSince(sinceIso: string) {
+  const receipts = await readBatchReceipts();
+  return Number(
+    receipts
+      .filter((receipt) => receipt.status === "succeeded" && receipt.createdAt >= sinceIso)
+      .reduce((sum, receipt) => sum + receipt.cost.providerCostUsd, 0)
+      .toFixed(6)
+  );
 }
 
 function normalizeBatchInput(input: OceanBatchJobRequestInput): OceanBatchJobInput {
@@ -503,6 +553,16 @@ function readProviderCostUsd(payload: Record<string, unknown>) {
 
 function readBatchProviderId() {
   return process.env.FISH_OCEAN_BATCH_PROVIDER_ID?.trim() || "ocean-batch-provider";
+}
+
+export function readOceanBatchDailyBudgetUsd() {
+  const parsed = Number(process.env.FISH_OCEAN_BATCH_DAILY_BUDGET_USD ?? "30");
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 30;
+}
+
+function startOfUtcDayIso() {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())).toISOString();
 }
 
 function sourceStateForAdapter(adapterMode: OceanBatchJobInput["adapterMode"]): DataState {

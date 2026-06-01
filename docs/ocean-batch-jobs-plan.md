@@ -31,6 +31,8 @@ Request shape:
 
 `inputRef` is a hash or storage reference. Do not send raw document text to this endpoint.
 
+Fish checks `maxCostUsd` against the remaining `FISH_OCEAN_BATCH_DAILY_BUDGET_USD` before calling a private adapter. The default daily cap is `$30`.
+
 ## Adapter Modes
 
 ```text

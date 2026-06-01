@@ -185,6 +185,7 @@ FISH_PROVIDER_JOB_API_KEY=
 FISH_OCEAN_BATCH_ENDPOINT=
 FISH_OCEAN_BATCH_API_KEY=
 FISH_OCEAN_BATCH_PROVIDER_ID=ocean-batch-provider
+FISH_OCEAN_BATCH_DAILY_BUDGET_USD=30
 FISH_CHAT_ROUTE=mock
 FISH_CHAT_BACKEND=mock
 FISH_MAX_INPUT_TOKENS=1000
@@ -489,7 +490,7 @@ GET /api/ocean/batch/jobs
 POST /api/ocean/batch/jobs
 ```
 
-`POST` requires a Fish API key and accepts only hash/reference input through `inputRef`; it does not accept or store raw document text. `adapterMode: "sample_success"` is the default local proof mode. Set `adapterMode: "ocean_http"` only when `FISH_OCEAN_BATCH_ENDPOINT` points to a private Oncompute/Ocean batch adapter.
+`POST` requires a Fish API key and accepts only hash/reference input through `inputRef`; it does not accept or store raw document text. `adapterMode: "sample_success"` is the default local proof mode. Set `adapterMode: "ocean_http"` only when `FISH_OCEAN_BATCH_ENDPOINT` points to a private Oncompute/Ocean batch adapter. Fish checks `maxCostUsd` against `FISH_OCEAN_BATCH_DAILY_BUDGET_USD` before calling the batch adapter.
 
 Batch receipts are written under `data/ocean-batch/`, and successful jobs also write Fish usage receipts so the public dashboard can count them as Ocean-native usage. See `docs/ocean-batch-jobs-plan.md` for the adapter contract.
 

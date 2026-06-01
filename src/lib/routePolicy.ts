@@ -1,5 +1,6 @@
 import { listFishFeaturePolicies, type FishFeatureId } from "@/lib/fishFeaturePolicy";
 import { getFishRouterConfig, type FishChatRouteId } from "@/lib/fishRouter";
+import { readOceanBatchDailyBudgetUsd } from "@/lib/oceanBatch";
 import type { DataState } from "@/lib/types";
 
 export type RouteModeId = FishChatRouteId | "ocean-batch" | "selected-ocean-provider" | "ocean-private" | "hardened-runner" | "tee-runner";
@@ -40,6 +41,7 @@ export type FishRoutePolicy = {
     dailyAnonymousQuota: number;
     externalFallbackFreeAllowed: boolean;
     dailyUsdBudgets: Record<FishChatRouteId, number>;
+    oceanBatchDailyBudgetUsd: number;
     quotaStorage: "local-json";
   };
   modes: Array<{
@@ -71,6 +73,7 @@ export function getFishRoutePolicy(): FishRoutePolicy {
   const activeRoute = activeRoutePolicy(configuredRoute.id, configuredRoute.status);
   const oceanBatchConfigured = Boolean(process.env.FISH_OCEAN_BATCH_ENDPOINT?.trim());
   const oceanBatchProviderId = process.env.FISH_OCEAN_BATCH_PROVIDER_ID?.trim() || "ocean-batch-provider";
+  const oceanBatchDailyBudgetUsd = readOceanBatchDailyBudgetUsd();
 
   return {
     dataState: "live",
@@ -96,6 +99,7 @@ export function getFishRoutePolicy(): FishRoutePolicy {
     guardrails: {
       ...router.guardrails,
       dailyUsdBudgets: router.budgets.dailyUsdByRoute,
+      oceanBatchDailyBudgetUsd,
       quotaStorage: "local-json"
     },
     modes: [
@@ -171,7 +175,13 @@ export function getFishRoutePolicy(): FishRoutePolicy {
       primary: feature.primary,
       fallback: feature.fallback,
       cap: feature.enabled
-        ? `${feature.cap} / ${feature.id === "api" ? `${router.guardrails.dailyKeyedQuota} keyed orders/day` : `${formatDailyBudget(router.budgets.dailyUsdByRoute["ocean-demo-vllm"])} daily`}`
+        ? `${feature.cap} / ${
+            feature.id === "api"
+              ? `${router.guardrails.dailyKeyedQuota} keyed orders/day`
+              : feature.id === "docs"
+                ? `${formatDailyBudget(oceanBatchDailyBudgetUsd)} batch daily`
+                : `${formatDailyBudget(router.budgets.dailyUsdByRoute["ocean-demo-vllm"])} daily`
+          }`
         : feature.cap
     })),
     rules: [
