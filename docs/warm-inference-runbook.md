@@ -258,6 +258,7 @@ Operator readiness checks:
 - route labels distinguish mock, warm demo, selected Ocean provider, and external fallback;
 - feature caps distinguish Ask, Code, Docs, Ocean help, API, and disabled Images behind one endpoint;
 - Fish Gateway reserves credits before backend calls and releases that reserve if the warm backend fails before usage is recorded;
+- `/v1/chat/completions` supports SSE compatibility when clients send `stream: true`; first-token streaming from Runner is still a later hardening step;
 - `/dashboard` shows warm demo readiness without endpoint URLs, API keys, prompts, or outputs;
 - public proof does not expose prompt or output text.
 

@@ -282,6 +282,8 @@ curl -sS http://127.0.0.1:3000/v1/chat/completions \
   -d '{"model":"fish-demo-chat","messages":[{"role":"user","content":"Explain Fish in one line"}]}'
 ```
 
+Set `"stream": true` for OpenAI-style server-sent events. V0 streaming is compatibility streaming after Gateway has settled the request; true first-token streaming from Fish Runner is a later hardening step.
+
 Before Fish calls a configured backend, Gateway reserves the maximum estimated credits for the request. Successful requests release the unused reserve and debit the measured usage. Backend failures release the reserve without recording a usage charge.
 
 Check balance, credit lanes, and receipts:
