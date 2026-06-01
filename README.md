@@ -18,6 +18,7 @@ The public V0 is intentionally simple: a visual Venice fish-market homepage, rol
 - Prototype `/v1` AI API with local API keys, Fish Credits debits, and usage receipts.
 - `/chat` with a model selector, short local browser thread, credit spend, and receipt display.
 - Production Docker image, Docker Compose service, and public nginx/systemd deployment.
+- Warm inference operator runbook for a private vLLM / Fish Runner MVP path.
 
 ## Quick Start
 
@@ -177,6 +178,18 @@ FISH_EXTERNAL_CHAT_API_KEY=
 FISH_EXTERNAL_CHAT_MODEL=
 FISH_EXTERNAL_PROVIDER_ID=external-compatible
 FISH_EXTERNAL_COST_USD_PER_1K_TOKENS=0
+FISH_WARM_ROUTE_ENABLED=false
+FISH_WARM_KILL_SWITCH=true
+FISH_WARM_OPENAI_BASE_URL=
+FISH_WARM_OPENAI_API_KEY=
+FISH_WARM_MODEL=fish-warm-chat
+FISH_WARM_PROVIDER_ID=ocean-navy-demo-vllm
+FISH_WARM_ROUTE_LABEL=ocean-navy-demo-warm-vllm
+FISH_WARM_MAX_INPUT_TOKENS=1000
+FISH_WARM_MAX_OUTPUT_TOKENS=512
+FISH_WARM_MAX_CONCURRENT_REQUESTS=2
+FISH_WARM_DAILY_REQUEST_LIMIT=100
+FISH_WARM_DAILY_COST_LIMIT_USD=25
 FISH_STAKING_CREDIT_BUDGET=10000
 FISH_STAKING_CREDITS_PER_OCEAN_MONTH=0.1
 ```
@@ -211,6 +224,8 @@ curl -sS http://127.0.0.1:3000/api/routing/policy
 ```
 
 Use `/routing` for the human-friendly view. It must label mock, external fallback, and selected Ocean provider work differently.
+
+For the warm inference MVP, see `docs/warm-inference-runbook.md`. The practical first deployment is a GPU host with vLLM kept warm behind Fish Gateway or Fish Runner, optionally next to Ocean Node for provider identity and anchoring. Keep the vLLM endpoint private, cap usage, and do not claim Ocean-native live chat until selected-provider routing and proof labels support that claim.
 
 Create a pilot key:
 
@@ -430,6 +445,7 @@ data/sample_supply.json      Offline dashboard fallback
 data/node_endpoints.txt      Optional direct provider endpoints
 data/provider_allowlist.example.json Provider allowlist template
 docs/                        Implementation and visual identity notes
+deploy/warm-inference/       Private vLLM deployment examples
 legacy/static-prototype/     Original static prototype
 Dockerfile                   Production standalone Next.js image
 docker-compose.yml           Production-like local service

@@ -241,6 +241,18 @@ FISH_EXTERNAL_CHAT_API_KEY=
 FISH_EXTERNAL_CHAT_MODEL=
 FISH_EXTERNAL_PROVIDER_ID=external-compatible
 FISH_EXTERNAL_COST_USD_PER_1K_TOKENS=0
+FISH_WARM_ROUTE_ENABLED=false
+FISH_WARM_KILL_SWITCH=true
+FISH_WARM_OPENAI_BASE_URL=
+FISH_WARM_OPENAI_API_KEY=
+FISH_WARM_MODEL=fish-warm-chat
+FISH_WARM_PROVIDER_ID=ocean-navy-demo-vllm
+FISH_WARM_ROUTE_LABEL=ocean-navy-demo-warm-vllm
+FISH_WARM_MAX_INPUT_TOKENS=1000
+FISH_WARM_MAX_OUTPUT_TOKENS=512
+FISH_WARM_MAX_CONCURRENT_REQUESTS=2
+FISH_WARM_DAILY_REQUEST_LIMIT=100
+FISH_WARM_DAILY_COST_LIMIT_USD=25
 FISH_STAKING_CREDIT_BUDGET=10000
 FISH_STAKING_CREDITS_PER_OCEAN_MONTH=0.1
 ```
@@ -248,6 +260,8 @@ FISH_STAKING_CREDITS_PER_OCEAN_MONTH=0.1
 Set `FISH_ADMIN_TOKEN` in production-like environments before issuing prototype API keys.
 Set `FISH_PROVIDER_ALLOWLIST` or mount `data/provider_allowlist.json` when the first selected providers are approved.
 Keep `FISH_CHAT_BACKEND=mock` for a no-secret local deployment. Set `FISH_CHAT_BACKEND=external`, `FISH_EXTERNAL_CHAT_BASE_URL`, `FISH_EXTERNAL_CHAT_API_KEY`, and `FISH_EXTERNAL_CHAT_MODEL` only when you want `/v1/chat/completions` to call a real OpenAI-compatible backend.
+
+Warm inference operations are covered in `docs/warm-inference-runbook.md`. The MVP path is a private vLLM endpoint, ideally behind Fish Runner, on a GPU host that may also run Ocean Node for provider identity and anchoring. Keep warm-route config disabled until the gateway/router implementation consumes it.
 
 ## Verification
 

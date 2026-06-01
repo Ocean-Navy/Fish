@@ -1,0 +1,353 @@
+# Fish Warm Inference Runbook
+
+This runbook covers the first practical warm inference MVP for Fish: a GPU host runs vLLM and, when available, a Fish Runner sidecar next to an optional Ocean Node. The model stays loaded in memory, and Fish Gateway reaches the OpenAI-compatible endpoint over a private path.
+
+This is an operator document. It does not change the current gateway route implementation and should not be read as a claim that public Fish chat is already Ocean-native.
+
+## Target Shape
+
+```text
+Fish website / API
+  -> Fish Gateway
+  -> private network or tunnel
+  -> Fish Runner sidecar
+  -> local vLLM OpenAI-compatible endpoint
+  -> warm open-source model
+
+Same GPU host, optional:
+  -> Ocean Node for provider identity and Ocean / Oncompute anchoring
+```
+
+For the MVP, prefer one reliable model on one GPU host. Do not launch a new Ocean compute job per chat message. That pattern is likely too slow for interactive chat unless Ocean / Oncompute offers a proven long-running warm endpoint with stable networking, streaming, auth, and uptime.
+
+## Operator Assumptions
+
+- Ubuntu 22.04/24.04 or another NVIDIA-supported Linux server.
+- NVIDIA driver and container toolkit are installed.
+- Docker Engine and the Docker Compose plugin are installed.
+- The GPU has enough VRAM for the selected model and context length.
+- Fish Gateway and the GPU host communicate over a private network, VPN, WireGuard tunnel, private cloud network, or an allowlisted reverse proxy.
+- Public inbound access to vLLM is blocked.
+- The first production-like route is capped, monitored, and has a kill switch.
+
+## Model Selection
+
+Choose the smallest model that is useful, stable, and fast on the available GPU. Good first classes to test are Qwen 14B/32B, Llama 8B class, Mistral-style models, Qwen Coder variants, or distill-style models that fit the host comfortably.
+
+Reliability beats headline model size. A model that consistently returns first tokens quickly is better for the public MVP than a larger model that frequently exhausts memory or stalls.
+
+## GPU Host Setup
+
+Install base packages:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y curl ca-certificates jq htop nvtop
+```
+
+Verify the GPU:
+
+```bash
+nvidia-smi
+docker run --rm --gpus all nvidia/cuda:12.4.1-base-ubuntu22.04 nvidia-smi
+```
+
+Create a runtime directory:
+
+```bash
+sudo mkdir -p /opt/fish-warm-inference
+sudo chown "$USER":"$USER" /opt/fish-warm-inference
+```
+
+Copy the example compose file and smoke helper:
+
+```bash
+cp deploy/warm-inference/docker-compose.vllm.example.yml /opt/fish-warm-inference/docker-compose.yml
+cp scripts/smoke-vllm-openai-compatible.sh /opt/fish-warm-inference/smoke-vllm-openai-compatible.sh
+cd /opt/fish-warm-inference
+```
+
+Create `/opt/fish-warm-inference/.env` with real values:
+
+```text
+FISH_VLLM_API_KEY=<long random secret>
+FISH_VLLM_MODEL=Qwen/Qwen2.5-14B-Instruct
+FISH_VLLM_SERVED_MODEL_NAME=fish-warm-chat
+FISH_VLLM_MAX_MODEL_LEN=4096
+FISH_VLLM_GPU_MEMORY_UTILIZATION=0.88
+HUGGING_FACE_HUB_TOKEN=
+```
+
+Do not commit this file.
+
+## vLLM Launch
+
+Start the engine:
+
+```bash
+docker compose --env-file .env up -d
+docker compose logs -f vllm
+```
+
+The example binds vLLM to `127.0.0.1:8000` on the GPU host. That is intentional. Expose it only to Fish Runner or Fish Gateway through private networking.
+
+Check local health from the GPU host:
+
+```bash
+curl -fsS \
+  -H "authorization: Bearer $FISH_VLLM_API_KEY" \
+  http://127.0.0.1:8000/v1/models
+```
+
+Run a small completion smoke:
+
+```bash
+FISH_VLLM_BASE_URL=http://127.0.0.1:8000/v1 \
+FISH_VLLM_API_KEY="$FISH_VLLM_API_KEY" \
+FISH_VLLM_MODEL="$FISH_VLLM_SERVED_MODEL_NAME" \
+./smoke-vllm-openai-compatible.sh
+```
+
+Expected result: the script verifies `/models`, posts a short `/chat/completions` request, and exits nonzero if either call fails.
+
+## Fish Runner Sidecar
+
+The runner is the intended provider-side policy and proof layer between Fish Gateway and vLLM. Until that service exists, do not imply that the route has provider-side signed runner receipts.
+
+Runner responsibilities:
+
+- accept traffic from Fish Gateway only;
+- enforce per-request token caps and concurrent request limits;
+- call vLLM over loopback or a private Docker network;
+- expose `/healthz`, `/models`, and `/v1/chat/completions`;
+- record first-token latency, duration, token usage, status, and route id;
+- sign public-safe receipts without storing raw prompt or output text in public proof;
+- reject traffic when the model is cold, degraded, over budget, or queue depth is too high.
+
+When Runner is not deployed, treat a direct Gateway-to-vLLM route as a controlled demo backend, not the final provider contract.
+
+## Optional Ocean Node Sidecar
+
+Run Ocean Node on the same machine only for provider identity, anchoring, and operational alignment unless a low-latency warm endpoint pattern is proven for Ocean / Oncompute.
+
+For the MVP:
+
+- Ocean Node may identify the provider host and support future provider discovery.
+- vLLM remains the low-latency model server.
+- Fish Runner or Fish Gateway remains the only caller of vLLM.
+- Do not route every interactive message through a fresh compute-to-data job.
+- Do not advertise "Ocean-native live chat" until a selected Ocean provider route actually serves traffic and proof labels reflect that.
+
+Keep Ocean Node ports and admin surfaces private or explicitly documented by the Ocean operator guide in use. The Fish repo does not currently carry an authoritative Ocean Node deployment template.
+
+## Fish Gateway Configuration
+
+Current Fish V0 supports a mock route and an external OpenAI-compatible backend. A warm route should use explicit config names when the gateway/router implementation lands:
+
+```text
+FISH_WARM_ROUTE_ENABLED=false
+FISH_WARM_KILL_SWITCH=true
+FISH_WARM_OPENAI_BASE_URL=http://127.0.0.1:8000/v1
+FISH_WARM_OPENAI_API_KEY=
+FISH_WARM_MODEL=fish-warm-chat
+FISH_WARM_PROVIDER_ID=ocean-navy-demo-vllm
+FISH_WARM_ROUTE_LABEL=ocean-navy-demo-warm-vllm
+FISH_WARM_MAX_INPUT_TOKENS=1000
+FISH_WARM_MAX_OUTPUT_TOKENS=512
+FISH_WARM_MAX_CONCURRENT_REQUESTS=2
+FISH_WARM_DAILY_REQUEST_LIMIT=100
+FISH_WARM_DAILY_COST_LIMIT_USD=25
+```
+
+Until those names are wired into the route, the existing prototype can smoke an OpenAI-compatible endpoint through:
+
+```text
+FISH_CHAT_BACKEND=external
+FISH_EXTERNAL_CHAT_BASE_URL=<private vLLM or runner /v1 base URL>
+FISH_EXTERNAL_CHAT_API_KEY=<runner or vLLM API key>
+FISH_EXTERNAL_CHAT_MODEL=fish-warm-chat
+FISH_EXTERNAL_PROVIDER_ID=ocean-navy-demo-vllm
+FISH_EXTERNAL_COST_USD_PER_1K_TOKENS=<operator estimate>
+```
+
+Use this only in private preview or controlled beta. Keep public route labels clear that this is a selected warm demo backend until Fish Runner receipts and selected-provider proof are live.
+
+## Network And Security
+
+Required controls:
+
+- vLLM binds to `127.0.0.1` or a private interface, never public `0.0.0.0` without a firewall and gateway auth.
+- Fish Gateway or Fish Runner authenticates with a long random API key or stronger service identity.
+- Public users never receive the vLLM base URL or API key.
+- Admin endpoints require `FISH_ADMIN_TOKEN`.
+- SSH is key-only and restricted to operators.
+- Firewall allows only SSH, public web ingress for Fish, and private gateway-to-runner traffic.
+- Logs avoid raw prompt and output text where possible.
+- Secrets live in `.env`, a system secret manager, or deployment secret store, not git.
+
+Example host firewall posture:
+
+```bash
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
+sudo ufw allow OpenSSH
+sudo ufw allow from <fish-gateway-private-ip> to any port 8000 proto tcp
+sudo ufw enable
+```
+
+If the endpoint is reached through nginx, Caddy, or a tunnel, require TLS and a service token at that layer and keep the upstream bound privately.
+
+## Health Checks
+
+Minimum checks before sending user traffic:
+
+```bash
+curl -fsS http://127.0.0.1:3000/api/health
+curl -fsS -H "authorization: Bearer $FISH_VLLM_API_KEY" http://127.0.0.1:8000/v1/models
+FISH_VLLM_BASE_URL=http://127.0.0.1:8000/v1 \
+FISH_VLLM_API_KEY="$FISH_VLLM_API_KEY" \
+FISH_VLLM_MODEL="$FISH_VLLM_SERVED_MODEL_NAME" \
+./smoke-vllm-openai-compatible.sh
+```
+
+Operator readiness checks:
+
+- first-token latency is acceptable for the selected model;
+- `nvidia-smi` shows stable VRAM use after warmup;
+- repeated smoke prompts do not grow memory without bound;
+- queue depth and concurrency limits are enforced by Runner or gateway policy;
+- route labels distinguish mock, warm demo, selected Ocean provider, and external fallback;
+- public proof does not expose prompt or output text.
+
+## Monitoring
+
+Track at least:
+
+- vLLM process uptime and restart count;
+- GPU utilization, VRAM use, power, and temperature;
+- request rate, error rate, timeout rate, and cancellation rate;
+- first-token latency p50/p95 and total latency p50/p95;
+- input tokens, output tokens, and estimated cost;
+- daily request and cost counters;
+- kill switch state;
+- last smoke result and model warm state.
+
+Useful local commands:
+
+```bash
+docker compose ps
+docker compose logs --tail=200 vllm
+nvidia-smi
+watch -n 2 nvidia-smi
+```
+
+Do not publish operator-only endpoint URLs, API keys, raw prompts, raw outputs, exact private IPs, or unreviewed provider contact details.
+
+## Cost Controls
+
+No public warm route should run without:
+
+- max input tokens;
+- max output tokens;
+- max requests per anonymous user per day;
+- max concurrent requests;
+- model-level daily request limit;
+- model-level daily cost limit;
+- backend kill switch;
+- timeout and cancellation handling;
+- fallback disabled by default for anonymous users.
+
+For first public testing, keep anonymous users to a very small allowance such as 3 to 5 short messages per day and 512 output tokens per response.
+
+## Smoke Test From Fish Gateway
+
+If Fish Gateway is configured to use the warm endpoint through the current external-compatible path:
+
+```bash
+curl -sS http://127.0.0.1:3000/v1/api_keys \
+  -H 'content-type: application/json' \
+  -H "x-fish-admin-token: $FISH_ADMIN_TOKEN" \
+  -d '{"label":"Warm route smoke","creditGrant":100,"planId":"free"}'
+```
+
+Then use the returned API key:
+
+```bash
+curl -fsS http://127.0.0.1:3000/v1/chat/completions \
+  -H 'content-type: application/json' \
+  -H "authorization: Bearer $FISH_API_KEY" \
+  -d '{
+    "model":"fish-demo-chat",
+    "messages":[{"role":"user","content":"Reply with one short sentence about Fish."}],
+    "max_tokens":64
+  }'
+```
+
+Check that the receipt stores usage and hashes only:
+
+```bash
+curl -fsS http://127.0.0.1:3000/v1/usage \
+  -H "authorization: Bearer $FISH_API_KEY"
+```
+
+## Rollback
+
+Immediate kill switch:
+
+```bash
+export FISH_WARM_KILL_SWITCH=true
+```
+
+For the current prototype route, switch back to mock:
+
+```text
+FISH_CHAT_BACKEND=mock
+FISH_EXTERNAL_CHAT_BASE_URL=
+FISH_EXTERNAL_CHAT_API_KEY=
+FISH_EXTERNAL_CHAT_MODEL=
+```
+
+Restart Fish Gateway after config changes:
+
+```bash
+docker compose restart fish-web
+```
+
+Stop vLLM on the GPU host:
+
+```bash
+cd /opt/fish-warm-inference
+docker compose down
+```
+
+Keep proof and usage files for incident review unless there is a clear legal or security requirement to remove local runtime data.
+
+## Incident Checklist
+
+Pause traffic when any of these happen:
+
+- error or timeout rate spikes;
+- first-token latency is consistently unacceptable;
+- GPU memory pressure causes restarts or degraded generations;
+- daily budget is close to exhausted;
+- endpoint auth is suspected to be exposed;
+- route labels would misrepresent the backend;
+- receipts or usage accounting look inconsistent.
+
+During an incident:
+
+1. Enable the kill switch or set `FISH_CHAT_BACKEND=mock`.
+2. Preserve logs and receipt files.
+3. Record start time, impact, route id, provider id, model, and config version.
+4. Check whether any prompt or output text leaked into public proof, exports, logs, or dashboards.
+5. Resume only after smoke tests, budget counters, and route labels are verified.
+
+## Definition Of Done For First Warm MVP
+
+- vLLM serves a chosen model from a private endpoint.
+- Fish Gateway or Runner can reach the endpoint without exposing it publicly.
+- A smoke script can call `/models` and `/chat/completions`.
+- Operators have a documented rollback to mock mode.
+- Monitoring covers health, latency, tokens, GPU pressure, and budget.
+- Public copy and proof labels do not overstate Ocean-native status.
+- Ocean Node, if present, is described as identity/anchoring until a proven warm endpoint path exists.

@@ -1,0 +1,38 @@
+services:
+  vllm:
+    image: vllm/vllm-openai:latest
+    restart: unless-stopped
+    ipc: host
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      HUGGING_FACE_HUB_TOKEN: ${HUGGING_FACE_HUB_TOKEN:-}
+      HF_HOME: /root/.cache/huggingface
+    volumes:
+      - vllm-hf-cache:/root/.cache/huggingface
+    command:
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      - --api-key
+      - ${FISH_VLLM_API_KEY:?set FISH_VLLM_API_KEY}
+      - --model
+      - ${FISH_VLLM_MODEL:?set FISH_VLLM_MODEL}
+      - --served-model-name
+      - ${FISH_VLLM_SERVED_MODEL_NAME:-fish-warm-chat}
+      - --max-model-len
+      - ${FISH_VLLM_MAX_MODEL_LEN:-4096}
+      - --gpu-memory-utilization
+      - ${FISH_VLLM_GPU_MEMORY_UTILIZATION:-0.88}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities:
+                - gpu
+
+volumes:
+  vllm-hf-cache:
