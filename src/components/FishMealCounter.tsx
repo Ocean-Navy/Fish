@@ -37,6 +37,7 @@ type FishDish = {
   systemPrompt: string;
   userWrapper: (input: string) => string;
   maxTokens: number;
+  modelAlias: string;
   icon: LucideIcon;
   disabled?: boolean;
 };
@@ -91,6 +92,7 @@ const dishes: FishDish[] = [
     systemPrompt: "You are Fish Quick Catch. Answer plainly in a helpful, concise way. Avoid hype and label uncertainty.",
     userWrapper: (input) => `Answer this user question in a short, useful way:\n\n${input}`,
     maxTokens: 700,
+    modelAlias: "fish-ask",
     icon: MessageSquareText
   },
   {
@@ -104,6 +106,7 @@ const dishes: FishDish[] = [
     systemPrompt: "You are Fish Code Roll. Give practical coding help with concise explanations and safe assumptions.",
     userWrapper: (input) => `Help with this coding task. Include code only when useful:\n\n${input}`,
     maxTokens: 1200,
+    modelAlias: "fish-code",
     icon: Code2
   },
   {
@@ -117,6 +120,7 @@ const dishes: FishDish[] = [
     systemPrompt: "You are Fish Clear Broth. Explain like a patient product guide. Use simple language and concrete examples.",
     userWrapper: (input) => `Explain this simply, with no marketing claims:\n\n${input}`,
     maxTokens: 700,
+    modelAlias: "fish-clear-broth",
     icon: Lightbulb
   },
   {
@@ -130,6 +134,7 @@ const dishes: FishDish[] = [
     systemPrompt: "You are Fish Docs Bento. Extract the main points, risks, and next step. Do not invent facts.",
     userWrapper: (input) => `Summarize this document text into bullets and one next step:\n\n${input}`,
     maxTokens: 900,
+    modelAlias: "fish-docs",
     icon: FileText
   },
   {
@@ -143,6 +148,7 @@ const dishes: FishDish[] = [
     systemPrompt: "Image generation is not enabled yet.",
     userWrapper: (input) => input,
     maxTokens: 1,
+    modelAlias: "fish-images",
     icon: ImageIcon,
     disabled: true
   },
@@ -157,6 +163,7 @@ const dishes: FishDish[] = [
     systemPrompt: "You are Fish Proposal Platter. Produce a practical proposal with scope, benefits, limits, and next steps.",
     userWrapper: (input) => `Turn these notes into a short proposal. Keep it honest and implementation-oriented:\n\n${input}`,
     maxTokens: 900,
+    modelAlias: "fish-proposal",
     icon: PenTool
   },
   {
@@ -171,6 +178,7 @@ const dishes: FishDish[] = [
       "You are Fish Ocean Special. Help explain Fish, Ocean Network, Oncompute, credits, and provider routing. Never claim full decentralization, live payouts, unlimited free AI, or staking yield.",
     userWrapper: (input) => `Answer using Fish/Ocean context and clear caveats where needed:\n\n${input}`,
     maxTokens: 700,
+    modelAlias: "fish-ocean-helper",
     icon: Waves
   }
 ];
@@ -268,6 +276,9 @@ export function FishMealCounter() {
       return;
     }
     setActiveDishId(nextDish.id);
+    if (models.some((model) => model.id === nextDish.modelAlias)) {
+      setSelectedModel(nextDish.modelAlias);
+    }
     setError(null);
     setPrompt((current) => current || nextDish.placeholder);
   }

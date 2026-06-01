@@ -977,7 +977,7 @@ paths:
                     $ref: '#/components/schemas/FishAccount'
   /v1/models:
     get:
-      summary: List prototype Fish models
+      summary: List prototype Fish models and dish aliases
       responses:
         '200':
           description: Model list
@@ -996,7 +996,7 @@ paths:
   /v1/chat/completions:
     post:
       summary: Create a prototype chat completion
-      description: OpenAI-style route that requires a Fish API key, debits credits, writes a usage receipt, and can optionally call a configured external compatible backend.
+      description: OpenAI-style route that requires a Fish API key, debits credits, writes a usage receipt, and can optionally call a configured external compatible backend. Dish model aliases such as `fish-ask`, `fish-code`, `fish-docs`, and `fish-ocean-helper` apply the matching Fish feature policy without requiring metadata.
       security:
         - bearerAuth: []
       requestBody:
@@ -2944,6 +2944,16 @@ components:
           type: string
         description:
           type: string
+        fishFeature:
+          type: string
+          nullable: true
+          enum: [ask, code, explain, docs, proposal, ocean]
+        featureLabel:
+          type: string
+          nullable: true
+        state:
+          type: string
+          nullable: true
     FishUsageTotals:
       type: object
       properties:
@@ -3089,6 +3099,7 @@ components:
         model:
           type: string
           default: fish-demo-chat
+          description: Use `fish-demo-chat` for the generic route, or a dish alias such as `fish-ask`, `fish-code`, `fish-docs`, `fish-ocean-helper`, `fish-clear-broth`, or `fish-proposal`.
         messages:
           type: array
           minItems: 1

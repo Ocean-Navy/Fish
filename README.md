@@ -283,13 +283,15 @@ List models:
 curl -sS http://127.0.0.1:3000/v1/models
 ```
 
+Core dish aliases are listed as models too: `fish-ask`, `fish-code`, `fish-docs`, `fish-ocean-helper`, `fish-clear-broth`, and `fish-proposal`. Passing one of these as `model` applies that dish's feature limits and receipt label even if you do not send `metadata.fish_feature`.
+
 Send a chat request:
 
 ```bash
 curl -sS http://127.0.0.1:3000/v1/chat/completions \
   -H 'content-type: application/json' \
   -H "authorization: Bearer $FISH_API_KEY" \
-  -d '{"model":"fish-demo-chat","messages":[{"role":"user","content":"Explain Fish in one line"}]}'
+  -d '{"model":"fish-ask","messages":[{"role":"user","content":"Explain Fish in one line"}]}'
 ```
 
 Set `"stream": true` for OpenAI-style server-sent events. V0 streaming is compatibility streaming after Gateway has settled the request; true first-token streaming from Fish Runner is a later hardening step.

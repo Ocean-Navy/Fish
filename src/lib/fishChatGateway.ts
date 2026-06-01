@@ -46,7 +46,7 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
 
   const promptText = input.messages.map((message) => (typeof message.content === "string" ? message.content : JSON.stringify(message.content))).join("\n");
   const routerConfig = getFishRouterConfig();
-  const featurePolicy = getFishFeaturePolicy(input.metadata, routerConfig);
+  const featurePolicy = getFishFeaturePolicy(input.metadata, routerConfig, input.model);
   const activeRoute = getActiveFishRoute(routerConfig);
   if (routerConfig.killSwitch || routerConfig.paused) {
     return jsonError(503, routerConfig.killSwitch ? "fish_router_disabled" : "fish_router_paused", "router_unavailable", {

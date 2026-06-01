@@ -2,6 +2,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import path from "node:path";
 import { z } from "zod";
+import { FISH_DISH_MODELS, fishFeatureIdFromModel } from "@/lib/fishFeaturePolicy";
 import type { DataState } from "@/lib/types";
 
 const ROOT = process.cwd();
@@ -28,6 +29,7 @@ export const FISH_MODELS = [
     owned_by: "ocean-navy",
     description: "Placeholder for selected Ocean provider batch inference."
   },
+  ...FISH_DISH_MODELS,
   ...(process.env.FISH_OCEAN_DEMO_VLLM_MODEL
     ? [
         {
@@ -131,7 +133,7 @@ export const FISH_PLANS: FishPlan[] = [
     rateLimitPerMinute: 12,
     monthlyRequestLimit: 1000,
     maxStoredThreadItems: 20,
-    allowedModels: ["fish-demo-chat"],
+    allowedModels: ["fish-demo-chat", ...FISH_DISH_MODELS.map((model) => model.id)],
     externalFallbackAllowed: false,
     oceanProviderAllowed: false
   },
@@ -143,7 +145,7 @@ export const FISH_PLANS: FishPlan[] = [
     rateLimitPerMinute: 60,
     monthlyRequestLimit: 20000,
     maxStoredThreadItems: 200,
-    allowedModels: ["fish-demo-chat", "external-compatible"],
+    allowedModels: ["fish-demo-chat", ...FISH_DISH_MODELS.map((model) => model.id), "external-compatible"],
     externalFallbackAllowed: true,
     oceanProviderAllowed: false
   },
@@ -155,7 +157,7 @@ export const FISH_PLANS: FishPlan[] = [
     rateLimitPerMinute: 180,
     monthlyRequestLimit: 100000,
     maxStoredThreadItems: 1000,
-    allowedModels: ["fish-demo-chat", "external-compatible", "selected-ocean-provider"],
+    allowedModels: ["fish-demo-chat", ...FISH_DISH_MODELS.map((model) => model.id), "external-compatible", "selected-ocean-provider"],
     externalFallbackAllowed: true,
     oceanProviderAllowed: true
   },
@@ -167,7 +169,7 @@ export const FISH_PLANS: FishPlan[] = [
     rateLimitPerMinute: 30,
     monthlyRequestLimit: 5000,
     maxStoredThreadItems: 50,
-    allowedModels: ["fish-demo-chat", "ocean-batch-placeholder"],
+    allowedModels: ["fish-demo-chat", ...FISH_DISH_MODELS.map((model) => model.id), "ocean-batch-placeholder"],
     externalFallbackAllowed: false,
     oceanProviderAllowed: true
   }
@@ -661,7 +663,7 @@ export async function recordChatUsage(params: {
     creditLane: "grant",
     createdAt: now,
     model: params.model ?? params.input.model,
-    feature: readFishFeature(params.input.metadata),
+    feature: readFishFeature(params.input.metadata, params.input.model),
     route: params.route ?? "mock",
     costState: params.costState ?? "prototype_estimate",
     status: params.status ?? "succeeded",
@@ -703,9 +705,12 @@ export async function recordChatUsage(params: {
   };
 }
 
-function readFishFeature(metadata: Record<string, unknown> | undefined) {
+function readFishFeature(metadata: Record<string, unknown> | undefined, model: string | undefined) {
   const feature = metadata?.fish_feature;
-  return typeof feature === "string" && feature.trim() ? feature.trim().slice(0, 80) : null;
+  if (typeof feature === "string" && feature.trim()) {
+    return feature.trim().slice(0, 80);
+  }
+  return fishFeatureIdFromModel(model);
 }
 
 export function buildMockCompletion(input: ChatCompletionInput) {

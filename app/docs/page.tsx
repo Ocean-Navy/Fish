@@ -10,13 +10,13 @@ export const metadata: Metadata = {
 
 const steps = [
   { title: "Get a key", body: "Start with one Fish API key." },
-  { title: "Pick a model", body: "Choose the model you want Fish to use." },
+  { title: "Pick a dish", body: "Use a dish model like fish-ask or fish-code." },
   { title: "Send a request", body: "Use a familiar chat shape." },
   { title: "Check usage", body: "See credits used and route status." }
 ];
 
 const cards = [
-  { label: "API", title: "Familiar chat", body: "Use a common chat request shape so builders can move fast." },
+  { label: "API", title: "Dish models", body: "Use fish-ask, fish-code, fish-docs, fish-ocean-helper, fish-clear-broth, or fish-proposal." },
   { label: "Routing", title: "Clear route labels", body: "Fish says whether an answer came from demo mode, outside AI, or selected Ocean providers." },
   { label: "Credits", title: "Credits from day one", body: "Every request should show the credits it used." },
   { label: "Providers", title: "Proof for provider work", body: "Provider jobs need public-safe proof before they become normal routes." }
