@@ -28,6 +28,17 @@ export const FISH_MODELS = [
     owned_by: "ocean-navy",
     description: "Placeholder for selected Ocean provider batch inference."
   },
+  ...(process.env.FISH_OCEAN_DEMO_VLLM_MODEL
+    ? [
+        {
+          id: process.env.FISH_OCEAN_DEMO_VLLM_MODEL,
+          object: "model",
+          created: 1780245000,
+          owned_by: process.env.FISH_OCEAN_DEMO_PROVIDER_ID || "ocean-navy-demo-node",
+          description: "Configured Ocean Navy warm vLLM demo route."
+        }
+      ]
+    : []),
   ...(process.env.FISH_EXTERNAL_CHAT_MODEL
     ? [
         {
@@ -184,11 +195,13 @@ type UsageReceipt = {
   creditLane: CreditLane;
   createdAt: string;
   model: string;
-  route: "mock" | "ocean-provider" | "external-fallback";
+  route: "mock" | "ocean-demo-vllm" | "ocean-provider" | "external-fallback";
   costState: "prototype_estimate" | "provider_verified" | "fallback_verified";
+  status: "succeeded" | "failed";
   promptTokens: number;
   completionTokens: number;
   totalTokens: number;
+  latencyMs: number;
   creditsSpent: number;
   userChargeUsd: number;
   providerCostUsd: number;
@@ -384,7 +397,7 @@ export async function summarizeFishUsage(): Promise<FishUsageSummary> {
     dataState,
     requests: ledger.accounts.reduce((sum, account) => sum + account.requestCount, 0),
     accounts: ledger.accounts.length,
-    oceanNativeJobs: receipts.filter((receipt) => receipt.route === "ocean-provider").length,
+    oceanNativeJobs: receipts.filter((receipt) => receipt.route === "ocean-provider" || receipt.route === "ocean-demo-vllm").length,
     externalFallbackJobs: receipts.filter((receipt) => receipt.route === "external-fallback").length,
     mockJobs: receipts.filter((receipt) => receipt.route === "mock").length,
     providerPayoutUsd: costs.providerCostUsd,
@@ -436,6 +449,8 @@ export async function recordChatUsage(params: {
   content: string;
   route?: UsageReceipt["route"];
   costState?: UsageReceipt["costState"];
+  status?: UsageReceipt["status"];
+  latencyMs?: number;
   providerCostUsd?: number;
   providerId?: string | null;
 }) {
@@ -473,9 +488,11 @@ export async function recordChatUsage(params: {
     model: params.model ?? params.input.model,
     route: params.route ?? "mock",
     costState: params.costState ?? "prototype_estimate",
+    status: params.status ?? "succeeded",
     promptTokens: params.promptTokens,
     completionTokens: params.completionTokens,
     totalTokens,
+    latencyMs: Math.max(0, Math.round(params.latencyMs ?? 0)),
     creditsSpent,
     userChargeUsd,
     providerCostUsd,

@@ -1,9 +1,6 @@
 import type { ChatCompletionInput } from "@/lib/fishLedger";
 
-const DEFAULT_EXTERNAL_PROVIDER_ID = "external-compatible";
-
-type ExternalChatConfig = {
-  backend: "mock" | "external";
+export type OpenAiCompatibleRouteConfig = {
   baseUrl: string | null;
   apiKey: string | null;
   model: string | null;
@@ -11,7 +8,7 @@ type ExternalChatConfig = {
   costUsdPer1kTokens: number;
 };
 
-type ExternalChatSuccess = {
+export type OpenAiCompatibleChatSuccess = {
   content: string;
   model: string;
   promptTokens: number | null;
@@ -20,7 +17,7 @@ type ExternalChatSuccess = {
   providerId: string;
 };
 
-export class ExternalChatError extends Error {
+export class OpenAiCompatibleChatError extends Error {
   constructor(
     readonly status: number,
     message: string
@@ -29,36 +26,30 @@ export class ExternalChatError extends Error {
   }
 }
 
-export function getExternalChatConfig(): ExternalChatConfig {
-  const route = process.env.FISH_CHAT_ROUTE;
-  const backend = process.env.FISH_CHAT_BACKEND;
-  return {
-    backend: route === "external-fallback" || backend === "external" ? "external" : "mock",
-    baseUrl: cleanEnv(process.env.FISH_EXTERNAL_CHAT_BASE_URL),
-    apiKey: cleanEnv(process.env.FISH_EXTERNAL_CHAT_API_KEY),
-    model: cleanEnv(process.env.FISH_EXTERNAL_CHAT_MODEL),
-    providerId: cleanEnv(process.env.FISH_EXTERNAL_PROVIDER_ID) ?? DEFAULT_EXTERNAL_PROVIDER_ID,
-    costUsdPer1kTokens: Number(process.env.FISH_EXTERNAL_COST_USD_PER_1K_TOKENS ?? "0")
-  };
+export function isOpenAiCompatibleRouteConfigured(config: OpenAiCompatibleRouteConfig) {
+  return Boolean(config.baseUrl && config.model);
 }
 
-export function isExternalChatEnabled(config = getExternalChatConfig()) {
-  return config.backend === "external" && Boolean(config.baseUrl && config.apiKey);
-}
-
-export async function runExternalChat(input: ChatCompletionInput, fallbackTokenEstimate: { promptTokens: number; completionTokens: number }): Promise<ExternalChatSuccess> {
-  const config = getExternalChatConfig();
-  if (!isExternalChatEnabled(config)) {
-    throw new ExternalChatError(503, "external_chat_not_configured");
+export async function runOpenAiCompatibleChat(
+  input: ChatCompletionInput,
+  config: OpenAiCompatibleRouteConfig,
+  fallbackTokenEstimate: { promptTokens: number; completionTokens: number }
+): Promise<OpenAiCompatibleChatSuccess> {
+  if (!isOpenAiCompatibleRouteConfigured(config)) {
+    throw new OpenAiCompatibleChatError(503, "openai_compatible_route_not_configured");
   }
 
-  const endpoint = `${config.baseUrl!.replace(/\/+$/, "")}/chat/completions`;
+  const endpoint = chatCompletionsEndpoint(config.baseUrl!);
+  const headers: Record<string, string> = {
+    "content-type": "application/json"
+  };
+  if (config.apiKey) {
+    headers.authorization = `Bearer ${config.apiKey}`;
+  }
+
   const upstream = await fetch(endpoint, {
     method: "POST",
-    headers: {
-      authorization: `Bearer ${config.apiKey}`,
-      "content-type": "application/json"
-    },
+    headers,
     body: JSON.stringify({
       model: config.model ?? input.model,
       messages: input.messages,
@@ -70,12 +61,12 @@ export async function runExternalChat(input: ChatCompletionInput, fallbackTokenE
 
   const payload = await upstream.json().catch(() => null);
   if (!upstream.ok) {
-    throw new ExternalChatError(upstream.status === 401 ? 502 : upstream.status, "external_chat_backend_error");
+    throw new OpenAiCompatibleChatError(upstream.status === 401 ? 502 : upstream.status, "openai_compatible_backend_error");
   }
 
   const content = readAssistantContent(payload);
   if (!content) {
-    throw new ExternalChatError(502, "external_chat_empty_response");
+    throw new OpenAiCompatibleChatError(502, "openai_compatible_empty_response");
   }
 
   const promptTokens = readNumber(payload, ["usage", "prompt_tokens"]);
@@ -91,6 +82,11 @@ export async function runExternalChat(input: ChatCompletionInput, fallbackTokenE
     providerCostUsd,
     providerId: config.providerId
   };
+}
+
+function chatCompletionsEndpoint(baseUrl: string) {
+  const clean = baseUrl.replace(/\/+$/, "");
+  return clean.endsWith("/chat/completions") ? clean : `${clean}/chat/completions`;
 }
 
 function readAssistantContent(payload: unknown) {
@@ -135,9 +131,4 @@ function readPath(payload: unknown, path: string[]) {
     current = (current as Record<string, unknown>)[part];
   }
   return current;
-}
-
-function cleanEnv(value: string | undefined) {
-  const clean = value?.trim();
-  return clean ? clean : null;
 }

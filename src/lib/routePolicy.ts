@@ -1,26 +1,42 @@
-import { getExternalChatConfig, isExternalChatEnabled } from "@/lib/externalChat";
+import { getFishRouterConfig, type FishChatRouteId } from "@/lib/fishRouter";
 import type { DataState } from "@/lib/types";
 
-export type RouteModeId = "mock" | "external-fallback" | "selected-ocean-provider" | "ocean-private" | "hardened-runner" | "tee-runner";
-export type RouteModeState = "active" | "ready" | "needs-config" | "pilot" | "future";
+export type RouteModeId = FishChatRouteId | "selected-ocean-provider" | "ocean-private" | "hardened-runner" | "tee-runner";
+export type RouteModeState = "active" | "ready" | "needs-config" | "paused" | "disabled" | "pilot" | "future";
 
 export type FishRoutePolicy = {
   dataState: DataState;
   generatedAt: string;
   activeRoute: {
-    id: "mock" | "external-fallback";
+    id: FishChatRouteId;
     label: string;
     isRealAi: boolean;
     privacy: string;
     evidence: string;
+    status: RouteModeState;
   };
   backend: {
-    chatBackend: "mock" | "external";
+    chatRoute: FishChatRouteId;
+    paused: boolean;
+    killSwitch: boolean;
+    warmConfigured: boolean;
+    warmBaseUrlConfigured: boolean;
+    warmApiKeyConfigured: boolean;
+    warmModel: string | null;
+    warmProviderId: string;
     externalConfigured: boolean;
     externalBaseUrlConfigured: boolean;
     externalApiKeyConfigured: boolean;
     externalModel: string | null;
     externalProviderId: string;
+  };
+  guardrails: {
+    maxInputTokens: number;
+    maxOutputTokens: number;
+    dailyKeyedQuota: number;
+    dailyAnonymousQuota: number;
+    externalFallbackFreeAllowed: boolean;
+    quotaStorage: "local-json";
   };
   modes: Array<{
     id: RouteModeId;
@@ -38,50 +54,55 @@ export type FishRoutePolicy = {
 };
 
 export function getFishRoutePolicy(): FishRoutePolicy {
-  const externalConfig = getExternalChatConfig();
-  const externalConfigured = isExternalChatEnabled(externalConfig);
-  const activeRoute = externalConfigured
-    ? {
-        id: "external-fallback" as const,
-        label: "Outside AI route",
-        isRealAi: true,
-        privacy: "Prompts go to the configured outside AI provider. Fish keeps usage numbers and a request hash.",
-        evidence: "Marked as outside AI, not Ocean provider proof."
-      }
-    : {
-        id: "mock" as const,
-        label: "Demo mode",
-        isRealAi: false,
-        privacy: "Demo answers stay inside the local app process.",
-        evidence: "Marked as a demo estimate so nobody confuses it with provider work."
-      };
+  const router = getFishRouterConfig();
+  const configuredRoute = router.routes[router.activeRouteId];
+  const activeRoute = activeRoutePolicy(configuredRoute.id, configuredRoute.status);
 
   return {
     dataState: "live",
     generatedAt: new Date().toISOString(),
     activeRoute,
     backend: {
-      chatBackend: externalConfig.backend,
-      externalConfigured,
-      externalBaseUrlConfigured: Boolean(externalConfig.baseUrl),
-      externalApiKeyConfigured: Boolean(externalConfig.apiKey),
-      externalModel: externalConfig.model,
-      externalProviderId: externalConfig.providerId
+      chatRoute: router.activeRouteId,
+      paused: router.paused,
+      killSwitch: router.killSwitch,
+      warmConfigured: router.routes["ocean-demo-vllm"].configured,
+      warmBaseUrlConfigured: Boolean(router.warm.baseUrl),
+      warmApiKeyConfigured: Boolean(router.warm.apiKey),
+      warmModel: router.warm.model,
+      warmProviderId: router.warm.providerId,
+      externalConfigured: router.routes["external-fallback"].configured,
+      externalBaseUrlConfigured: Boolean(router.external.baseUrl),
+      externalApiKeyConfigured: Boolean(router.external.apiKey),
+      externalModel: router.external.model,
+      externalProviderId: router.external.providerId
+    },
+    guardrails: {
+      ...router.guardrails,
+      quotaStorage: "local-json"
     },
     modes: [
       {
         id: "mock",
         title: "Demo answer",
-        state: activeRoute.id === "mock" ? "active" : "ready",
+        state: router.routes.mock.status,
         short: "Local answer for the first version.",
         privacy: "No outside provider is called.",
         proof: "Demo usage record."
       },
       {
+        id: "ocean-demo-vllm",
+        title: "Ocean demo vLLM",
+        state: router.routes["ocean-demo-vllm"].status,
+        short: "OpenAI-compatible warm inference route on the demo node.",
+        privacy: "Prompts go to the configured Ocean Navy demo vLLM endpoint.",
+        proof: "Warm inference receipt with route, provider id, latency, and token counts."
+      },
+      {
         id: "external-fallback",
         title: "Outside AI",
-        state: externalConfigured ? "active" : "needs-config",
-        short: "Real AI through an outside provider.",
+        state: router.routes["external-fallback"].status,
+        short: "Explicit fallback through an outside provider.",
         privacy: "Outside provider policy applies.",
         proof: "Outside AI usage record."
       },
@@ -121,11 +142,15 @@ export function getFishRoutePolicy(): FishRoutePolicy {
     rules: [
       {
         title: "Name the route",
-        body: "Demo, outside AI, and Ocean provider work must be labeled differently."
+        body: "Mock, Ocean demo vLLM, and external fallback work must be labeled differently."
       },
       {
-        title: "No fake Ocean",
-        body: "Fish must not claim Ocean routing until selected providers run jobs."
+        title: "Ocean proof is narrow",
+        body: "The warm demo node is labeled separately from the future selected-provider market."
+      },
+      {
+        title: "Caps before calls",
+        body: "Input tokens, output tokens, daily quota, and pause switches are checked before backend calls."
       },
       {
         title: "Usage stays clean",
@@ -136,6 +161,37 @@ export function getFishRoutePolicy(): FishRoutePolicy {
         body: "Outside AI can help launch, but that provider's privacy policy applies."
       }
     ],
-    nextMilestone: "Connect selected Ocean provider jobs to the chat/API route behind an allowlist and public-safe proof."
+    nextMilestone: "Operate the warm demo node, then connect selected Ocean provider jobs behind an allowlist and public-safe proof."
+  };
+}
+
+function activeRoutePolicy(id: FishChatRouteId, status: RouteModeState): FishRoutePolicy["activeRoute"] {
+  if (id === "ocean-demo-vllm") {
+    return {
+      id,
+      label: "Ocean demo vLLM",
+      isRealAi: true,
+      privacy: "Prompts go to the configured Ocean Navy warm inference endpoint. Fish keeps usage numbers and a request hash.",
+      evidence: "Marked as Ocean demo vLLM, not a generic external fallback.",
+      status
+    };
+  }
+  if (id === "external-fallback") {
+    return {
+      id,
+      label: "External fallback",
+      isRealAi: true,
+      privacy: "Prompts go to the configured outside AI provider only when this route is explicitly enabled.",
+      evidence: "Marked as fallback AI, not Ocean provider proof.",
+      status
+    };
+  }
+  return {
+    id,
+    label: "Demo mock",
+    isRealAi: false,
+    privacy: "Demo answers stay inside the local app process.",
+    evidence: "Marked as a demo estimate so nobody confuses it with provider work.",
+    status
   };
 }

@@ -23,12 +23,15 @@ const stateStyles: Record<RouteModeState, string> = {
   active: "border-emerald-300/40 bg-emerald-300/15 text-emerald-100",
   ready: "border-fish-accent/35 bg-fish-accent/15 text-fish-accent",
   "needs-config": "border-fish-gold/35 bg-fish-gold/15 text-fish-gold",
+  paused: "border-fish-gold/35 bg-fish-gold/15 text-fish-gold",
+  disabled: "border-fish-coral/35 bg-fish-coral/15 text-fish-coral",
   pilot: "border-fish-aqua/35 bg-fish-aqua/15 text-fish-aqua",
   future: "border-white/20 bg-white/[0.05] text-fish-secondary"
 };
 
 const modeIcons = {
   mock: Fish,
+  "ocean-demo-vllm": Anchor,
   "external-fallback": RouteIcon,
   "selected-ocean-provider": Anchor,
   "ocean-private": ShieldCheck,
