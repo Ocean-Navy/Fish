@@ -209,7 +209,7 @@ export function FishMealCounter() {
 
     try {
       const accessMode = key ? "key" : "guest";
-      const response = await fetch(`/api/box/${activeDish.id}/run`, {
+      const response = await fetch(`/api/dishes/${activeDish.id}/run`, {
         method: "POST",
         headers: {
           "content-type": "application/json",

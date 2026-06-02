@@ -158,7 +158,7 @@ export function buildFishDishChatInput(dish: FishDishDefinition, input: FishDish
       ...(input.metadata ?? {}),
       fish_feature: dish.id,
       fish_dish: dish.title,
-      fish_box_id: dish.id
+      fish_dish_id: dish.id
     },
     messages: [
       {

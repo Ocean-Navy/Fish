@@ -9,7 +9,7 @@ import { getFishRouterConfig } from "@/lib/fishRouter";
 
 export const dynamic = "force-dynamic";
 
-const boxRunSchema = z.object({
+const dishRunSchema = z.object({
   prompt: z.string().trim().min(1).max(20000),
   model: z.string().trim().min(1).optional(),
   max_tokens: z.number().int().min(1).max(4096).optional(),
@@ -18,22 +18,22 @@ const boxRunSchema = z.object({
   metadata: z.record(z.unknown()).optional()
 });
 
-export async function POST(request: Request, { params }: { params: Promise<{ boxId: string }> }) {
-  const { boxId } = await params;
-  const dish = getFishDish(boxId);
+export async function POST(request: Request, { params }: { params: Promise<{ dishId: string }> }) {
+  const { dishId } = await params;
+  const dish = getFishDish(dishId);
   if (!dish) {
-    return NextResponse.json({ error: { message: "fish_box_not_found", type: "not_found_error", boxId } }, { status: 404 });
+    return NextResponse.json({ error: { message: "fish_dish_not_found", type: "not_found_error", dishId } }, { status: 404 });
   }
   if (!dish.enabled) {
-    return NextResponse.json({ error: { message: "fish_box_not_enabled", type: "feature_not_enabled", boxId: dish.id } }, { status: 501 });
+    return NextResponse.json({ error: { message: "fish_dish_not_enabled", type: "feature_not_enabled", dishId: dish.id } }, { status: 501 });
   }
 
-  const parsed = boxRunSchema.safeParse(await request.json().catch(() => ({})));
+  const parsed = dishRunSchema.safeParse(await request.json().catch(() => ({})));
   if (!parsed.success) {
     return NextResponse.json(
       {
         error: {
-          message: "invalid_fish_box_request",
+          message: "invalid_fish_dish_request",
           type: "invalid_request_error",
           details: parsed.error.flatten().fieldErrors
         }
@@ -72,10 +72,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ box
   });
 
   if (wantsStream && result.ok) {
-    return streamChatCompletion(withBoxMetadata(result.body, dish.id, context.accessMode));
+    return streamChatCompletion(withDishMetadata(result.body, dish.id, context.accessMode));
   }
 
-  return NextResponse.json(withBoxMetadata(result.body, dish.id, context.accessMode), { status: result.ok ? 200 : result.status });
+  return NextResponse.json(withDishMetadata(result.body, dish.id, context.accessMode), { status: result.ok ? 200 : result.status });
 }
 
 async function resolveGatewayContext(request: Request, routerConfig: ReturnType<typeof getFishRouterConfig>) {
@@ -108,13 +108,13 @@ async function resolveGatewayContext(request: Request, routerConfig: ReturnType<
   };
 }
 
-function withBoxMetadata(body: Record<string, unknown>, boxId: string, accessMode: "guest" | "key") {
+function withDishMetadata(body: Record<string, unknown>, dishId: string, accessMode: "guest" | "key") {
   const fish = body.fish && typeof body.fish === "object" && !Array.isArray(body.fish) ? body.fish : {};
   return {
     ...body,
     fish: {
       ...fish,
-      boxId,
+      dishId,
       accessMode
     }
   };

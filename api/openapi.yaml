@@ -161,7 +161,7 @@ paths:
   /api/features:
     get:
       summary: Public Fish AI menu
-      description: Lists simple Fish menu boxes, model aliases, route labels, caps, and feature policy without exposing prompts or backend secrets.
+      description: Lists simple Fish menu dishes, model aliases, route labels, caps, and feature policy without exposing prompts or backend secrets.
       responses:
         '200':
           description: Fish feature menu
@@ -169,13 +169,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/FishFeatureMenu'
-  /api/box/{boxId}/run:
+  /api/dishes/{dishId}/run:
     post:
-      summary: Run a Fish AI menu box
-      description: Runs a menu box such as ask, code, docs, proposal, or ocean with server-side prompts. Uses guest credits when no bearer key is provided and Fish API-key credits when authorization is present.
+      summary: Run a Fish AI menu dish
+      description: Runs a menu dish such as ask, code, docs, proposal, or ocean with server-side prompts. Uses guest credits when no bearer key is provided and Fish API-key credits when authorization is present.
       parameters:
         - in: path
-          name: boxId
+          name: dishId
           required: true
           schema:
             type: string
@@ -185,24 +185,24 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/FishBoxRunRequest'
+              $ref: '#/components/schemas/FishDishRunRequest'
       responses:
         '200':
-          description: Fish box run completed
+          description: Fish dish run completed
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/FishChatCompletion'
         '400':
-          description: Invalid box request
+          description: Invalid dish request
         '401':
           description: Invalid bearer key when one is supplied
         '402':
           description: Insufficient Fish Credits
         '404':
-          description: Fish box not found
+          description: Fish dish not found
         '501':
-          description: Fish box not enabled
+          description: Fish dish not enabled
   /api/meal/order:
     post:
       summary: Guest Fish meal-counter order
@@ -3561,7 +3561,7 @@ components:
           type: string
         enabled:
           type: boolean
-    FishBoxRunRequest:
+    FishDishRunRequest:
       type: object
       required: [prompt]
       properties:
@@ -3571,7 +3571,7 @@ components:
           maxLength: 20000
         model:
           type: string
-          description: Optional model override. Defaults to the box model alias.
+          description: Optional model override. Defaults to the dish model alias.
         max_tokens:
           type: integer
           minimum: 1
@@ -3737,6 +3737,13 @@ components:
               nullable: true
             featureLabel:
               type: string
+            dishId:
+              type: string
+              nullable: true
+            accessMode:
+              type: string
+              nullable: true
+              enum: [guest, key]
             costState:
               type: string
               enum: [prototype_estimate, provider_verified, fallback_verified]
