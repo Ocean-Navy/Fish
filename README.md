@@ -288,7 +288,7 @@ curl -sS http://127.0.0.1:3000/api/warm/status
 
 Use `/routing` for the human-friendly route view and `/dashboard` for warm demo readiness. Both must label mock, external fallback, selected warm demo work, and later selected Ocean provider work differently.
 
-For the warm inference MVP, see `docs/warm-inference-runbook.md`. The practical first deployment is a GPU host with vLLM kept warm behind Fish Gateway or Fish Runner, optionally next to Ocean Node for provider identity and anchoring. Keep the vLLM endpoint private, cap usage, and do not claim Ocean-native live chat until selected-provider routing and proof labels support that claim.
+For the warm inference MVP, see `docs/warm-inference-runbook.md` and `docs/vllm-oncompute-runner-profiles.md`. The practical first deployment is a GPU host with vLLM kept warm behind Fish Gateway or Fish Runner, optionally next to Ocean Node for provider identity and anchoring. Keep the vLLM endpoint private, cap usage, and do not claim Ocean-native live chat until selected-provider routing and proof labels support that claim.
 
 Create a pilot key:
 

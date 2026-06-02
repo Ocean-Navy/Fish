@@ -36,6 +36,16 @@ Choose the smallest model that is useful, stable, and fast on the available GPU.
 
 Reliability beats headline model size. A model that consistently returns first tokens quickly is better for the public MVP than a larger model that frequently exhausts memory or stalls.
 
+For concrete VM and model profiles, see `docs/vllm-oncompute-runner-profiles.md`.
+
+Short version:
+
+```text
+Recommended first public runner: 1x L40S 48GB or A100 40GB+, Qwen/Qwen3-14B.
+Cheaper beta runner: 1x L4/RTX 4090/RTX 3090 24GB, Qwen/Qwen3-8B.
+Small smoke runner only: 16GB card, Qwen/Qwen3-8B-FP8, queue=1.
+```
+
 ## GPU Host Setup
 
 Install base packages:
@@ -72,10 +82,11 @@ cd /opt/fish-warm-inference
 Create `/opt/fish-warm-inference/.env` with real values:
 
 ```text
+FISH_VLLM_IMAGE=vllm/vllm-openai:latest
 FISH_VLLM_API_KEY=<long random secret>
-FISH_VLLM_MODEL=Qwen/Qwen2.5-14B-Instruct
+FISH_VLLM_MODEL=Qwen/Qwen3-14B
 FISH_VLLM_SERVED_MODEL_NAME=fish-warm-chat
-FISH_VLLM_MAX_MODEL_LEN=4096
+FISH_VLLM_MAX_MODEL_LEN=8192
 FISH_VLLM_GPU_MEMORY_UTILIZATION=0.88
 FISH_RUNNER_ID=runner_ocean_navy_demo
 FISH_RUNNER_PROVIDER_ID=ocean-navy-demo-node
@@ -87,12 +98,20 @@ FISH_RUNNER_SIGNING_KEY_ID=runner-ocean-navy-demo-ed25519
 HUGGING_FACE_HUB_TOKEN=
 ```
 
+Prepared starter env files:
+
+```text
+deploy/warm-inference/env.qwen3-8b.example
+deploy/warm-inference/env.qwen3-14b-l40s.example
+deploy/warm-inference/env.qwen3-8b-fp8-16gb.example
+```
+
 Do not commit this file.
 
 To create an Ed25519 runner signing key for the env file, generate it on the operator machine and store the escaped private key as `FISH_RUNNER_SIGNING_PRIVATE_KEY_PEM`:
 
 ```bash
-node -e 'const { generateKeyPairSync } = require("node:crypto"); const { privateKey, publicKey } = generateKeyPairSync("ed25519"); console.log("PRIVATE_ESCAPED=" + privateKey.export({ type: "pkcs8", format: "pem" }).replace(/\n/g, "\\n")); console.error(publicKey.export({ type: "spki", format: "pem" }));'
+node scripts/generate-fish-runner-key.mjs runner-ocean-navy-demo-ed25519
 ```
 
 Copy the public key into Fish Gateway as a trusted runner key:

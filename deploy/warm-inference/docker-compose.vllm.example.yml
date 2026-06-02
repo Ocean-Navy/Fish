@@ -1,6 +1,6 @@
 services:
   vllm:
-    image: vllm/vllm-openai:latest
+    image: ${FISH_VLLM_IMAGE:-vllm/vllm-openai:latest}
     restart: unless-stopped
     ipc: host
     ports:
