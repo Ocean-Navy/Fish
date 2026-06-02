@@ -1,12 +1,14 @@
 "use client";
 
-import { BadgeDollarSign, KeyRound, Loader2, ReceiptText, RefreshCcw } from "lucide-react";
+import { BadgeDollarSign, KeyRound, Loader2, ReceiptText, RefreshCcw, ShieldX } from "lucide-react";
 import { useState } from "react";
 import { formatDateTime, formatNumber, formatUsd } from "@/lib/format";
 
 type AccountPayload = {
   account: {
     label: string;
+    status: "active" | "revoked";
+    revokedAt: string | null;
     planId: string;
     plan: FishPlan;
     creditBalance: number;
@@ -80,7 +82,9 @@ export function FishAccountPanel() {
   const [account, setAccount] = useState<AccountPayload | null>(null);
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isRevoking, setIsRevoking] = useState(false);
 
   async function refreshAccount() {
     const key = apiKey.trim();
@@ -91,6 +95,7 @@ export function FishAccountPanel() {
 
     setIsLoading(true);
     setError(null);
+    setNotice(null);
     try {
       const headers = { authorization: `Bearer ${key}` };
       const [balanceResponse, usageResponse] = await Promise.all([fetch("/v1/balance", { headers }), fetch("/v1/usage", { headers })]);
@@ -109,6 +114,50 @@ export function FishAccountPanel() {
       setReceipts([]);
     } finally {
       setIsLoading(false);
+    }
+  }
+
+  async function revokeCurrentKey() {
+    const key = apiKey.trim();
+    if (!key) {
+      setError("Add a Fish API key.");
+      return;
+    }
+    if (!account || account.account.status === "revoked") {
+      setError("No active key is open.");
+      return;
+    }
+
+    setIsRevoking(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const response = await fetch("/v1/api_keys/current", {
+        method: "DELETE",
+        headers: { authorization: `Bearer ${key}` }
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(getErrorMessage(payload));
+      }
+      setAccount((current) =>
+        current
+          ? {
+              ...current,
+              account: {
+                ...current.account,
+                status: payload.account?.status ?? "revoked",
+                revokedAt: payload.account?.revokedAt ?? new Date().toISOString()
+              }
+            }
+          : current
+      );
+      setApiKey("");
+      setNotice("Key revoked. Existing receipts stay visible, but this key cannot be used again.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "request_failed");
+    } finally {
+      setIsRevoking(false);
     }
   }
 
@@ -153,6 +202,7 @@ export function FishAccountPanel() {
             {error}
           </div>
         ) : null}
+        {notice ? <div className="mt-4 rounded-2xl border border-emerald-300/30 bg-emerald-400/10 p-4 text-sm font-black text-emerald-100">{notice}</div> : null}
 
         <div className="mt-5 rounded-2xl border border-fish-accent/15 bg-white/[0.035] p-4 text-sm font-bold leading-6 text-fish-secondary">
           Fish reads the key for this check only. Activity rows show usage numbers, not prompt text.
@@ -170,14 +220,17 @@ export function FishAccountPanel() {
               <h2 className="text-2xl font-black text-white">{account?.account.label ?? "No tab open"}</h2>
             </div>
           </div>
-          <span className="rounded-full border border-fish-accent/20 bg-fish-accent/10 px-3 py-1 text-xs font-black text-fish-accent">{formatNumber(account?.totals.requests ?? 0)} uses</span>
+          <span className={`rounded-full border px-3 py-1 text-xs font-black uppercase tracking-[0.08em] ${account?.account.status === "revoked" ? "border-fish-coral/30 bg-fish-coral/10 text-fish-coral" : "border-fish-accent/20 bg-fish-accent/10 text-fish-accent"}`}>
+            {account ? account.account.status : `${formatNumber(0)} uses`}
+          </span>
         </div>
 
         {account ? (
           <div className="space-y-4">
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
               <Metric label="Credits left" value={formatNumber(account.totals.creditsRemaining)} />
               <Metric label="Credits spent" value={formatNumber(account.totals.creditsSpent)} />
+              <Metric label="Requests" value={formatNumber(account.totals.requests)} />
               <Metric label="Granted" value={formatNumber(account.account.totalCreditsGranted)} />
               <Metric label="Last used" value={formatDateTime(account.account.lastUsedAt)} />
             </div>
@@ -185,6 +238,23 @@ export function FishAccountPanel() {
               <Metric label="User charge" value={formatUsd(account.totals.userChargeUsd)} />
               <Metric label="Provider cost" value={formatUsd(account.totals.providerCostUsd)} />
               <Metric label="Gross margin" value={formatUsd(account.totals.grossMarginUsd)} />
+            </div>
+            <div className="flex flex-col gap-3 rounded-3xl border border-fish-accent/15 bg-fish-navy950/55 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-black uppercase tracking-[0.1em] text-fish-gold">Key status</p>
+                <p className="mt-1 text-sm font-bold text-fish-secondary">
+                  {account.account.status === "revoked" ? `Revoked ${formatDateTime(account.account.revokedAt)}` : "Active key. Revoke it if this key was shared or no longer needed."}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={revokeCurrentKey}
+                disabled={isRevoking || account.account.status === "revoked"}
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-fish-coral/35 px-5 text-xs font-black text-fish-coral transition hover:bg-fish-coral/10 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isRevoking ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <ShieldX className="h-4 w-4" aria-hidden="true" />}
+                Revoke key
+              </button>
             </div>
             <PlanDock plan={account.account.plan} />
             <CreditLaneNet lanes={account.creditLanes} />

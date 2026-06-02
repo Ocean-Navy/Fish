@@ -1030,6 +1030,51 @@ paths:
                   id:
                     type: string
   /v1/api_keys:
+    get:
+      summary: Show the current Fish API key metadata
+      description: Returns public metadata for the bearer key without exposing the key hash or any other account rows.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Current key metadata
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  object:
+                    type: string
+                    example: list
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        label:
+                          type: string
+                        createdAt:
+                          type: string
+                        lastUsedAt:
+                          type: string
+                          nullable: true
+                        status:
+                          type: string
+                          enum: [active, revoked]
+                        revokedAt:
+                          type: string
+                          nullable: true
+                        planId:
+                          type: string
+                          enum: [free, pro, team-api, provider-test]
+                        creditBalance:
+                          type: integer
+                        requestCount:
+                          type: integer
+        '401':
+          description: Fish API key required
     post:
       summary: Create a prototype Fish API key
       description: Requires an admin token in production. The returned key is shown once and stored only as a hash.
@@ -1069,6 +1114,31 @@ paths:
                     type: string
                   account:
                     $ref: '#/components/schemas/FishAccount'
+  /v1/api_keys/current:
+    delete:
+      summary: Revoke the current Fish API key
+      description: Marks the bearer key as revoked. Existing balances and receipts remain available in storage, but the key can no longer authenticate future requests.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Current key revoked
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  object:
+                    type: string
+                    example: api_key
+                  revoked:
+                    type: boolean
+                  alreadyRevoked:
+                    type: boolean
+                  account:
+                    $ref: '#/components/schemas/FishAccount'
+        '401':
+          description: Fish API key required or already revoked
   /v1/models:
     get:
       summary: List prototype Fish models and dish aliases
@@ -3162,6 +3232,12 @@ components:
           type: string
         createdAt:
           type: string
+        status:
+          type: string
+          enum: [active, revoked]
+        revokedAt:
+          type: string
+          nullable: true
         planId:
           type: string
           enum: [free, pro, team-api, provider-test]

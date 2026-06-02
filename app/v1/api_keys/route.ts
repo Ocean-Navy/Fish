@@ -1,7 +1,32 @@
 import { NextResponse } from "next/server";
-import { createApiKey, parseKeyRequest, requireAdmin } from "@/lib/fishLedger";
+import { authenticateRequest, createApiKey, parseKeyRequest, requireAdmin, summarizeAccount } from "@/lib/fishLedger";
 
 export const dynamic = "force-dynamic";
+
+export async function GET(request: Request) {
+  const auth = await authenticateRequest(request);
+  if (!auth.ok) {
+    return NextResponse.json({ error: { message: auth.error, type: "authentication_error" } }, { status: auth.status });
+  }
+
+  const summary = await summarizeAccount(auth.account);
+  return NextResponse.json({
+    object: "list",
+    data: [
+      {
+        id: summary.account.id,
+        label: summary.account.label,
+        createdAt: summary.account.createdAt,
+        lastUsedAt: summary.account.lastUsedAt,
+        status: summary.account.status,
+        revokedAt: summary.account.revokedAt,
+        planId: summary.account.planId,
+        creditBalance: summary.account.creditBalance,
+        requestCount: summary.account.requestCount
+      }
+    ]
+  });
+}
 
 export async function POST(request: Request) {
   const admin = requireAdmin(request);

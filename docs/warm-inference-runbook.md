@@ -358,6 +358,8 @@ curl -sS http://127.0.0.1:3000/v1/api_keys \
   -d '{"label":"Warm route smoke","creditGrant":100,"planId":"free"}'
 ```
 
+Key management stays prototype-simple: `GET /v1/api_keys` with a Fish bearer key shows the current key metadata, and `DELETE /v1/api_keys/current` revokes that bearer key without deleting historical receipts.
+
 Then use the returned API key:
 
 ```bash

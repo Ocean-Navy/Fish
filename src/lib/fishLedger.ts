@@ -100,6 +100,7 @@ export type Account = {
   label: string;
   keyHash: string;
   createdAt: string;
+  revokedAt?: string | null;
   planId?: FishPlanId;
   creditBalance: number;
   totalCreditsGranted: number;
@@ -374,6 +375,7 @@ export async function createApiKey(label: string, creditGrant: number, planId: F
     label,
     keyHash: hashSecret(key),
     createdAt: now,
+    revokedAt: null,
     planId,
     creditBalance: creditGrant,
     totalCreditsGranted: creditGrant,
@@ -420,6 +422,7 @@ export async function getOrCreateGuestAccount(guestId: string, creditGrant = 25)
     label: `Guest ${guestId.slice(0, 8)}`,
     keyHash,
     createdAt: now,
+    revokedAt: null,
     planId: "free",
     creditBalance: creditGrant,
     totalCreditsGranted: creditGrant,
@@ -469,11 +472,36 @@ export async function authenticateRequest(request: Request) {
       error: "invalid_api_key"
     };
   }
+  if (account.revokedAt) {
+    return {
+      ok: false as const,
+      status: 401,
+      error: "api_key_revoked"
+    };
+  }
 
   return {
     ok: true as const,
     ledger,
     account
+  };
+}
+
+export async function revokeApiKey(ledger: Ledger, account: Account) {
+  if (account.revokedAt) {
+    return {
+      ok: true as const,
+      alreadyRevoked: true,
+      account: publicAccount(account)
+    };
+  }
+
+  account.revokedAt = new Date().toISOString();
+  await writeLedger(ledger);
+  return {
+    ok: true as const,
+    alreadyRevoked: false,
+    account: publicAccount(account)
   };
 }
 
@@ -1180,6 +1208,8 @@ function publicAccount(account: Account) {
     createdAt: account.createdAt,
     planId: plan.planId,
     plan,
+    status: account.revokedAt ? "revoked" : "active",
+    revokedAt: account.revokedAt ?? null,
     creditBalance: account.creditBalance,
     totalCreditsGranted: account.totalCreditsGranted,
     totalCreditsSpent: account.totalCreditsSpent,
