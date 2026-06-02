@@ -73,6 +73,48 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/ProviderScore'
+  /api/ocean/provider-readiness:
+    post:
+      summary: Admin-only selected Ocean provider readiness check
+      description: Checks selected-provider route config, provider proof allowlist state, `/models`, and optionally one tiny chat probe without returning endpoint URLs, API keys, prompt text, or output text.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                probeModels:
+                  type: boolean
+                  default: true
+                probeChat:
+                  type: boolean
+                  default: false
+                  description: When true, sends one tiny chat request to the selected provider route. This may incur provider cost.
+                timeoutMs:
+                  type: integer
+                  minimum: 250
+                  maximum: 30000
+                  default: 3000
+                workloadType:
+                  type: string
+                  default: chat_batch
+                model:
+                  type: string
+                  description: Optional proof-job model to check against the provider allowlist.
+      responses:
+        '200':
+          description: Selected-provider readiness result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OceanProviderReadiness'
+        '400':
+          description: Invalid readiness request
+        '401':
+          description: Admin token required
   /api/dashboard/summary:
     get:
       summary: Unified public Fish dashboard summary
@@ -2054,6 +2096,149 @@ components:
           type: array
           items:
             type: string
+    OceanProviderReadiness:
+      type: object
+      properties:
+        object:
+          type: string
+          example: selected_ocean_provider_readiness
+        dataState:
+          type: string
+          enum: [live, snapshot, sample, unavailable]
+        generatedAt:
+          type: string
+        status:
+          type: string
+          enum: [ready, needs-config, needs-proof, failed]
+        trafficReady:
+          type: boolean
+        proofJobReady:
+          type: boolean
+        provider:
+          type: object
+          properties:
+            providerId:
+              type: string
+            publicLabel:
+              type: string
+        route:
+          type: object
+          properties:
+            routeId:
+              type: string
+              enum: [ocean-provider]
+            routeActive:
+              type: boolean
+            paused:
+              type: boolean
+            killSwitch:
+              type: boolean
+            configured:
+              type: boolean
+            baseUrlConfigured:
+              type: boolean
+            apiKeyConfigured:
+              type: boolean
+            configuredModel:
+              type: string
+              nullable: true
+        pilot:
+          type: object
+          properties:
+            allowlisted:
+              type: boolean
+            allowedForWorkload:
+              type: boolean
+            allowedForModel:
+              type: boolean
+            jobEndpointConfigured:
+              type: boolean
+            workloadType:
+              type: string
+            checkedModel:
+              type: string
+        probes:
+          type: object
+          properties:
+            models:
+              $ref: '#/components/schemas/OceanProviderEndpointProbe'
+            chat:
+              $ref: '#/components/schemas/OceanProviderChatProbe'
+        checks:
+          type: array
+          items:
+            $ref: '#/components/schemas/OceanProviderReadinessCheck'
+        warnings:
+          type: array
+          items:
+            type: string
+        nextActions:
+          type: array
+          items:
+            type: string
+    OceanProviderEndpointProbe:
+      type: object
+      properties:
+        state:
+          type: string
+          enum: [ok, failed, skipped]
+        latencyMs:
+          type: integer
+          nullable: true
+        statusCode:
+          type: integer
+          nullable: true
+        modelVisible:
+          type: boolean
+          nullable: true
+        message:
+          type: string
+    OceanProviderChatProbe:
+      type: object
+      properties:
+        state:
+          type: string
+          enum: [ok, failed, skipped]
+        latencyMs:
+          type: integer
+          nullable: true
+        model:
+          type: string
+          nullable: true
+        contentHash:
+          type: string
+          nullable: true
+        promptTokens:
+          type: integer
+          nullable: true
+        completionTokens:
+          type: integer
+          nullable: true
+        providerCostUsd:
+          type: number
+          nullable: true
+        runnerSignatureState:
+          type: string
+          nullable: true
+        runnerReceiptHash:
+          type: string
+          nullable: true
+        message:
+          type: string
+    OceanProviderReadinessCheck:
+      type: object
+      properties:
+        id:
+          type: string
+        label:
+          type: string
+        ready:
+          type: boolean
+        requiredFor:
+          type: string
+          enum: [traffic, proof, operator]
+        detail:
+          type: string
     WarmInferenceStatus:
       type: object
       properties:

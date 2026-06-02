@@ -231,6 +231,30 @@ FISH_RUNNER_PUBLIC_KEY_PEM=<provider runner public key with newlines escaped as 
 
 Only `team-api` and `provider-test` plans may use the selected-provider route in the V0 gateway. This keeps public demo traffic from accidentally depending on one private provider while selected-provider proof is still being validated.
 
+### Selected provider reality check
+
+Use the admin-only readiness endpoint before claiming selected Ocean provider traffic is live:
+
+```bash
+curl -fsS \
+  -H "content-type: application/json" \
+  -H "x-fish-admin-token: $FISH_ADMIN_TOKEN" \
+  -X POST "$FISH_APP_URL/api/ocean/provider-readiness" \
+  --data '{"probeModels":true,"probeChat":true,"timeoutMs":5000}'
+```
+
+The response separates three different facts:
+
+- `route.configured`: Fish has `FISH_OCEAN_PROVIDER_BASE_URL` and `FISH_OCEAN_PROVIDER_MODEL`.
+- `probes.models.state=ok`: the selected provider answered `/models`.
+- `probes.chat.state=ok`: the selected provider answered one tiny chat through the same OpenAI-compatible adapter used by `/v1/chat/completions`.
+
+`trafficReady=true` requires the selected-provider route to be active, unpaused, visible through `/models`, and proven by a chat probe. A model-list probe alone is not enough.
+
+`proofJobReady=true` is separate. It requires the provider allowlist and private provider job endpoint used by `/api/providers/jobs` and `/api/providers/smoke`. This proves hash-only provider proof jobs can run; it does not by itself prove low-latency chat.
+
+The readiness response never returns raw provider URLs, API keys, prompt text, or output text. If the chat probe succeeds it returns only timing, token counts, a response hash, cost estimate, and Fish Runner receipt metadata when the runner provides it.
+
 External fallback is intentionally separate:
 
 ```text

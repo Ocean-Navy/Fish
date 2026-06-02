@@ -23,6 +23,7 @@ export type OpenAiCompatibleRouteContext = {
   routeId: string;
   idempotencyKey: string;
   maxBudgetUsd: number;
+  timeoutMs?: number;
 };
 
 export class OpenAiCompatibleChatError extends Error {
@@ -82,7 +83,8 @@ export async function runOpenAiCompatibleChat(
           : {}),
       ...(input.temperature === undefined ? {} : { temperature: input.temperature }),
       ...(input.max_tokens === undefined ? {} : { max_tokens: input.max_tokens })
-    })
+    }),
+    ...(routeContext?.timeoutMs ? { signal: AbortSignal.timeout(routeContext.timeoutMs) } : {})
   });
 
   const payload = await upstream.json().catch(() => null);
