@@ -34,7 +34,7 @@ COPY --from=builder /app/data/node_endpoints.txt ./data/node_endpoints.txt
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
-RUN mkdir -p /app/data/submissions /app/data/fish/receipts /app/data/proof/receipts /app/data/proof/payout-events /app/data/proof/payout-batches /app/data/proof/benchmark-runs /app/data/staking/positions \
+RUN mkdir -p /app/data/submissions /app/data/fish/receipts /app/data/ocean-batch/receipts /app/data/proof/receipts /app/data/proof/payout-events /app/data/proof/payout-batches /app/data/proof/benchmark-runs /app/data/staking/positions \
   && chown -R nextjs:nodejs /app/data
 
 USER nextjs

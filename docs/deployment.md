@@ -134,6 +134,7 @@ docker run -d \
   -e FISH_ADMIN_TOKEN="$FISH_ADMIN_TOKEN" \
   -v opfish-submissions:/app/data/submissions \
   -v opfish-ledger:/app/data/fish \
+  -v opfish-ocean-batch:/app/data/ocean-batch \
   -v opfish-proof:/app/data/proof \
   -v opfish-staking:/app/data/staking \
   opfish-web:latest
@@ -183,11 +184,12 @@ X-Forwarded-For
 
 ## Persistent Data
 
-The V0 form sink, prototype API ledger, provider proof receipts, payout accounting files, benchmark runs, offchain staking credits, and the prototype proof signing key write JSON to:
+The V0 form sink, prototype API ledger, Ocean batch receipts, provider proof receipts, payout accounting files, benchmark runs, offchain staking credits, and the prototype proof signing key write JSON to:
 
 ```text
 /app/data/submissions
 /app/data/fish
+/app/data/ocean-batch
 /app/data/proof
 /app/data/staking
 ```

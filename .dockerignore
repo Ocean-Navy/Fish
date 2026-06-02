@@ -15,6 +15,7 @@ deploy/nginx/auth/.htpasswd
 data/submissions
 data/forms
 data/fish
+data/ocean-batch
 data/proof
 data/staking
 data/provider_allowlist.json
