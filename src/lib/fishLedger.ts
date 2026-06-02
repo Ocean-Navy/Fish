@@ -13,27 +13,32 @@ const RECEIPTS_DIR = path.join(LEDGER_DIR, "receipts");
 const FISH_CREDIT_USD = 0.001;
 const CREDIT_LANES = ["grant", "subscription", "prepaid", "staking", "adjustment", "refund"] as const;
 const FISH_PLAN_IDS = ["free", "pro", "team-api", "provider-test"] as const;
+const FISH_CHAT_MODEL_ID = "fish-demo-chat";
+const FISH_OCEAN_BATCH_MODEL_ID = "ocean-batch-placeholder";
+const FISH_DISH_MODEL_IDS = FISH_DISH_MODELS.map((model) => model.id);
+const FISH_OCEAN_DEMO_MODEL_IDS = compactIds([process.env.FISH_OCEAN_DEMO_VLLM_MODEL]);
+const FISH_EXTERNAL_MODEL_IDS = compactIds([process.env.FISH_EXTERNAL_CHAT_MODEL]);
 
-export const FISH_MODELS = [
+export const FISH_MODELS = uniqueModels([
   {
-    id: "fish-demo-chat",
+    id: FISH_CHAT_MODEL_ID,
     object: "model",
     created: 1780245000,
     owned_by: "ocean-navy",
     description: "Prototype Fish chat route with local credits and usage receipts."
   },
   {
-    id: "ocean-batch-placeholder",
+    id: FISH_OCEAN_BATCH_MODEL_ID,
     object: "model",
     created: 1780245000,
     owned_by: "ocean-navy",
     description: "Placeholder for selected Ocean provider batch inference."
   },
   ...FISH_DISH_MODELS,
-  ...(process.env.FISH_OCEAN_DEMO_VLLM_MODEL
+  ...(FISH_OCEAN_DEMO_MODEL_IDS[0]
     ? [
         {
-          id: process.env.FISH_OCEAN_DEMO_VLLM_MODEL,
+          id: FISH_OCEAN_DEMO_MODEL_IDS[0],
           object: "model",
           created: 1780245000,
           owned_by: process.env.FISH_OCEAN_DEMO_PROVIDER_ID || "ocean-navy-demo-node",
@@ -41,10 +46,10 @@ export const FISH_MODELS = [
         }
       ]
     : []),
-  ...(process.env.FISH_EXTERNAL_CHAT_MODEL
+  ...(FISH_EXTERNAL_MODEL_IDS[0]
     ? [
         {
-          id: process.env.FISH_EXTERNAL_CHAT_MODEL,
+          id: FISH_EXTERNAL_MODEL_IDS[0],
           object: "model",
           created: 1780245000,
           owned_by: process.env.FISH_EXTERNAL_PROVIDER_ID || "external-compatible",
@@ -52,7 +57,7 @@ export const FISH_MODELS = [
         }
       ]
     : [])
-];
+]);
 
 const keyRequestSchema = z.object({
   label: z.string().trim().min(1).max(80).optional().default("Pilot key"),
@@ -133,7 +138,7 @@ export const FISH_PLANS: FishPlan[] = [
     rateLimitPerMinute: 12,
     monthlyRequestLimit: 1000,
     maxStoredThreadItems: 20,
-    allowedModels: ["fish-demo-chat", ...FISH_DISH_MODELS.map((model) => model.id)],
+    allowedModels: uniqueIds([FISH_CHAT_MODEL_ID, ...FISH_DISH_MODEL_IDS, ...FISH_OCEAN_DEMO_MODEL_IDS]),
     externalFallbackAllowed: false,
     oceanProviderAllowed: false
   },
@@ -145,7 +150,7 @@ export const FISH_PLANS: FishPlan[] = [
     rateLimitPerMinute: 60,
     monthlyRequestLimit: 20000,
     maxStoredThreadItems: 200,
-    allowedModels: ["fish-demo-chat", ...FISH_DISH_MODELS.map((model) => model.id), "external-compatible"],
+    allowedModels: uniqueIds([FISH_CHAT_MODEL_ID, ...FISH_DISH_MODEL_IDS, ...FISH_OCEAN_DEMO_MODEL_IDS, ...FISH_EXTERNAL_MODEL_IDS]),
     externalFallbackAllowed: true,
     oceanProviderAllowed: false
   },
@@ -157,7 +162,7 @@ export const FISH_PLANS: FishPlan[] = [
     rateLimitPerMinute: 180,
     monthlyRequestLimit: 100000,
     maxStoredThreadItems: 1000,
-    allowedModels: ["fish-demo-chat", ...FISH_DISH_MODELS.map((model) => model.id), "external-compatible", "selected-ocean-provider"],
+    allowedModels: uniqueIds([FISH_CHAT_MODEL_ID, ...FISH_DISH_MODEL_IDS, ...FISH_OCEAN_DEMO_MODEL_IDS, ...FISH_EXTERNAL_MODEL_IDS, FISH_OCEAN_BATCH_MODEL_ID]),
     externalFallbackAllowed: true,
     oceanProviderAllowed: true
   },
@@ -169,7 +174,7 @@ export const FISH_PLANS: FishPlan[] = [
     rateLimitPerMinute: 30,
     monthlyRequestLimit: 5000,
     maxStoredThreadItems: 50,
-    allowedModels: ["fish-demo-chat", ...FISH_DISH_MODELS.map((model) => model.id), "ocean-batch-placeholder"],
+    allowedModels: uniqueIds([FISH_CHAT_MODEL_ID, ...FISH_DISH_MODEL_IDS, ...FISH_OCEAN_DEMO_MODEL_IDS, FISH_OCEAN_BATCH_MODEL_ID]),
     externalFallbackAllowed: false,
     oceanProviderAllowed: true
   }
@@ -1054,6 +1059,56 @@ function publicAccount(account: Account) {
 
 export function getFishPlan(planId: string | undefined | null) {
   return FISH_PLANS.find((plan) => plan.planId === planId) ?? FISH_PLANS[0];
+}
+
+export function checkFishModelAccess(model: string, planId: string | undefined | null) {
+  const modelId = model.trim() || FISH_CHAT_MODEL_ID;
+  const plan = getFishPlan(planId);
+  const availableModels = FISH_MODELS.map((candidate) => candidate.id);
+  if (!availableModels.includes(modelId)) {
+    return {
+      ok: false as const,
+      status: 400,
+      error: "fish_model_not_found",
+      model: modelId,
+      plan,
+      availableModels
+    };
+  }
+  if (!plan.allowedModels.includes(modelId)) {
+    return {
+      ok: false as const,
+      status: 403,
+      error: "fish_model_not_allowed_for_plan",
+      model: modelId,
+      plan,
+      allowedModels: plan.allowedModels
+    };
+  }
+  return {
+    ok: true as const,
+    model: modelId,
+    plan
+  };
+}
+
+function compactIds(values: Array<string | undefined>) {
+  return values.map((value) => value?.trim()).filter((value): value is string => Boolean(value));
+}
+
+function uniqueIds(values: string[]) {
+  return Array.from(new Set(values));
+}
+
+function uniqueModels<T extends { id: string }>(models: T[]) {
+  const seen = new Set<string>();
+  return models.filter((model) => {
+    if (seen.has(model.id)) {
+      return false;
+    }
+    seen.add(model.id);
+    return true;
+  });
 }
 
 function isCreditEntry(entry: unknown): entry is CreditLedgerEntry {

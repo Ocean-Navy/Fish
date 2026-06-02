@@ -285,6 +285,8 @@ curl -sS http://127.0.0.1:3000/v1/models
 
 Core dish aliases are listed as models too: `fish-ask`, `fish-code`, `fish-docs`, `fish-ocean-helper`, `fish-clear-broth`, and `fish-proposal`. Passing one of these as `model` applies that dish's feature limits and receipt label even if you do not send `metadata.fish_feature`.
 
+Fish rejects models that are not listed in the account plan before it spends quota, reserves credits, or calls a backend. Use `/v1/balance` or `/api/billing/plans` to see the current plan and allowed model IDs.
+
 Send a chat request:
 
 ```bash

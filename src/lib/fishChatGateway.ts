@@ -1,5 +1,6 @@
 import {
   buildMockCompletion,
+  checkFishModelAccess,
   estimateTokens,
   getFishPlan,
   recordChatUsage,
@@ -47,10 +48,19 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
   const promptText = input.messages.map((message) => (typeof message.content === "string" ? message.content : JSON.stringify(message.content))).join("\n");
   const routerConfig = getFishRouterConfig();
   const featurePolicy = getFishFeaturePolicy(input.metadata, routerConfig, input.model);
+  const modelAccess = checkFishModelAccess(input.model, context.account.planId);
   const activeRoute = getActiveFishRoute(routerConfig);
   if (routerConfig.killSwitch || routerConfig.paused) {
     return jsonError(503, routerConfig.killSwitch ? "fish_router_disabled" : "fish_router_paused", "router_unavailable", {
       route: activeRoute.id
+    });
+  }
+
+  if (!modelAccess.ok) {
+    return jsonError(modelAccess.status, modelAccess.error, "model_error", {
+      model: modelAccess.model,
+      planId: modelAccess.plan.planId,
+      ...(modelAccess.status === 400 ? { availableModels: modelAccess.availableModels } : { allowedModels: modelAccess.allowedModels })
     });
   }
 

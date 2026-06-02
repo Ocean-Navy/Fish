@@ -1015,6 +1015,18 @@ paths:
             text/event-stream:
               schema:
                 type: string
+        '400':
+          description: Invalid request or unknown Fish model
+        '401':
+          description: Fish API key required
+        '402':
+          description: Insufficient Fish credits
+        '403':
+          description: Model or external fallback is not allowed for this plan
+        '429':
+          description: Daily quota or route budget exceeded
+        '503':
+          description: Selected route is unavailable
   /v1/balance:
     get:
       summary: Get prototype account balance
