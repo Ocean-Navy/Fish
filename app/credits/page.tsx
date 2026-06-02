@@ -12,12 +12,12 @@ const steps = [
   { title: "Stake OCEAN", body: "Lock OCEAN into a clear utility lane when the budget exists." },
   { title: "Earn credits", body: "Credits can grant AI access from funded budgets or product margin." },
   { title: "Use AI", body: "Spend credits in the Fish app/API instead of touching raw compute." },
-  { title: "Support supply", body: "Later, bonds and capacity pools can help route demand to reliable providers." }
+  { title: "Support supply", body: "Provider bonds can help reliable GPU boats receive demand." }
 ];
 
 const cards = [
   { label: "Holders", title: "Stake. Lock. Utility.", body: "The simple target is OCEAN-backed access to useful AI, not a day-one token promise." },
-  { label: "Providers", title: "Bonds can come later", body: "Provider bonds may help routing once jobs and payments are real." },
+  { label: "Providers", title: "Bonds show commitment", body: "Provider bonds can help routing, but reliability still matters most." },
   { label: "Credits", title: "FISH is an access idea first", body: "Credits should represent usable AI access before they become transferable assets." },
   { label: "Safety", title: "No unpaid promises", body: "Fish should not promise provider payouts before real money or budgets exist." }
 ];

@@ -30,6 +30,7 @@ const cards = [
   { label: "Pilot", title: "/api/billing/usage-analytics", body: "Total usage numbers without keys, prompts, outputs, or account rows." },
   { label: "Live now", title: "/api/routing/policy", body: "Public route guide for demo, outside AI, Ocean providers, and later privacy stages." },
   { label: "Pilot", title: "/api/proof/receipts", body: "Provider proof records with public-safe detail links." },
+  { label: "Pilot", title: "/api/proof/provider-bonds", body: "Public-safe OCEAN bond status for selected providers." },
   { label: "Crew only", title: "/api/proof/receipts/export", body: "CSV or JSON export for the operating team." }
 ];
 
@@ -59,6 +60,8 @@ const endpoints = [
   { method: "GET", path: "/api/proof/benchmarks", state: "Pilot" },
   { method: "POST", path: "/api/proof/benchmarks", state: "Pilot" },
   { method: "GET", path: "/api/proof/market-making", state: "Pilot" },
+  { method: "GET", path: "/api/proof/provider-bonds", state: "Pilot" },
+  { method: "POST", path: "/api/proof/provider-bonds", state: "Crew" },
   { method: "GET", path: "/api/proof/payouts", state: "Pilot" },
   { method: "POST", path: "/api/proof/payouts", state: "Pilot" },
   { method: "GET", path: "/api/proof/payouts/batches", state: "Pilot" },

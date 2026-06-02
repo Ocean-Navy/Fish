@@ -1,4 +1,4 @@
-import { Anchor, Coins, Gauge, Route } from "lucide-react";
+import { Anchor, Coins, Gauge, LockKeyhole, Route } from "lucide-react";
 import { formatCompact, formatDateTime, formatNumber, formatUsd } from "@/lib/format";
 import type { MarketMakingSummary, MarketRouteState } from "@/lib/marketMaking";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -7,6 +7,7 @@ const cards = [
   { key: "routeNow", label: "Route now", icon: Route },
   { key: "pilotOnly", label: "Pilot lane", icon: Anchor },
   { key: "benchmarkFirst", label: "Bench first", icon: Gauge },
+  { key: "routeBoostedProviders", label: "Bond ready", icon: LockKeyhole },
   { key: "costModels", label: "Cost models", icon: Coins }
 ] as const;
 
@@ -44,7 +45,7 @@ export function MarketMakingPanel({ summary }: { summary: MarketMakingSummary })
           </div>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           {cards.map((card) => {
             const Icon = card.icon;
             return (
@@ -97,12 +98,13 @@ export function MarketMakingPanel({ summary }: { summary: MarketMakingSummary })
 
         {summary.routes.length ? (
           <div className="fish-scroll-table mt-5">
-            <table className="w-full min-w-[840px] border-collapse text-left text-sm">
+            <table className="w-full min-w-[960px] border-collapse text-left text-sm">
               <thead className="text-xs uppercase tracking-[0.08em] text-fish-accent">
                 <tr>
                   <th className="border-b border-white/10 px-3 py-3">Boat</th>
                   <th className="border-b border-white/10 px-3 py-3">Lane</th>
                   <th className="border-b border-white/10 px-3 py-3">Score</th>
+                  <th className="border-b border-white/10 px-3 py-3">Bond</th>
                   <th className="border-b border-white/10 px-3 py-3">Benchmark</th>
                   <th className="border-b border-white/10 px-3 py-3">Cost / 1k</th>
                   <th className="border-b border-white/10 px-3 py-3">Price / 1k</th>
@@ -117,6 +119,10 @@ export function MarketMakingPanel({ summary }: { summary: MarketMakingSummary })
                       <span className="mt-2 block text-xs text-fish-secondary">{route.routeReason}</span>
                     </td>
                     <td className="border-b border-white/10 px-3 py-3">{formatNumber(route.score)}</td>
+                    <td className="border-b border-white/10 px-3 py-3">
+                      <span className="font-bold text-white">{route.bondBoostEligible ? route.bondAmountBucket : route.bondState === "none" ? "None" : route.bondState}</span>
+                      <span className="mt-1 block text-xs text-fish-secondary">Tier {formatNumber(route.bondRouteTier)}</span>
+                    </td>
                     <td className="border-b border-white/10 px-3 py-3">{route.benchmarkStatus}</td>
                     <td className="border-b border-white/10 px-3 py-3">{formatUsd(route.providerCostUsdPer1kTokens)}</td>
                     <td className="border-b border-white/10 px-3 py-3">{formatUsd(route.suggestedUserPriceUsdPer1kTokens)}</td>

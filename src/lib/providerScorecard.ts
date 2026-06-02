@@ -1,8 +1,10 @@
 import { listProviderJobReceipts } from "@/lib/providerJobs";
 import { summarizeBenchmarks } from "@/lib/providerBenchmarks";
+import { buildProviderBondRoutingImpact, getProviderBondSignals } from "@/lib/providerBonds";
 import { collectProviderPilotRegistry } from "@/lib/providerPilot";
 import { summarizePayouts } from "@/lib/providerPayouts";
 import type { BenchmarkMatrixRow, BenchmarkStatus } from "@/lib/providerBenchmarks";
+import type { ProviderBondRoutingImpact, ProviderBondSignal } from "@/lib/providerBonds";
 import type { ProviderJobReceipt } from "@/lib/providerJobs";
 import type { ProviderAllowlistEntry, ProviderPilotRegistry, ProviderPilotStatus, ProviderProfile } from "@/lib/providerPilot";
 import type { PayoutSummary, PublicPayoutEvent } from "@/lib/providerPayouts";
@@ -18,7 +20,7 @@ export type ProviderScoreInputs = {
   operatorReadiness: number;
 };
 
-export type ProviderScorecardRow = {
+export type ProviderScorecardRow = ProviderBondRoutingImpact & {
   providerId: string;
   providerLabel: string;
   region: string;
@@ -64,6 +66,8 @@ export type ProviderScorecardSummary = {
     jobsRouted: number;
     verifiedReceipts: number;
     benchmarkRuns: number;
+    bondedProviders: number;
+    routeBoostedProviders: number;
     outstandingUsd: number;
     paidUsd: number;
   };
@@ -77,10 +81,11 @@ type ScorecardProvider = Omit<Pick<ProviderProfile, "providerId" | "publicLabel"
 
 export async function summarizeProviderScorecard(): Promise<ProviderScorecardSummary> {
   const [registry, receiptList, payouts, benchmarks] = await Promise.all([collectProviderPilotRegistry(), listProviderJobReceipts(), summarizePayouts(), summarizeBenchmarks()]);
-  return buildProviderScorecard(registry, receiptList.data, payouts, benchmarks.matrix, toDataState(receiptList.dataState));
+  const bonds = await getProviderBondSignals(registry);
+  return buildProviderScorecard(registry, receiptList.data, payouts, benchmarks.matrix, toDataState(receiptList.dataState), bonds);
 }
 
-export function buildProviderScorecard(registry: ProviderPilotRegistry, receipts: ProviderJobReceipt[], payouts: PayoutSummary, benchmarkRows: BenchmarkMatrixRow[] = [], receiptState: DataState = receipts.length ? "live" : "sample"): ProviderScorecardSummary {
+export function buildProviderScorecard(registry: ProviderPilotRegistry, receipts: ProviderJobReceipt[], payouts: PayoutSummary, benchmarkRows: BenchmarkMatrixRow[] = [], receiptState: DataState = receipts.length ? "live" : "sample", bonds: Map<string, ProviderBondSignal> = new Map()): ProviderScorecardSummary {
   const allowlistByProvider = new Map(registry.allowlist.map((entry) => [entry.providerId, entry]));
   const receiptsByProvider = groupBy(receipts, (receipt) => receipt.providerId);
   const payoutsByProvider = groupBy(payouts.events, (event) => event.providerId);
@@ -88,7 +93,7 @@ export function buildProviderScorecard(registry: ProviderPilotRegistry, receipts
   const providers = mergeProviders(registry.providers, receipts, benchmarkRows);
 
   const rows = providers
-    .map((provider) => buildProviderRow(provider, allowlistByProvider.get(provider.providerId), receiptsByProvider.get(provider.providerId) ?? [], payoutsByProvider.get(provider.providerId) ?? [], benchmarkRowsByProvider.get(provider.providerId) ?? []))
+    .map((provider) => buildProviderRow(provider, allowlistByProvider.get(provider.providerId), receiptsByProvider.get(provider.providerId) ?? [], payoutsByProvider.get(provider.providerId) ?? [], benchmarkRowsByProvider.get(provider.providerId) ?? [], bonds.get(provider.providerId)))
     .sort((a, b) => {
       if (b.score !== a.score) {
         return b.score - a.score;
@@ -101,7 +106,7 @@ export function buildProviderScorecard(registry: ProviderPilotRegistry, receipts
 
   return {
     dataState: strongestState([registry.dataState, receiptState, payouts.dataState]),
-    lastUpdated: latestTimestamp([registry.lastUpdated, payouts.lastUpdated, ...receipts.map((receipt) => receipt.completedAt), ...payouts.events.map((event) => event.createdAt)]),
+    lastUpdated: latestTimestamp([registry.lastUpdated, payouts.lastUpdated, ...receipts.map((receipt) => receipt.completedAt), ...payouts.events.map((event) => event.createdAt), ...rows.map((row) => row.bondUpdatedAt)]),
     totals: {
       providers: rows.length,
       selectedProviders: rows.filter((row) => row.selected).length,
@@ -110,6 +115,8 @@ export function buildProviderScorecard(registry: ProviderPilotRegistry, receipts
       jobsRouted: rows.reduce((total, row) => total + row.jobsRouted, 0),
       verifiedReceipts: rows.reduce((total, row) => total + row.verifiedReceipts, 0),
       benchmarkRuns: rows.reduce((total, row) => total + row.benchmarkRuns, 0),
+      bondedProviders: rows.filter((row) => row.bondActiveForRouting).length,
+      routeBoostedProviders: rows.filter((row) => row.bondBoostEligible).length,
       outstandingUsd: payouts.totals.outstandingUsd,
       paidUsd: payouts.totals.paid
     },
@@ -122,7 +129,7 @@ export function buildProviderScorecard(registry: ProviderPilotRegistry, receipts
   };
 }
 
-function buildProviderRow(provider: ScorecardProvider, allowlist: ProviderAllowlistEntry | undefined, receipts: ProviderJobReceipt[], payouts: PublicPayoutEvent[], benchmarkRows: BenchmarkMatrixRow[]): ProviderScorecardRow {
+function buildProviderRow(provider: ScorecardProvider, allowlist: ProviderAllowlistEntry | undefined, receipts: ProviderJobReceipt[], payouts: PublicPayoutEvent[], benchmarkRows: BenchmarkMatrixRow[], bond: ProviderBondSignal | undefined): ProviderScorecardRow {
   const selected = Boolean(allowlist);
   const routedReceipts = receipts.filter((receipt) => receipt.status !== "not_allowed");
   const successfulJobs = routedReceipts.filter((receipt) => receipt.status === "succeeded").length;
@@ -159,8 +166,10 @@ function buildProviderRow(provider: ScorecardProvider, allowlist: ProviderAllowl
   const score = weightedScore(scoreInputs);
   const signal = signalForProvider({ score, selected, jobsRouted: routedReceipts.length, successfulJobs, failedJobs, timedOutJobs, receiptWarnings });
   const displayState = displayStateForProvider({ pilotStatus: provider.pilotStatus, selected, signal, score });
+  const bondRouting = buildProviderBondRoutingImpact({ selected, score, signal, displayState, bond });
 
   return {
+    ...bondRouting,
     providerId: provider.providerId,
     providerLabel: provider.publicLabel,
     region: provider.region,
@@ -192,7 +201,7 @@ function buildProviderRow(provider: ScorecardProvider, allowlist: ProviderAllowl
     paidUsd,
     payoutEvents: payouts.length,
     latestActivityAt: latestTimestamp([provider.updatedAt, ...receipts.map((receipt) => receipt.completedAt), ...payouts.map((event) => event.createdAt), ...benchmarkRows.map((row) => row.lastRunAt)]),
-    marketBadges: badgesForProvider({ selected, jobsRouted: routedReceipts.length, benchmarkRuns, verifiedReceipts, receiptWarnings, outstandingUsd, paidUsd })
+    marketBadges: badgesForProvider({ selected, jobsRouted: routedReceipts.length, benchmarkRuns, verifiedReceipts, receiptWarnings, outstandingUsd, paidUsd, bondState: bondRouting.bondState, bondBoostEligible: bondRouting.bondBoostEligible })
   };
 }
 
@@ -342,12 +351,13 @@ function scoreLabel(score: number, signal: ProviderScorecardSignal) {
   return "At the dock";
 }
 
-function badgesForProvider(input: { selected: boolean; jobsRouted: number; benchmarkRuns: number; verifiedReceipts: number; receiptWarnings: number; outstandingUsd: number; paidUsd: number }) {
+function badgesForProvider(input: { selected: boolean; jobsRouted: number; benchmarkRuns: number; verifiedReceipts: number; receiptWarnings: number; outstandingUsd: number; paidUsd: number; bondState: string; bondBoostEligible: boolean }) {
   return [
     input.selected ? "Selected" : "Review",
     input.jobsRouted ? "Jobs run" : "Needs run",
     input.benchmarkRuns ? "Benchmarked" : "No benchmark",
     input.verifiedReceipts && !input.receiptWarnings ? "Stamped" : input.receiptWarnings ? "Check stamp" : "No stamp",
+    input.bondBoostEligible ? "OCEAN bond" : input.bondState === "none" ? "No bond" : "Bond review",
     input.paidUsd ? "Paid" : input.outstandingUsd ? "Chest filling" : "No chest"
   ];
 }

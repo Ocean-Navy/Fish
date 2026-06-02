@@ -676,6 +676,77 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/MarketMakingSummary'
+  /api/proof/provider-bonds:
+    get:
+      summary: Public-safe provider OCEAN bond summary
+      parameters:
+        - in: query
+          name: provider
+          schema:
+            type: string
+          description: Provider id or public label substring.
+        - in: query
+          name: providerId
+          schema:
+            type: string
+        - in: query
+          name: state
+          schema:
+            $ref: '#/components/schemas/ProviderBondState'
+        - in: query
+          name: activeOnly
+          schema:
+            type: boolean
+            default: false
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 100
+            minimum: 1
+            maximum: 500
+      responses:
+        '200':
+          description: Public-safe offchain provider bond summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderBondSummary'
+    post:
+      summary: Admin-only offchain provider OCEAN bond record
+      description: Creates or updates an offchain prototype bond record. Raw wallet references are hashed before storage.
+      security:
+        - adminToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProviderBondRequest'
+      responses:
+        '201':
+          description: Bond record created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  created:
+                    type: boolean
+                  position:
+                    $ref: '#/components/schemas/OperatorProviderBondPosition'
+        '200':
+          description: Bond record updated
+        '400':
+          description: Invalid bond request
+        '401':
+          description: Admin token required
+        '403':
+          description: Provider is not eligible to bond
+        '404':
+          description: Provider not found
   /api/proof/payouts:
     get:
       summary: Public-safe provider payout accounting summary
@@ -2638,6 +2709,164 @@ components:
           type: array
           items:
             type: string
+    ProviderBondState:
+      type: string
+      enum: [draft, active, unlock_requested, unlockable, released, held, disputed, paused]
+    ProviderBondRequest:
+      type: object
+      required: [providerId, decisionReason]
+      properties:
+        bondId:
+          type: string
+        providerId:
+          type: string
+        providerLabel:
+          type: string
+        bondState:
+          $ref: '#/components/schemas/ProviderBondState'
+        oceanAmount:
+          type: number
+        walletRef:
+          type: string
+          description: Raw wallet reference. The server hashes this value before storage.
+        walletRefHash:
+          type: string
+          description: Pre-hashed wallet reference when the operator does not want to submit a raw wallet reference.
+        startsAt:
+          type: string
+        unlockRequestedAt:
+          type: string
+          nullable: true
+        unlockAvailableAt:
+          type: string
+          nullable: true
+        unlockDelayDays:
+          type: integer
+          default: 30
+        operatorOwner:
+          type: string
+        decisionReason:
+          type: string
+    OperatorProviderBondPosition:
+      type: object
+      properties:
+        bondId:
+          type: string
+        providerId:
+          type: string
+        providerLabel:
+          type: string
+        bondState:
+          $ref: '#/components/schemas/ProviderBondState'
+        oceanAmount:
+          type: number
+        walletRefHash:
+          type: string
+        startsAt:
+          type: string
+        unlockRequestedAt:
+          type: string
+          nullable: true
+        unlockAvailableAt:
+          type: string
+          nullable: true
+        operatorOwner:
+          type: string
+        decisionReason:
+          type: string
+        offchainPrototype:
+          type: boolean
+          enum: [true]
+        visibility:
+          type: string
+          enum: [operator]
+        sourceState:
+          type: string
+          enum: [live, snapshot, sample, unavailable]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+    PublicProviderBondRow:
+      type: object
+      properties:
+        bondId:
+          type: string
+        providerId:
+          type: string
+        providerLabel:
+          type: string
+        bondState:
+          $ref: '#/components/schemas/ProviderBondState'
+        amountBucket:
+          type: string
+        activeForRouting:
+          type: boolean
+        bondTier:
+          type: integer
+        unlockState:
+          type: string
+          enum: [locked, unlock_requested, unlockable, released, held, paused, disputed, draft]
+        unlockAvailableAt:
+          type: string
+          nullable: true
+        offchainPrototype:
+          type: boolean
+          enum: [true]
+        updatedAt:
+          type: string
+    ProviderBondSummary:
+      type: object
+      properties:
+        dataState:
+          type: string
+          enum: [live, snapshot, sample, unavailable]
+        lastUpdated:
+          type: string
+        visibility:
+          type: string
+          enum: [public]
+        offchainPrototype:
+          type: boolean
+          enum: [true]
+        filters:
+          type: object
+        totals:
+          type: object
+          properties:
+            records:
+              type: integer
+            providers:
+              type: integer
+            bondedProviders:
+              type: integer
+            activeBonds:
+              type: integer
+            heldOrDisputedBonds:
+              type: integer
+            pausedBonds:
+              type: integer
+            releasedBonds:
+              type: integer
+            activeOceanBondedRounded:
+              type: number
+            activeOceanBondedBucket:
+              type: string
+            averageLockDays:
+              type: number
+              nullable: true
+        routeRules:
+          type: array
+          items:
+            type: string
+        rows:
+          type: array
+          items:
+            $ref: '#/components/schemas/PublicProviderBondRow'
+        warnings:
+          type: array
+          items:
+            type: string
     ProviderScoreInputs:
       type: object
       properties:
@@ -2682,6 +2911,32 @@ components:
           type: boolean
         score:
           type: integer
+        bondState:
+          oneOf:
+            - $ref: '#/components/schemas/ProviderBondState'
+            - type: string
+              enum: [none]
+        bondAmountBucket:
+          type: string
+        bondActiveForRouting:
+          type: boolean
+        bondScoreTier:
+          type: integer
+        bondBoostTier:
+          type: integer
+        bondRouteTier:
+          type: integer
+        bondBoostEligible:
+          type: boolean
+        bondBoostBlockedReason:
+          type: string
+          nullable: true
+        bondUpdatedAt:
+          type: string
+          nullable: true
+        bondUnlockAvailableAt:
+          type: string
+          nullable: true
         scoreLabel:
           type: string
         scoreInputs:
@@ -2756,6 +3011,10 @@ components:
               type: integer
             benchmarkRuns:
               type: integer
+            bondedProviders:
+              type: integer
+            routeBoostedProviders:
+              type: integer
             outstandingUsd:
               type: number
             paidUsd:
@@ -2817,6 +3076,17 @@ components:
           type: string
         score:
           type: integer
+        bondState:
+          oneOf:
+            - $ref: '#/components/schemas/ProviderBondState'
+            - type: string
+              enum: [none]
+        bondAmountBucket:
+          type: string
+        bondRouteTier:
+          type: integer
+        bondBoostEligible:
+          type: boolean
         routeState:
           type: string
           enum: [route_now, pilot_only, benchmark_first, watch, pause]
@@ -2911,6 +3181,8 @@ components:
             pricingConfidence:
               type: string
               enum: [none, low, medium, high]
+            routeBoostedProviders:
+              type: integer
         costModels:
           type: array
           items:

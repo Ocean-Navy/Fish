@@ -3,6 +3,7 @@ import { DashboardPreview } from "@/components/DashboardPreview";
 import { FishUsageSummary } from "@/components/FishUsageSummary";
 import { MarketMakingPanel } from "@/components/MarketMakingPanel";
 import { ProofSummaryPanel } from "@/components/ProofSummaryPanel";
+import { ProviderBondsPanel } from "@/components/ProviderBondsPanel";
 import { ProviderPilotPanel } from "@/components/ProviderPilotPanel";
 import { ProviderScorecardPanel } from "@/components/ProviderScorecardPanel";
 import { StakingCreditsPanel } from "@/components/StakingCreditsPanel";
@@ -11,6 +12,7 @@ import { collectOceanData } from "@/lib/oceanSupply";
 import { summarizeFishUsage } from "@/lib/fishLedger";
 import { summarizeMarketMaking } from "@/lib/marketMaking";
 import { summarizeBenchmarks } from "@/lib/providerBenchmarks";
+import { summarizeProviderBonds } from "@/lib/providerBonds";
 import { summarizeProof } from "@/lib/providerJobs";
 import { collectProviderPilotRegistry } from "@/lib/providerPilot";
 import { summarizeProviderScorecard } from "@/lib/providerScorecard";
@@ -22,12 +24,13 @@ import Link from "next/link";
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  const [oceanData, fishUsage, providerPilot, proof, providerScorecard, benchmarks, stakingCredits, warmStatus] = await Promise.all([
+  const [oceanData, fishUsage, providerPilot, proof, providerScorecard, providerBonds, benchmarks, stakingCredits, warmStatus] = await Promise.all([
     collectOceanData(),
     summarizeFishUsage(),
     collectProviderPilotRegistry(),
     summarizeProof(),
     summarizeProviderScorecard(),
+    summarizeProviderBonds(),
     summarizeBenchmarks(),
     summarizeStakingCredits(),
     getWarmInferenceStatus()
@@ -60,6 +63,7 @@ export default async function DashboardPage() {
       <StakingCreditsPanel summary={stakingCredits} />
       <ProviderPilotPanel registry={providerPilot} />
       <ProviderScorecardPanel summary={providerScorecard} />
+      <ProviderBondsPanel summary={providerBonds} />
       <MarketMakingPanel summary={marketMaking} />
       <ProofSummaryPanel summary={proof} />
       <BenchmarkMatrixPanel summary={benchmarks} />

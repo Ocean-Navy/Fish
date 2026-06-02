@@ -36,6 +36,10 @@ export type MarketRouteCandidate = {
   displayState: ProviderScorecardRow["displayState"];
   signal: ProviderScorecardRow["signal"];
   score: number;
+  bondState: ProviderScorecardRow["bondState"];
+  bondAmountBucket: string;
+  bondRouteTier: number;
+  bondBoostEligible: boolean;
   routeState: MarketRouteState;
   routeReason: string;
   benchmarkId: string | null;
@@ -76,6 +80,7 @@ export type MarketMakingSummary = {
     paused: number;
     costModels: number;
     pricingConfidence: PricingConfidence;
+    routeBoostedProviders: number;
   };
   costModels: MarketCostModel[];
   routes: MarketRouteCandidate[];
@@ -110,6 +115,8 @@ export async function summarizeMarketMaking(parts?: {
     routeRules: [
       "Only selected providers can receive routed Fish jobs.",
       "A provider needs valid receipts and benchmark evidence before route_now.",
+      "An active OCEAN provider bond is required before automatic routed demand.",
+      "Bond influence is score-capped: reliability and health beat bond size.",
       "Attention, paused, or failed routes stay out of user traffic.",
       "Suggested prices use provider benchmark costs plus margin and reserve buffers."
     ],
@@ -129,7 +136,8 @@ export async function summarizeMarketMaking(parts?: {
       selectedProviders: scorecard.totals.selectedProviders,
       ...routeCounts,
       costModels: costModels.length,
-      pricingConfidence
+      pricingConfidence,
+      routeBoostedProviders: scorecard.totals.routeBoostedProviders
     },
     costModels,
     routes,
@@ -186,8 +194,12 @@ function buildRoutes(scoreRows: ProviderScorecardRow[], benchmarkRows: Benchmark
         displayState: row.displayState,
         signal: row.signal,
         score: row.score,
+        bondState: row.bondState,
+        bondAmountBucket: row.bondAmountBucket,
+        bondRouteTier: row.bondRouteTier,
+        bondBoostEligible: row.bondBoostEligible,
         routeState,
-        routeReason: routeReason(routeState),
+        routeReason: routeReason(routeState, row),
         benchmarkId: latestBenchmark?.benchmarkId ?? null,
         benchmarkStatus: latestBenchmark?.latestStatus ?? "untested",
         benchmarkPassRate: row.benchmarkPassRate,
@@ -218,6 +230,9 @@ function routeStateFor(row: ProviderScorecardRow, benchmark: BenchmarkMatrixRow 
   if (row.signal === "attention" || row.displayState === "paused" || row.displayState === "exited") {
     return "pause";
   }
+  if (row.bondState === "held" || row.bondState === "disputed" || row.bondState === "paused") {
+    return "pause";
+  }
   if (!row.selected) {
     return "watch";
   }
@@ -227,13 +242,22 @@ function routeStateFor(row: ProviderScorecardRow, benchmark: BenchmarkMatrixRow 
   if (benchmark.latestStatus !== "succeeded" || (row.benchmarkPassRate ?? 0) < 0.8) {
     return "pilot_only";
   }
-  if (row.score >= 75 && costModel && costModel.pricingConfidence !== "none") {
+  if (!row.bondBoostEligible) {
+    return "pilot_only";
+  }
+  if (row.score >= 75 && row.bondRouteTier > 0 && costModel && costModel.pricingConfidence !== "none") {
     return "route_now";
   }
   return "pilot_only";
 }
 
-function routeReason(state: MarketRouteState) {
+function routeReason(state: MarketRouteState, row: ProviderScorecardRow) {
+  if (state === "pause" && (row.bondState === "held" || row.bondState === "disputed" || row.bondState === "paused")) {
+    return "Bond needs operator review before more traffic";
+  }
+  if (state === "pilot_only" && row.bondBoostBlockedReason) {
+    return row.bondBoostBlockedReason === "no_ocean_bond_recorded" ? "Needs an active OCEAN bond before automatic routed demand" : `Bond check: ${row.bondBoostBlockedReason}`;
+  }
   const reasons: Record<MarketRouteState, string> = {
     route_now: "Ready for controlled user traffic",
     pilot_only: "Keep in operator-routed pilot jobs",
@@ -249,6 +273,7 @@ function badgesForRoute(row: ProviderScorecardRow, routeState: MarketRouteState)
     routeState === "route_now" ? "Route now" : routeState === "pilot_only" ? "Pilot lane" : routeState === "benchmark_first" ? "Bench first" : routeState === "pause" ? "Paused" : "Watch",
     row.benchmarkRuns ? "Benchmarked" : "No benchmark",
     row.verifiedReceipts ? "Stamped" : "No stamp",
+    row.bondBoostEligible ? "Bonded" : row.bondState === "none" ? "Needs bond" : "Bond review",
     row.outstandingUsd || row.paidUsd ? "Settlement seen" : "No settlement"
   ];
 }

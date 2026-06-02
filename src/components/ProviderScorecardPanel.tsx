@@ -1,4 +1,4 @@
-import { BadgeDollarSign, CheckCircle2, Fish, ReceiptText, ShipWheel } from "lucide-react";
+import { BadgeDollarSign, CheckCircle2, Fish, LockKeyhole, ReceiptText, ShipWheel } from "lucide-react";
 import { formatDateTime, formatNumber, formatUsd } from "@/lib/format";
 import type { ProviderScorecardRow, ProviderScorecardSignal, ProviderScorecardSummary } from "@/lib/providerScorecard";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -6,6 +6,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 const cards = [
   { key: "providers", label: "Boats", icon: ShipWheel },
   { key: "readyProviders", label: "Ready", icon: CheckCircle2 },
+  { key: "bondedProviders", label: "Bonds", icon: LockKeyhole },
   { key: "jobsRouted", label: "Runs", icon: Fish },
   { key: "verifiedReceipts", label: "Stamps", icon: ReceiptText }
 ] as const;
@@ -44,7 +45,7 @@ export function ProviderScorecardPanel({ summary }: { summary: ProviderScorecard
           </div>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           {cards.map((card) => {
             const Icon = card.icon;
             return (
@@ -108,9 +109,10 @@ function ProviderCard({ row }: { row: ProviderScorecardRow }) {
         ))}
       </div>
 
-      <div className="mt-4 grid grid-cols-3 gap-2">
+      <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
         <MiniMetric label="Runs" value={row.jobsRouted ? `${formatNumber(row.successfulJobs)}/${formatNumber(row.jobsRouted)}` : "0"} />
         <MiniMetric label="Bench" value={row.benchmarkPassRate === null ? "-" : `${formatNumber(row.benchmarkPassRate * 100)}%`} />
+        <MiniMetric label="Bond" value={row.bondActiveForRouting ? row.bondAmountBucket : row.bondState === "none" ? "None" : row.bondState} />
         <MiniMetric label="Chest" value={formatUsd(row.outstandingUsd + row.paidUsd)} />
       </div>
 
@@ -132,6 +134,7 @@ function ProviderCard({ row }: { row: ProviderScorecardRow }) {
       <div className="mt-4 flex flex-col gap-2 text-sm font-bold text-fish-secondary">
         <span>{row.gpuTypes.length ? row.gpuTypes.slice(0, 2).join(", ") : "GPU route pending"}</span>
         <span>{row.maxDailySpendUsd === null ? "Pilot limit pending" : `Pilot limit ${formatUsd(row.maxDailySpendUsd)}/day`}</span>
+        <span>Bond tier {formatNumber(row.bondRouteTier)}. {row.bondBoostEligible ? "Boost can apply." : row.bondBoostBlockedReason ?? "No bond boost."}</span>
         <span>State {row.displayState}. Benchmark {row.latestBenchmarkStatus}.</span>
         <span>Last move {formatDateTime(row.latestActivityAt)}</span>
       </div>

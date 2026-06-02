@@ -15,6 +15,26 @@ This plan depends on earlier milestones:
 
 Provider bonds are not required for V0, the first provider pilot, or the first public proof page.
 
+## Current Prototype Status
+
+The current implementation is an offchain operator prototype, not custody and not an onchain bond contract.
+
+Implemented surfaces:
+
+- `GET /api/proof/provider-bonds` returns a public-safe summary with provider labels, bond state, amount buckets, unlock state, and aggregate OCEAN buckets.
+- `POST /api/proof/provider-bonds` is admin-only and creates or updates prototype bond records under `data/proof/provider-bonds/positions`.
+- raw wallet references are hashed before storage; public responses do not include wallet references, operator notes, or private provider contact data.
+- the provider scorecard shows bond state, bond amount bucket, and whether the bond can boost routing.
+- the market-making route report uses bond status as an input: automatic routed demand requires an active OCEAN bond, while proof score and provider health cap any boost.
+
+Still future:
+
+- onchain custody;
+- automatic slashing;
+- legal dispute workflow;
+- enforceable provider obligations;
+- production route allocation guarantees.
+
 ## Principles
 
 - Bonding is an eligibility and accountability signal, not a guaranteed revenue product.
