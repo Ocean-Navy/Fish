@@ -45,6 +45,8 @@ Fish can distinguish where credits came from and how they were spent.
 
 Current prototype status: `/v1/balance`, `/v1/usage`, `/account`, and the dashboard now expose credit lanes. New pilot-key grants and chat debits write immutable local entries under `data/fish/credit_entries.json`.
 
+Current API key status: admin-created pilot keys are returned once and stored only as hashes. The account page and `/v1/api_keys/current` can rename, rotate, and revoke the active key. Rotation keeps the same credits and receipts, returns the new key once, and makes the old key invalid.
+
 ### Credit Lanes
 
 ```text

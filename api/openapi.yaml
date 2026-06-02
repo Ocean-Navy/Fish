@@ -1165,6 +1165,9 @@ paths:
                           type: string
                         createdAt:
                           type: string
+                        rotatedAt:
+                          type: string
+                          nullable: true
                         lastUsedAt:
                           type: string
                           nullable: true
@@ -1223,6 +1226,50 @@ paths:
                   account:
                     $ref: '#/components/schemas/FishAccount'
   /v1/api_keys/current:
+    patch:
+      summary: Rename or rotate the current Fish API key
+      description: Updates the bearer key label and optionally rotates the secret. A rotated key is returned once, stored only as a hash, and the previous key stops authenticating.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                label:
+                  type: string
+                  minLength: 1
+                  maxLength: 80
+                rotate:
+                  type: boolean
+                  default: false
+      responses:
+        '200':
+          description: Current key updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  object:
+                    type: string
+                    example: api_key
+                  rotated:
+                    type: boolean
+                  key:
+                    type: string
+                    nullable: true
+                  keyNotice:
+                    type: string
+                    nullable: true
+                  account:
+                    $ref: '#/components/schemas/FishAccount'
+        '400':
+          description: Invalid key update
+        '401':
+          description: Fish API key required
     delete:
       summary: Revoke the current Fish API key
       description: Marks the bearer key as revoked. Existing balances and receipts remain available in storage, but the key can no longer authenticate future requests.
@@ -3541,6 +3588,9 @@ components:
           type: string
         createdAt:
           type: string
+        rotatedAt:
+          type: string
+          nullable: true
         status:
           type: string
           enum: [active, revoked]

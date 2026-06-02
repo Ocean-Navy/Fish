@@ -11,14 +11,14 @@ const steps = [
   { title: "Paste key", body: "Use your Fish pilot key." },
   { title: "See credits", body: "Check what came in, what was used, and what is left." },
   { title: "See activity", body: "Review recent AI use without seeing prompt text." },
-  { title: "Keep going", body: "Use the same key in chat or API tests." }
+  { title: "Manage key", body: "Rename, rotate, or revoke the active key." }
 ];
 
 const cards = [
   { label: "Balance", title: "Credits left", body: "See your current Fish credit balance." },
   { label: "Activity", title: "Recent use", body: "See when credits were used and by which model." },
   { label: "Costs", title: "Simple numbers", body: "Fish shows the basic cost numbers behind each use." },
-  { label: "Private key", title: "No key saved", body: "The page does not store your Fish key." }
+  { label: "Keys", title: "Rotate when needed", body: "Change the active key without losing credits or receipts." }
 ];
 
 const billingLanes = [
@@ -36,7 +36,7 @@ export default function AccountPage() {
       subtitle="Paste a key. See credits. Know what was used."
       image="/assets/generated/fish-flow-catch.png"
       imageAlt="Glowing Fish credits caught in a Venice market net"
-      chips={["Balance", "Recent use", "Costs", "No prompts"]}
+      chips={["Balance", "Recent use", "Key tools", "No prompts"]}
       primaryAction={{ label: "Try chat", href: "/chat" }}
       secondaryAction={{ label: "API status", href: "/api" }}
       steps={steps}

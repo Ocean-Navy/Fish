@@ -78,6 +78,20 @@ const keyRequestSchema = z.object({
   planId: z.enum(FISH_PLAN_IDS).optional().default("free")
 });
 
+const keyUpdateSchema = z
+  .object({
+    label: z.string().trim().min(1).max(80).optional(),
+    rotate: z.boolean().optional().default(false)
+  })
+  .superRefine((update, context) => {
+    if (update.label === undefined && !update.rotate) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "label or rotate is required"
+      });
+    }
+  });
+
 const creditTopupSchema = z.object({
   accountId: z.string().trim().min(1),
   amount: z.number().int().min(1).max(1000000),
@@ -111,6 +125,7 @@ export type Account = {
   label: string;
   keyHash: string;
   createdAt: string;
+  rotatedAt?: string | null;
   revokedAt?: string | null;
   planId?: FishPlanId;
   creditBalance: number;
@@ -358,6 +373,10 @@ export function parseKeyRequest(body: unknown) {
   return keyRequestSchema.safeParse(body);
 }
 
+export function parseKeyUpdate(body: unknown) {
+  return keyUpdateSchema.safeParse(body);
+}
+
 export function parseCreditTopup(body: unknown) {
   return creditTopupSchema.safeParse(body);
 }
@@ -393,6 +412,7 @@ export async function createApiKey(label: string, creditGrant: number, planId: F
     label,
     keyHash: hashSecret(key),
     createdAt: now,
+    rotatedAt: null,
     revokedAt: null,
     planId,
     creditBalance: creditGrant,
@@ -440,6 +460,7 @@ export async function getOrCreateGuestAccount(guestId: string, creditGrant = 25)
     label: `Guest ${guestId.slice(0, 8)}`,
     keyHash,
     createdAt: now,
+    rotatedAt: null,
     revokedAt: null,
     planId: "free",
     creditBalance: creditGrant,
@@ -519,6 +540,30 @@ export async function revokeApiKey(ledger: Ledger, account: Account) {
   return {
     ok: true as const,
     alreadyRevoked: false,
+    account: publicAccount(account)
+  };
+}
+
+export async function updateApiKey(ledger: Ledger, account: Account, input: z.infer<typeof keyUpdateSchema>) {
+  const now = new Date().toISOString();
+  let key: string | null = null;
+
+  if (input.label !== undefined) {
+    account.label = input.label;
+  }
+
+  if (input.rotate) {
+    key = `fish_sk_${randomBytes(24).toString("base64url")}`;
+    account.keyHash = hashSecret(key);
+    account.rotatedAt = now;
+    account.revokedAt = null;
+  }
+
+  await writeLedger(ledger);
+  return {
+    ok: true as const,
+    rotated: Boolean(input.rotate),
+    key,
     account: publicAccount(account)
   };
 }
@@ -1311,6 +1356,7 @@ function publicAccount(account: Account) {
     id: account.id,
     label: account.label,
     createdAt: account.createdAt,
+    rotatedAt: account.rotatedAt ?? null,
     planId: plan.planId,
     plan,
     status: account.revokedAt ? "revoked" : "active",

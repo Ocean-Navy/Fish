@@ -1,6 +1,6 @@
 "use client";
 
-import { BadgeDollarSign, KeyRound, Loader2, ReceiptText, RefreshCcw, ShieldX } from "lucide-react";
+import { BadgeDollarSign, KeyRound, Loader2, ReceiptText, RefreshCcw, RotateCw, Save, ShieldX } from "lucide-react";
 import { useState } from "react";
 import { formatDateTime, formatNumber, formatUsd } from "@/lib/format";
 
@@ -9,6 +9,7 @@ type AccountPayload = {
     label: string;
     status: "active" | "revoked";
     revokedAt: string | null;
+    rotatedAt: string | null;
     planId: string;
     plan: FishPlan;
     creditBalance: number;
@@ -90,8 +91,11 @@ export function FishAccountPanel() {
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [keyLabel, setKeyLabel] = useState("");
+  const [newKey, setNewKey] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isRevoking, setIsRevoking] = useState(false);
+  const [isUpdatingKey, setIsUpdatingKey] = useState(false);
 
   async function refreshAccount() {
     const key = apiKey.trim();
@@ -114,6 +118,7 @@ export function FishAccountPanel() {
         throw new Error(getErrorMessage(usagePayload));
       }
       setAccount(balancePayload);
+      setKeyLabel(balancePayload.account?.label ?? "");
       setReceipts(Array.isArray(usagePayload.data) ? usagePayload.data : []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "request_failed");
@@ -121,6 +126,64 @@ export function FishAccountPanel() {
       setReceipts([]);
     } finally {
       setIsLoading(false);
+    }
+  }
+
+  async function updateCurrentKey(options: { rotate?: boolean }) {
+    const key = apiKey.trim();
+    if (!key) {
+      setError("Add a Fish API key.");
+      return;
+    }
+    if (!account || account.account.status === "revoked") {
+      setError("Open an active key first.");
+      return;
+    }
+
+    const nextLabel = keyLabel.trim();
+    setIsUpdatingKey(true);
+    setError(null);
+    setNotice(null);
+    setNewKey(null);
+    try {
+      const response = await fetch("/v1/api_keys/current", {
+        method: "PATCH",
+        headers: {
+          authorization: `Bearer ${key}`,
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({
+          label: nextLabel || account.account.label,
+          rotate: Boolean(options.rotate)
+        })
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(getErrorMessage(payload));
+      }
+      setAccount((current) =>
+        current
+          ? {
+              ...current,
+              account: {
+                ...current.account,
+                ...payload.account
+              }
+            }
+          : current
+      );
+      setKeyLabel(payload.account?.label ?? nextLabel);
+      if (payload.key) {
+        setApiKey(payload.key);
+        setNewKey(payload.key);
+        setNotice("Key rotated. The old key no longer works.");
+      } else {
+        setNotice("Key label updated.");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "request_failed");
+    } finally {
+      setIsUpdatingKey(false);
     }
   }
 
@@ -252,6 +315,7 @@ export function FishAccountPanel() {
                 <p className="mt-1 text-sm font-bold text-fish-secondary">
                   {account.account.status === "revoked" ? `Revoked ${formatDateTime(account.account.revokedAt)}` : "Active key. Revoke it if this key was shared or no longer needed."}
                 </p>
+                <p className="mt-1 text-xs font-bold text-fish-secondary">Last rotated {formatDateTime(account.account.rotatedAt)}</p>
               </div>
               <button
                 type="button"
@@ -262,6 +326,45 @@ export function FishAccountPanel() {
                 {isRevoking ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <ShieldX className="h-4 w-4" aria-hidden="true" />}
                 Revoke key
               </button>
+            </div>
+            <div className="rounded-3xl border border-fish-accent/15 bg-fish-navy950/55 p-4">
+              <div className="grid gap-3 lg:grid-cols-[1fr_auto_auto] lg:items-end">
+                <div>
+                  <label className="text-sm font-black uppercase tracking-[0.1em] text-fish-gold" htmlFor="fish-key-label">
+                    Key label
+                  </label>
+                  <input
+                    id="fish-key-label"
+                    value={keyLabel}
+                    onChange={(event) => setKeyLabel(event.target.value)}
+                    className="mt-2 h-11 w-full rounded-2xl border border-fish-accent/25 bg-fish-navy950/70 px-4 text-sm font-bold text-white outline-none transition placeholder:text-fish-muted focus:border-fish-accent"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => updateCurrentKey({ rotate: false })}
+                  disabled={isUpdatingKey || account.account.status === "revoked"}
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-fish-accent/35 px-5 text-xs font-black text-fish-accent transition hover:bg-fish-accent/10 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {isUpdatingKey ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Save className="h-4 w-4" aria-hidden="true" />}
+                  Save label
+                </button>
+                <button
+                  type="button"
+                  onClick={() => updateCurrentKey({ rotate: true })}
+                  disabled={isUpdatingKey || account.account.status === "revoked"}
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-fish-gold/35 px-5 text-xs font-black text-fish-gold transition hover:bg-fish-gold/10 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {isUpdatingKey ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <RotateCw className="h-4 w-4" aria-hidden="true" />}
+                  Rotate key
+                </button>
+              </div>
+              {newKey ? (
+                <div className="mt-4 rounded-2xl border border-fish-gold/25 bg-fish-gold/10 p-4">
+                  <p className="text-xs font-black uppercase tracking-[0.1em] text-fish-gold">New key shown once</p>
+                  <input readOnly value={newKey} className="mt-2 h-11 w-full rounded-2xl border border-fish-gold/25 bg-fish-navy950/70 px-4 font-mono text-xs font-bold text-white outline-none" />
+                </div>
+              ) : null}
             </div>
             <PlanDock plan={account.account.plan} />
             <CreditLaneNet lanes={account.creditLanes} />

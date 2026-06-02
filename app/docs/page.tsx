@@ -49,7 +49,7 @@ export default function DocsPage() {
           <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">Builder start</p>
           <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_auto] lg:items-center">
             <p className="max-w-3xl text-2xl font-black leading-tight text-white">
-              Fish starts with keys, models, chat, balance, and usage records. Selected Ocean provider routes come after provider testing.
+              Fish starts with keys, key rotation, models, chat, balance, and usage records. Selected Ocean provider routes come after provider testing.
             </p>
             <div className="flex flex-wrap gap-3">
               <Link className="inline-flex h-12 items-center justify-center rounded-full border border-fish-accent/40 px-6 text-sm font-black text-fish-accent" href="/roadmap">

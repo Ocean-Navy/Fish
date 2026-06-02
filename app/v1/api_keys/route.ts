@@ -17,6 +17,7 @@ export async function GET(request: Request) {
         id: summary.account.id,
         label: summary.account.label,
         createdAt: summary.account.createdAt,
+        rotatedAt: summary.account.rotatedAt,
         lastUsedAt: summary.account.lastUsedAt,
         status: summary.account.status,
         revokedAt: summary.account.revokedAt,
