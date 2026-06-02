@@ -19,6 +19,7 @@ import { buildFishKnowledgeContext } from "@/lib/fishKnowledge";
 import { checkRouteDailyBudget, type RouteBudgetCheck } from "@/lib/fishBudget";
 import { spendDailyQuota } from "@/lib/fishQuota";
 import { runOceanBatchJob } from "@/lib/oceanBatch";
+import { OceanProviderChatError, runSelectedOceanProviderChat } from "@/lib/oceanProviderChat";
 import { getActiveFishRoute, getFishRouterConfig, type FishChatRouteId, type FishCostState, type FishRouterConfig } from "@/lib/fishRouter";
 import { VllmChatError, runVllmChat } from "@/lib/vllmChat";
 
@@ -118,7 +119,11 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
     });
   }
 
-  if (!activeRoute.configured && activeRoute.id === "ocean-demo-vllm" && canUseExternalFallback(routerConfig, context)) {
+  if (activeRoute.id === "ocean-provider" && !canUseOceanProviderRoute(context)) {
+    return jsonError(403, "ocean_provider_not_allowed_for_plan", "routing_policy_error", { route });
+  }
+
+  if (!activeRoute.configured && (activeRoute.id === "ocean-demo-vllm" || activeRoute.id === "ocean-provider") && canUseExternalFallback(routerConfig, context)) {
     route = "external-fallback";
     fallbackFrom = activeRoute.id;
     fallbackReason = "primary_not_configured";
@@ -224,6 +229,59 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
       }
       ({ content, responseModel, promptTokens, completionTokens, providerCostUsd, providerId, runnerReceipt } = fallback);
       fallbackFrom = "ocean-demo-vllm";
+      fallbackReason = "primary_backend_error";
+      route = "external-fallback";
+      costState = "fallback_verified";
+    }
+  } else if (route === "ocean-provider") {
+    try {
+      const provider = await runSelectedOceanProviderChat(
+        routeInput,
+        {
+          promptTokens,
+          completionTokens: estimateTokens("")
+        },
+        {
+          routeId: route,
+          idempotencyKey: reservation.requestId,
+          maxBudgetUsd: estimateRouteMaxCostUsd(route, promptTokens, requestedMaxOutputTokens, routerConfig)
+        }
+      );
+      content = provider.content;
+      responseModel = provider.model;
+      promptTokens = provider.promptTokens ?? promptTokens;
+      completionTokens = provider.completionTokens ?? estimateTokens(content);
+      providerCostUsd = provider.providerCostUsd;
+      providerId = provider.providerId;
+      runnerReceipt = provider.runnerReceipt;
+    } catch (error) {
+      if (!canUseExternalFallback(routerConfig, context)) {
+        const message = error instanceof OceanProviderChatError ? error.message : "ocean_provider_backend_error";
+        return releaseReservationAndReturn(
+          context,
+          reservation,
+          jsonError(error instanceof OceanProviderChatError ? error.status : 502, message, "ocean_provider_backend_error", { route }),
+          "credit_reserve_release_provider_error"
+        );
+      }
+
+      const fallbackBudgetCheck = await checkRouteDailyBudget({
+        route: "external-fallback",
+        promptTokens,
+        maxOutputTokens: requestedMaxOutputTokens,
+        routerConfig
+      });
+      if (!fallbackBudgetCheck.ok) {
+        return releaseReservationAndReturn(context, reservation, budgetExceededError(fallbackBudgetCheck), "credit_reserve_release_fallback_budget_error");
+      }
+      budgetCheck = fallbackBudgetCheck;
+
+      const fallback = await runExternalFallback(routeInput, promptTokens);
+      if (!fallback.ok) {
+        return releaseReservationAndReturn(context, reservation, fallback, "credit_reserve_release_fallback_error");
+      }
+      ({ content, responseModel, promptTokens, completionTokens, providerCostUsd, providerId, runnerReceipt } = fallback);
+      fallbackFrom = "ocean-provider";
       fallbackReason = "primary_backend_error";
       route = "external-fallback";
       costState = "fallback_verified";
@@ -348,7 +406,14 @@ function withFishKnowledgeContext(input: ChatCompletionInput, context: string): 
 }
 
 function estimateRouteMaxCostUsd(route: FishChatRouteId, promptTokens: number, maxOutputTokens: number, routerConfig: FishRouterConfig) {
-  const costUsdPer1kTokens = route === "ocean-demo-vllm" ? routerConfig.warm.costUsdPer1kTokens : route === "external-fallback" ? routerConfig.external.costUsdPer1kTokens : 0;
+  const costUsdPer1kTokens =
+    route === "ocean-demo-vllm"
+      ? routerConfig.warm.costUsdPer1kTokens
+      : route === "ocean-provider"
+        ? routerConfig.selectedProvider.costUsdPer1kTokens
+        : route === "external-fallback"
+          ? routerConfig.external.costUsdPer1kTokens
+          : 0;
   return Number((((promptTokens + maxOutputTokens) / 1000) * Math.max(0, costUsdPer1kTokens)).toFixed(6));
 }
 
@@ -525,9 +590,17 @@ function canUseExternalFallback(routerConfig: FishRouterConfig, context: FishCha
   return routerConfig.routes["external-fallback"].configured && (plan.externalFallbackAllowed || routerConfig.guardrails.externalFallbackFreeAllowed);
 }
 
+function canUseOceanProviderRoute(context: FishChatGatewayContext) {
+  const plan = getFishPlan(context.account.planId);
+  return plan.oceanProviderAllowed;
+}
+
 function routeNotConfiguredMessage(route: FishChatRouteId) {
   if (route === "ocean-demo-vllm") {
     return "ocean_demo_vllm_not_configured";
+  }
+  if (route === "ocean-provider") {
+    return "ocean_provider_not_configured";
   }
   if (route === "external-fallback") {
     return "external_fallback_not_configured";

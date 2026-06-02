@@ -17,6 +17,7 @@ const FISH_CHAT_MODEL_ID = "fish-demo-chat";
 const FISH_OCEAN_BATCH_MODEL_ID = "ocean-batch-placeholder";
 const FISH_DISH_MODEL_IDS = FISH_DISH_MODELS.map((model) => model.id);
 const FISH_OCEAN_DEMO_MODEL_IDS = compactIds([process.env.FISH_OCEAN_DEMO_VLLM_MODEL]);
+const FISH_OCEAN_PROVIDER_MODEL_IDS = compactIds([process.env.FISH_OCEAN_PROVIDER_MODEL]);
 const FISH_EXTERNAL_MODEL_IDS = compactIds([process.env.FISH_EXTERNAL_CHAT_MODEL]);
 
 export const FISH_MODELS = uniqueModels([
@@ -43,6 +44,17 @@ export const FISH_MODELS = uniqueModels([
           created: 1780245000,
           owned_by: process.env.FISH_OCEAN_DEMO_PROVIDER_ID || "ocean-navy-demo-node",
           description: "Configured Ocean Navy warm vLLM demo route."
+        }
+      ]
+    : []),
+  ...(FISH_OCEAN_PROVIDER_MODEL_IDS[0]
+    ? [
+        {
+          id: FISH_OCEAN_PROVIDER_MODEL_IDS[0],
+          object: "model",
+          created: 1780245000,
+          owned_by: process.env.FISH_OCEAN_PROVIDER_ID || "selected-ocean-provider",
+          description: "Configured selected Ocean provider warm route."
         }
       ]
     : []),
@@ -165,7 +177,7 @@ export const FISH_PLANS: FishPlan[] = [
     rateLimitPerMinute: 180,
     monthlyRequestLimit: 100000,
     maxStoredThreadItems: 1000,
-    allowedModels: uniqueIds([FISH_CHAT_MODEL_ID, ...FISH_DISH_MODEL_IDS, ...FISH_OCEAN_DEMO_MODEL_IDS, ...FISH_EXTERNAL_MODEL_IDS, FISH_OCEAN_BATCH_MODEL_ID]),
+    allowedModels: uniqueIds([FISH_CHAT_MODEL_ID, ...FISH_DISH_MODEL_IDS, ...FISH_OCEAN_DEMO_MODEL_IDS, ...FISH_OCEAN_PROVIDER_MODEL_IDS, ...FISH_EXTERNAL_MODEL_IDS, FISH_OCEAN_BATCH_MODEL_ID]),
     externalFallbackAllowed: true,
     oceanProviderAllowed: true
   },
@@ -177,7 +189,7 @@ export const FISH_PLANS: FishPlan[] = [
     rateLimitPerMinute: 30,
     monthlyRequestLimit: 5000,
     maxStoredThreadItems: 50,
-    allowedModels: uniqueIds([FISH_CHAT_MODEL_ID, ...FISH_DISH_MODEL_IDS, ...FISH_OCEAN_DEMO_MODEL_IDS, FISH_OCEAN_BATCH_MODEL_ID]),
+    allowedModels: uniqueIds([FISH_CHAT_MODEL_ID, ...FISH_DISH_MODEL_IDS, ...FISH_OCEAN_DEMO_MODEL_IDS, ...FISH_OCEAN_PROVIDER_MODEL_IDS, FISH_OCEAN_BATCH_MODEL_ID]),
     externalFallbackAllowed: false,
     oceanProviderAllowed: true
   }

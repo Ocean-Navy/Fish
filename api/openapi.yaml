@@ -1529,7 +1529,7 @@ components:
           properties:
             id:
               type: string
-              enum: [mock, ocean-demo-vllm, external-fallback]
+              enum: [mock, ocean-demo-vllm, ocean-provider, external-fallback]
             label:
               type: string
             isRealAi:
@@ -1546,7 +1546,7 @@ components:
           properties:
             chatRoute:
               type: string
-              enum: [mock, ocean-demo-vllm, external-fallback]
+              enum: [mock, ocean-demo-vllm, ocean-provider, external-fallback]
             paused:
               type: boolean
             killSwitch:
@@ -1561,6 +1561,17 @@ components:
               type: string
               nullable: true
             warmProviderId:
+              type: string
+            selectedProviderConfigured:
+              type: boolean
+            selectedProviderBaseUrlConfigured:
+              type: boolean
+            selectedProviderApiKeyConfigured:
+              type: boolean
+            selectedProviderModel:
+              type: string
+              nullable: true
+            selectedProviderId:
               type: string
             externalConfigured:
               type: boolean
@@ -1606,7 +1617,7 @@ components:
             properties:
               id:
                 type: string
-                enum: [mock, ocean-demo-vllm, external-fallback, ocean-batch, selected-ocean-provider, ocean-private, hardened-runner, tee-runner]
+                enum: [mock, ocean-demo-vllm, ocean-provider, external-fallback, ocean-batch, ocean-private, hardened-runner, tee-runner]
               title:
                 type: string
               state:

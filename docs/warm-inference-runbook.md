@@ -189,7 +189,7 @@ Keep Ocean Node ports and admin surfaces private or explicitly documented by the
 
 ## Fish Gateway Configuration
 
-Current Fish V0 supports a mock route, an Ocean Navy demo vLLM route, and an external OpenAI-compatible fallback. When Fish Runner is deployed, point Fish Gateway at the runner's OpenAI-compatible `/v1` surface, not raw vLLM:
+Current Fish V0 supports a mock route, an Ocean Navy demo vLLM route, a selected Ocean provider route, and an external OpenAI-compatible fallback. When Fish Runner is deployed, point Fish Gateway at the runner's OpenAI-compatible `/v1` surface, not raw vLLM:
 
 ```text
 FISH_CHAT_ROUTE=ocean-first
@@ -213,6 +213,22 @@ FISH_RUNNER_PUBLIC_KEY_PEM=<runner public key with newlines escaped as \n>
 
 `FISH_CHAT_ROUTE=ocean-first`, `hybrid`, and `ocean-demo-vllm` all choose the same warm demo lane. Use `ocean-first` in deployment files because it matches the product story; Fish still records the exact route that served each request.
 
+Selected Ocean providers use their own route id, provider id, daily budget, and model entry:
+
+```text
+FISH_CHAT_ROUTE=ocean-provider
+FISH_OCEAN_PROVIDER_BASE_URL=<selected provider or Fish Runner /v1 base URL>
+FISH_OCEAN_PROVIDER_API_KEY=<selected provider or runner API key>
+FISH_OCEAN_PROVIDER_MODEL=<selected provider model>
+FISH_OCEAN_PROVIDER_ID=<provider id shown in receipts>
+FISH_OCEAN_PROVIDER_COST_USD_PER_1K_TOKENS=<operator estimate>
+FISH_OCEAN_PROVIDER_DAILY_BUDGET_USD=<daily selected-provider budget>
+FISH_RUNNER_PUBLIC_KEY_ID=<provider runner key id>
+FISH_RUNNER_PUBLIC_KEY_PEM=<provider runner public key with newlines escaped as \n>
+```
+
+Only `team-api` and `provider-test` plans may use the selected-provider route in the V0 gateway. This keeps public demo traffic from accidentally depending on one private provider while selected-provider proof is still being validated.
+
 External fallback is intentionally separate:
 
 ```text
@@ -226,7 +242,7 @@ FISH_EXTERNAL_FALLBACK_DAILY_BUDGET_USD=<daily fallback budget>
 FISH_EXTERNAL_FALLBACK_FREE_ALLOWED=false
 ```
 
-Use this only in private preview or controlled beta. Keep public route labels clear that this is a selected warm demo backend until Fish Runner receipts and selected-provider proof are live.
+Use this only in private preview or controlled beta. Keep public route labels clear: demo vLLM, selected Ocean provider, and outside fallback are different routes with different evidence.
 
 ## Network And Security
 

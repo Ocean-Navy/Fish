@@ -1,7 +1,7 @@
 import { getExternalChatConfig, isExternalChatEnabled } from "@/lib/externalChat";
 import { isOpenAiCompatibleRouteConfigured, type OpenAiCompatibleRouteConfig } from "@/lib/openAiCompatibleChat";
 
-export type FishChatRouteId = "mock" | "ocean-demo-vllm" | "external-fallback";
+export type FishChatRouteId = "mock" | "ocean-demo-vllm" | "ocean-provider" | "external-fallback";
 export type FishCostState = "prototype_estimate" | "provider_verified" | "fallback_verified";
 export type FishRouteStatus = "active" | "ready" | "disabled" | "needs-config" | "paused";
 
@@ -32,17 +32,20 @@ export type FishRouterConfig = {
     dailyUsdByRoute: Record<FishChatRouteId, number>;
   };
   warm: OpenAiCompatibleRouteConfig;
+  selectedProvider: OpenAiCompatibleRouteConfig;
   external: ReturnType<typeof getExternalChatConfig>;
   routes: Record<FishChatRouteId, FishRouteConfig>;
 };
 
 export function getFishRouterConfig(): FishRouterConfig {
   const warm = getWarmInferenceConfig();
+  const selectedProvider = getSelectedOceanProviderConfig();
   const external = getExternalChatConfig();
   const activeRouteId = normalizeRouteId(process.env.FISH_CHAT_ROUTE ?? process.env.FISH_CHAT_BACKEND);
   const paused = parseBoolean(process.env.FISH_CHAT_PAUSED) || parseBoolean(process.env.FISH_ROUTER_PAUSED);
   const killSwitch = parseBoolean(process.env.FISH_ROUTER_KILL_SWITCH) || parseBoolean(process.env.FISH_CHAT_KILL_SWITCH);
   const warmConfigured = isOpenAiCompatibleRouteConfigured(warm);
+  const selectedProviderConfigured = isOpenAiCompatibleRouteConfigured(selectedProvider);
   const externalConfigured = isExternalChatEnabled(external);
 
   return {
@@ -60,10 +63,12 @@ export function getFishRouterConfig(): FishRouterConfig {
       dailyUsdByRoute: {
         mock: readNonNegativeNumber(process.env.FISH_MOCK_DAILY_BUDGET_USD, 0),
         "ocean-demo-vllm": readNonNegativeNumber(process.env.FISH_OCEAN_DEMO_DAILY_BUDGET_USD, 50),
+        "ocean-provider": readNonNegativeNumber(process.env.FISH_OCEAN_PROVIDER_DAILY_BUDGET_USD, 25),
         "external-fallback": readNonNegativeNumber(process.env.FISH_EXTERNAL_FALLBACK_DAILY_BUDGET_USD, 10)
       }
     },
     warm,
+    selectedProvider,
     external,
     routes: {
       mock: {
@@ -86,6 +91,17 @@ export function getFishRouterConfig(): FishRouterConfig {
         providerId: warm.providerId,
         status: activeRouteId === "ocean-demo-vllm" ? routeStatus(paused, killSwitch, true, warmConfigured) : warmConfigured ? "ready" : "needs-config",
         configured: warmConfigured,
+        enabled: true
+      },
+      "ocean-provider": {
+        id: "ocean-provider",
+        label: "ocean-provider",
+        publicLabel: "Selected Ocean provider",
+        isRealAi: true,
+        costState: "provider_verified",
+        providerId: selectedProvider.providerId,
+        status: activeRouteId === "ocean-provider" ? routeStatus(paused, killSwitch, true, selectedProviderConfigured) : selectedProviderConfigured ? "ready" : "needs-config",
+        configured: selectedProviderConfigured,
         enabled: true
       },
       "external-fallback": {
@@ -117,19 +133,33 @@ export function getWarmInferenceConfig(): OpenAiCompatibleRouteConfig {
   };
 }
 
+export function getSelectedOceanProviderConfig(): OpenAiCompatibleRouteConfig {
+  return {
+    baseUrl: cleanEnv(process.env.FISH_OCEAN_PROVIDER_BASE_URL),
+    apiKey: cleanEnv(process.env.FISH_OCEAN_PROVIDER_API_KEY),
+    model: cleanEnv(process.env.FISH_OCEAN_PROVIDER_MODEL),
+    providerId: cleanEnv(process.env.FISH_OCEAN_PROVIDER_ID) ?? "selected-ocean-provider",
+    costUsdPer1kTokens: Number(process.env.FISH_OCEAN_PROVIDER_COST_USD_PER_1K_TOKENS ?? "0")
+  };
+}
+
 function normalizeRouteId(value: string | undefined): FishChatRouteId {
+  const route = value?.trim().toLowerCase();
   if (
-    value === "ocean-demo-vllm" ||
-    value === "ocean_demo_vllm" ||
-    value === "vllm" ||
-    value === "ocean-first" ||
-    value === "ocean_first" ||
-    value === "hybrid" ||
-    value === "ocean-first-hybrid"
+    route === "ocean-demo-vllm" ||
+    route === "ocean_demo_vllm" ||
+    route === "vllm" ||
+    route === "ocean-first" ||
+    route === "ocean_first" ||
+    route === "hybrid" ||
+    route === "ocean-first-hybrid"
   ) {
     return "ocean-demo-vllm";
   }
-  if (value === "external" || value === "external-fallback" || value === "external_fallback") {
+  if (route === "ocean-provider" || route === "ocean_provider" || route === "selected-ocean-provider" || route === "selected_ocean_provider" || route === "selected-provider") {
+    return "ocean-provider";
+  }
+  if (route === "external" || route === "external-fallback" || route === "external_fallback") {
     return "external-fallback";
   }
   return "mock";

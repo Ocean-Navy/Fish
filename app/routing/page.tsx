@@ -32,9 +32,9 @@ const stateStyles: Record<RouteModeState, string> = {
 const modeIcons = {
   mock: Fish,
   "ocean-demo-vllm": Anchor,
+  "ocean-provider": Anchor,
   "external-fallback": RouteIcon,
   "ocean-batch": FileText,
-  "selected-ocean-provider": Anchor,
   "ocean-private": ShieldCheck,
   "hardened-runner": LockKeyhole,
   "tee-runner": BadgeCheck

@@ -195,7 +195,7 @@ function buildPolicy(definition: FishFeatureDefinition, routerConfig: FishRouter
     id: definition.id,
     label: definition.label,
     state,
-    primary: definition.primary,
+    primary: featurePrimary(definition, routerConfig),
     fallback: featureFallback(definition, routerConfig),
     enabled: definition.enabled,
     maxInputTokens,
@@ -203,6 +203,14 @@ function buildPolicy(definition: FishFeatureDefinition, routerConfig: FishRouter
     cap: definition.enabled ? `${maxInputTokens} in / ${maxOutputTokens} out` : "Disabled in V0",
     modelAliases: definition.modelAliases ?? []
   };
+}
+
+function featurePrimary(definition: FishFeatureDefinition, routerConfig: FishRouterConfig) {
+  if (!definition.enabled || definition.id === "api" || definition.id === "docs") {
+    return definition.primary;
+  }
+  const activeRoute = routerConfig.routes[routerConfig.activeRouteId];
+  return activeRoute.isRealAi && activeRoute.configured ? activeRoute.publicLabel : definition.primary;
 }
 
 function featureFallback(definition: FishFeatureDefinition, routerConfig: FishRouterConfig) {
@@ -219,7 +227,8 @@ function featureFallback(definition: FishFeatureDefinition, routerConfig: FishRo
 }
 
 function liveTextState(fallback: FishFeatureState, routerConfig: FishRouterConfig): FishFeatureState {
-  return routerConfig.routes["ocean-demo-vllm"].configured ? "live-beta" : fallback;
+  const activeRoute = routerConfig.routes[routerConfig.activeRouteId];
+  return activeRoute.isRealAi && activeRoute.configured ? "live-beta" : fallback;
 }
 
 function readFeatureLimit(featureId: FishFeatureId, kind: "INPUT" | "OUTPUT", fallback: number) {

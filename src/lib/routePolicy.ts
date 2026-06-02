@@ -3,7 +3,7 @@ import { getFishRouterConfig, type FishChatRouteId } from "@/lib/fishRouter";
 import { readOceanBatchDailyBudgetUsd } from "@/lib/oceanBatch";
 import type { DataState } from "@/lib/types";
 
-export type RouteModeId = FishChatRouteId | "ocean-batch" | "selected-ocean-provider" | "ocean-private" | "hardened-runner" | "tee-runner";
+export type RouteModeId = FishChatRouteId | "ocean-batch" | "ocean-private" | "hardened-runner" | "tee-runner";
 export type RouteModeState = "active" | "ready" | "needs-config" | "paused" | "disabled" | "pilot" | "future";
 
 export type FishRoutePolicy = {
@@ -26,6 +26,11 @@ export type FishRoutePolicy = {
     warmApiKeyConfigured: boolean;
     warmModel: string | null;
     warmProviderId: string;
+    selectedProviderConfigured: boolean;
+    selectedProviderBaseUrlConfigured: boolean;
+    selectedProviderApiKeyConfigured: boolean;
+    selectedProviderModel: string | null;
+    selectedProviderId: string;
     externalConfigured: boolean;
     externalBaseUrlConfigured: boolean;
     externalApiKeyConfigured: boolean;
@@ -88,6 +93,11 @@ export function getFishRoutePolicy(): FishRoutePolicy {
       warmApiKeyConfigured: Boolean(router.warm.apiKey),
       warmModel: router.warm.model,
       warmProviderId: router.warm.providerId,
+      selectedProviderConfigured: router.routes["ocean-provider"].configured,
+      selectedProviderBaseUrlConfigured: Boolean(router.selectedProvider.baseUrl),
+      selectedProviderApiKeyConfigured: Boolean(router.selectedProvider.apiKey),
+      selectedProviderModel: router.selectedProvider.model,
+      selectedProviderId: router.selectedProvider.providerId,
       externalConfigured: router.routes["external-fallback"].configured,
       externalBaseUrlConfigured: Boolean(router.external.baseUrl),
       externalApiKeyConfigured: Boolean(router.external.apiKey),
@@ -120,6 +130,14 @@ export function getFishRoutePolicy(): FishRoutePolicy {
         proof: "Warm inference receipt with route, provider id, latency, and token counts."
       },
       {
+        id: "ocean-provider",
+        title: "Ocean providers",
+        state: router.routes["ocean-provider"].status,
+        short: "Selected Ocean providers run warm chat.",
+        privacy: "Prompts go to the configured selected Ocean provider.",
+        proof: "Fish usage record plus signed runner proof when the provider returns one."
+      },
+      {
         id: "external-fallback",
         title: "Outside AI",
         state: router.routes["external-fallback"].status,
@@ -134,14 +152,6 @@ export function getFishRoutePolicy(): FishRoutePolicy {
         short: "Hash-only Docs jobs for batch work.",
         privacy: "Fish sends input references, not raw document text.",
         proof: "Ocean batch receipt plus normal Fish usage record."
-      },
-      {
-        id: "selected-ocean-provider",
-        title: "Ocean providers",
-        state: "pilot",
-        short: "Selected Ocean providers run jobs.",
-        privacy: "Provider terms and Fish routing policy apply.",
-        proof: "Signed provider proof."
       },
       {
         id: "ocean-private",
@@ -180,18 +190,18 @@ export function getFishRoutePolicy(): FishRoutePolicy {
               ? `${router.guardrails.dailyKeyedQuota} keyed orders/day`
               : feature.id === "docs"
                 ? `${formatDailyBudget(oceanBatchDailyBudgetUsd)} batch daily`
-                : `${formatDailyBudget(router.budgets.dailyUsdByRoute["ocean-demo-vllm"])} daily`
+                : `${formatDailyBudget(router.budgets.dailyUsdByRoute[router.activeRouteId])} daily`
           }`
         : feature.cap
     })),
     rules: [
       {
         title: "Name the route",
-        body: "Mock, Ocean demo vLLM, and external fallback work must be labeled differently."
+        body: "Mock, Ocean demo vLLM, selected Ocean provider, and external fallback work must be labeled differently."
       },
       {
         title: "Ocean proof is narrow",
-        body: "The warm demo node is labeled separately from the future selected-provider market."
+        body: "The demo node and selected providers are labeled separately."
       },
       {
         title: "Caps before calls",
@@ -206,7 +216,7 @@ export function getFishRoutePolicy(): FishRoutePolicy {
         body: "Outside AI can help launch, but that provider's privacy policy applies."
       }
     ],
-    nextMilestone: "Operate the warm demo node, then connect selected Ocean provider jobs behind an allowlist and public-safe proof."
+    nextMilestone: "Operate selected Ocean providers with signed runner proof, then expand the provider allowlist."
   };
 }
 
@@ -232,6 +242,16 @@ function activeRoutePolicy(id: FishChatRouteId, status: RouteModeState): FishRou
       isRealAi: true,
       privacy: "Prompts go to the configured outside AI provider only when this route is explicitly enabled.",
       evidence: "Marked as fallback AI, not Ocean provider proof.",
+      status
+    };
+  }
+  if (id === "ocean-provider") {
+    return {
+      id,
+      label: "Selected Ocean provider",
+      isRealAi: true,
+      privacy: "Prompts go to the configured selected Ocean provider. Fish keeps usage numbers, provider ids, and request hashes.",
+      evidence: "Marked as selected Ocean provider work with runner proof when available.",
       status
     };
   }

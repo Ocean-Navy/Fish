@@ -40,7 +40,14 @@ export async function checkRouteDailyBudget(input: {
 }
 
 function estimateProviderCostUsd(route: FishChatRouteId, maxTokens: number, routerConfig: FishRouterConfig) {
-  const costUsdPer1kTokens = route === "ocean-demo-vllm" ? routerConfig.warm.costUsdPer1kTokens : route === "external-fallback" ? routerConfig.external.costUsdPer1kTokens : 0;
+  const costUsdPer1kTokens =
+    route === "ocean-demo-vllm"
+      ? routerConfig.warm.costUsdPer1kTokens
+      : route === "ocean-provider"
+        ? routerConfig.selectedProvider.costUsdPer1kTokens
+        : route === "external-fallback"
+          ? routerConfig.external.costUsdPer1kTokens
+          : 0;
   return Number(((maxTokens / 1000) * Math.max(0, costUsdPer1kTokens)).toFixed(6));
 }
 
