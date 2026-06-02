@@ -14,6 +14,7 @@ import {
   type RunnerReceiptSummary
 } from "@/lib/fishLedger";
 import { ExternalChatError, runExternalChat } from "@/lib/externalChat";
+import { tryAcquireFishConcurrencySlot } from "@/lib/fishConcurrency";
 import { getFishFeaturePolicy } from "@/lib/fishFeaturePolicy";
 import { buildFishKnowledgeContext } from "@/lib/fishKnowledge";
 import { checkRouteDailyBudget, type RouteBudgetCheck } from "@/lib/fishBudget";
@@ -137,6 +138,17 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
     return jsonError(403, "external_fallback_not_allowed_for_plan", "routing_policy_error", { route });
   }
 
+  const concurrencySlot = tryAcquireFishConcurrencySlot(route, routerConfig.guardrails.maxConcurrentRequests);
+  if (!concurrencySlot.ok) {
+    return jsonError(429, "max_concurrent_requests_exceeded", "concurrency_error", {
+      route,
+      activeRequests: concurrencySlot.activeRequests,
+      activeForRoute: concurrencySlot.activeForRoute,
+      limit: concurrencySlot.limit
+    });
+  }
+
+  try {
   let budgetCheck = await checkRouteDailyBudget({
     route,
     promptTokens,
@@ -382,6 +394,9 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
       }
     }
   };
+  } finally {
+    concurrencySlot.release();
+  }
 }
 
 function messagesToText(input: ChatCompletionInput) {

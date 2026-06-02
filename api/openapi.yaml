@@ -1644,6 +1644,12 @@ components:
               type: boolean
             oceanBatchProviderId:
               type: string
+            concurrencyActiveRequests:
+              type: integer
+            concurrencyActiveByRoute:
+              type: object
+              additionalProperties:
+                type: integer
         guardrails:
           type: object
           properties:
@@ -1654,6 +1660,8 @@ components:
             dailyKeyedQuota:
               type: integer
             dailyAnonymousQuota:
+              type: integer
+            maxConcurrentRequests:
               type: integer
             externalFallbackFreeAllowed:
               type: boolean
@@ -1666,6 +1674,9 @@ components:
             quotaStorage:
               type: string
               enum: [local-json]
+            concurrencyStorage:
+              type: string
+              enum: [in-memory]
         modes:
           type: array
           items:

@@ -1,4 +1,5 @@
 import { listFishFeaturePolicies, type FishFeatureId } from "@/lib/fishFeaturePolicy";
+import { getFishConcurrencySnapshot } from "@/lib/fishConcurrency";
 import { getFishRouterConfig, type FishChatRouteId } from "@/lib/fishRouter";
 import { readOceanBatchDailyBudgetUsd } from "@/lib/oceanBatch";
 import type { DataState } from "@/lib/types";
@@ -38,6 +39,8 @@ export type FishRoutePolicy = {
     externalProviderId: string;
     oceanBatchConfigured: boolean;
     oceanBatchProviderId: string;
+    concurrencyActiveRequests: number;
+    concurrencyActiveByRoute: Partial<Record<FishChatRouteId, number>>;
   };
   guardrails: {
     maxInputTokens: number;
@@ -47,7 +50,9 @@ export type FishRoutePolicy = {
     externalFallbackFreeAllowed: boolean;
     dailyUsdBudgets: Record<FishChatRouteId, number>;
     oceanBatchDailyBudgetUsd: number;
+    maxConcurrentRequests: number;
     quotaStorage: "local-json";
+    concurrencyStorage: "in-memory";
   };
   modes: Array<{
     id: RouteModeId;
@@ -79,6 +84,7 @@ export function getFishRoutePolicy(): FishRoutePolicy {
   const oceanBatchConfigured = Boolean(process.env.FISH_OCEAN_BATCH_ENDPOINT?.trim());
   const oceanBatchProviderId = process.env.FISH_OCEAN_BATCH_PROVIDER_ID?.trim() || "ocean-batch-provider";
   const oceanBatchDailyBudgetUsd = readOceanBatchDailyBudgetUsd();
+  const concurrency = getFishConcurrencySnapshot();
 
   return {
     dataState: "live",
@@ -104,13 +110,17 @@ export function getFishRoutePolicy(): FishRoutePolicy {
       externalModel: router.external.model,
       externalProviderId: router.external.providerId,
       oceanBatchConfigured,
-      oceanBatchProviderId
+      oceanBatchProviderId,
+      concurrencyActiveRequests: concurrency.activeRequests,
+      concurrencyActiveByRoute: concurrency.activeByRoute
     },
     guardrails: {
       ...router.guardrails,
       dailyUsdBudgets: router.budgets.dailyUsdByRoute,
       oceanBatchDailyBudgetUsd,
-      quotaStorage: "local-json"
+      maxConcurrentRequests: router.guardrails.maxConcurrentRequests,
+      quotaStorage: "local-json",
+      concurrencyStorage: "in-memory"
     },
     modes: [
       {
@@ -205,7 +215,7 @@ export function getFishRoutePolicy(): FishRoutePolicy {
       },
       {
         title: "Caps before calls",
-        body: "Input tokens, output tokens, daily quota, daily route budget, and pause switches are checked before backend calls."
+        body: "Input tokens, output tokens, daily quota, concurrent requests, daily route budget, and pause switches are checked before backend calls."
       },
       {
         title: "Usage stays clean",

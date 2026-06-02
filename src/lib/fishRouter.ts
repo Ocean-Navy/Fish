@@ -26,6 +26,7 @@ export type FishRouterConfig = {
     maxOutputTokens: number;
     dailyKeyedQuota: number;
     dailyAnonymousQuota: number;
+    maxConcurrentRequests: number;
     externalFallbackFreeAllowed: boolean;
   };
   budgets: {
@@ -57,6 +58,7 @@ export function getFishRouterConfig(): FishRouterConfig {
       maxOutputTokens: readPositiveInt(process.env.FISH_MAX_OUTPUT_TOKENS, 512),
       dailyKeyedQuota: readPositiveInt(process.env.FISH_DAILY_KEYED_QUOTA, 20),
       dailyAnonymousQuota: readPositiveInt(process.env.FISH_DAILY_ANONYMOUS_QUOTA, 5),
+      maxConcurrentRequests: readPositiveInt(process.env.FISH_MAX_CONCURRENT_REQUESTS, 8),
       externalFallbackFreeAllowed: parseBoolean(process.env.FISH_EXTERNAL_FALLBACK_FREE_ALLOWED)
     },
     budgets: {
