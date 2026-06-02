@@ -29,7 +29,11 @@ if [[ "${1:-}" == "--env-file" ]]; then
   shift 2
 fi
 
-metadata_file="${1:-${algo_dir}/ocean-algorithm-metadata.template.json}"
+if [[ -n "${1:-}" ]]; then
+  metadata_file="${1}"
+else
+  metadata_file="$(node "${repo_root}/scripts/prepare-fish-algorithm-metadata.mjs")"
+fi
 
 if [[ -z "${OCEAN_CLI_DIR:-}" ]]; then
   echo "OCEAN_CLI_DIR is required. Run scripts/bootstrap-ocean-cli.sh first." >&2

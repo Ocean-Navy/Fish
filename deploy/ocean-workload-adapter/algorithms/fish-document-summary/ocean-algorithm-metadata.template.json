@@ -46,7 +46,7 @@
         "files": [
           {
             "type": "url",
-            "url": "https://raw.githubusercontent.com/Ocean-Navy/Fish/codex/selected-ocean-provider-route/deploy/ocean-workload-adapter/algorithms/fish-document-summary/algorithm.py",
+            "url": "__FISH_ALGORITHM_FILE_URL__",
             "contentType": "text/x-python",
             "encoding": "UTF-8",
             "method": "GET"
