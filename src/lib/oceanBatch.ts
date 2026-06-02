@@ -10,6 +10,7 @@ import {
   type Account,
   type Ledger
 } from "@/lib/fishLedger";
+import { spendDailyQuota } from "@/lib/fishQuota";
 import type { DataState } from "@/lib/types";
 
 const OCEAN_BATCH_DIR = path.join(process.cwd(), "data", "ocean-batch");
@@ -40,6 +41,10 @@ type OceanBatchJobInput = Omit<OceanBatchJobRequestInput, "estimatedInputTokens"
 export type OceanBatchJobContext = {
   ledger: Ledger;
   account: Account;
+  quota?: {
+    principalId: string;
+    dailyQuotaLimit: number;
+  };
 };
 
 type OceanBatchAdapterOutcome = {
@@ -166,6 +171,26 @@ export async function runOceanBatchJob(request: OceanBatchJobRequestInput, conte
   }
 
   const estimatedMaxCredits = Math.max(1, Math.ceil((input.estimatedInputTokens + input.maxOutputTokens) / 1000));
+  if (context.account.creditBalance < estimatedMaxCredits) {
+    return {
+      ok: false as const,
+      status: 402,
+      error: "insufficient_fish_credits",
+      needed: estimatedMaxCredits,
+      available: context.account.creditBalance
+    };
+  }
+
+  const quota = context.quota ? await spendDailyQuota(context.quota.principalId, "ocean-provider", context.quota.dailyQuotaLimit) : null;
+  if (quota && !quota.ok) {
+    return {
+      ok: false as const,
+      status: quota.status,
+      error: quota.error,
+      quota
+    };
+  }
+
   const reservationResult = await reserveFishCredits({
     ledger: context.ledger,
     account: context.account,
@@ -286,7 +311,8 @@ export async function runOceanBatchJob(request: OceanBatchJobRequestInput, conte
     receipt,
     usageReceipt: usage.receipt,
     creditsRemaining: usage.creditsRemaining,
-    budget: await oceanBatchBudgetState(0)
+    budget: await oceanBatchBudgetState(0),
+    quota: quota ?? undefined
   };
 }
 

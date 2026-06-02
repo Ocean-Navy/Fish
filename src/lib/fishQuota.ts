@@ -11,9 +11,11 @@ type DailyQuotaLedger = {
 
 type DailyQuotaCounter = {
   requests: number;
-  routeCounts: Partial<Record<FishChatRouteId, number>>;
+  routeCounts: Partial<Record<FishQuotaRouteId, number>>;
   updatedAt: string;
 };
+
+export type FishQuotaRouteId = FishChatRouteId | "ocean-provider";
 
 export type DailyQuotaResult =
   | {
@@ -31,7 +33,7 @@ export type DailyQuotaResult =
       limit: number;
     };
 
-export async function spendDailyQuota(principalId: string, route: FishChatRouteId, limit: number): Promise<DailyQuotaResult> {
+export async function spendDailyQuota(principalId: string, route: FishQuotaRouteId, limit: number): Promise<DailyQuotaResult> {
   const normalizedLimit = Math.max(0, Math.floor(limit));
   const ledger = await readQuotaLedger();
   const day = new Date().toISOString().slice(0, 10);

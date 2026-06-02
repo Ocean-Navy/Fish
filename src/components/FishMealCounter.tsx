@@ -347,6 +347,11 @@ export function FishMealCounter() {
         providerCostUsd: payload.fish?.providerCostUsd,
         totalTokens: payload.usage?.total_tokens,
         quotaRemaining: payload.fish?.quotaRemaining,
+        batchReceiptId: payload.fish?.batchReceiptId,
+        batchJobId: payload.fish?.batchJobId,
+        batchSourceState: payload.fish?.batchSourceState,
+        batchAdapterMode: payload.fish?.batchAdapterMode,
+        inputRef: payload.fish?.inputRef,
         accessMode
       });
     } catch (err) {

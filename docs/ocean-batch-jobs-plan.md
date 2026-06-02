@@ -33,6 +33,8 @@ Request shape:
 
 Fish checks `maxCostUsd` against the remaining `FISH_OCEAN_BATCH_DAILY_BUDGET_USD` before calling a private adapter. The default daily cap is `$30`.
 
+`/v1/chat/completions` with `model: "fish-docs"` generates a hash-only `inputRef`, uses this batch contract, and returns an OpenAI-style chat response with batch receipt metadata. The generated batch request is capped by `FISH_DOCS_BATCH_MAX_RUNTIME_SECONDS` and `FISH_DOCS_BATCH_MAX_COST_USD`.
+
 ## Adapter Modes
 
 ```text

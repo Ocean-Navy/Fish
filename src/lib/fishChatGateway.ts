@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import {
   buildMockCompletion,
   checkFishModelAccess,
@@ -16,6 +17,7 @@ import { ExternalChatError, runExternalChat } from "@/lib/externalChat";
 import { getFishFeaturePolicy } from "@/lib/fishFeaturePolicy";
 import { checkRouteDailyBudget, type RouteBudgetCheck } from "@/lib/fishBudget";
 import { spendDailyQuota } from "@/lib/fishQuota";
+import { runOceanBatchJob } from "@/lib/oceanBatch";
 import { getActiveFishRoute, getFishRouterConfig, type FishChatRouteId, type FishCostState, type FishRouterConfig } from "@/lib/fishRouter";
 import { VllmChatError, runVllmChat } from "@/lib/vllmChat";
 
@@ -85,16 +87,6 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
     });
   }
 
-  if (!activeRoute.configured && activeRoute.id === "ocean-demo-vllm" && canUseExternalFallback(routerConfig, context)) {
-    route = "external-fallback";
-    fallbackFrom = activeRoute.id;
-    fallbackReason = "primary_not_configured";
-    costState = "fallback_verified";
-    providerId = routerConfig.routes["external-fallback"].providerId;
-  } else if (!activeRoute.configured) {
-    return jsonError(503, routeNotConfiguredMessage(activeRoute.id), "routing_policy_error", { route });
-  }
-
   if (promptTokens > featurePolicy.maxInputTokens) {
     return jsonError(400, "max_input_tokens_exceeded", "guardrail_error", {
       feature: featurePolicy.id,
@@ -109,6 +101,27 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
       limit: featurePolicy.maxOutputTokens,
       requested: requestedMaxOutputTokens
     });
+  }
+
+  if (featurePolicy.id === "docs") {
+    return runDocsBatchChatGateway({
+      input,
+      context,
+      promptText,
+      promptTokens,
+      maxOutputTokens: requestedMaxOutputTokens,
+      featureLabel: featurePolicy.label
+    });
+  }
+
+  if (!activeRoute.configured && activeRoute.id === "ocean-demo-vllm" && canUseExternalFallback(routerConfig, context)) {
+    route = "external-fallback";
+    fallbackFrom = activeRoute.id;
+    fallbackReason = "primary_not_configured";
+    costState = "fallback_verified";
+    providerId = routerConfig.routes["external-fallback"].providerId;
+  } else if (!activeRoute.configured) {
+    return jsonError(503, routeNotConfiguredMessage(activeRoute.id), "routing_policy_error", { route });
   }
 
   if (route === "external-fallback" && !canUseExternalFallback(routerConfig, context)) {
@@ -308,6 +321,124 @@ function budgetExceededError(check: Extract<RouteBudgetCheck, { ok: false }>) {
     estimatedProviderCostUsd: check.estimatedCostUsd,
     remainingUsd: check.remainingUsd
   });
+}
+
+async function runDocsBatchChatGateway(params: {
+  input: ChatCompletionInput;
+  context: FishChatGatewayContext;
+  promptText: string;
+  promptTokens: number;
+  maxOutputTokens: number;
+  featureLabel: string;
+}): Promise<FishChatGatewayResult> {
+  const inputRef = hashInputRef(params.promptText);
+  const result = await runOceanBatchJob(
+    {
+      taskType: "document_summary",
+      inputRef,
+      estimatedInputTokens: params.promptTokens,
+      maxOutputTokens: params.maxOutputTokens,
+      maxRuntimeSeconds: readDocsBatchMaxRuntimeSeconds(),
+      maxCostUsd: readDocsBatchMaxCostUsd(),
+      adapterMode: process.env.FISH_OCEAN_BATCH_ENDPOINT?.trim() ? "ocean_http" : "sample_success"
+    },
+    {
+      ledger: params.context.ledger,
+      account: params.context.account,
+      quota: {
+        principalId: params.context.principalId,
+        dailyQuotaLimit: params.context.dailyQuotaLimit
+      }
+    }
+  );
+
+  if (!result.ok) {
+    return jsonError(result.status, result.error, result.status === 402 ? "billing_error" : result.status === 429 ? "quota_or_budget_error" : "ocean_batch_error", {
+      needed: "needed" in result ? result.needed : undefined,
+      available: "available" in result ? result.available : undefined,
+      budget: "budget" in result ? result.budget : undefined,
+      quota: "quota" in result ? result.quota : undefined,
+      receipt: "receipt" in result ? result.receipt : undefined
+    });
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  return {
+    ok: true,
+    body: {
+      id: `chatcmpl_${result.usageReceipt.id}`,
+      object: "chat.completion",
+      created: now,
+      model: result.receipt.model,
+      choices: [
+        {
+          index: 0,
+          message: {
+            role: "assistant",
+            content: docsBatchCompletionText(result.receipt)
+          },
+          finish_reason: "stop"
+        }
+      ],
+      usage: {
+        prompt_tokens: result.receipt.usage.inputTokens,
+        completion_tokens: result.receipt.usage.outputTokens,
+        total_tokens: result.receipt.usage.totalTokens
+      },
+      fish: {
+        route: result.usageReceipt.route,
+        requestedRoute: result.usageReceipt.requestedRoute,
+        fallbackFrom: result.usageReceipt.fallbackFrom,
+        fallbackReason: result.usageReceipt.fallbackReason,
+        feature: result.usageReceipt.feature,
+        featureLabel: params.featureLabel,
+        costState: result.usageReceipt.costState,
+        receiptId: result.usageReceipt.id,
+        status: result.usageReceipt.status,
+        routeLabel: "Ocean batch",
+        providerId: result.usageReceipt.providerId,
+        runnerReceiptHash: null,
+        runnerSignatureState: null,
+        runnerId: null,
+        latencyMs: result.usageReceipt.latencyMs,
+        dailyBudgetUsd: result.budget.dailyBudgetUsd,
+        dailyBudgetRemainingUsd: result.budget.remainingUsd,
+        estimatedProviderCostUsd: result.receipt.cost.providerCostUsd,
+        quotaRemaining: result.quota?.remaining,
+        creditsSpent: result.usageReceipt.creditsSpent,
+        creditsRemaining: result.creditsRemaining,
+        userChargeUsd: result.usageReceipt.userChargeUsd,
+        providerCostUsd: result.usageReceipt.providerCostUsd,
+        grossMarginUsd: result.usageReceipt.grossMarginUsd,
+        batchReceiptId: result.receipt.receiptId,
+        batchJobId: result.receipt.jobId,
+        batchSourceState: result.receipt.sourceState,
+        batchAdapterMode: result.receipt.adapterMode,
+        batchOutputRef: result.receipt.hashes.outputHash,
+        inputRef,
+        storesPromptOutputText: false
+      }
+    }
+  };
+}
+
+function docsBatchCompletionText(receipt: { sourceState: string; receiptId: string; jobId: string; hashes: { outputHash: string | null } }) {
+  const path = receipt.sourceState === "snapshot" ? "Fish sent a hash-only job reference to the private Ocean batch adapter." : "Fish created a sample hash-only Docs batch receipt because no private Ocean batch adapter is configured.";
+  return `${path}\n\nBatch receipt: ${receipt.receiptId}\nJob: ${receipt.jobId}\nOutput reference: ${receipt.hashes.outputHash ?? "not available"}`;
+}
+
+function hashInputRef(value: string) {
+  return `sha256:${createHash("sha256").update(value).digest("hex")}`;
+}
+
+function readDocsBatchMaxCostUsd() {
+  const parsed = Number(process.env.FISH_DOCS_BATCH_MAX_COST_USD ?? "1");
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 1;
+}
+
+function readDocsBatchMaxRuntimeSeconds() {
+  const parsed = Number(process.env.FISH_DOCS_BATCH_MAX_RUNTIME_SECONDS ?? "600");
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : 600;
 }
 
 async function releaseReservationAndReturn(

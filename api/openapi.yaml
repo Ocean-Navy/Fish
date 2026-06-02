@@ -113,12 +113,14 @@ paths:
                     type: integer
                   budget:
                     $ref: '#/components/schemas/OceanBatchBudgetState'
+                  quota:
+                    $ref: '#/components/schemas/FishQuotaState'
         '401':
           description: Fish API key required
         '402':
           description: Insufficient Fish Credits
         '429':
-          description: Ocean batch daily budget exceeded
+          description: Ocean batch daily budget or daily quota exceeded
         '502':
           description: Ocean batch backend failed
         '504':
@@ -3029,6 +3031,15 @@ components:
         expiresAt:
           type: string
           nullable: true
+    FishQuotaState:
+      type: object
+      properties:
+        used:
+          type: integer
+        remaining:
+          type: integer
+        limit:
+          type: integer
     BillingUsageAnalytics:
       type: object
       properties:
@@ -3052,6 +3063,24 @@ components:
               type: number
             grossMarginUsd:
               type: number
+            batchReceiptId:
+              type: string
+            batchJobId:
+              type: string
+            batchSourceState:
+              type: string
+              enum: [live, snapshot, sample, unavailable]
+            batchAdapterMode:
+              type: string
+              enum: [sample_success, sample_failure, ocean_http]
+            batchOutputRef:
+              type: string
+              nullable: true
+            inputRef:
+              type: string
+            storesPromptOutputText:
+              type: boolean
+              enum: [false]
             refunds:
               type: integer
             failures:

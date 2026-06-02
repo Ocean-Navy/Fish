@@ -241,6 +241,8 @@ FISH_OCEAN_BATCH_ENDPOINT=
 FISH_OCEAN_BATCH_API_KEY=
 FISH_OCEAN_BATCH_PROVIDER_ID=ocean-batch-provider
 FISH_OCEAN_BATCH_DAILY_BUDGET_USD=30
+FISH_DOCS_BATCH_MAX_RUNTIME_SECONDS=600
+FISH_DOCS_BATCH_MAX_COST_USD=1
 FISH_CHAT_ROUTE=mock
 FISH_CHAT_BACKEND=mock
 FISH_MAX_INPUT_TOKENS=1000
@@ -272,6 +274,7 @@ Set `FISH_ADMIN_TOKEN` in production-like environments before issuing prototype 
 Set `FISH_PROVIDER_ALLOWLIST` or mount `data/provider_allowlist.json` when the first selected providers are approved.
 Set `FISH_PROVIDER_JOB_ENDPOINTS=prov_abc=https://provider.example.com/fish/jobs` and optionally `FISH_PROVIDER_JOB_API_KEY` only when a selected provider has a private HTTP job adapter ready. Until then, keep provider proof on mock/sample data.
 Set `FISH_OCEAN_BATCH_ENDPOINT` and optionally `FISH_OCEAN_BATCH_API_KEY` only when a private Oncompute/Ocean batch adapter is ready. Until then, `/api/ocean/batch/jobs` should stay in sample mode.
+Set `FISH_DOCS_BATCH_MAX_RUNTIME_SECONDS` and `FISH_DOCS_BATCH_MAX_COST_USD` to cap Docs dish batch requests generated through `/v1/chat/completions`.
 Keep `FISH_CHAT_BACKEND=mock` for a no-secret local deployment. Set `FISH_CHAT_BACKEND=external`, `FISH_EXTERNAL_CHAT_BASE_URL`, `FISH_EXTERNAL_CHAT_API_KEY`, and `FISH_EXTERNAL_CHAT_MODEL` only when you want `/v1/chat/completions` to call a real OpenAI-compatible backend.
 
 Warm inference operations are covered in `docs/warm-inference-runbook.md`. The MVP path is a private vLLM endpoint, ideally behind Fish Runner, on a GPU host that may also run Ocean Node for provider identity and anchoring. Keep the warm route on mock until the private endpoint is ready, then switch `FISH_CHAT_ROUTE=ocean-demo-vllm` and check `/api/warm/status`.
