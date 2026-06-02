@@ -162,6 +162,8 @@ Provider job result:
 2. Benchmark job: fixed prompt set, fixed model class, measured for cost and reliability.
 3. Pilot user job: real user/API workload routed only after smoke and benchmark pass.
 
+Operators can run the smoke step through `POST /api/providers/smoke` with an admin token. The endpoint builds a deterministic hash-only `inputRef`, checks the selected-provider allowlist, and writes the normal provider-job receipt. It uses `provider_http` automatically when a private `jobEndpoint` is configured; otherwise it falls back to `mock_success` sample mode so the proof UI can be tested without pretending a provider received work.
+
 ### Failure Policy
 
 - A failed smoke job keeps the provider out of the allowlist.

@@ -28,6 +28,22 @@ const jobRequestSchema = z.object({
   adapterMode: z.enum(["mock_success", "mock_failure", "mock_timeout", "provider_http"]).optional().default("mock_success")
 });
 
+const providerSmokeRequestSchema = z.object({
+  providerId: z.string().trim().min(1),
+  workloadType: z.string().trim().min(1).default("chat_batch"),
+  model: z.string().trim().min(1).default("fish-demo-chat"),
+  adapterMode: z.enum(["mock_success", "mock_failure", "mock_timeout", "provider_http"]).optional(),
+  maxRuntimeSeconds: z.number().int().min(1).max(120).optional().default(30),
+  maxCostUsd: z.number().min(0).max(5).optional().default(0.25),
+  parameters: z
+    .object({
+      maxOutputTokens: z.number().int().min(1).max(1024).optional().default(64),
+      temperature: z.number().min(0).max(2).optional().default(0.1)
+    })
+    .optional()
+    .default({ maxOutputTokens: 64, temperature: 0.1 })
+});
+
 const signingKeySchema = z.object({
   keyId: z.string(),
   algorithm: z.literal("ed25519"),
@@ -37,6 +53,7 @@ const signingKeySchema = z.object({
 });
 
 export type ProviderJobRequestInput = z.infer<typeof jobRequestSchema>;
+export type ProviderSmokeRequestInput = z.infer<typeof providerSmokeRequestSchema>;
 
 type ProofSigningKey = z.infer<typeof signingKeySchema>;
 
@@ -219,8 +236,35 @@ export function parseProviderJobRequest(body: unknown) {
   return jobRequestSchema.safeParse(body);
 }
 
+export function parseProviderSmokeRequest(body: unknown) {
+  return providerSmokeRequestSchema.safeParse(body);
+}
+
 export function parseReceiptLedgerQuery(searchParams: URLSearchParams) {
   return receiptLedgerQuerySchema.safeParse(queryObject(searchParams));
+}
+
+export async function runProviderSmokeJob(input: ProviderSmokeRequestInput) {
+  const adapterMode = input.adapterMode ?? ((await resolveProviderJobEndpoint(input.providerId)) ? "provider_http" : "mock_success");
+  const inputRef = smokeInputRef(input);
+  const result = await runProviderJob({
+    providerId: input.providerId,
+    workloadType: input.workloadType,
+    model: input.model,
+    inputRef,
+    parameters: input.parameters,
+    maxRuntimeSeconds: input.maxRuntimeSeconds,
+    maxCostUsd: input.maxCostUsd,
+    adapterMode
+  });
+  return {
+    ...result,
+    smoke: {
+      inputRef,
+      adapterMode,
+      storesPromptOutputText: false
+    }
+  };
 }
 
 export async function runProviderJob(input: ProviderJobRequestInput) {
@@ -919,6 +963,10 @@ async function readReceipts(): Promise<ProviderJobReceipt[]> {
 
 function estimateInputTokens(inputRef: string) {
   return Math.max(1, Math.ceil(inputRef.length / 4));
+}
+
+function smokeInputRef(input: ProviderSmokeRequestInput) {
+  return normalizeHash(["provider-smoke-v1", input.providerId, input.workloadType, input.model].join(":"));
 }
 
 function normalizeHash(value: string) {

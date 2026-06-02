@@ -317,6 +317,33 @@ paths:
                     nullable: true
                     allOf:
                       - $ref: '#/components/schemas/OperatorPayoutEvent'
+  /api/providers/smoke:
+    post:
+      summary: Run a deterministic selected-provider smoke job
+      description: Admin-only shortcut for provider onboarding. It builds a hash-only smoke input, checks the selected-provider allowlist, uses provider_http when a private provider endpoint is configured, and writes the same public-safe provider job receipt as /api/providers/jobs.
+      security:
+        - adminToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProviderSmokeRequest'
+      responses:
+        '200':
+          description: Provider smoke job completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderSmokeResponse'
+        '400':
+          description: Invalid smoke request
+        '401':
+          description: Admin token required
+        '403':
+          description: Provider is not selected for this workload or model
+        '502':
+          description: Provider smoke job failed or timed out
   /api/proof/summary:
     get:
       summary: Public proof dashboard summary
@@ -1297,6 +1324,70 @@ components:
           type: string
           enum: [sample_success, sample_failure, ocean_http]
           default: sample_success
+    ProviderSmokeRequest:
+      type: object
+      additionalProperties: false
+      required: [providerId]
+      properties:
+        providerId:
+          type: string
+        workloadType:
+          type: string
+          default: chat_batch
+        model:
+          type: string
+          default: fish-demo-chat
+        adapterMode:
+          type: string
+          enum: [mock_success, mock_failure, mock_timeout, provider_http]
+          description: Optional. Defaults to provider_http when a private endpoint is configured, otherwise mock_success sample mode.
+        maxRuntimeSeconds:
+          type: integer
+          minimum: 1
+          maximum: 120
+          default: 30
+        maxCostUsd:
+          type: number
+          minimum: 0
+          maximum: 5
+          default: 0.25
+        parameters:
+          type: object
+          properties:
+            maxOutputTokens:
+              type: integer
+              minimum: 1
+              maximum: 1024
+              default: 64
+            temperature:
+              type: number
+              minimum: 0
+              maximum: 2
+              default: 0.1
+    ProviderSmokeResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        error:
+          type: string
+        smoke:
+          type: object
+          properties:
+            inputRef:
+              type: string
+            adapterMode:
+              type: string
+              enum: [mock_success, mock_failure, mock_timeout, provider_http]
+            storesPromptOutputText:
+              type: boolean
+              enum: [false]
+        receipt:
+          $ref: '#/components/schemas/ProviderJobReceipt'
+        payoutEvent:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/OperatorPayoutEvent'
     OceanBatchSummary:
       type: object
       properties:
