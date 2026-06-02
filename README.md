@@ -40,6 +40,28 @@ Open:
 http://127.0.0.1:3000
 ```
 
+## Contributor And Agent Docs
+
+For Ocean Navy contributors and coding agents, start here:
+
+```text
+AGENTS.md                    Repo-wide instructions for agentic coding tools
+CONTRIBUTING.md              Human contribution workflow and PR checklist
+AGENTIC_DEVELOPMENT_PLAN.md  Current work lanes and task routing guide
+api/openapi.yaml             API contract for public and prototype routes
+docs/                        Feature plans, runbooks, and implementation contracts
+```
+
+Before changing behavior, read the relevant source files and feature doc. Keep public copy clear that Fish is Ocean Navy-built, built on Ocean Protocol, and not official unless approved. Keep `live`, `snapshot`, `sample`, and `unavailable` data states distinct.
+
+## License
+
+Fish is licensed under the GNU Affero General Public License v3.0 or later. See `LICENSE`.
+
+The AGPL keeps Fish open for network-service use: if someone modifies Fish and runs that modified version for users over a network, they must offer those users the corresponding source code under the same license.
+
+Public deployments should include a visible source-code link to the deployed Fish repository or source archive.
+
 Useful local routes:
 
 ```text
@@ -556,6 +578,7 @@ Generated images should be text-free and used as scene assets. Render copy, butt
 
 - `npm run verify` passes.
 - `docker build -t opfish-web:latest .` passes.
+- AGPLv3-or-later license text is present in `LICENSE`.
 - `/api/health` returns `ok: true`.
 - `/` is visually clear on mobile and desktop.
 - `/dashboard` loads with live data or sample fallback.
