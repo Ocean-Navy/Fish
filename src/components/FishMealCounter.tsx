@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { FISH_DISHES, type FishDishDefinition } from "@/lib/fishDishes";
 
 const MODEL_STORAGE_KEY = "fish-meal-counter-model-v1";
 const DISH_STORAGE_KEY = "fish-meal-counter-active-v1";
@@ -26,18 +27,7 @@ type FishModel = {
   description?: string;
 };
 
-type FishDish = {
-  id: string;
-  title: string;
-  subtitle: string;
-  status: string;
-  routeLabel: string;
-  short: string;
-  placeholder: string;
-  systemPrompt: string;
-  userWrapper: (input: string) => string;
-  maxTokens: number;
-  modelAlias: string;
+type FishDish = FishDishDefinition & {
   icon: LucideIcon;
   disabled?: boolean;
 };
@@ -85,108 +75,21 @@ type DishResult = {
   accessMode: "guest" | "key";
 };
 
-const dishes: FishDish[] = [
-  {
-    id: "ask",
-    title: "Quick Catch",
-    subtitle: "Simple answers",
-    status: "AI beta",
-    routeLabel: "Smart route",
-    short: "General questions with a short direct answer.",
-    placeholder: "What should Fish do first for pilot users?",
-    systemPrompt: "You are Fish Quick Catch. Answer plainly in a helpful, concise way. Avoid hype and label uncertainty.",
-    userWrapper: (input) => `Answer this user question in a short, useful way:\n\n${input}`,
-    maxTokens: 700,
-    modelAlias: "fish-ask",
-    icon: MessageSquareText
-  },
-  {
-    id: "code",
-    title: "Code Roll",
-    subtitle: "Coding help",
-    status: "AI beta",
-    routeLabel: "Smart route",
-    short: "Small coding help, review notes, and snippets.",
-    placeholder: "Write a TypeScript helper that formats Fish credits.",
-    systemPrompt: "You are Fish Code Roll. Give practical coding help with concise explanations and safe assumptions.",
-    userWrapper: (input) => `Help with this coding task. Include code only when useful:\n\n${input}`,
-    maxTokens: 1200,
-    modelAlias: "fish-code",
-    icon: Code2
-  },
-  {
-    id: "explain",
-    title: "Clear Broth",
-    subtitle: "Simple explanation",
-    status: "AI beta",
-    routeLabel: "Smart route",
-    short: "Simple explanations without heavy jargon.",
-    placeholder: "Explain warm inference like I am new to AI.",
-    systemPrompt: "You are Fish Clear Broth. Explain like a patient product guide. Use simple language and concrete examples.",
-    userWrapper: (input) => `Explain this simply, with no marketing claims:\n\n${input}`,
-    maxTokens: 700,
-    modelAlias: "fish-clear-broth",
-    icon: Lightbulb
-  },
-  {
-    id: "docs",
-    title: "Docs Bento",
-    subtitle: "Summarize docs",
-    status: "Beta",
-    routeLabel: "Text + batch",
-    short: "Summaries now, plus hash-only batch receipts with a key.",
-    placeholder: "Paste docs or notes to summarize for a pilot update.",
-    systemPrompt: "You are Fish Docs Bento. Extract the main points, risks, and next step. Do not invent facts.",
-    userWrapper: (input) => `Summarize this document text into bullets and one next step:\n\n${input}`,
-    maxTokens: 900,
-    modelAlias: "fish-docs",
-    icon: FileText
-  },
-  {
-    id: "images",
-    title: "Image Catch",
-    subtitle: "Create images",
-    status: "Coming soon",
-    routeLabel: "Paid beta later",
-    short: "Image generation starts external first and moves Ocean-native later.",
-    placeholder: "Describe an image of the Fish meal counter.",
-    systemPrompt: "Image generation is not enabled yet.",
-    userWrapper: (input) => input,
-    maxTokens: 1,
-    modelAlias: "fish-images",
-    icon: ImageIcon,
-    disabled: true
-  },
-  {
-    id: "proposal",
-    title: "Proposal Platter",
-    subtitle: "Draft from notes",
-    status: "Beta",
-    routeLabel: "Draft helper",
-    short: "Make a short pilot proposal from rough notes.",
-    placeholder: "Draft a small proposal for a Fish warm inference demo node.",
-    systemPrompt: "You are Fish Proposal Platter. Produce a practical proposal with scope, benefits, limits, and next steps.",
-    userWrapper: (input) => `Turn these notes into a short proposal. Keep it honest and implementation-oriented:\n\n${input}`,
-    maxTokens: 900,
-    modelAlias: "fish-proposal",
-    icon: PenTool
-  },
-  {
-    id: "ocean",
-    title: "Ocean Special",
-    subtitle: "Fish and Ocean context",
-    status: "Ocean guide",
-    routeLabel: "Smart route",
-    short: "Fish and Ocean wording for non-technical users.",
-    placeholder: "How should we describe Ocean-first routing on the site?",
-    systemPrompt:
-      "You are Fish Ocean Special. Help explain Fish, Ocean Network, Oncompute, credits, and provider routing. Never claim full decentralization, live payouts, unlimited free AI, or staking yield.",
-    userWrapper: (input) => `Answer using Fish/Ocean context and clear caveats where needed:\n\n${input}`,
-    maxTokens: 700,
-    modelAlias: "fish-ocean-helper",
-    icon: Waves
-  }
-];
+const dishIcons: Record<string, LucideIcon> = {
+  ask: MessageSquareText,
+  code: Code2,
+  explain: Lightbulb,
+  docs: FileText,
+  images: ImageIcon,
+  proposal: PenTool,
+  ocean: Waves
+};
+
+const dishes: FishDish[] = FISH_DISHES.map((dish) => ({
+  ...dish,
+  icon: dishIcons[dish.id] ?? MessageSquareText,
+  disabled: !dish.enabled
+}));
 
 function readStoredModel() {
   if (typeof window === "undefined") {
@@ -306,29 +209,19 @@ export function FishMealCounter() {
 
     try {
       const accessMode = key ? "key" : "guest";
-      const response = await fetch(key ? "/v1/chat/completions" : "/api/meal/order", {
+      const response = await fetch(`/api/box/${activeDish.id}/run`, {
         method: "POST",
         headers: {
           "content-type": "application/json",
           ...(key ? { authorization: `Bearer ${key}` } : {})
         },
         body: JSON.stringify({
+          prompt: userPrompt,
           model: selectedModel,
           max_tokens: orderMaxTokens,
           metadata: {
-            fish_feature: activeDish.id,
-            fish_dish: activeDish.title
-          },
-          messages: [
-            {
-              role: "system",
-              content: `${activeDish.systemPrompt}\n\nFish dish: ${activeDish.title}. Plain task label: ${activeDish.subtitle}. Public status label: ${activeDish.status}. Route label shown to the user: ${currentRouteLabel}.`
-            },
-            {
-              role: "user",
-              content: activeDish.userWrapper(userPrompt)
-            }
-          ]
+            fish_client: "meal-counter"
+          }
         })
       });
       const payload = await response.json();

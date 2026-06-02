@@ -147,6 +147,51 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/WarmInferenceStatus'
+  /api/features:
+    get:
+      summary: Public Fish AI menu
+      description: Lists simple Fish menu boxes, model aliases, route labels, caps, and feature policy without exposing prompts or backend secrets.
+      responses:
+        '200':
+          description: Fish feature menu
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FishFeatureMenu'
+  /api/box/{boxId}/run:
+    post:
+      summary: Run a Fish AI menu box
+      description: Runs a menu box such as ask, code, docs, proposal, or ocean with server-side prompts. Uses guest credits when no bearer key is provided and Fish API-key credits when authorization is present.
+      parameters:
+        - in: path
+          name: boxId
+          required: true
+          schema:
+            type: string
+            enum: [ask, code, explain, docs, images, proposal, ocean]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FishBoxRunRequest'
+      responses:
+        '200':
+          description: Fish box run completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FishChatCompletion'
+        '400':
+          description: Invalid box request
+        '401':
+          description: Invalid bearer key when one is supplied
+        '402':
+          description: Insufficient Fish Credits
+        '404':
+          description: Fish box not found
+        '501':
+          description: Fish box not enabled
   /api/meal/order:
     post:
       summary: Guest Fish meal-counter order
@@ -3284,6 +3329,84 @@ components:
                 type: number
               providerCostUsd:
                 type: number
+    FishFeatureMenu:
+      type: object
+      properties:
+        object:
+          type: string
+          enum: [list]
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/FishFeatureMenuItem'
+        activeRoute:
+          type: object
+          properties:
+            id:
+              type: string
+              enum: [mock, ocean-demo-vllm, ocean-provider, external-fallback]
+            label:
+              type: string
+            isRealAi:
+              type: boolean
+            status:
+              type: string
+              enum: [active, ready, needs-config, paused, disabled]
+        guardrails:
+          type: object
+        policies:
+          type: array
+          items:
+            type: object
+    FishFeatureMenuItem:
+      type: object
+      properties:
+        id:
+          type: string
+          enum: [ask, code, explain, docs, images, proposal, ocean]
+        title:
+          type: string
+        subtitle:
+          type: string
+        status:
+          type: string
+        routeLabel:
+          type: string
+        short:
+          type: string
+        placeholder:
+          type: string
+        maxTokens:
+          type: integer
+        modelAlias:
+          type: string
+        enabled:
+          type: boolean
+    FishBoxRunRequest:
+      type: object
+      required: [prompt]
+      properties:
+        prompt:
+          type: string
+          minLength: 1
+          maxLength: 20000
+        model:
+          type: string
+          description: Optional model override. Defaults to the box model alias.
+        max_tokens:
+          type: integer
+          minimum: 1
+          maximum: 4096
+        temperature:
+          type: number
+          minimum: 0
+          maximum: 2
+        stream:
+          type: boolean
+          default: false
+        metadata:
+          type: object
+          additionalProperties: true
     FishChatRequest:
       type: object
       required: [messages]
