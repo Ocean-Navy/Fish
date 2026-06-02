@@ -77,6 +77,16 @@ const keyRequestSchema = z.object({
   planId: z.enum(FISH_PLAN_IDS).optional().default("free")
 });
 
+const creditTopupSchema = z.object({
+  accountId: z.string().trim().min(1),
+  amount: z.number().int().min(1).max(1000000),
+  lane: z.enum(["grant", "subscription", "prepaid", "staking", "adjustment"]).optional().default("prepaid"),
+  reason: z.string().trim().min(1).max(140).optional().default("operator_credit_topup"),
+  expiresAt: z.string().datetime().nullable().optional().default(null),
+  idempotencyKey: z.string().trim().min(1).max(120).optional(),
+  paymentProviderEventId: z.string().trim().min(1).max(120).optional()
+});
+
 export const chatCompletionSchema = z.object({
   model: z.string().trim().min(1).default("fish-demo-chat"),
   messages: z
@@ -211,6 +221,8 @@ export type CreditLedgerEntry = {
   expiresAt: string | null;
   createdAt: string;
   operatorReason: string | null;
+  idempotencyKey?: string | null;
+  paymentProviderEventId?: string | null;
 };
 
 export type CreditReservation = {
@@ -342,6 +354,10 @@ export type FishMonthlyRequestLimitResult =
 
 export function parseKeyRequest(body: unknown) {
   return keyRequestSchema.safeParse(body);
+}
+
+export function parseCreditTopup(body: unknown) {
+  return creditTopupSchema.safeParse(body);
 }
 
 export function parseChatCompletion(body: unknown) {
@@ -505,6 +521,70 @@ export async function revokeApiKey(ledger: Ledger, account: Account) {
   };
 }
 
+export async function addFishCredits(params: z.infer<typeof creditTopupSchema>) {
+  const ledger = await readLedger();
+  const account = ledger.accounts.find((candidate) => candidate.id === params.accountId);
+  if (!account) {
+    return {
+      ok: false as const,
+      status: 404,
+      error: "fish_account_not_found"
+    };
+  }
+
+  const now = new Date().toISOString();
+  await ensureAccountCreditSeed(account, now);
+  const existingEntries = await readCreditEntries(account.id);
+  const existingEntry = existingEntries.find((entry) => {
+    if (params.idempotencyKey && entry.idempotencyKey === params.idempotencyKey) {
+      return true;
+    }
+    if (params.paymentProviderEventId && entry.paymentProviderEventId === params.paymentProviderEventId) {
+      return true;
+    }
+    return false;
+  });
+
+  if (existingEntry) {
+    return {
+      ok: true as const,
+      idempotent: true,
+      account: publicAccount(account),
+      entry: existingEntry,
+      creditsRemaining: account.creditBalance
+    };
+  }
+
+  const amount = Math.max(1, Math.ceil(params.amount));
+  const entry: CreditLedgerEntry = {
+    entryId: randomUUID(),
+    accountId: account.id,
+    lane: params.lane,
+    kind: params.lane === "adjustment" ? "adjustment" : "grant",
+    amount,
+    requestId: null,
+    receiptId: null,
+    expiresAt: params.expiresAt ?? null,
+    createdAt: now,
+    operatorReason: params.reason,
+    idempotencyKey: params.idempotencyKey ?? null,
+    paymentProviderEventId: params.paymentProviderEventId ?? null
+  };
+
+  account.creditBalance += amount;
+  account.totalCreditsGranted += amount;
+  await writeLedger(ledger);
+  await appendCreditEntry(entry);
+
+  return {
+    ok: true as const,
+    idempotent: false,
+    account: publicAccount(account),
+    entry,
+    creditsRemaining: account.creditBalance
+  };
+}
+
 export async function summarizeAccount(account: Account) {
   const [receipts, creditEntries, monthlyRequests] = await Promise.all([readReceipts(account.id), readCreditEntries(account.id), checkFishMonthlyRequestLimit(account)]);
   const costs = summarizeReceiptCosts(receipts);
@@ -555,16 +635,17 @@ export async function reserveFishCredits(params: { ledger: Ledger; account: Acco
   }
 
   const now = new Date().toISOString();
+  await ensureAccountCreditSeed(params.account, now);
+  const lane = await selectSpendLane(params.account, credits);
   const reservation: CreditReservation = {
     requestId: randomUUID(),
     reserveEntryId: randomUUID(),
     accountId: params.account.id,
-    lane: "grant",
+    lane,
     credits,
     createdAt: now
   };
 
-  await ensureAccountCreditSeed(params.account, now);
   params.account.creditBalance -= credits;
   await writeLedger(params.ledger);
   await appendCreditEntry({
@@ -723,6 +804,7 @@ export async function recordChatUsage(params: {
 
   const now = new Date().toISOString();
   await ensureAccountCreditSeed(params.account, now);
+  const creditLane = params.reservation?.lane ?? (await selectSpendLane(params.account, creditsSpent));
   const userChargeUsd = Number((creditsSpent * FISH_CREDIT_USD).toFixed(6));
   const providerCostUsd = Number((params.providerCostUsd ?? 0).toFixed(6));
   const grossMarginUsd = Number((userChargeUsd - providerCostUsd).toFixed(6));
@@ -738,7 +820,7 @@ export async function recordChatUsage(params: {
     id: receiptId,
     accountId: params.account.id,
     creditEntryId,
-    creditLane: "grant",
+    creditLane,
     createdAt: now,
     model: params.model ?? params.input.model,
     feature: readFishFeature(params.input.metadata, params.input.model),
@@ -766,7 +848,7 @@ export async function recordChatUsage(params: {
   await appendCreditEntry({
     entryId: creditEntryId,
     accountId: params.account.id,
-    lane: "grant",
+    lane: creditLane,
     kind: "debit",
     amount: -creditsSpent,
     requestId,
@@ -995,6 +1077,23 @@ async function ensureAccountCreditSeed(account: Account, createdAt: string) {
   const ledger = await readCreditLedger();
   ledger.entries.push(...seeded);
   await writeCreditLedger(ledger);
+}
+
+async function selectSpendLane(account: Account, credits: number): Promise<CreditLane> {
+  const entries = await readCreditEntries(account.id);
+  const laneBalances = new Map<CreditLane, number>();
+  for (const entry of entries) {
+    laneBalances.set(entry.lane, (laneBalances.get(entry.lane) ?? 0) + entry.amount);
+  }
+
+  const spendPriority: CreditLane[] = ["grant", "subscription", "prepaid", "staking", "adjustment", "refund"];
+  for (const lane of spendPriority) {
+    if ((laneBalances.get(lane) ?? 0) >= credits) {
+      return lane;
+    }
+  }
+
+  return spendPriority.find((lane) => (laneBalances.get(lane) ?? 0) > 0) ?? "grant";
 }
 
 async function writeReceipt(receipt: UsageReceipt) {

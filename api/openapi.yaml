@@ -248,6 +248,43 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/FishPlan'
+  /api/billing/topups:
+    post:
+      summary: Admin-only Fish credit top-up
+      description: Adds pilot credits to an existing account and writes an immutable credit ledger entry. This is not public checkout.
+      security:
+        - adminToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FishCreditTopupRequest'
+      responses:
+        '200':
+          description: Credits added, or an idempotent duplicate was ignored
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  object:
+                    type: string
+                    example: credit_topup
+                  idempotent:
+                    type: boolean
+                  account:
+                    $ref: '#/components/schemas/FishAccount'
+                  entry:
+                    $ref: '#/components/schemas/FishCreditEntry'
+                  creditsRemaining:
+                    type: integer
+        '400':
+          description: Invalid top-up request
+        '401':
+          description: Admin token required
+        '404':
+          description: Fish account not found
   /api/billing/usage-analytics:
     get:
       summary: Aggregate Fish billing usage analytics
@@ -3339,6 +3376,69 @@ components:
         entries:
           type: integer
         expiresAt:
+          type: string
+          nullable: true
+    FishCreditTopupRequest:
+      type: object
+      additionalProperties: false
+      required: [accountId, amount]
+      properties:
+        accountId:
+          type: string
+        amount:
+          type: integer
+          minimum: 1
+          maximum: 1000000
+        lane:
+          type: string
+          enum: [grant, subscription, prepaid, staking, adjustment]
+          default: prepaid
+        reason:
+          type: string
+          maxLength: 140
+          default: operator_credit_topup
+        expiresAt:
+          type: string
+          nullable: true
+        idempotencyKey:
+          type: string
+          maxLength: 120
+        paymentProviderEventId:
+          type: string
+          maxLength: 120
+    FishCreditEntry:
+      type: object
+      properties:
+        entryId:
+          type: string
+        accountId:
+          type: string
+        lane:
+          type: string
+          enum: [grant, subscription, prepaid, staking, adjustment, refund]
+        kind:
+          type: string
+          enum: [grant, debit, refund, adjustment]
+        amount:
+          type: integer
+        requestId:
+          type: string
+          nullable: true
+        receiptId:
+          type: string
+          nullable: true
+        expiresAt:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+        operatorReason:
+          type: string
+          nullable: true
+        idempotencyKey:
+          type: string
+          nullable: true
+        paymentProviderEventId:
           type: string
           nullable: true
     FishQuotaState:

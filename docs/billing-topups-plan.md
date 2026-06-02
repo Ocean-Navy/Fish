@@ -35,6 +35,8 @@ Rules:
 
 Current prototype behavior: `/v1/chat/completions` reserves the maximum estimated request credits before the backend call, releases unused reserve on success, and releases the full reserve on backend failure before a usage receipt is written.
 
+Current spend behavior: one request consumes one lane. Fish spends grant credits first, then subscription, prepaid, staking, adjustment, and refund credits. Mixed-lane debits are a future accounting upgrade.
+
 ## Milestone BIL1 - Credit Ledger Split
 
 ### Outcome
@@ -119,6 +121,8 @@ oceanProviderAllowed
 
 Users can add prepaid balance after the product loop is proven.
 
+Current prototype status: `/api/billing/topups` lets an operator add credits to a pilot account with `x-fish-admin-token`. It is for grants and controlled prepaid testing only; public checkout is still future-gated.
+
 ### Required Controls
 
 - minimum and maximum top-up amount;
@@ -136,6 +140,7 @@ Users can add prepaid balance after the product loop is proven.
 GET  /v1/billing/balance
 GET  /v1/billing/usage
 GET  /v1/billing/usage-analytics
+POST /api/billing/topups
 POST /v1/topups
 POST /v1/admin/grants
 ```

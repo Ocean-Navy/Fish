@@ -324,6 +324,7 @@ Then browser-check:
 - `/api/proof/payouts`
 - `/api/proof/payouts?state=accrued&limit=10`
 - `/api/billing/plans`
+- `/api/billing/topups` with `x-fish-admin-token`
 - `/api/billing/usage-analytics`
 - `/api/routing/policy`
 - `/api/warm/status`

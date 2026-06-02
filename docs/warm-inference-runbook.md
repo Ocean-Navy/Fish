@@ -360,6 +360,17 @@ curl -sS http://127.0.0.1:3000/v1/api_keys \
 
 Key management stays prototype-simple: `GET /v1/api_keys` with a Fish bearer key shows the current key metadata, and `DELETE /v1/api_keys/current` revokes that bearer key without deleting historical receipts.
 
+Operators can add pilot credits without public checkout:
+
+```bash
+curl -sS http://127.0.0.1:3000/api/billing/topups \
+  -H 'content-type: application/json' \
+  -H "x-fish-admin-token: $FISH_ADMIN_TOKEN" \
+  -d "{\"accountId\":\"$FISH_ACCOUNT_ID\",\"amount\":500,\"lane\":\"prepaid\",\"idempotencyKey\":\"warm-smoke-001\"}"
+```
+
+This route records an immutable credit entry and uses the idempotency key or payment provider event id to avoid double-crediting the same account.
+
 Then use the returned API key:
 
 ```bash
