@@ -126,12 +126,19 @@ paths:
                     $ref: '#/components/schemas/OceanBatchBudgetState'
                   quota:
                     $ref: '#/components/schemas/FishQuotaState'
+                  rateLimit:
+                    type: object
+                    properties:
+                      remaining:
+                        type: integer
+                      resetAt:
+                        type: string
         '401':
           description: Fish API key required
         '402':
           description: Insufficient Fish Credits
         '429':
-          description: Ocean batch daily budget or daily quota exceeded
+          description: Ocean batch daily budget, daily quota, or minute rate limit exceeded
         '502':
           description: Ocean batch backend failed
         '504':
@@ -1675,6 +1682,9 @@ components:
               type: string
               enum: [local-json]
             concurrencyStorage:
+              type: string
+              enum: [in-memory]
+            rateLimitStorage:
               type: string
               enum: [in-memory]
         modes:
@@ -3776,6 +3786,12 @@ components:
               type: number
             quotaRemaining:
               type: integer
+            rateLimitRemaining:
+              type: integer
+              nullable: true
+            rateLimitResetAt:
+              type: string
+              nullable: true
             creditReserveId:
               type: string
             creditsReserved:

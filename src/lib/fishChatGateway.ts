@@ -19,6 +19,7 @@ import { getFishFeaturePolicy } from "@/lib/fishFeaturePolicy";
 import { buildFishKnowledgeContext } from "@/lib/fishKnowledge";
 import { checkRouteDailyBudget, type RouteBudgetCheck } from "@/lib/fishBudget";
 import { spendDailyQuota } from "@/lib/fishQuota";
+import { spendFishMinuteRateLimit } from "@/lib/fishRateLimit";
 import { runOceanBatchJob } from "@/lib/oceanBatch";
 import { OceanProviderChatError, runSelectedOceanProviderChat } from "@/lib/oceanProviderChat";
 import { getActiveFishRoute, getFishRouterConfig, type FishChatRouteId, type FishCostState, type FishRouterConfig } from "@/lib/fishRouter";
@@ -109,6 +110,18 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
     });
   }
 
+  const plan = getFishPlan(context.account.planId);
+  const rateLimit = spendFishMinuteRateLimit(context.principalId, plan.rateLimitPerMinute);
+  if (!rateLimit.ok) {
+    return jsonError(429, "rate_limit_exceeded", "rate_limit_error", {
+      planId: plan.planId,
+      limit: rateLimit.limit,
+      used: rateLimit.used,
+      remaining: rateLimit.remaining,
+      resetAt: rateLimit.resetAt
+    });
+  }
+
   if (featurePolicy.id === "docs") {
     return runDocsBatchChatGateway({
       input,
@@ -116,7 +129,8 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
       promptText,
       promptTokens,
       maxOutputTokens: requestedMaxOutputTokens,
-      featureLabel: featurePolicy.label
+      featureLabel: featurePolicy.label,
+      rateLimit
     });
   }
 
@@ -382,6 +396,8 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
         dailyBudgetRemainingUsd: budgetCheck.remainingUsd,
         estimatedProviderCostUsd: budgetCheck.estimatedCostUsd,
         quotaRemaining: quota.remaining,
+        rateLimitRemaining: rateLimit.remaining,
+        rateLimitResetAt: rateLimit.resetAt,
         creditReserveId: reservation.reserveEntryId,
         creditsReserved: reservation.credits,
         creditsReleased: Math.max(0, reservation.credits - usage.receipt.creditsSpent),
@@ -449,6 +465,7 @@ async function runDocsBatchChatGateway(params: {
   promptTokens: number;
   maxOutputTokens: number;
   featureLabel: string;
+  rateLimit: Extract<ReturnType<typeof spendFishMinuteRateLimit>, { ok: true }>;
 }): Promise<FishChatGatewayResult> {
   const inputRef = hashInputRef(params.promptText);
   const result = await runOceanBatchJob(
@@ -524,6 +541,8 @@ async function runDocsBatchChatGateway(params: {
         dailyBudgetRemainingUsd: result.budget.remainingUsd,
         estimatedProviderCostUsd: result.receipt.cost.providerCostUsd,
         quotaRemaining: result.quota?.remaining,
+        rateLimitRemaining: params.rateLimit.remaining,
+        rateLimitResetAt: params.rateLimit.resetAt,
         creditsSpent: result.usageReceipt.creditsSpent,
         creditsRemaining: result.creditsRemaining,
         userChargeUsd: result.usageReceipt.userChargeUsd,

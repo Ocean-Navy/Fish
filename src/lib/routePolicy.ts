@@ -53,6 +53,7 @@ export type FishRoutePolicy = {
     maxConcurrentRequests: number;
     quotaStorage: "local-json";
     concurrencyStorage: "in-memory";
+    rateLimitStorage: "in-memory";
   };
   modes: Array<{
     id: RouteModeId;
@@ -120,7 +121,8 @@ export function getFishRoutePolicy(): FishRoutePolicy {
       oceanBatchDailyBudgetUsd,
       maxConcurrentRequests: router.guardrails.maxConcurrentRequests,
       quotaStorage: "local-json",
-      concurrencyStorage: "in-memory"
+      concurrencyStorage: "in-memory",
+      rateLimitStorage: "in-memory"
     },
     modes: [
       {
@@ -215,7 +217,7 @@ export function getFishRoutePolicy(): FishRoutePolicy {
       },
       {
         title: "Caps before calls",
-        body: "Input tokens, output tokens, daily quota, concurrent requests, daily route budget, and pause switches are checked before backend calls."
+        body: "Input tokens, output tokens, minute limits, daily quota, concurrent requests, daily route budget, and pause switches are checked before backend calls."
       },
       {
         title: "Usage stays clean",

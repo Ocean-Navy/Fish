@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { authenticateRequest } from "@/lib/fishLedger";
+import { authenticateRequest, getFishPlan } from "@/lib/fishLedger";
+import { spendFishMinuteRateLimit } from "@/lib/fishRateLimit";
 import { getFishRouterConfig } from "@/lib/fishRouter";
 import { parseOceanBatchJobRequest, runOceanBatchJob, summarizeOceanBatchJobs } from "@/lib/oceanBatch";
 
@@ -30,6 +31,25 @@ export async function POST(request: Request) {
   }
 
   const routerConfig = getFishRouterConfig();
+  const plan = getFishPlan(auth.account.planId);
+  const rateLimit = spendFishMinuteRateLimit(`key:${auth.account.id}`, plan.rateLimitPerMinute);
+  if (!rateLimit.ok) {
+    return NextResponse.json(
+      {
+        error: {
+          message: "rate_limit_exceeded",
+          type: "rate_limit_error",
+          planId: plan.planId,
+          limit: rateLimit.limit,
+          used: rateLimit.used,
+          remaining: rateLimit.remaining,
+          resetAt: rateLimit.resetAt
+        }
+      },
+      { status: 429 }
+    );
+  }
+
   const result = await runOceanBatchJob(parsed.data, {
     ledger: auth.ledger,
     account: auth.account,
@@ -62,6 +82,10 @@ export async function POST(request: Request) {
     usageReceipt: result.usageReceipt,
     creditsRemaining: result.creditsRemaining,
     budget: result.budget,
-    quota: result.quota
+    quota: result.quota,
+    rateLimit: {
+      remaining: rateLimit.remaining,
+      resetAt: rateLimit.resetAt
+    }
   });
 }

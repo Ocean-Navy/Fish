@@ -153,6 +153,7 @@ Runner responsibilities:
 
 - accept traffic from Fish Gateway only;
 - enforce per-request token caps and concurrent request limits;
+- rely on Fish Gateway for plan-based per-minute request limits;
 - call vLLM over loopback or a private Docker network;
 - expose `/healthz`, `/models`, and `/v1/chat/completions`;
 - record first-token latency, duration, token usage, status, and route id;
@@ -334,6 +335,7 @@ No public warm route should run without:
 
 - max input tokens;
 - max output tokens;
+- plan-based per-minute request limit;
 - max requests per anonymous user per day;
 - max concurrent requests;
 - model-level daily request limit;
