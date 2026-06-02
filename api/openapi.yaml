@@ -3697,6 +3697,9 @@ components:
         status:
           type: string
           enum: [succeeded, failed]
+        errorCode:
+          type: string
+          nullable: true
         promptTokens:
           type: integer
         completionTokens:

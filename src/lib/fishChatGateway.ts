@@ -6,6 +6,7 @@ import {
   estimateTokens,
   getFishPlan,
   recordChatUsage,
+  recordFailedChatUsage,
   releaseFishCreditReservation,
   reserveFishCredits,
   type Account,
@@ -46,6 +47,21 @@ export type FishChatGatewayResult =
     };
 
 type FishChatGatewayError = Extract<FishChatGatewayResult, { ok: false }>;
+
+type FailedUsageReceiptInput = {
+  input: ChatCompletionInput;
+  model?: string;
+  promptTokens: number;
+  route: FishChatRouteId;
+  costState: FishCostState;
+  latencyMs: number;
+  providerId: string | null;
+  requestedRoute: FishChatRouteId;
+  fallbackFrom: FishChatRouteId | null;
+  fallbackReason: string | null;
+  runnerReceipt: RunnerReceiptSummary | null;
+  errorCode: string;
+};
 
 export async function runFishChatGateway(input: ChatCompletionInput, context: FishChatGatewayContext): Promise<FishChatGatewayResult> {
   if (input.stream) {
@@ -243,12 +259,21 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
     } catch (error) {
       if (!canUseExternalFallback(routerConfig, context)) {
         const message = error instanceof VllmChatError ? error.message : "ocean_demo_vllm_backend_error";
-        return releaseReservationAndReturn(
-          context,
-          reservation,
-          jsonError(error instanceof VllmChatError ? error.status : 502, message, "warm_inference_backend_error", { route }),
-          "credit_reserve_release_backend_error"
-        );
+        const result = jsonError(error instanceof VllmChatError ? error.status : 502, message, "warm_inference_backend_error", { route });
+        return releaseReservationAndReturn(context, reservation, result, "credit_reserve_release_backend_error", {
+          input: effectiveInput,
+          model: responseModel,
+          promptTokens,
+          route,
+          costState,
+          latencyMs: Date.now() - startedAt,
+          providerId,
+          requestedRoute,
+          fallbackFrom,
+          fallbackReason,
+          runnerReceipt,
+          errorCode: message
+        });
       }
 
       const fallbackBudgetCheck = await checkRouteDailyBudget({
@@ -258,13 +283,40 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
         routerConfig
       });
       if (!fallbackBudgetCheck.ok) {
-        return releaseReservationAndReturn(context, reservation, budgetExceededError(fallbackBudgetCheck), "credit_reserve_release_fallback_budget_error");
+        const result = budgetExceededError(fallbackBudgetCheck);
+        return releaseReservationAndReturn(context, reservation, result, "credit_reserve_release_fallback_budget_error", {
+          input: effectiveInput,
+          model: responseModel,
+          promptTokens,
+          route,
+          costState,
+          latencyMs: Date.now() - startedAt,
+          providerId,
+          requestedRoute,
+          fallbackFrom,
+          fallbackReason,
+          runnerReceipt,
+          errorCode: "primary_backend_error_fallback_budget_exceeded"
+        });
       }
       budgetCheck = fallbackBudgetCheck;
 
       const fallback = await runExternalFallback(routeInput, promptTokens);
       if (!fallback.ok) {
-        return releaseReservationAndReturn(context, reservation, fallback, "credit_reserve_release_fallback_error");
+        return releaseReservationAndReturn(context, reservation, fallback, "credit_reserve_release_fallback_error", {
+          input: effectiveInput,
+          model: responseModel,
+          promptTokens,
+          route: "external-fallback",
+          costState: "fallback_verified",
+          latencyMs: Date.now() - startedAt,
+          providerId: routerConfig.routes["external-fallback"].providerId,
+          requestedRoute,
+          fallbackFrom: "ocean-demo-vllm",
+          fallbackReason: "primary_backend_error",
+          runnerReceipt,
+          errorCode: readErrorMessage(fallback)
+        });
       }
       ({ content, responseModel, promptTokens, completionTokens, providerCostUsd, providerId, runnerReceipt } = fallback);
       fallbackFrom = "ocean-demo-vllm";
@@ -296,12 +348,21 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
     } catch (error) {
       if (!canUseExternalFallback(routerConfig, context)) {
         const message = error instanceof OceanProviderChatError ? error.message : "ocean_provider_backend_error";
-        return releaseReservationAndReturn(
-          context,
-          reservation,
-          jsonError(error instanceof OceanProviderChatError ? error.status : 502, message, "ocean_provider_backend_error", { route }),
-          "credit_reserve_release_provider_error"
-        );
+        const result = jsonError(error instanceof OceanProviderChatError ? error.status : 502, message, "ocean_provider_backend_error", { route });
+        return releaseReservationAndReturn(context, reservation, result, "credit_reserve_release_provider_error", {
+          input: effectiveInput,
+          model: responseModel,
+          promptTokens,
+          route,
+          costState,
+          latencyMs: Date.now() - startedAt,
+          providerId,
+          requestedRoute,
+          fallbackFrom,
+          fallbackReason,
+          runnerReceipt,
+          errorCode: message
+        });
       }
 
       const fallbackBudgetCheck = await checkRouteDailyBudget({
@@ -311,13 +372,40 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
         routerConfig
       });
       if (!fallbackBudgetCheck.ok) {
-        return releaseReservationAndReturn(context, reservation, budgetExceededError(fallbackBudgetCheck), "credit_reserve_release_fallback_budget_error");
+        const result = budgetExceededError(fallbackBudgetCheck);
+        return releaseReservationAndReturn(context, reservation, result, "credit_reserve_release_fallback_budget_error", {
+          input: effectiveInput,
+          model: responseModel,
+          promptTokens,
+          route,
+          costState,
+          latencyMs: Date.now() - startedAt,
+          providerId,
+          requestedRoute,
+          fallbackFrom,
+          fallbackReason,
+          runnerReceipt,
+          errorCode: "primary_backend_error_fallback_budget_exceeded"
+        });
       }
       budgetCheck = fallbackBudgetCheck;
 
       const fallback = await runExternalFallback(routeInput, promptTokens);
       if (!fallback.ok) {
-        return releaseReservationAndReturn(context, reservation, fallback, "credit_reserve_release_fallback_error");
+        return releaseReservationAndReturn(context, reservation, fallback, "credit_reserve_release_fallback_error", {
+          input: effectiveInput,
+          model: responseModel,
+          promptTokens,
+          route: "external-fallback",
+          costState: "fallback_verified",
+          latencyMs: Date.now() - startedAt,
+          providerId: routerConfig.routes["external-fallback"].providerId,
+          requestedRoute,
+          fallbackFrom: "ocean-provider",
+          fallbackReason: "primary_backend_error",
+          runnerReceipt,
+          errorCode: readErrorMessage(fallback)
+        });
       }
       ({ content, responseModel, promptTokens, completionTokens, providerCostUsd, providerId, runnerReceipt } = fallback);
       fallbackFrom = "ocean-provider";
@@ -328,7 +416,20 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
   } else if (route === "external-fallback") {
     const fallback = await runExternalFallback(routeInput, promptTokens);
     if (!fallback.ok) {
-      return releaseReservationAndReturn(context, reservation, fallback, "credit_reserve_release_fallback_error");
+      return releaseReservationAndReturn(context, reservation, fallback, "credit_reserve_release_fallback_error", {
+        input: effectiveInput,
+        model: responseModel,
+        promptTokens,
+        route,
+        costState,
+        latencyMs: Date.now() - startedAt,
+        providerId,
+        requestedRoute,
+        fallbackFrom,
+        fallbackReason,
+        runnerReceipt,
+        errorCode: readErrorMessage(fallback)
+      });
     }
     ({ content, responseModel, promptTokens, completionTokens, providerCostUsd, providerId, runnerReceipt } = fallback);
     costState = "fallback_verified";
@@ -601,7 +702,8 @@ async function releaseReservationAndReturn(
   context: FishChatGatewayContext,
   reservation: CreditReservation,
   result: FishChatGatewayError,
-  reason: string
+  reason: string,
+  failure?: FailedUsageReceiptInput
 ) {
   await releaseFishCreditReservation({
     ledger: context.ledger,
@@ -609,7 +711,23 @@ async function releaseReservationAndReturn(
     reservation,
     reason
   });
+  if (failure) {
+    await recordFailedChatUsage({
+      ledger: context.ledger,
+      account: context.account,
+      ...failure
+    });
+  }
   return result;
+}
+
+function readErrorMessage(result: FishChatGatewayError) {
+  const error = result.body.error;
+  if (!error || typeof error !== "object") {
+    return "fish_backend_error";
+  }
+  const message = (error as { message?: unknown }).message;
+  return typeof message === "string" && message.trim() ? message.trim() : "fish_backend_error";
 }
 
 async function runExternalFallback(input: ChatCompletionInput, promptTokens: number) {

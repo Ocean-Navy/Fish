@@ -257,6 +257,7 @@ type UsageReceipt = {
   fallbackFrom?: "mock" | "ocean-demo-vllm" | "ocean-provider" | "external-fallback" | null;
   fallbackReason?: string | null;
   runnerReceipt?: RunnerReceiptSummary | null;
+  errorCode?: string | null;
 };
 
 export type FishUsageSummary = {
@@ -751,6 +752,61 @@ export async function recordChatUsage(params: {
     ok: true as const,
     receipt,
     creditsRemaining: params.account.creditBalance
+  };
+}
+
+export async function recordFailedChatUsage(params: {
+  ledger: Ledger;
+  account: Account;
+  input: ChatCompletionInput;
+  model?: string;
+  promptTokens: number;
+  route?: UsageReceipt["route"];
+  costState?: UsageReceipt["costState"];
+  latencyMs?: number;
+  providerId?: string | null;
+  requestedRoute?: UsageReceipt["route"] | null;
+  fallbackFrom?: UsageReceipt["route"] | null;
+  fallbackReason?: string | null;
+  runnerReceipt?: RunnerReceiptSummary | null;
+  errorCode?: string | null;
+}) {
+  const now = new Date().toISOString();
+  params.account.requestCount += 1;
+  params.account.lastUsedAt = now;
+  const receipt: UsageReceipt = {
+    id: randomUUID(),
+    accountId: params.account.id,
+    creditEntryId: null,
+    creditLane: "adjustment",
+    createdAt: now,
+    model: params.model ?? params.input.model,
+    feature: readFishFeature(params.input.metadata, params.input.model),
+    route: params.route ?? "mock",
+    costState: params.costState ?? "prototype_estimate",
+    status: "failed",
+    promptTokens: params.promptTokens,
+    completionTokens: 0,
+    totalTokens: params.promptTokens,
+    latencyMs: Math.max(0, Math.round(params.latencyMs ?? 0)),
+    creditsSpent: 0,
+    userChargeUsd: 0,
+    providerCostUsd: 0,
+    grossMarginUsd: 0,
+    providerId: params.providerId ?? null,
+    requestHash: hashSecret(JSON.stringify(params.input.messages)),
+    requestedRoute: params.requestedRoute ?? null,
+    fallbackFrom: params.fallbackFrom ?? null,
+    fallbackReason: params.fallbackReason ?? null,
+    runnerReceipt: params.runnerReceipt ?? null,
+    errorCode: params.errorCode ?? null
+  };
+
+  await writeLedger(params.ledger);
+  await writeReceipt(receipt);
+  return {
+    ok: true as const,
+    receipt
   };
 }
 
