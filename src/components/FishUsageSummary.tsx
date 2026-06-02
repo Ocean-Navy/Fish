@@ -12,6 +12,8 @@ export function FishUsageSummary({ summary }: { summary: FishUsageSummaryData })
     { label: "External fallback", value: formatNumber(summary.externalFallbackJobs), icon: Route },
     { label: "Runner proof", value: `${formatNumber(summary.runnerVerifiedJobs)} / ${formatNumber(summary.runnerProofJobs)}`, icon: ShieldCheck },
     { label: "Tokens served", value: formatNumber(summary.tokensServed), icon: ReceiptText },
+    { label: "Avg latency", value: `${formatNumber(summary.averageLatencyMs)} ms`, icon: Route },
+    { label: "Failures", value: formatNumber(summary.failedRequests), icon: ReceiptText },
     { label: "Ocean share", value: oceanNativeShare, icon: Waves },
     { label: "Credits spent", value: formatNumber(summary.creditsSpent), icon: BadgeDollarSign },
     { label: "Demo jobs", value: formatNumber(summary.mockJobs), icon: Route }

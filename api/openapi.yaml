@@ -73,6 +73,17 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/ProviderScore'
+  /api/dashboard/summary:
+    get:
+      summary: Unified public Fish dashboard summary
+      description: Combines Fish usage, active route status, warm AI readiness, Ocean supply, and public-safe proof counters without prompts, outputs, endpoint URLs, or API keys.
+      responses:
+        '200':
+          description: Fish dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FishDashboardSummary'
   /api/ocean/batch/jobs:
     get:
       summary: Public-safe Ocean batch job summary
@@ -3329,6 +3340,163 @@ components:
                 type: number
               providerCostUsd:
                 type: number
+    FishDashboardSummary:
+      type: object
+      properties:
+        dataState:
+          type: string
+          enum: [live, snapshot, sample, unavailable]
+        generatedAt:
+          type: string
+        product:
+          type: object
+          properties:
+            name:
+              type: string
+            tagline:
+              type: string
+            publicState:
+              type: string
+              enum: [real-ai-pilot, demo-pilot]
+        activeRoute:
+          type: object
+          properties:
+            id:
+              type: string
+              enum: [mock, ocean-demo-vllm, ocean-provider, external-fallback]
+            label:
+              type: string
+            status:
+              type: string
+              enum: [active, ready, needs-config, paused, disabled, pilot, future]
+            isRealAi:
+              type: boolean
+            providerId:
+              type: string
+        warmRoute:
+          type: object
+          properties:
+            routeId:
+              type: string
+              enum: [ocean-demo-vllm, ocean-provider]
+            label:
+              type: string
+            providerId:
+              type: string
+            active:
+              type: boolean
+            configured:
+              type: boolean
+            model:
+              type: string
+              nullable: true
+            probeState:
+              type: string
+              enum: [ok, failed, skipped]
+            modelVisible:
+              type: boolean
+              nullable: true
+            latencyMs:
+              type: integer
+              nullable: true
+        fishUsage:
+          type: object
+          properties:
+            requests:
+              type: integer
+            accounts:
+              type: integer
+            tokensServed:
+              type: integer
+            oceanNativeJobs:
+              type: integer
+            externalFallbackJobs:
+              type: integer
+            mockJobs:
+              type: integer
+            oceanNativeShare:
+              type: number
+            runnerProofJobs:
+              type: integer
+            runnerVerifiedJobs:
+              type: integer
+            failedRequests:
+              type: integer
+            averageLatencyMs:
+              type: number
+            creditsSpent:
+              type: integer
+            creditsRemaining:
+              type: integer
+            lastReceiptAt:
+              type: string
+              nullable: true
+        oceanSupply:
+          type: object
+          properties:
+            dataState:
+              type: string
+              enum: [live, snapshot, sample, unavailable]
+            lastUpdated:
+              type: string
+            sourceCount:
+              type: integer
+            totalGpus:
+              type: integer
+            availableGpus:
+              type: integer
+            providerCount:
+              type: integer
+            eligibleNodeCount:
+              type: integer
+            fishReadyProviderCount:
+              type: integer
+            topGpuSupply:
+              type: array
+              items:
+                type: object
+            topProviders:
+              type: array
+              items:
+                type: object
+        economics:
+          type: object
+          properties:
+            userChargeUsd:
+              type: number
+            providerCostUsd:
+              type: number
+            grossMarginUsd:
+              type: number
+            averageProviderCostUsd:
+              type: number
+            providerPayoutUsd:
+              type: number
+        proof:
+          type: object
+          properties:
+            runnerProofJobs:
+              type: integer
+            runnerSignedJobs:
+              type: integer
+            runnerVerifiedJobs:
+              type: integer
+            storesPromptOutputText:
+              type: boolean
+              enum: [false]
+        rules:
+          type: array
+          items:
+            type: object
+            properties:
+              title:
+                type: string
+              body:
+                type: string
+        warnings:
+          type: array
+          items:
+            type: string
     FishFeatureMenu:
       type: object
       properties:

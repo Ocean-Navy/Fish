@@ -270,6 +270,8 @@ export type FishUsageSummary = {
   runnerSignedJobs: number;
   runnerVerifiedJobs: number;
   tokensServed: number;
+  failedRequests: number;
+  averageLatencyMs: number;
   oceanNativeShare: number;
   providerPayoutUsd: number;
   creditsSpent: number;
@@ -569,6 +571,9 @@ export async function summarizeFishUsage(): Promise<FishUsageSummary> {
   const runnerSignedJobs = receipts.filter((receipt) => receipt.runnerReceipt?.signatureState === "signed" || receipt.runnerReceipt?.signatureState === "verified").length;
   const runnerVerifiedJobs = receipts.filter((receipt) => receipt.runnerReceipt?.signatureState === "verified").length;
   const tokensServed = receipts.reduce((sum, receipt) => sum + receipt.totalTokens, 0);
+  const failedRequests = receipts.filter((receipt) => receipt.status === "failed").length;
+  const latencyValues = receipts.map((receipt) => receipt.latencyMs).filter((latency) => Number.isFinite(latency));
+  const averageLatencyMs = latencyValues.length ? latencyValues.reduce((sum, latency) => sum + latency, 0) / latencyValues.length : 0;
   const creditLanes = summarizeCreditLanes(includeLegacyCreditSeeds(ledger.accounts, creditEntries), {
     creditBalance: ledger.accounts.reduce((sum, account) => sum + account.creditBalance, 0),
     totalCreditsGranted: ledger.accounts.reduce((sum, account) => sum + account.totalCreditsGranted, 0),
@@ -585,6 +590,8 @@ export async function summarizeFishUsage(): Promise<FishUsageSummary> {
     runnerSignedJobs,
     runnerVerifiedJobs,
     tokensServed,
+    failedRequests,
+    averageLatencyMs,
     oceanNativeShare: receipts.length ? oceanNativeJobs / receipts.length : 0,
     providerPayoutUsd: costs.providerCostUsd,
     creditsSpent: ledger.accounts.reduce((sum, account) => sum + account.totalCreditsSpent, 0),
