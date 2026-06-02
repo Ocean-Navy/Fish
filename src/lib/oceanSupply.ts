@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { collectProviderPilotRegistry, type ProviderPilotRegistry } from "@/lib/providerPilot";
 import type {
   ComputeResource,
   DataState,
@@ -19,6 +20,20 @@ const MAX_PAGES = Number(process.env.ONCOMPUTE_MAX_PAGES ?? "3");
 const BASE_USDC = "0x833589fcD6EDb6E08f4c7C32D4f71b54bdA02913".toLowerCase();
 
 type JsonRecord = Record<string, unknown>;
+
+type NodeMetadata = {
+  providerId: string;
+  providerLabel: string;
+  region: string;
+  eligible: boolean | null;
+  eligibilityCause: string | null;
+  http: boolean | null;
+  p2p: boolean | null;
+  version: string | null;
+  lastSeen: string | null;
+  uptimeSeconds: number | null;
+  nodeEndpoint: string;
+};
 
 const nowIso = () => new Date().toISOString();
 
@@ -43,6 +58,10 @@ function asNumber(value: unknown, fallback = 0): number {
     return Number.isFinite(parsed) ? parsed : fallback;
   }
   return fallback;
+}
+
+function asBoolean(value: unknown): boolean | null {
+  return typeof value === "boolean" ? value : null;
 }
 
 function pickString(row: JsonRecord, keys: string[], fallback = ""): string {
@@ -119,6 +138,27 @@ function nodeRowsFromPayload(payload: unknown): JsonRecord[] {
   return rows.map(normalizeNodeCandidate).filter((row): row is JsonRecord => row !== null);
 }
 
+function nodeMetadataFromPayload(payload: unknown): NodeMetadata[] {
+  return nodeRowsFromPayload(payload).map(nodeMetadataFromRow);
+}
+
+function nodeMetadataFromRow(node: JsonRecord): NodeMetadata {
+  const providerId = pickString(node, ["id", "address", "friendlyName"], "unknown-provider");
+  return {
+    providerId,
+    providerLabel: pickString(node, ["friendlyName", "address", "id"], providerId).slice(0, 42),
+    region: regionForNode(node),
+    eligible: asBoolean(node.eligible),
+    eligibilityCause: asString(node.eligibilityCauseStr) || null,
+    http: asBoolean(node.http),
+    p2p: asBoolean(node.p2p),
+    version: asString(node.version) || null,
+    lastSeen: timestampToIso(node.lastSeen ?? node.timestamp),
+    uptimeSeconds: Number.isFinite(asNumber(node.uptime, Number.NaN)) ? asNumber(node.uptime, 0) : null,
+    nodeEndpoint: asString(asArray(node.currentAddrs)[0], "")
+  };
+}
+
 function invalidGpuDescription(description: string): boolean {
   const value = description.toLowerCase();
   return (
@@ -173,6 +213,15 @@ function priceForResource(environment: JsonRecord, resourceId: string): { value:
 function regionForNode(node: JsonRecord): string {
   const location = isRecord(node.location) ? node.location : {};
   return pickString(location, ["region", "country", "city"], "unknown");
+}
+
+function timestampToIso(value: unknown): string | null {
+  const timestamp = asNumber(value, Number.NaN);
+  if (!Number.isFinite(timestamp) || timestamp <= 0) {
+    return null;
+  }
+  const milliseconds = timestamp < 10_000_000_000 ? timestamp * 1000 : timestamp;
+  return new Date(milliseconds).toISOString();
 }
 
 function normalizeNodeResources(node: JsonRecord, source: ComputeResource["source"], endpointUrl: string): ComputeResource[] {
@@ -305,7 +354,7 @@ function median(values: number[]): number | null {
   return sorted[middle];
 }
 
-function summarize(resources: ComputeResource[], sources: SourceResult[], analytics: JsonRecord | null): OceanSummary {
+function summarize(resources: ComputeResource[], sources: SourceResult[], analytics: JsonRecord | null, nodeMetadata: Map<string, NodeMetadata>, providerPilot: ProviderPilotRegistry): OceanSummary {
   const grouped = new Map<string, ComputeResource[]>();
   for (const resource of resources) {
     const key = resource.resourceName;
@@ -339,17 +388,35 @@ function summarize(resources: ComputeResource[], sources: SourceResult[], analyt
       const listedPrices = rows.map((row) => row.listedPrice).filter((value): value is number => value !== null);
       const usdHrPrices = rows.map((row) => row.pricePerHour).filter((value): value is number => value !== null);
       const availableGpus = rows.reduce((sum, row) => sum + row.available, 0);
+      const node = nodeMetadata.get(providerId);
+      const pilotProfile = providerPilot.providers.find((provider) => provider.providerId === providerId);
+      const allowlist = providerPilot.allowlist.find((entry) => entry.providerId === providerId);
+      const selected = Boolean(allowlist || pilotProfile?.pilotStatus === "allowed");
+      const nodeStatus: ProviderScore["nodeStatus"] = node?.eligible === true ? "eligible" : node?.eligible === false ? "not_eligible" : "unknown";
+      const fishReadyStatus = fishReadyStatusForProvider({
+        availableGpus,
+        selected,
+        readinessComplete: Boolean(pilotProfile && pilotProfile.readiness.readyCount === pilotProfile.readiness.totalCount)
+      });
       return {
         providerId,
-        label: rows[0]?.providerLabel ?? providerId,
-        region: rows[0]?.region ?? "unknown",
+        label: node?.providerLabel ?? pilotProfile?.publicLabel ?? rows[0]?.providerLabel ?? providerId,
+        region: node?.region ?? pilotProfile?.region ?? rows[0]?.region ?? "unknown",
         gpuTypes: Array.from(new Set(rows.map((row) => row.resourceName))).sort(),
         availableGpus,
         lowestUsdHr: usdHrPrices.length ? Math.min(...usdHrPrices) : null,
         lowestListedPrice: listedPrices.length ? Math.min(...listedPrices) : null,
-        uptime7d: null,
-        benchmarkStatus: "needs benchmark",
-        pilotEligible: availableGpus > 0
+        uptime7d: node?.uptimeSeconds ? Math.min(1, node.uptimeSeconds / (7 * 24 * 60 * 60)) : null,
+        benchmarkStatus: selected ? "selected for benchmark" : "needs benchmark",
+        pilotEligible: availableGpus > 0 && node?.eligible !== false,
+        nodeStatus,
+        fishReadyStatus,
+        nodeHttp: node?.http ?? null,
+        nodeP2p: node?.p2p ?? null,
+        nodeVersion: node?.version ?? null,
+        lastSeen: node?.lastSeen ?? null,
+        readinessLabel: pilotProfile?.readiness.label ?? null,
+        verified: selected
       };
     })
     .sort((a, b) => b.availableGpus - a.availableGpus);
@@ -375,6 +442,8 @@ function summarize(resources: ComputeResource[], sources: SourceResult[], analyt
       totalGpus: resources.reduce((sum, row) => sum + row.total, 0),
       availableGpus: resources.reduce((sum, row) => sum + row.available, 0),
       providerCount: byProvider.size,
+      eligibleNodeCount: providers.filter((provider) => provider.nodeStatus === "eligible").length,
+      fishReadyProviderCount: providers.filter((provider) => provider.fishReadyStatus === "ready" || provider.fishReadyStatus === "selected").length,
       h200FromUsdHr: h200Prices.length ? Math.min(...h200Prices) : null,
       lowestListedGpuFee: listedPrices.length ? Math.min(...listedPrices) : null,
       oceanNativeJobs: totalNetworkJobs,
@@ -386,15 +455,31 @@ function summarize(resources: ComputeResource[], sources: SourceResult[], analyt
     providers,
     warnings: [
       "Live Oncompute fee fields are shown as listed configured fees until price basis is confirmed.",
-      "Virtual GPUs and known NVML error rows are filtered out of public supply metrics."
+      "Virtual GPUs and known NVML error rows are filtered out of public supply metrics.",
+      ...(providerPilot.allowlist.length ? [] : ["No Fish selected-provider allowlist is configured yet. Supply rows are candidates, not routed providers."])
     ]
   };
+}
+
+function fishReadyStatusForProvider(input: { availableGpus: number; selected: boolean; readinessComplete: boolean }): ProviderScore["fishReadyStatus"] {
+  if (input.readinessComplete) {
+    return "ready";
+  }
+  if (input.selected) {
+    return "selected";
+  }
+  if (input.availableGpus > 0) {
+    return "candidate";
+  }
+  return "needs_review";
 }
 
 export async function collectOceanData(): Promise<OceanData> {
   const sources: SourceResult[] = [];
   const resources: ComputeResource[] = [];
+  const nodeMetadata = new Map<string, NodeMetadata>();
   let analytics: JsonRecord | null = null;
+  const providerPilot = await collectProviderPilotRegistry();
 
   for (const [url, key] of [
     [process.env.ONCOMPUTE_NODES_URL ?? "https://api.oncompute.ai/nodes", "nodes"],
@@ -404,6 +489,9 @@ export async function collectOceanData(): Promise<OceanData> {
       const result = await fetchPaged(url, key);
       sources.push(result.source);
       for (const payload of result.payloads) {
+        for (const node of nodeMetadataFromPayload(payload)) {
+          nodeMetadata.set(node.providerId, node);
+        }
         for (const node of nodeRowsFromPayload(payload)) {
           resources.push(...normalizeNodeResources(node, "dashboard-api", url));
         }
@@ -434,7 +522,7 @@ export async function collectOceanData(): Promise<OceanData> {
   const normalized = dedupeResources(resources);
   if (normalized.length > 0) {
     return {
-      summary: summarize(normalized, sources, analytics),
+      summary: summarize(normalized, sources, analytics, nodeMetadata, providerPilot),
       resources: normalized
     };
   }

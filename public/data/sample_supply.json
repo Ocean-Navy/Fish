@@ -8,8 +8,13 @@
     "totalGpus": 12,
     "availableGpus": 8,
     "providerCount": 4,
+    "eligibleNodeCount": 2,
+    "fishReadyProviderCount": 1,
     "h200FromUsdHr": 2.16,
+    "lowestListedGpuFee": 2.16,
     "oceanNativeJobs": 0,
+    "benchmarkJobs": 0,
+    "networkRevenueUsd": 0,
     "providerPayoutUsd": 0
   },
   "gpuSupply": [
@@ -17,8 +22,63 @@
     { "gpu": "A100", "total": 4, "available": 3, "providers": 2, "lowestUsdHr": 1.45, "medianUsdHr": 1.65, "regions": ["Europe"] }
   ],
   "providers": [
-    { "providerId": "sample-1", "label": "Provider Alpha", "region": "East Asia", "gpuTypes": ["H200 SXM5"], "availableGpus": 2, "lowestUsdHr": 2.16, "uptime7d": 0.98, "benchmarkStatus": "needs benchmark", "pilotEligible": true },
-    { "providerId": "sample-2", "label": "Provider Beta", "region": "Europe", "gpuTypes": ["H200 SXM5", "A100"], "availableGpus": 4, "lowestUsdHr": 2.16, "uptime7d": 0.96, "benchmarkStatus": "needs benchmark", "pilotEligible": true },
-    { "providerId": "sample-3", "label": "Provider Gamma", "region": "Europe", "gpuTypes": ["A100"], "availableGpus": 2, "lowestUsdHr": 1.45, "uptime7d": 0.91, "benchmarkStatus": "needs benchmark", "pilotEligible": false }
+    {
+      "providerId": "sample-1",
+      "label": "Provider Alpha",
+      "region": "East Asia",
+      "gpuTypes": ["H200 SXM5"],
+      "availableGpus": 2,
+      "lowestUsdHr": 2.16,
+      "lowestListedPrice": 2.16,
+      "uptime7d": 0.98,
+      "benchmarkStatus": "selected for benchmark",
+      "pilotEligible": true,
+      "nodeStatus": "eligible",
+      "fishReadyStatus": "selected",
+      "nodeHttp": true,
+      "nodeP2p": true,
+      "nodeVersion": "sample",
+      "lastSeen": "2026-05-31T00:00:00Z",
+      "readinessLabel": "sample selected",
+      "verified": true
+    },
+    {
+      "providerId": "sample-2",
+      "label": "Provider Beta",
+      "region": "Europe",
+      "gpuTypes": ["H200 SXM5", "A100"],
+      "availableGpus": 4,
+      "lowestUsdHr": 2.16,
+      "lowestListedPrice": 2.16,
+      "uptime7d": 0.96,
+      "benchmarkStatus": "needs benchmark",
+      "pilotEligible": true,
+      "nodeStatus": "eligible",
+      "fishReadyStatus": "candidate",
+      "nodeHttp": true,
+      "nodeP2p": true,
+      "nodeVersion": "sample",
+      "lastSeen": "2026-05-31T00:00:00Z",
+      "readinessLabel": null
+    },
+    {
+      "providerId": "sample-3",
+      "label": "Provider Gamma",
+      "region": "Europe",
+      "gpuTypes": ["A100"],
+      "availableGpus": 2,
+      "lowestUsdHr": 1.45,
+      "lowestListedPrice": 1.45,
+      "uptime7d": 0.91,
+      "benchmarkStatus": "needs benchmark",
+      "pilotEligible": false,
+      "nodeStatus": "not_eligible",
+      "fishReadyStatus": "needs_review",
+      "nodeHttp": false,
+      "nodeP2p": true,
+      "nodeVersion": "sample",
+      "lastSeen": "2026-05-31T00:00:00Z",
+      "readinessLabel": null
+    }
   ]
 }

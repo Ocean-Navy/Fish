@@ -153,7 +153,8 @@ type AllowlistCandidate = z.infer<typeof allowlistFileSchema>["providers"][numbe
 
 export async function collectProviderPilotRegistry(): Promise<ProviderPilotRegistry> {
   const [submissions, allowlistCandidates] = await Promise.all([readProviderSubmissions(), readAllowlistCandidates()]);
-  const providers = submissions.map((submission) => buildProviderProfile(submission));
+  const submissionProviders = submissions.map((submission) => buildProviderProfile(submission));
+  const providers = [...submissionProviders, ...buildAllowlistOnlyProfiles(submissionProviders, allowlistCandidates)];
   const allowlist = buildAllowlist(providers, allowlistCandidates);
   const allowedProviderIds = new Set(allowlist.map((entry) => entry.providerId));
   const allowlistByProvider = new Map(allowlist.map((entry) => [entry.providerId, entry]));
@@ -384,6 +385,53 @@ function buildAllowlist(providers: ProviderProfile[], candidates: AllowlistCandi
   });
 }
 
+function buildAllowlistOnlyProfiles(providers: ProviderProfile[], candidates: AllowlistCandidate[]): ProviderProfile[] {
+  const existingProviderIds = new Set(providers.map((provider) => provider.providerId));
+  const existingNodeHashes = new Set(providers.map((provider) => provider.nodeEndpointHash).filter(Boolean));
+  return candidates.flatMap((candidate) => {
+    if (findCandidateProvider(providers, candidate)) {
+      return [];
+    }
+    const providerId = candidate.providerId?.trim() || (candidate.nodeEndpoint?.trim() ? `prov_${shortHash(`allowlist:${candidate.nodeEndpoint.trim()}`)}` : "");
+    if (!providerId || existingProviderIds.has(providerId)) {
+      return [];
+    }
+    const nodeEndpointHash = candidate.nodeEndpoint?.trim() ? shortHash(candidate.nodeEndpoint.trim()) : null;
+    if (nodeEndpointHash && existingNodeHashes.has(nodeEndpointHash)) {
+      return [];
+    }
+    existingProviderIds.add(providerId);
+    if (nodeEndpointHash) {
+      existingNodeHashes.add(nodeEndpointHash);
+    }
+
+    const region = "Review needed";
+    const now = candidate.startsAt ?? new Date().toISOString();
+    return [
+      {
+        providerId,
+        displayName: displayNameForAllowlistCandidate(candidate, providerId),
+        sourceApplicationId: null,
+        nodeEndpointHash,
+        healthEndpointHash: candidate.healthEndpoint?.trim() ? shortHash(candidate.healthEndpoint.trim()) : null,
+        region,
+        gpuTypes: [],
+        capacitySummary: "GPU details pending",
+        priceShared: Boolean(candidate.priceHint?.trim()),
+        payoutReady: Boolean(candidate.payoutReady),
+        supportReady: Boolean(candidate.supportContact?.trim()),
+        noLoggingPolicy: Boolean(candidate.noPromptOutputLogging),
+        approvedContainerReady: candidate.approvedContainers.length > 0,
+        readiness: emptyReadiness(),
+        pilotStatus: "allowed" as const,
+        publicLabel: publicLabelForProvider(providerId, region),
+        createdAt: now,
+        updatedAt: now
+      }
+    ];
+  });
+}
+
 function withReadiness(provider: ProviderProfile, allowlist?: ProviderAllowlistEntry): ProviderProfile {
   const checks: ProviderReadinessCheck[] = [
     { id: "node", label: "Ocean Node", ready: Boolean(provider.nodeEndpointHash) },
@@ -448,6 +496,18 @@ function displayNameForSubmission(submission: z.infer<typeof submissionSchema>, 
     return host.split(".").slice(0, 2).join(".");
   }
   return `Provider ${providerId.slice(-6)}`;
+}
+
+function displayNameForAllowlistCandidate(candidate: AllowlistCandidate, providerId: string) {
+  const host = safeHost(candidate.nodeEndpoint ?? "");
+  if (host && !isIpLike(host)) {
+    return host.split(".").slice(0, 2).join(".");
+  }
+  return `Provider ${providerId.slice(-6)}`;
+}
+
+function publicLabelForProvider(providerId: string, region: string) {
+  return `${providerId.slice(0, 10)}-${region.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "review"}`;
 }
 
 function splitList(value: string) {

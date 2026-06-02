@@ -79,6 +79,7 @@ expiresAt
 ### Implementation Notes
 
 - The registry should ingest existing provider form submissions as the first source.
+- Operators may also seed selected providers directly from `FISH_PROVIDER_ALLOWLIST` or `data/provider_allowlist.json`; these rows are marked selected but still need health, price, payout, privacy, support, and runner/container readiness before Fish treats them as fully ready.
 - Oncompute `/nodes` and `/envs` data can enrich node identity, region, GPU inventory, HTTP/P2P status, version, and eligibility.
 - `pilotEligible` is a Fish decision. It must not be a direct copy of Ocean node eligibility.
 - Public labels should use a friendly display name or shortened node id. Do not publish contact data, exact IPs, admin addresses, or private payout details.

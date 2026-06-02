@@ -34,7 +34,8 @@ export function DashboardPreview({ initialSummary }: { initialSummary: OceanSumm
     ["GPU supply", formatNumber(summary.kpis.totalGpus)],
     ["Available now", formatNumber(summary.kpis.availableGpus)],
     ["Providers", formatNumber(summary.kpis.providerCount)],
-    ["Lowest fee", summary.kpis.lowestListedGpuFee === null ? "-" : `${formatNumber(summary.kpis.lowestListedGpuFee)} listed`],
+    ["Eligible nodes", formatNumber(summary.kpis.eligibleNodeCount)],
+    ["Fish-ready", formatNumber(summary.kpis.fishReadyProviderCount)],
     ["Network jobs", formatCompact(summary.kpis.oceanNativeJobs)],
     ["Network revenue", summary.kpis.networkRevenueUsd === null ? "-" : formatUsd(summary.kpis.networkRevenueUsd)]
   ];
@@ -66,7 +67,7 @@ export function DashboardPreview({ initialSummary }: { initialSummary: OceanSumm
         {error ? <span className="text-fish-coral">Refresh failed: {error}</span> : null}
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-7">
         {kpis.map(([label, value]) => (
           <div key={label} className="rounded-3xl border border-fish-accent/25 bg-fish-surface/75 p-5 shadow-glow">
             <p className="text-sm font-bold text-fish-secondary">{label}</p>
@@ -116,13 +117,19 @@ export function DashboardPreview({ initialSummary }: { initialSummary: OceanSumm
                     <p className="font-black text-fish-primary">{provider.label}</p>
                     <p className="mt-1 text-sm text-fish-secondary">{provider.region}</p>
                   </div>
-                  <span className="rounded-full border border-fish-aqua/35 px-3 py-1 text-xs font-black uppercase tracking-[0.08em] text-fish-aqua">
-                    {provider.pilotEligible ? "candidate" : "review"}
+                  <span className={`rounded-full border px-3 py-1 text-xs font-black uppercase tracking-[0.08em] ${providerStatusStyle(provider.fishReadyStatus)}`}>
+                    {providerStatusLabel(provider.fishReadyStatus)}
                   </span>
                 </div>
                 <p className="mt-3 text-sm text-fish-secondary">
                   {formatNumber(provider.availableGpus)} available GPU{provider.availableGpus === 1 ? "" : "s"} - {provider.gpuTypes.slice(0, 2).join(", ")}
                 </p>
+                <div className="mt-3 flex flex-wrap gap-2 text-[0.68rem] font-black uppercase tracking-[0.08em]">
+                  <span className={`rounded-full border px-2.5 py-1 ${nodeStatusStyle(provider.nodeStatus)}`}>{nodeStatusLabel(provider.nodeStatus)}</span>
+                  <span className="rounded-full border border-white/10 bg-white/[0.035] px-2.5 py-1 text-fish-secondary">{provider.nodeHttp ? "HTTP" : "HTTP ?"}</span>
+                  <span className="rounded-full border border-white/10 bg-white/[0.035] px-2.5 py-1 text-fish-secondary">{provider.nodeP2p ? "P2P" : "P2P ?"}</span>
+                  {provider.readinessLabel ? <span className="rounded-full border border-fish-gold/25 bg-fish-gold/10 px-2.5 py-1 text-fish-gold">{provider.readinessLabel}</span> : null}
+                </div>
               </div>
             ))}
           </div>
@@ -136,4 +143,35 @@ export function DashboardPreview({ initialSummary }: { initialSummary: OceanSumm
       ) : null}
     </section>
   );
+}
+
+function providerStatusLabel(status: OceanSummary["providers"][number]["fishReadyStatus"]) {
+  return status === "ready" ? "Fish-ready" : status === "selected" ? "Selected" : status === "candidate" ? "Candidate" : "Review";
+}
+
+function providerStatusStyle(status: OceanSummary["providers"][number]["fishReadyStatus"]) {
+  if (status === "ready") {
+    return "border-fish-success/35 bg-fish-success/15 text-fish-success";
+  }
+  if (status === "selected") {
+    return "border-fish-aqua/35 bg-fish-aqua/15 text-fish-aqua";
+  }
+  if (status === "candidate") {
+    return "border-fish-accent/35 bg-fish-accent/15 text-fish-accent";
+  }
+  return "border-fish-gold/35 bg-fish-gold/10 text-fish-gold";
+}
+
+function nodeStatusLabel(status: OceanSummary["providers"][number]["nodeStatus"]) {
+  return status === "eligible" ? "Ocean ok" : status === "not_eligible" ? "Ocean check" : "Ocean ?";
+}
+
+function nodeStatusStyle(status: OceanSummary["providers"][number]["nodeStatus"]) {
+  if (status === "eligible") {
+    return "border-fish-success/30 bg-fish-success/10 text-fish-success";
+  }
+  if (status === "not_eligible") {
+    return "border-fish-coral/30 bg-fish-coral/10 text-fish-coral";
+  }
+  return "border-white/10 bg-white/[0.035] text-fish-secondary";
 }

@@ -55,6 +55,13 @@ export type ProviderScore = {
   uptime7d: number | null;
   benchmarkStatus: string;
   pilotEligible: boolean;
+  nodeStatus: "eligible" | "not_eligible" | "unknown";
+  fishReadyStatus: "ready" | "selected" | "candidate" | "needs_review";
+  nodeHttp: boolean | null;
+  nodeP2p: boolean | null;
+  nodeVersion: string | null;
+  lastSeen: string | null;
+  readinessLabel: string | null;
   verified?: boolean;
 };
 
@@ -67,6 +74,8 @@ export type OceanSummary = {
     totalGpus: number;
     availableGpus: number;
     providerCount: number;
+    eligibleNodeCount: number;
+    fishReadyProviderCount: number;
     h200FromUsdHr: number | null;
     lowestListedGpuFee: number | null;
     oceanNativeJobs: number;

@@ -1117,6 +1117,10 @@ components:
               type: number
             providerCount:
               type: integer
+            eligibleNodeCount:
+              type: integer
+            fishReadyProviderCount:
+              type: integer
             h200FromUsdHr:
               type: number
               nullable: true
@@ -1230,9 +1234,33 @@ components:
           nullable: true
         uptime7d:
           type: number
+          nullable: true
         benchmarkStatus:
           type: string
         pilotEligible:
+          type: boolean
+        nodeStatus:
+          type: string
+          enum: [eligible, not_eligible, unknown]
+        fishReadyStatus:
+          type: string
+          enum: [ready, selected, candidate, needs_review]
+        nodeHttp:
+          type: boolean
+          nullable: true
+        nodeP2p:
+          type: boolean
+          nullable: true
+        nodeVersion:
+          type: string
+          nullable: true
+        lastSeen:
+          type: string
+          nullable: true
+        readinessLabel:
+          type: string
+          nullable: true
+        verified:
           type: boolean
     OceanBatchJobRequest:
       type: object
