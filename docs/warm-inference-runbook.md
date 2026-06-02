@@ -323,6 +323,8 @@ nvidia-smi
 watch -n 2 nvidia-smi
 ```
 
+`/api/warm/status` reports the active warm lane. With `FISH_CHAT_ROUTE=ocean-demo-vllm` it checks the demo vLLM config; with `FISH_CHAT_ROUTE=ocean-provider` it checks the selected-provider config.
+
 Do not publish operator-only endpoint URLs, API keys, raw prompts, raw outputs, exact private IPs, or unreviewed provider contact details.
 
 ## Cost Controls

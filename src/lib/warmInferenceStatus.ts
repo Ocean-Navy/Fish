@@ -1,12 +1,15 @@
-import { getFishRouterConfig } from "@/lib/fishRouter";
+import { getFishRouterConfig, type FishChatRouteId } from "@/lib/fishRouter";
+import type { OpenAiCompatibleRouteConfig } from "@/lib/openAiCompatibleChat";
 import type { DataState } from "@/lib/types";
 
 type ProbeState = "ok" | "failed" | "skipped";
+type WarmRouteId = Extract<FishChatRouteId, "ocean-demo-vllm" | "ocean-provider">;
 
 export type WarmInferenceStatus = {
   dataState: DataState;
   generatedAt: string;
-  routeId: "ocean-demo-vllm";
+  routeId: WarmRouteId;
+  publicLabel: string;
   providerId: string;
   routeActive: boolean;
   configured: boolean;
@@ -32,14 +35,17 @@ export type WarmInferenceStatus = {
 
 export async function getWarmInferenceStatus({ probe = true, timeoutMs = 1500 }: { probe?: boolean; timeoutMs?: number } = {}): Promise<WarmInferenceStatus> {
   const router = getFishRouterConfig();
-  const warmRoute = router.routes["ocean-demo-vllm"];
+  const activeWarmRouteId: WarmRouteId = router.activeRouteId === "ocean-provider" ? "ocean-provider" : "ocean-demo-vllm";
+  const warmRoute = router.routes[activeWarmRouteId];
+  const routeConfig = activeWarmRouteId === "ocean-provider" ? router.selectedProvider : router.warm;
+  const routeName = activeWarmRouteId === "ocean-provider" ? "Selected Ocean provider" : "Warm vLLM";
   const warnings = [
-    ...(router.warm.baseUrl ? [] : ["Warm vLLM base URL is not configured."]),
-    ...(router.warm.model ? [] : ["Warm vLLM model is not configured."]),
-    ...(router.warm.apiKey ? [] : ["Warm vLLM API key is not configured."]),
-    ...(router.activeRouteId === "ocean-demo-vllm" && !warmRoute.configured ? ["Ocean demo route is selected but not ready."] : [])
+    ...(routeConfig.baseUrl ? [] : [`${routeName} base URL is not configured.`]),
+    ...(routeConfig.model ? [] : [`${routeName} model is not configured.`]),
+    ...(routeConfig.apiKey ? [] : [`${routeName} API key is not configured.`]),
+    ...(router.activeRouteId === activeWarmRouteId && !warmRoute.configured ? [`${warmRoute.publicLabel} route is selected but not ready.`] : [])
   ];
-  const base = baseStatus();
+  const base = baseStatus({ routeId: activeWarmRouteId, routeConfig });
 
   if (!warmRoute.configured || !probe) {
     return {
@@ -57,28 +63,28 @@ export async function getWarmInferenceStatus({ probe = true, timeoutMs = 1500 }:
 
   const startedAt = Date.now();
   try {
-    const response = await fetch(modelsEndpoint(router.warm.baseUrl!), {
-      headers: router.warm.apiKey ? { authorization: `Bearer ${router.warm.apiKey}` } : {},
+    const response = await fetch(modelsEndpoint(routeConfig.baseUrl!), {
+      headers: routeConfig.apiKey ? { authorization: `Bearer ${routeConfig.apiKey}` } : {},
       signal: AbortSignal.timeout(timeoutMs),
       cache: "no-store"
     });
     const latencyMs = Date.now() - startedAt;
     const payload = await response.json().catch(() => null);
-    const modelVisible = response.ok ? modelListIncludes(payload, router.warm.model) : null;
+    const modelVisible = response.ok ? modelListIncludes(payload, routeConfig.model) : null;
 
     return {
       ...base,
       dataState: response.ok ? "live" : "unavailable",
       warnings: [
         ...warnings,
-        ...(response.ok && modelVisible === false ? [`Configured model ${router.warm.model} was not visible in /models.`] : [])
+        ...(response.ok && modelVisible === false ? [`Configured model ${routeConfig.model} was not visible in /models.`] : [])
       ],
       probe: {
         state: response.ok ? "ok" : "failed",
         latencyMs,
         statusCode: response.status,
         modelVisible,
-        message: response.ok ? "Warm endpoint answered /models." : "Warm endpoint did not answer /models successfully."
+        message: response.ok ? `${warmRoute.publicLabel} endpoint answered /models.` : `${warmRoute.publicLabel} endpoint did not answer /models successfully.`
       }
     };
   } catch {
@@ -96,17 +102,18 @@ export async function getWarmInferenceStatus({ probe = true, timeoutMs = 1500 }:
     };
   }
 
-  function baseStatus(): WarmInferenceStatus {
+  function baseStatus(input: { routeId: WarmRouteId; routeConfig: OpenAiCompatibleRouteConfig }): WarmInferenceStatus {
     return {
       dataState: warmRoute.configured ? "snapshot" : "unavailable",
       generatedAt: new Date().toISOString(),
-      routeId: "ocean-demo-vllm",
-      providerId: router.warm.providerId,
-      routeActive: router.activeRouteId === "ocean-demo-vllm",
+      routeId: input.routeId,
+      publicLabel: warmRoute.publicLabel,
+      providerId: input.routeConfig.providerId,
+      routeActive: router.activeRouteId === input.routeId,
       configured: warmRoute.configured,
-      baseUrlConfigured: Boolean(router.warm.baseUrl),
-      apiKeyConfigured: Boolean(router.warm.apiKey),
-      configuredModel: router.warm.model,
+      baseUrlConfigured: Boolean(input.routeConfig.baseUrl),
+      apiKeyConfigured: Boolean(input.routeConfig.apiKey),
+      configuredModel: input.routeConfig.model,
       probe: {
         state: "skipped",
         latencyMs: null,

@@ -1705,21 +1705,42 @@ components:
           enum: [live, snapshot, sample, unavailable]
         generatedAt:
           type: string
-        route:
+        routeId:
           type: string
-          enum: [ocean-demo-vllm]
-        configured:
-          type: boolean
-        ready:
-          type: boolean
+          enum: [ocean-demo-vllm, ocean-provider]
         publicLabel:
           type: string
         providerId:
           type: string
-        model:
+        routeActive:
+          type: boolean
+        configured:
+          type: boolean
+        baseUrlConfigured:
+          type: boolean
+        apiKeyConfigured:
+          type: boolean
+        configuredModel:
           type: string
           nullable: true
-        checks:
+        probe:
+          type: object
+          properties:
+            state:
+              type: string
+              enum: [ok, failed, skipped]
+            latencyMs:
+              type: integer
+              nullable: true
+            statusCode:
+              type: integer
+              nullable: true
+            modelVisible:
+              type: boolean
+              nullable: true
+            message:
+              type: string
+        guardrails:
           type: object
         warnings:
           type: array

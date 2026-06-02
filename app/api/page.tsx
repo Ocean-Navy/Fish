@@ -20,7 +20,7 @@ const cards = [
   { label: "Live now", title: "/api/ocean/summary", body: "Dashboard summary with source-state labels and Ocean compute supply." },
   { label: "Pilot", title: "/api/ocean/batch/jobs", body: "Hash-only Docs batch receipt path, sample until a private Ocean batch adapter is connected." },
   { label: "Live now", title: "/api/waitlist", body: "Demand intake for users, builders, holders, and ecosystem partners." },
-  { label: "Live now", title: "/api/warm/status", body: "Public-safe readiness for the Ocean demo vLLM route." },
+  { label: "Live now", title: "/api/warm/status", body: "Public-safe readiness for the active warm Ocean route." },
   { label: "Pilot", title: "/v1/chat/completions", body: "Familiar chat route with Fish keys, credits, and clear usage records." },
   { label: "Pilot", title: "/api/billing/plans", body: "Simple plan list with current and later options." },
   { label: "Pilot", title: "/api/billing/usage-analytics", body: "Total usage numbers without keys, prompts, outputs, or account rows." },

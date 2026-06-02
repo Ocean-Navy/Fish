@@ -12,10 +12,10 @@ export function WarmInferenceStatusPanel({ status }: { status: WarmInferenceStat
       <div className="rounded-[2rem] border border-fish-accent/25 bg-fish-surface/80 p-5 shadow-harbor sm:p-7">
         <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">Warm demo node</p>
-            <h2 className="mt-2 text-3xl font-black text-white sm:text-5xl">Ocean demo readiness</h2>
+            <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">Warm route</p>
+            <h2 className="mt-2 text-3xl font-black text-white sm:text-5xl">{status.publicLabel} readiness</h2>
             <p className="mt-3 max-w-2xl text-base font-bold leading-7 text-fish-secondary">
-              Public-safe status for the warm vLLM route. It never exposes endpoint URLs, API keys, prompts, or outputs.
+              Public-safe status for the active warm AI route. It never exposes endpoint URLs, API keys, prompts, or outputs.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
@@ -25,7 +25,7 @@ export function WarmInferenceStatusPanel({ status }: { status: WarmInferenceStat
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <StatusTile icon={Waves} label="Route" value={status.routeActive ? "Selected" : "Standby"} />
+          <StatusTile icon={Waves} label="Route" value={status.routeActive ? "Active" : "Standby"} />
           <StatusTile icon={Cpu} label="Provider" value={status.providerId} />
           <StatusTile icon={Gauge} label="Probe" value={probeLabel} />
           <StatusTile icon={ShieldCheck} label="Model" value={status.configuredModel ?? "Not set"} />

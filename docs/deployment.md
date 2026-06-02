@@ -287,7 +287,7 @@ Set `FISH_OCEAN_BATCH_ENDPOINT` and optionally `FISH_OCEAN_BATCH_API_KEY` only w
 Set `FISH_DOCS_BATCH_MAX_RUNTIME_SECONDS` and `FISH_DOCS_BATCH_MAX_COST_USD` to cap Docs dish batch requests generated through `/v1/chat/completions`.
 Keep `FISH_CHAT_BACKEND=mock` for a no-secret local deployment. Set `FISH_CHAT_ROUTE=ocean-provider`, `FISH_OCEAN_PROVIDER_BASE_URL`, `FISH_OCEAN_PROVIDER_API_KEY`, and `FISH_OCEAN_PROVIDER_MODEL` only when a selected Ocean provider or Fish Runner `/v1` endpoint is ready. Set `FISH_CHAT_BACKEND=external`, `FISH_EXTERNAL_CHAT_BASE_URL`, `FISH_EXTERNAL_CHAT_API_KEY`, and `FISH_EXTERNAL_CHAT_MODEL` only when you want `/v1/chat/completions` to call an outside OpenAI-compatible backend.
 
-Warm inference operations are covered in `docs/warm-inference-runbook.md`. The MVP path is a private vLLM endpoint, ideally behind Fish Runner, on a GPU host that may also run Ocean Node for provider identity and anchoring. Keep the warm route on mock until the private endpoint is ready, then switch `FISH_CHAT_ROUTE=ocean-demo-vllm` for the demo lane or `FISH_CHAT_ROUTE=ocean-provider` for selected provider testing. Check `/routing` and `/api/routing/policy` after changing routes.
+Warm inference operations are covered in `docs/warm-inference-runbook.md`. The MVP path is a private vLLM endpoint, ideally behind Fish Runner, on a GPU host that may also run Ocean Node for provider identity and anchoring. Keep the warm route on mock until the private endpoint is ready, then switch `FISH_CHAT_ROUTE=ocean-demo-vllm` for the demo lane or `FISH_CHAT_ROUTE=ocean-provider` for selected provider testing. Check `/routing`, `/api/routing/policy`, and `/api/warm/status` after changing routes.
 
 ## Verification
 
