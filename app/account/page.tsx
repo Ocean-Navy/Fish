@@ -23,8 +23,8 @@ const cards = [
 
 const billingLanes = [
   { title: "Free credits", body: "Starter credits help early users try Fish." },
-  { title: "Plans", body: "Monthly plans come after limits and safety checks are ready." },
-  { title: "Top-ups", body: "Prepaid credits come later with clear refund rules." },
+  { title: "Plans", body: "Pilot plans can be activated by the operating crew." },
+  { title: "Top-ups", body: "Prepaid pilot credits can be added before checkout is public." },
   { title: "Provider pay", body: "Providers are paid from real funds, not promises." }
 ];
 
@@ -55,7 +55,7 @@ export default function AccountPage() {
             <div>
               <h2 className="text-3xl font-black leading-tight text-white sm:text-5xl">Credits first. Checkout later.</h2>
               <p className="mt-3 text-lg font-bold leading-8 text-fish-secondary">
-                First we make balances and recent use clear. Paid plans and top-ups come after the rules are ready.
+                First we make balances, plans, and recent use clear. Public checkout comes after the rules are ready.
               </p>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">

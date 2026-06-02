@@ -22,6 +22,9 @@ export async function GET(request: Request) {
         status: summary.account.status,
         revokedAt: summary.account.revokedAt,
         planId: summary.account.planId,
+        planActivatedAt: summary.account.planActivatedAt,
+        planExpiresAt: summary.account.planExpiresAt,
+        planSource: summary.account.planSource,
         creditBalance: summary.account.creditBalance,
         requestCount: summary.account.requestCount
       }

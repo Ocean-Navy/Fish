@@ -248,6 +248,45 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/FishPlan'
+  /api/billing/subscriptions:
+    post:
+      summary: Admin-only pilot subscription activation
+      description: Activates a pilot plan for an existing Fish account, writes subscription credit entries, and keeps public checkout future-gated.
+      security:
+        - adminToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FishSubscriptionActivationRequest'
+      responses:
+        '200':
+          description: Subscription activated, or an idempotent duplicate was ignored
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  object:
+                    type: string
+                    example: subscription_activation
+                  idempotent:
+                    type: boolean
+                  plan:
+                    $ref: '#/components/schemas/FishPlan'
+                  account:
+                    $ref: '#/components/schemas/FishAccount'
+                  entry:
+                    $ref: '#/components/schemas/FishCreditEntry'
+                  creditsRemaining:
+                    type: integer
+        '400':
+          description: Invalid subscription activation request
+        '401':
+          description: Admin token required
+        '404':
+          description: Fish account not found
   /api/billing/topups:
     post:
       summary: Admin-only Fish credit top-up
@@ -1180,6 +1219,16 @@ paths:
                         planId:
                           type: string
                           enum: [free, pro, team-api, provider-test]
+                        planActivatedAt:
+                          type: string
+                          nullable: true
+                        planExpiresAt:
+                          type: string
+                          nullable: true
+                        planSource:
+                          type: string
+                          nullable: true
+                          enum: [pilot_key, operator_subscription]
                         creditBalance:
                           type: integer
                         requestCount:
@@ -3600,6 +3649,16 @@ components:
         planId:
           type: string
           enum: [free, pro, team-api, provider-test]
+        planActivatedAt:
+          type: string
+          nullable: true
+        planExpiresAt:
+          type: string
+          nullable: true
+        planSource:
+          type: string
+          nullable: true
+          enum: [pilot_key, operator_subscription]
         plan:
           $ref: '#/components/schemas/FishPlan'
         creditBalance:
@@ -3728,6 +3787,40 @@ components:
         paymentProviderEventId:
           type: string
           maxLength: 120
+    FishSubscriptionActivationRequest:
+      type: object
+      additionalProperties: false
+      required: [accountId, planId]
+      properties:
+        accountId:
+          type: string
+        planId:
+          type: string
+          enum: [free, pro, team-api, provider-test]
+        creditGrant:
+          type: integer
+          minimum: 0
+          maximum: 1000000
+          description: Defaults to the target plan monthly credit grant.
+        reason:
+          type: string
+          maxLength: 140
+          default: operator_subscription_activation
+        startsAt:
+          type: string
+        expiresAt:
+          type: string
+          nullable: true
+          description: Defaults to one month after startsAt.
+        idempotencyKey:
+          type: string
+          maxLength: 120
+        paymentProviderEventId:
+          type: string
+          maxLength: 120
+        subscriptionRef:
+          type: string
+          maxLength: 160
     FishCreditEntry:
       type: object
       properties:

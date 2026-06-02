@@ -86,7 +86,7 @@ operatorReason
 
 Fish has a simple pricing/limits model without over-promising token mechanics.
 
-Current prototype status: `/api/billing/plans` exposes Free, Pro, Team/API, and Provider-test plan metadata. `/v1/balance` and `/account` show the account plan, but checkout and paid-plan activation are still future-gated.
+Current prototype status: `/api/billing/plans` exposes Free, Pro, Team/API, and Provider-test plan metadata. `/api/billing/subscriptions` lets an operator activate a pilot plan, set expiry metadata, and grant subscription credits with idempotency protection. `/v1/balance` and `/account` show the account plan, source, start time, and expiry. Public checkout is still future-gated.
 
 ### Initial Plan Shape
 
@@ -143,6 +143,7 @@ GET  /v1/billing/balance
 GET  /v1/billing/usage
 GET  /v1/billing/usage-analytics
 POST /api/billing/topups
+POST /api/billing/subscriptions
 POST /v1/topups
 POST /v1/admin/grants
 ```
@@ -211,10 +212,10 @@ The team can decide whether to connect Stripe, crypto checkout, or both.
 
 ## Public Page Requirements
 
-`/account` should show billing as future-gated until implementation exists:
+`/account` should keep checkout future-gated while showing the live pilot account facts:
 
 - current balance and receipts are live prototype features;
-- plan credits and top-ups are future lanes;
+- operator-activated plan credits and top-ups are pilot features;
 - credits need backing from revenue, reserves, or funded budgets;
 - no token, yield, or provider-payment promises.
 

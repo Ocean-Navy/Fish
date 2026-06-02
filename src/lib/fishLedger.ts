@@ -102,6 +102,28 @@ const creditTopupSchema = z.object({
   paymentProviderEventId: z.string().trim().min(1).max(120).optional()
 });
 
+const subscriptionActivationSchema = z
+  .object({
+    accountId: z.string().trim().min(1),
+    planId: z.enum(FISH_PLAN_IDS),
+    creditGrant: z.number().int().min(0).max(1000000).optional(),
+    reason: z.string().trim().min(1).max(140).optional().default("operator_subscription_activation"),
+    startsAt: z.string().datetime().optional(),
+    expiresAt: z.string().datetime().nullable().optional(),
+    idempotencyKey: z.string().trim().min(1).max(120).optional(),
+    paymentProviderEventId: z.string().trim().min(1).max(120).optional(),
+    subscriptionRef: z.string().trim().min(1).max(160).optional()
+  })
+  .superRefine((activation, context) => {
+    if (activation.startsAt && activation.expiresAt && Date.parse(activation.startsAt) > Date.parse(activation.expiresAt)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["expiresAt"],
+        message: "expiresAt must be after startsAt"
+      });
+    }
+  });
+
 export const chatCompletionSchema = z.object({
   model: z.string().trim().min(1).default("fish-demo-chat"),
   messages: z
@@ -128,6 +150,9 @@ export type Account = {
   rotatedAt?: string | null;
   revokedAt?: string | null;
   planId?: FishPlanId;
+  planActivatedAt?: string | null;
+  planExpiresAt?: string | null;
+  planSource?: "pilot_key" | "operator_subscription" | null;
   creditBalance: number;
   totalCreditsGranted: number;
   totalCreditsSpent: number;
@@ -381,6 +406,10 @@ export function parseCreditTopup(body: unknown) {
   return creditTopupSchema.safeParse(body);
 }
 
+export function parseSubscriptionActivation(body: unknown) {
+  return subscriptionActivationSchema.safeParse(body);
+}
+
 export function parseChatCompletion(body: unknown) {
   return chatCompletionSchema.safeParse(body);
 }
@@ -415,6 +444,9 @@ export async function createApiKey(label: string, creditGrant: number, planId: F
     rotatedAt: null,
     revokedAt: null,
     planId,
+    planActivatedAt: now,
+    planExpiresAt: null,
+    planSource: "pilot_key",
     creditBalance: creditGrant,
     totalCreditsGranted: creditGrant,
     totalCreditsSpent: 0,
@@ -463,6 +495,9 @@ export async function getOrCreateGuestAccount(guestId: string, creditGrant = 25)
     rotatedAt: null,
     revokedAt: null,
     planId: "free",
+    planActivatedAt: now,
+    planExpiresAt: null,
+    planSource: "pilot_key",
     creditBalance: creditGrant,
     totalCreditsGranted: creditGrant,
     totalCreditsSpent: 0,
@@ -626,6 +661,79 @@ export async function addFishCredits(params: z.infer<typeof creditTopupSchema>) 
   return {
     ok: true as const,
     idempotent: false,
+    account: publicAccount(account),
+    entry,
+    creditsRemaining: account.creditBalance
+  };
+}
+
+export async function activateFishSubscription(params: z.infer<typeof subscriptionActivationSchema>) {
+  const ledger = await readLedger();
+  const account = ledger.accounts.find((candidate) => candidate.id === params.accountId);
+  if (!account) {
+    return {
+      ok: false as const,
+      status: 404,
+      error: "fish_account_not_found"
+    };
+  }
+
+  const plan = getFishPlan(params.planId);
+  const now = new Date().toISOString();
+  const startsAt = params.startsAt ?? now;
+  const expiresAt = params.expiresAt === undefined ? addMonths(startsAt, 1) : params.expiresAt;
+  const creditGrant = params.creditGrant ?? plan.monthlyCreditGrant;
+  await ensureAccountCreditSeed(account, now);
+  const existingEntries = await readCreditEntries(account.id);
+  const existingEntry = existingEntries.find((entry) => {
+    if (params.idempotencyKey && entry.idempotencyKey === params.idempotencyKey) {
+      return true;
+    }
+    if (params.paymentProviderEventId && entry.paymentProviderEventId === params.paymentProviderEventId) {
+      return true;
+    }
+    return false;
+  });
+
+  if (existingEntry) {
+    return {
+      ok: true as const,
+      idempotent: true,
+      plan,
+      account: publicAccount(account),
+      entry: existingEntry,
+      creditsRemaining: account.creditBalance
+    };
+  }
+
+  const entry: CreditLedgerEntry = {
+    entryId: randomUUID(),
+    accountId: account.id,
+    lane: "subscription",
+    kind: "grant",
+    amount: creditGrant,
+    requestId: params.subscriptionRef ?? null,
+    receiptId: null,
+    expiresAt,
+    createdAt: now,
+    operatorReason: params.reason,
+    idempotencyKey: params.idempotencyKey ?? null,
+    paymentProviderEventId: params.paymentProviderEventId ?? null
+  };
+
+  account.planId = plan.planId;
+  account.planActivatedAt = startsAt;
+  account.planExpiresAt = expiresAt;
+  account.planSource = "operator_subscription";
+  account.creditBalance += creditGrant;
+  account.totalCreditsGranted += creditGrant;
+  await writeLedger(ledger);
+  await appendCreditEntry(entry);
+
+  return {
+    ok: true as const,
+    idempotent: false,
+    plan,
     account: publicAccount(account),
     entry,
     creditsRemaining: account.creditBalance
@@ -1038,6 +1146,12 @@ function hashSecret(secret: string) {
   return createHash("sha256").update(secret).digest("hex");
 }
 
+function addMonths(value: string, months: number) {
+  const date = new Date(value);
+  date.setUTCMonth(date.getUTCMonth() + months);
+  return date.toISOString();
+}
+
 export async function sumProviderCostForRouteSince(route: UsageReceipt["route"], sinceIso: string) {
   const receipts = await readAllReceipts();
   return Number(receipts.filter((receipt) => receipt.route === route && receipt.createdAt >= sinceIso).reduce((sum, receipt) => sum + receipt.providerCostUsd, 0).toFixed(6));
@@ -1358,6 +1472,9 @@ function publicAccount(account: Account) {
     createdAt: account.createdAt,
     rotatedAt: account.rotatedAt ?? null,
     planId: plan.planId,
+    planActivatedAt: account.planActivatedAt ?? account.createdAt,
+    planExpiresAt: account.planExpiresAt ?? null,
+    planSource: account.planSource ?? "pilot_key",
     plan,
     status: account.revokedAt ? "revoked" : "active",
     revokedAt: account.revokedAt ?? null,

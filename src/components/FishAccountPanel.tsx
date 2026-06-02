@@ -11,6 +11,9 @@ type AccountPayload = {
     revokedAt: string | null;
     rotatedAt: string | null;
     planId: string;
+    planActivatedAt: string | null;
+    planExpiresAt: string | null;
+    planSource: "pilot_key" | "operator_subscription" | null;
     plan: FishPlan;
     creditBalance: number;
     totalCreditsGranted: number;
@@ -366,7 +369,7 @@ export function FishAccountPanel() {
                 </div>
               ) : null}
             </div>
-            <PlanDock plan={account.account.plan} />
+            <PlanDock account={account.account} />
             <CreditLaneNet lanes={account.creditLanes} />
             <ReceiptNet receipts={receipts} />
           </div>
@@ -380,7 +383,8 @@ export function FishAccountPanel() {
   );
 }
 
-function PlanDock({ plan }: { plan: FishPlan }) {
+function PlanDock({ account }: { account: AccountPayload["account"] }) {
+  const plan = account.plan;
   return (
     <div className="rounded-3xl border border-fish-accent/15 bg-fish-navy950/55 p-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -396,6 +400,11 @@ function PlanDock({ plan }: { plan: FishPlan }) {
         <MiniMetric label="Monthly grant" value={formatNumber(plan.monthlyCreditGrant)} />
         <MiniMetric label="Rate limit" value={`${formatNumber(plan.rateLimitPerMinute)}/min`} />
         <MiniMetric label="Monthly limit" value={formatNumber(plan.monthlyRequestLimit)} />
+      </div>
+      <div className="mt-3 grid gap-2 sm:grid-cols-3">
+        <MiniMetric label="Plan source" value={formatPlanSource(account.planSource)} />
+        <MiniMetric label="Started" value={formatDateTime(account.planActivatedAt)} />
+        <MiniMetric label="Expires" value={formatDateTime(account.planExpiresAt)} />
       </div>
     </div>
   );
@@ -525,4 +534,11 @@ function formatPrivacy(mode: string | undefined) {
     return "end-to-end private";
   }
   return mode.replaceAll("_", " ");
+}
+
+function formatPlanSource(source: AccountPayload["account"]["planSource"]) {
+  if (source === "operator_subscription") {
+    return "pilot subscription";
+  }
+  return "pilot key";
 }
