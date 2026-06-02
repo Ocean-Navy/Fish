@@ -3235,7 +3235,7 @@ components:
         requestHash:
           type: string
         runnerReceipt:
-          type: object
+          $ref: '#/components/schemas/RunnerReceiptSummary'
           nullable: true
     FishChatCompletion:
       type: object
@@ -3302,6 +3302,7 @@ components:
             runnerSignatureState:
               type: string
               nullable: true
+              enum: [unsigned, signed, verified, invalid, missing]
             runnerId:
               type: string
               nullable: true
@@ -3362,6 +3363,46 @@ components:
           type: string
         source:
           type: string
+    RunnerReceiptSummary:
+      type: object
+      nullable: true
+      properties:
+        runnerReceiptVersion:
+          type: integer
+          nullable: true
+        jobId:
+          type: string
+          nullable: true
+        routeId:
+          type: string
+          nullable: true
+        providerId:
+          type: string
+          nullable: true
+        runnerId:
+          type: string
+          nullable: true
+        status:
+          type: string
+          nullable: true
+        canonicalReceiptHash:
+          type: string
+          nullable: true
+        computedCanonicalReceiptHash:
+          type: string
+          nullable: true
+        signerKeyId:
+          type: string
+          nullable: true
+        signerAlgorithm:
+          type: string
+          nullable: true
+        signatureState:
+          type: string
+          enum: [unsigned, signed, verified, invalid, missing]
+        signatureError:
+          type: string
+          nullable: true
     ProviderApplication:
       type: object
       required: [contact]

@@ -1,4 +1,5 @@
 import type { ChatCompletionInput, RunnerReceiptSummary } from "@/lib/fishLedger";
+import { readAndVerifyRunnerReceipt } from "@/lib/runnerReceipts";
 
 export type OpenAiCompatibleRouteConfig = {
   baseUrl: string | null;
@@ -18,6 +19,12 @@ export type OpenAiCompatibleChatSuccess = {
   runnerReceipt: RunnerReceiptSummary | null;
 };
 
+export type OpenAiCompatibleRouteContext = {
+  routeId: string;
+  idempotencyKey: string;
+  maxBudgetUsd: number;
+};
+
 export class OpenAiCompatibleChatError extends Error {
   constructor(
     readonly status: number,
@@ -34,7 +41,8 @@ export function isOpenAiCompatibleRouteConfigured(config: OpenAiCompatibleRouteC
 export async function runOpenAiCompatibleChat(
   input: ChatCompletionInput,
   config: OpenAiCompatibleRouteConfig,
-  fallbackTokenEstimate: { promptTokens: number; completionTokens: number }
+  fallbackTokenEstimate: { promptTokens: number; completionTokens: number },
+  routeContext?: OpenAiCompatibleRouteContext
 ): Promise<OpenAiCompatibleChatSuccess> {
   if (!isOpenAiCompatibleRouteConfigured(config)) {
     throw new OpenAiCompatibleChatError(503, "openai_compatible_route_not_configured");
@@ -47,6 +55,11 @@ export async function runOpenAiCompatibleChat(
   if (config.apiKey) {
     headers.authorization = `Bearer ${config.apiKey}`;
   }
+  if (routeContext) {
+    headers["x-fish-route-id"] = routeContext.routeId;
+    headers["x-fish-idempotency-key"] = routeContext.idempotencyKey;
+    headers["x-fish-max-budget-usd"] = String(routeContext.maxBudgetUsd);
+  }
 
   const upstream = await fetch(endpoint, {
     method: "POST",
@@ -55,6 +68,18 @@ export async function runOpenAiCompatibleChat(
       model: config.model ?? input.model,
       messages: input.messages,
       stream: false,
+      ...(routeContext
+        ? {
+            metadata: {
+              ...(input.metadata ?? {}),
+              fish_route_id: routeContext.routeId,
+              idempotency_key: routeContext.idempotencyKey,
+              max_budget_usd: routeContext.maxBudgetUsd
+            }
+          }
+        : input.metadata
+          ? { metadata: input.metadata }
+          : {}),
       ...(input.temperature === undefined ? {} : { temperature: input.temperature }),
       ...(input.max_tokens === undefined ? {} : { max_tokens: input.max_tokens })
     })
@@ -82,26 +107,7 @@ export async function runOpenAiCompatibleChat(
     completionTokens,
     providerCostUsd,
     providerId: config.providerId,
-    runnerReceipt: readRunnerReceipt(payload)
-  };
-}
-
-function readRunnerReceipt(payload: unknown): RunnerReceiptSummary | null {
-  const receipt = readPath(payload, ["fish_runner"]);
-  if (!receipt || typeof receipt !== "object") {
-    return null;
-  }
-  const signature = readPath(receipt, ["signature"]);
-  return {
-    runnerReceiptVersion: readNumber(receipt, ["runnerReceiptVersion"]),
-    jobId: readString(receipt, ["jobId"]),
-    routeId: readString(receipt, ["routeId"]),
-    providerId: readString(receipt, ["providerId"]),
-    runnerId: readString(receipt, ["runnerId"]),
-    status: readString(receipt, ["status"]),
-    canonicalReceiptHash: readString(receipt, ["hashes", "canonicalReceiptHash"]),
-    signerKeyId: readString(receipt, ["signer", "keyId"]),
-    signatureState: typeof signature === "string" && signature.trim() ? "signed" : "unsigned"
+    runnerReceipt: readAndVerifyRunnerReceipt(payload)
   };
 }
 

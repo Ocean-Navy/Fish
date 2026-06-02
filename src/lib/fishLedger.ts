@@ -125,8 +125,11 @@ export type RunnerReceiptSummary = {
   runnerId: string | null;
   status: string | null;
   canonicalReceiptHash: string | null;
+  computedCanonicalReceiptHash?: string | null;
   signerKeyId: string | null;
-  signatureState: "signed" | "unsigned";
+  signerAlgorithm?: string | null;
+  signatureState: "unsigned" | "signed" | "verified" | "invalid" | "missing";
+  signatureError?: string | null;
 };
 
 export const FISH_PLANS: FishPlan[] = [
@@ -253,6 +256,7 @@ export type FishUsageSummary = {
   mockJobs: number;
   runnerProofJobs: number;
   runnerSignedJobs: number;
+  runnerVerifiedJobs: number;
   tokensServed: number;
   oceanNativeShare: number;
   providerPayoutUsd: number;
@@ -550,7 +554,8 @@ export async function summarizeFishUsage(): Promise<FishUsageSummary> {
   const externalFallbackJobs = receipts.filter((receipt) => receipt.route === "external-fallback").length;
   const mockJobs = receipts.filter((receipt) => receipt.route === "mock").length;
   const runnerProofJobs = receipts.filter((receipt) => receipt.runnerReceipt?.canonicalReceiptHash).length;
-  const runnerSignedJobs = receipts.filter((receipt) => receipt.runnerReceipt?.signatureState === "signed").length;
+  const runnerSignedJobs = receipts.filter((receipt) => receipt.runnerReceipt?.signatureState === "signed" || receipt.runnerReceipt?.signatureState === "verified").length;
+  const runnerVerifiedJobs = receipts.filter((receipt) => receipt.runnerReceipt?.signatureState === "verified").length;
   const tokensServed = receipts.reduce((sum, receipt) => sum + receipt.totalTokens, 0);
   const creditLanes = summarizeCreditLanes(includeLegacyCreditSeeds(ledger.accounts, creditEntries), {
     creditBalance: ledger.accounts.reduce((sum, account) => sum + account.creditBalance, 0),
@@ -566,6 +571,7 @@ export async function summarizeFishUsage(): Promise<FishUsageSummary> {
     mockJobs,
     runnerProofJobs,
     runnerSignedJobs,
+    runnerVerifiedJobs,
     tokensServed,
     oceanNativeShare: receipts.length ? oceanNativeJobs / receipts.length : 0,
     providerPayoutUsd: costs.providerCostUsd,

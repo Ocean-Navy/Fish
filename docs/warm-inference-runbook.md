@@ -95,7 +95,25 @@ To create an Ed25519 runner signing key for the env file, generate it on the ope
 node -e 'const { generateKeyPairSync } = require("node:crypto"); const { privateKey, publicKey } = generateKeyPairSync("ed25519"); console.log("PRIVATE_ESCAPED=" + privateKey.export({ type: "pkcs8", format: "pem" }).replace(/\n/g, "\\n")); console.error(publicKey.export({ type: "spki", format: "pem" }));'
 ```
 
-Keep the public key with provider onboarding notes. Keep the private key out of git.
+Copy the public key into Fish Gateway as a trusted runner key:
+
+```text
+FISH_RUNNER_PUBLIC_KEY_ID=runner-ocean-navy-demo-ed25519
+FISH_RUNNER_PUBLIC_KEY_PEM=<public key with newlines escaped as \n>
+```
+
+For more than one selected runner, use either `FISH_RUNNER_PUBLIC_KEYS_JSON`:
+
+```json
+[
+  {
+    "keyId": "runner-ocean-navy-demo-ed25519",
+    "publicKeyPem": "-----BEGIN PUBLIC KEY-----\\n...\\n-----END PUBLIC KEY-----\\n"
+  }
+]
+```
+
+or point `FISH_RUNNER_PUBLIC_KEYS_PATH` at a JSON file with that shape. Keep the private key out of git. Without a trusted public key, Fish can record that a runner signature was present, but it will not mark the receipt as verified.
 
 ## vLLM Launch
 
@@ -189,6 +207,8 @@ FISH_OCEAN_DEMO_VLLM_MODEL=fish-warm-chat
 FISH_OCEAN_DEMO_PROVIDER_ID=ocean-navy-demo-node
 FISH_OCEAN_DEMO_COST_USD_PER_1K_TOKENS=<operator estimate>
 FISH_OCEAN_DEMO_DAILY_BUDGET_USD=<daily demo budget>
+FISH_RUNNER_PUBLIC_KEY_ID=runner-ocean-navy-demo-ed25519
+FISH_RUNNER_PUBLIC_KEY_PEM=<runner public key with newlines escaped as \n>
 ```
 
 `FISH_CHAT_ROUTE=ocean-first`, `hybrid`, and `ocean-demo-vllm` all choose the same warm demo lane. Use `ocean-first` in deployment files because it matches the product story; Fish still records the exact route that served each request.
@@ -258,6 +278,7 @@ Operator readiness checks:
 - repeated smoke prompts do not grow memory without bound;
 - queue depth and concurrency limits are enforced by Runner or gateway policy;
 - route labels distinguish mock, warm demo, selected Ocean provider, and external fallback;
+- Fish Gateway trusts the runner public key and marks the runner receipt `verified` after a successful signature check;
 - feature caps distinguish Ask, Code, Docs, Ocean help, API, and disabled Images behind one endpoint;
 - Fish Gateway reserves credits before backend calls and releases that reserve if the warm backend fails before usage is recorded;
 - `/v1/chat/completions` supports SSE compatibility when clients send `stream: true`; first-token streaming from Runner is still a later hardening step;

@@ -285,6 +285,11 @@ function stripSignature(value) {
   const clone = { ...value };
   delete clone.signature;
   delete clone.signer;
+  if (clone.hashes && typeof clone.hashes === "object" && !Array.isArray(clone.hashes)) {
+    const hashes = { ...clone.hashes };
+    delete hashes.canonicalReceiptHash;
+    clone.hashes = hashes;
+  }
   return clone;
 }
 

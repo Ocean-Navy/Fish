@@ -10,7 +10,7 @@ export function FishUsageSummary({ summary }: { summary: FishUsageSummaryData })
     { label: "Requests", value: formatNumber(summary.requests), icon: ReceiptText },
     { label: "Ocean-native", value: formatNumber(summary.oceanNativeJobs), icon: Waves },
     { label: "External fallback", value: formatNumber(summary.externalFallbackJobs), icon: Route },
-    { label: "Runner proof", value: `${formatNumber(summary.runnerSignedJobs)} / ${formatNumber(summary.runnerProofJobs)}`, icon: ShieldCheck },
+    { label: "Runner proof", value: `${formatNumber(summary.runnerVerifiedJobs)} / ${formatNumber(summary.runnerProofJobs)}`, icon: ShieldCheck },
     { label: "Tokens served", value: formatNumber(summary.tokensServed), icon: ReceiptText },
     { label: "Ocean share", value: oceanNativeShare, icon: Waves },
     { label: "Credits spent", value: formatNumber(summary.creditsSpent), icon: BadgeDollarSign },
@@ -70,7 +70,7 @@ export function FishUsageSummary({ summary }: { summary: FishUsageSummaryData })
         )}
 
         <div className="mt-4 rounded-2xl border border-fish-gold/25 bg-fish-gold/10 p-4 text-sm font-bold leading-6 text-fish-primary">
-          Ocean-native share: {oceanNativeShare}. Signed runner proof: {formatNumber(summary.runnerSignedJobs)}. Provider payouts stay at {formatUsd(summary.providerPayoutUsd)} until selected Ocean providers run real jobs.
+          Ocean-native share: {oceanNativeShare}. Verified runner proof: {formatNumber(summary.runnerVerifiedJobs)}. Provider payouts stay at {formatUsd(summary.providerPayoutUsd)} until selected Ocean providers run real jobs.
         </div>
       </div>
     </section>

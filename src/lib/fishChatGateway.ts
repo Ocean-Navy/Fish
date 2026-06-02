@@ -177,10 +177,18 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
   const startedAt = Date.now();
   if (route === "ocean-demo-vllm") {
     try {
-      const warm = await runVllmChat(routeInput, {
-        promptTokens,
-        completionTokens: estimateTokens("")
-      });
+      const warm = await runVllmChat(
+        routeInput,
+        {
+          promptTokens,
+          completionTokens: estimateTokens("")
+        },
+        {
+          routeId: route,
+          idempotencyKey: reservation.requestId,
+          maxBudgetUsd: estimateRouteMaxCostUsd(route, promptTokens, requestedMaxOutputTokens, routerConfig)
+        }
+      );
       content = warm.content;
       responseModel = warm.model;
       promptTokens = warm.promptTokens ?? promptTokens;
@@ -337,6 +345,11 @@ function withFishKnowledgeContext(input: ChatCompletionInput, context: string): 
       ...input.messages
     ]
   };
+}
+
+function estimateRouteMaxCostUsd(route: FishChatRouteId, promptTokens: number, maxOutputTokens: number, routerConfig: FishRouterConfig) {
+  const costUsdPer1kTokens = route === "ocean-demo-vllm" ? routerConfig.warm.costUsdPer1kTokens : route === "external-fallback" ? routerConfig.external.costUsdPer1kTokens : 0;
+  return Number((((promptTokens + maxOutputTokens) / 1000) * Math.max(0, costUsdPer1kTokens)).toFixed(6));
 }
 
 function budgetExceededError(check: Extract<RouteBudgetCheck, { ok: false }>) {
