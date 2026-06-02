@@ -336,6 +336,7 @@ No public warm route should run without:
 - max input tokens;
 - max output tokens;
 - plan-based per-minute request limit;
+- plan-based monthly request limit;
 - max requests per anonymous user per day;
 - max concurrent requests;
 - model-level daily request limit;

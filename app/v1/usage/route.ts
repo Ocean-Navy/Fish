@@ -14,6 +14,7 @@ export async function GET(request: Request) {
     object: "list",
     data: summary.receipts,
     creditLanes: summary.creditLanes,
+    monthlyRequests: summary.monthlyRequests,
     totals: summary.totals
   });
 }

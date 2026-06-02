@@ -217,7 +217,7 @@ export function getFishRoutePolicy(): FishRoutePolicy {
       },
       {
         title: "Caps before calls",
-        body: "Input tokens, output tokens, minute limits, daily quota, concurrent requests, daily route budget, and pause switches are checked before backend calls."
+        body: "Input tokens, output tokens, minute limits, monthly request limits, daily quota, concurrent requests, daily route budget, and pause switches are checked before backend calls."
       },
       {
         title: "Usage stays clean",

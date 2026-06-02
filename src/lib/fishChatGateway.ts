@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import {
   buildMockCompletion,
+  checkFishMonthlyRequestLimit,
   checkFishModelAccess,
   estimateTokens,
   getFishPlan,
@@ -111,6 +112,17 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
   }
 
   const plan = getFishPlan(context.account.planId);
+  const monthlyRequests = await checkFishMonthlyRequestLimit(context.account, plan.monthlyRequestLimit);
+  if (!monthlyRequests.ok) {
+    return jsonError(monthlyRequests.status, monthlyRequests.error, "quota_error", {
+      planId: plan.planId,
+      limit: monthlyRequests.limit,
+      used: monthlyRequests.used,
+      remaining: monthlyRequests.remaining,
+      resetAt: monthlyRequests.resetAt
+    });
+  }
+
   const rateLimit = spendFishMinuteRateLimit(context.principalId, plan.rateLimitPerMinute);
   if (!rateLimit.ok) {
     return jsonError(429, "rate_limit_exceeded", "rate_limit_error", {
@@ -130,6 +142,7 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
       promptTokens,
       maxOutputTokens: requestedMaxOutputTokens,
       featureLabel: featurePolicy.label,
+      monthlyRequests,
       rateLimit
     });
   }
@@ -396,6 +409,8 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
         dailyBudgetRemainingUsd: budgetCheck.remainingUsd,
         estimatedProviderCostUsd: budgetCheck.estimatedCostUsd,
         quotaRemaining: quota.remaining,
+        monthlyRequestRemaining: Math.max(0, monthlyRequests.remaining - 1),
+        monthlyRequestResetAt: monthlyRequests.resetAt,
         rateLimitRemaining: rateLimit.remaining,
         rateLimitResetAt: rateLimit.resetAt,
         creditReserveId: reservation.reserveEntryId,
@@ -465,6 +480,7 @@ async function runDocsBatchChatGateway(params: {
   promptTokens: number;
   maxOutputTokens: number;
   featureLabel: string;
+  monthlyRequests: Extract<Awaited<ReturnType<typeof checkFishMonthlyRequestLimit>>, { ok: true }>;
   rateLimit: Extract<ReturnType<typeof spendFishMinuteRateLimit>, { ok: true }>;
 }): Promise<FishChatGatewayResult> {
   const inputRef = hashInputRef(params.promptText);
@@ -541,6 +557,8 @@ async function runDocsBatchChatGateway(params: {
         dailyBudgetRemainingUsd: result.budget.remainingUsd,
         estimatedProviderCostUsd: result.receipt.cost.providerCostUsd,
         quotaRemaining: result.quota?.remaining,
+        monthlyRequestRemaining: Math.max(0, params.monthlyRequests.remaining - 1),
+        monthlyRequestResetAt: params.monthlyRequests.resetAt,
         rateLimitRemaining: params.rateLimit.remaining,
         rateLimitResetAt: params.rateLimit.resetAt,
         creditsSpent: result.usageReceipt.creditsSpent,

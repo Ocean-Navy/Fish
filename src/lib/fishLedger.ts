@@ -320,6 +320,24 @@ export type BillingUsageAnalytics = {
   }>;
 };
 
+export type FishMonthlyRequestLimitResult =
+  | {
+      ok: true;
+      limit: number;
+      used: number;
+      remaining: number;
+      resetAt: string;
+    }
+  | {
+      ok: false;
+      status: 429;
+      error: "monthly_request_limit_exceeded";
+      limit: number;
+      used: number;
+      remaining: number;
+      resetAt: string;
+    };
+
 export function parseKeyRequest(body: unknown) {
   return keyRequestSchema.safeParse(body);
 }
@@ -459,7 +477,7 @@ export async function authenticateRequest(request: Request) {
 }
 
 export async function summarizeAccount(account: Account) {
-  const [receipts, creditEntries] = await Promise.all([readReceipts(account.id), readCreditEntries(account.id)]);
+  const [receipts, creditEntries, monthlyRequests] = await Promise.all([readReceipts(account.id), readCreditEntries(account.id), checkFishMonthlyRequestLimit(account)]);
   const costs = summarizeReceiptCosts(receipts);
   const creditLanes = summarizeCreditLanes(creditEntries, {
     creditBalance: account.creditBalance,
@@ -475,7 +493,8 @@ export async function summarizeAccount(account: Account) {
       creditsSpent: account.totalCreditsSpent,
       creditsRemaining: account.creditBalance,
       ...costs
-    }
+    },
+    monthlyRequests
   };
 }
 
@@ -732,6 +751,37 @@ export async function recordChatUsage(params: {
     ok: true as const,
     receipt,
     creditsRemaining: params.account.creditBalance
+  };
+}
+
+export async function checkFishMonthlyRequestLimit(account: Account, limit = getFishPlan(account.planId).monthlyRequestLimit, now = new Date()): Promise<FishMonthlyRequestLimitResult> {
+  const safeLimit = Math.max(0, Math.floor(limit));
+  const periodStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const nextPeriodStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+  const receipts = await readReceipts(account.id);
+  const used = receipts.filter((receipt) => {
+    const createdAt = new Date(receipt.createdAt).getTime();
+    return receipt.status === "succeeded" && createdAt >= periodStart.getTime() && createdAt < nextPeriodStart.getTime();
+  }).length;
+  const remaining = Math.max(0, safeLimit - used);
+  if (used >= safeLimit) {
+    return {
+      ok: false,
+      status: 429,
+      error: "monthly_request_limit_exceeded",
+      limit: safeLimit,
+      used,
+      remaining,
+      resetAt: nextPeriodStart.toISOString()
+    };
+  }
+
+  return {
+    ok: true,
+    limit: safeLimit,
+    used,
+    remaining,
+    resetAt: nextPeriodStart.toISOString()
   };
 }
 

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { authenticateRequest, getFishPlan } from "@/lib/fishLedger";
+import { authenticateRequest, checkFishMonthlyRequestLimit, getFishPlan } from "@/lib/fishLedger";
 import { spendFishMinuteRateLimit } from "@/lib/fishRateLimit";
 import { getFishRouterConfig } from "@/lib/fishRouter";
 import { parseOceanBatchJobRequest, runOceanBatchJob, summarizeOceanBatchJobs } from "@/lib/oceanBatch";
@@ -32,6 +32,24 @@ export async function POST(request: Request) {
 
   const routerConfig = getFishRouterConfig();
   const plan = getFishPlan(auth.account.planId);
+  const monthlyRequests = await checkFishMonthlyRequestLimit(auth.account, plan.monthlyRequestLimit);
+  if (!monthlyRequests.ok) {
+    return NextResponse.json(
+      {
+        error: {
+          message: monthlyRequests.error,
+          type: "quota_error",
+          planId: plan.planId,
+          limit: monthlyRequests.limit,
+          used: monthlyRequests.used,
+          remaining: monthlyRequests.remaining,
+          resetAt: monthlyRequests.resetAt
+        }
+      },
+      { status: monthlyRequests.status }
+    );
+  }
+
   const rateLimit = spendFishMinuteRateLimit(`key:${auth.account.id}`, plan.rateLimitPerMinute);
   if (!rateLimit.ok) {
     return NextResponse.json(
@@ -83,6 +101,10 @@ export async function POST(request: Request) {
     creditsRemaining: result.creditsRemaining,
     budget: result.budget,
     quota: result.quota,
+    monthlyRequests: {
+      remaining: Math.max(0, monthlyRequests.remaining - 1),
+      resetAt: monthlyRequests.resetAt
+    },
     rateLimit: {
       remaining: rateLimit.remaining,
       resetAt: rateLimit.resetAt

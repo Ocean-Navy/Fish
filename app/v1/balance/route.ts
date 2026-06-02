@@ -14,6 +14,7 @@ export async function GET(request: Request) {
     object: "balance",
     account: summary.account,
     creditLanes: summary.creditLanes,
+    monthlyRequests: summary.monthlyRequests,
     totals: summary.totals
   });
 }
