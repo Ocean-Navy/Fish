@@ -55,6 +55,14 @@ deploy/ocean-workload-adapter/
 
 It defaults to dry-run mode, which returns a failed adapter result and cannot create a successful proof receipt. Live mode requires a proof wallet, Base RPC, selected `NODE_URL`, selected compute environment id, and an algorithm DID.
 
+The first prepared algorithm bundle is:
+
+```text
+deploy/ocean-workload-adapter/algorithms/fish-document-summary/
+```
+
+Publish it with `scripts/publish-fish-document-summary-algorithm.sh` after `scripts/bootstrap-ocean-cli.sh` prepares the local Ocean CLI checkout.
+
 ## Private Adapter Response
 
 The private adapter should return:

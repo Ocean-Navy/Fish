@@ -89,7 +89,7 @@ Fish API
 
 The adapter worker can be a tiny internal service because Ocean compute jobs may be slow, may need wallet secrets, and may need local output handling. Keep those secrets out of the public web process.
 
-Fish now has this scaffold under:
+Fish has this scaffold under:
 
 ```text
 deploy/ocean-workload-adapter/
@@ -117,6 +117,14 @@ Then copy:
 nodeUrl -> NODE_URL
 envId   -> FISH_OCEAN_COMPUTE_ENV_ID
 ```
+
+Fish also has the first proof algorithm bundle under:
+
+```text
+deploy/ocean-workload-adapter/algorithms/fish-document-summary/
+```
+
+It can summarize text dataset files, but it also supports `FISH_OCEAN_DATASET_DIDS=[]` for the first no-dataset Ocean compute proof.
 
 ## Adapter Contract
 
@@ -194,7 +202,7 @@ If storage is not ready, the adapter can hash the result locally and return only
 ## Exact Execution Plan
 
 1. Choose one live Oncompute environment from `https://api.oncompute.ai/envs`.
-2. Choose or publish one algorithm DID for `document_summary`.
+2. Publish the prepared `Fish Docs Bento Summary` algorithm to get `FISH_OCEAN_ALGO_DID`.
 3. Choose input handling:
    - existing Ocean dataset DID;
    - public test dataset DID;
@@ -224,6 +232,26 @@ Copy it to an ignored private file:
 ```bash
 cp deploy/ocean-workload-adapter/env.example .env.ocean-proof.local
 ```
+
+Prepare the Ocean CLI checkout:
+
+```bash
+scripts/bootstrap-ocean-cli.sh
+```
+
+Use the printed path for:
+
+```text
+OCEAN_CLI_DIR=/Users/robin/Projects/opfish/.deps/ocean-cli
+```
+
+Publish the first Fish algorithm after `PRIVATE_KEY`, `RPC`, and `NODE_URL` are exported:
+
+```bash
+scripts/publish-fish-document-summary-algorithm.sh --env-file .env.ocean-proof.local
+```
+
+Then copy the printed `FISH_OCEAN_ALGO_DID=did:op:...` into `.env.ocean-proof.local`.
 
 For the current Oncompute route, use:
 
@@ -281,8 +309,8 @@ The scaffold can be tested without secrets, but the real proof still needs:
 ```text
 fresh proof wallet private key or mnemonic
 Base mainnet RPC
-algorithm DID for the first document_summary workload
 selected NODE_URL and FISH_OCEAN_COMPUTE_ENV_ID from the discovery script
+published FISH_OCEAN_ALGO_DID from scripts/publish-fish-document-summary-algorithm.sh
 ```
 
 If free compute works, no paid token is needed for the first proof. If free compute fails due to provider/payment rules, fund the proof wallet with a small amount of Base ETH for gas and Base USDC for the selected paid environment.

@@ -52,6 +52,18 @@ FISH_OCEAN_COMPUTE_ENV_ID
 OCEAN_CLI_DIR
 ```
 
+Prepare the Ocean CLI checkout with:
+
+```bash
+scripts/bootstrap-ocean-cli.sh
+```
+
+That prints the path to use:
+
+```text
+OCEAN_CLI_DIR=/Users/robin/Projects/opfish/.deps/ocean-cli
+```
+
 For the first proof, use a fresh wallet and a Base mainnet RPC:
 
 ```text
@@ -80,6 +92,20 @@ envId   -> FISH_OCEAN_COMPUTE_ENV_ID
 The algorithm DID still has to come from an operator-created or selected Ocean
 algorithm asset. For a first self-contained proof, `FISH_OCEAN_DATASET_DIDS=[]`
 is acceptable if the chosen algorithm supports it.
+
+Fish includes a first algorithm bundle at:
+
+```text
+deploy/ocean-workload-adapter/algorithms/fish-document-summary/
+```
+
+After the proof wallet, RPC, and `NODE_URL` are set, publish it with:
+
+```bash
+scripts/publish-fish-document-summary-algorithm.sh --env-file .env.ocean-proof.local
+```
+
+The script prints the `FISH_OCEAN_ALGO_DID` value for `.env.ocean-proof.local`.
 
 ## Run Locally
 
