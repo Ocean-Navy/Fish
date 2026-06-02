@@ -3331,6 +3331,37 @@ components:
               type: number
             grossMarginUsd:
               type: number
+            knowledgeSources:
+              type: array
+              items:
+                $ref: '#/components/schemas/FishKnowledgeSource'
+            batchReceiptId:
+              type: string
+            batchJobId:
+              type: string
+            batchSourceState:
+              type: string
+              enum: [live, snapshot, sample, unavailable]
+            batchAdapterMode:
+              type: string
+              enum: [sample_success, sample_failure, ocean_http]
+            batchOutputRef:
+              type: string
+              nullable: true
+            inputRef:
+              type: string
+            storesPromptOutputText:
+              type: boolean
+              enum: [false]
+    FishKnowledgeSource:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        source:
+          type: string
     ProviderApplication:
       type: object
       required: [contact]

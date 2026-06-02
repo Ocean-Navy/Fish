@@ -77,6 +77,11 @@ type DishResult = {
   batchSourceState?: string;
   batchAdapterMode?: string;
   inputRef?: string;
+  knowledgeSources?: Array<{
+    id: string;
+    title: string;
+    source: string;
+  }>;
   accessMode: "guest" | "key";
 };
 
@@ -352,6 +357,7 @@ export function FishMealCounter() {
         batchSourceState: payload.fish?.batchSourceState,
         batchAdapterMode: payload.fish?.batchAdapterMode,
         inputRef: payload.fish?.inputRef,
+        knowledgeSources: Array.isArray(payload.fish?.knowledgeSources) ? payload.fish.knowledgeSources : undefined,
         accessMode
       });
     } catch (err) {
@@ -670,6 +676,18 @@ export function FishMealCounter() {
                   <p>
                     Input ref: <span className="break-all text-fish-primary">{result.inputRef}</span>
                   </p>
+                </div>
+              ) : null}
+              {result.knowledgeSources?.length ? (
+                <div className="mt-3 rounded-2xl border border-fish-accent/15 bg-white/[0.035] p-4 text-xs font-bold leading-6 text-fish-secondary">
+                  <p className="font-black uppercase tracking-[0.08em] text-fish-gold">Context used</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {result.knowledgeSources.map((source) => (
+                      <span key={source.id} className="rounded-full border border-fish-accent/20 px-3 py-1 text-fish-primary" title={source.source}>
+                        {source.title}
+                      </span>
+                    ))}
+                  </div>
                 </div>
               ) : null}
             </article>

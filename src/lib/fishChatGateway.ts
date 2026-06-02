@@ -15,6 +15,7 @@ import {
 } from "@/lib/fishLedger";
 import { ExternalChatError, runExternalChat } from "@/lib/externalChat";
 import { getFishFeaturePolicy } from "@/lib/fishFeaturePolicy";
+import { buildFishKnowledgeContext } from "@/lib/fishKnowledge";
 import { checkRouteDailyBudget, type RouteBudgetCheck } from "@/lib/fishBudget";
 import { spendDailyQuota } from "@/lib/fishQuota";
 import { runOceanBatchJob } from "@/lib/oceanBatch";
@@ -47,10 +48,13 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
     return jsonError(400, "streaming_is_not_enabled_in_the_v1_prototype", "unsupported_feature");
   }
 
-  const promptText = input.messages.map((message) => (typeof message.content === "string" ? message.content : JSON.stringify(message.content))).join("\n");
   const routerConfig = getFishRouterConfig();
   const featurePolicy = getFishFeaturePolicy(input.metadata, routerConfig, input.model);
   const modelAccess = checkFishModelAccess(input.model, context.account.planId);
+  const originalPromptText = messagesToText(input);
+  const knowledge = featurePolicy.id === "ocean" ? buildFishKnowledgeContext(originalPromptText) : null;
+  const effectiveInput = knowledge ? withFishKnowledgeContext(input, knowledge.context) : input;
+  const promptText = messagesToText(effectiveInput);
   const activeRoute = getActiveFishRoute(routerConfig);
   if (routerConfig.killSwitch || routerConfig.paused) {
     return jsonError(503, routerConfig.killSwitch ? "fish_router_disabled" : "fish_router_paused", "router_unavailable", {
@@ -169,7 +173,7 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
   }
   const reservation = reservationResult.reservation;
 
-  const routeInput = { ...input, max_tokens: requestedMaxOutputTokens };
+  const routeInput = { ...effectiveInput, max_tokens: requestedMaxOutputTokens };
   const startedAt = Date.now();
   if (route === "ocean-demo-vllm") {
     try {
@@ -232,7 +236,7 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
   const usage = await recordChatUsage({
     ledger: context.ledger,
     account: context.account,
-    input,
+    input: effectiveInput,
     model: responseModel,
     promptTokens,
     completionTokens,
@@ -307,9 +311,31 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
         creditsRemaining: usage.creditsRemaining,
         userChargeUsd: usage.receipt.userChargeUsd,
         providerCostUsd: usage.receipt.providerCostUsd,
-        grossMarginUsd: usage.receipt.grossMarginUsd
+        grossMarginUsd: usage.receipt.grossMarginUsd,
+        knowledgeSources: knowledge?.sources
       }
     }
+  };
+}
+
+function messagesToText(input: ChatCompletionInput) {
+  return input.messages.map((message) => (typeof message.content === "string" ? message.content : JSON.stringify(message.content))).join("\n");
+}
+
+function withFishKnowledgeContext(input: ChatCompletionInput, context: string): ChatCompletionInput {
+  return {
+    ...input,
+    messages: [
+      {
+        role: "system",
+        content: [
+          "Fish/Ocean context pack. Use this as local project context, not as live external data.",
+          "Do not claim official Ocean Protocol status, full decentralization, staking yield, unlimited AI, or cryptographic privacy unless the route evidence supports it.",
+          context
+        ].join("\n\n")
+      },
+      ...input.messages
+    ]
   };
 }
 

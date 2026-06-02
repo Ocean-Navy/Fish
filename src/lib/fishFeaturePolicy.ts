@@ -106,7 +106,7 @@ const FEATURE_DEFINITIONS: FishFeatureDefinition[] = [
     id: "ocean",
     label: "Ocean helper",
     state: "beta",
-    primary: "Ocean demo vLLM plus Fish/Ocean prompt",
+    primary: "Ocean demo vLLM plus Fish/Ocean context",
     fallback: "Paid fallback only when enabled",
     enabled: true,
     defaultMaxInputTokens: 2000,
