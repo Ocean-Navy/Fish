@@ -21,6 +21,7 @@ import { getFishFeaturePolicy } from "@/lib/fishFeaturePolicy";
 import { buildFishKnowledgeContext } from "@/lib/fishKnowledge";
 import { checkRouteDailyBudget, type RouteBudgetCheck } from "@/lib/fishBudget";
 import { spendDailyQuota } from "@/lib/fishQuota";
+import { readFishPrivacyPreference, resolveFishPrivacy, type FishUsagePrivacy } from "@/lib/fishPrivacy";
 import { spendFishMinuteRateLimit } from "@/lib/fishRateLimit";
 import { runOceanBatchJob } from "@/lib/oceanBatch";
 import { OceanProviderChatError, runSelectedOceanProviderChat } from "@/lib/oceanProviderChat";
@@ -61,6 +62,7 @@ type FailedUsageReceiptInput = {
   fallbackReason: string | null;
   runnerReceipt: RunnerReceiptSummary | null;
   errorCode: string;
+  privacy: FishUsagePrivacy;
 };
 
 export async function runFishChatGateway(input: ChatCompletionInput, context: FishChatGatewayContext): Promise<FishChatGatewayResult> {
@@ -70,6 +72,7 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
 
   const routerConfig = getFishRouterConfig();
   const featurePolicy = getFishFeaturePolicy(input.metadata, routerConfig, input.model);
+  const privacyPreference = readFishPrivacyPreference(input.metadata);
   const modelAccess = checkFishModelAccess(input.model, context.account.planId);
   const originalPromptText = messagesToText(input);
   const knowledge = featurePolicy.id === "ocean" ? buildFishKnowledgeContext(originalPromptText) : null;
@@ -87,6 +90,12 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
       model: modelAccess.model,
       planId: modelAccess.plan.planId,
       ...(modelAccess.status === 400 ? { availableModels: modelAccess.availableModels } : { allowedModels: modelAccess.allowedModels })
+    });
+  }
+
+  if (!privacyPreference.ok) {
+    return jsonError(400, privacyPreference.error, "privacy_error", {
+      requestedPrivacyMode: privacyPreference.requestedPrivacyMode
     });
   }
 
@@ -127,6 +136,18 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
     });
   }
 
+  const docsPrivacy =
+    featurePolicy.id === "docs"
+      ? resolveFishPrivacy({
+          route: "ocean-batch",
+          requestedPrivacyMode: privacyPreference.requestedPrivacyMode,
+          allowPrivacyDowngrade: privacyPreference.allowPrivacyDowngrade
+        })
+      : null;
+  if (docsPrivacy && !docsPrivacy.ok) {
+    return privacyModeError(docsPrivacy);
+  }
+
   const plan = getFishPlan(context.account.planId);
   const monthlyRequests = await checkFishMonthlyRequestLimit(context.account, plan.monthlyRequestLimit);
   if (!monthlyRequests.ok) {
@@ -151,6 +172,9 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
   }
 
   if (featurePolicy.id === "docs") {
+    if (!docsPrivacy?.ok) {
+      return jsonError(500, "docs_privacy_state_missing", "privacy_error");
+    }
     return runDocsBatchChatGateway({
       input,
       context,
@@ -159,7 +183,8 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
       maxOutputTokens: requestedMaxOutputTokens,
       featureLabel: featurePolicy.label,
       monthlyRequests,
-      rateLimit
+      rateLimit,
+      privacy: docsPrivacy.privacy
     });
   }
 
@@ -180,6 +205,16 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
   if (route === "external-fallback" && !canUseExternalFallback(routerConfig, context)) {
     return jsonError(403, "external_fallback_not_allowed_for_plan", "routing_policy_error", { route });
   }
+
+  const privacyDecision = resolveFishPrivacy({
+    route,
+    requestedPrivacyMode: privacyPreference.requestedPrivacyMode,
+    allowPrivacyDowngrade: privacyPreference.allowPrivacyDowngrade
+  });
+  if (!privacyDecision.ok) {
+    return privacyModeError(privacyDecision);
+  }
+  let privacy = privacyDecision.privacy;
 
   const concurrencySlot = tryAcquireFishConcurrencySlot(route, routerConfig.guardrails.maxConcurrentRequests);
   if (!concurrencySlot.ok) {
@@ -272,7 +307,8 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
           fallbackFrom,
           fallbackReason,
           runnerReceipt,
-          errorCode: message
+          errorCode: message,
+          privacy
         });
       }
 
@@ -296,10 +332,34 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
           fallbackFrom,
           fallbackReason,
           runnerReceipt,
-          errorCode: "primary_backend_error_fallback_budget_exceeded"
+          errorCode: "primary_backend_error_fallback_budget_exceeded",
+          privacy
         });
       }
       budgetCheck = fallbackBudgetCheck;
+
+      const fallbackPrivacyDecision = resolveFishPrivacy({
+        route: "external-fallback",
+        requestedPrivacyMode: privacyPreference.requestedPrivacyMode,
+        allowPrivacyDowngrade: privacyPreference.allowPrivacyDowngrade
+      });
+      if (!fallbackPrivacyDecision.ok) {
+        return releaseReservationAndReturn(context, reservation, privacyModeError(fallbackPrivacyDecision), "credit_reserve_release_privacy_downgrade_blocked", {
+          input: effectiveInput,
+          model: responseModel,
+          promptTokens,
+          route,
+          costState,
+          latencyMs: Date.now() - startedAt,
+          providerId,
+          requestedRoute,
+          fallbackFrom,
+          fallbackReason,
+          runnerReceipt,
+          errorCode: "primary_backend_error_privacy_downgrade_blocked",
+          privacy
+        });
+      }
 
       const fallback = await runExternalFallback(routeInput, promptTokens);
       if (!fallback.ok) {
@@ -315,7 +375,8 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
           fallbackFrom: "ocean-demo-vllm",
           fallbackReason: "primary_backend_error",
           runnerReceipt,
-          errorCode: readErrorMessage(fallback)
+          errorCode: readErrorMessage(fallback),
+          privacy: fallbackPrivacyDecision.privacy
         });
       }
       ({ content, responseModel, promptTokens, completionTokens, providerCostUsd, providerId, runnerReceipt } = fallback);
@@ -323,6 +384,7 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
       fallbackReason = "primary_backend_error";
       route = "external-fallback";
       costState = "fallback_verified";
+      privacy = fallbackPrivacyDecision.privacy;
     }
   } else if (route === "ocean-provider") {
     try {
@@ -361,7 +423,8 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
           fallbackFrom,
           fallbackReason,
           runnerReceipt,
-          errorCode: message
+          errorCode: message,
+          privacy
         });
       }
 
@@ -385,10 +448,34 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
           fallbackFrom,
           fallbackReason,
           runnerReceipt,
-          errorCode: "primary_backend_error_fallback_budget_exceeded"
+          errorCode: "primary_backend_error_fallback_budget_exceeded",
+          privacy
         });
       }
       budgetCheck = fallbackBudgetCheck;
+
+      const fallbackPrivacyDecision = resolveFishPrivacy({
+        route: "external-fallback",
+        requestedPrivacyMode: privacyPreference.requestedPrivacyMode,
+        allowPrivacyDowngrade: privacyPreference.allowPrivacyDowngrade
+      });
+      if (!fallbackPrivacyDecision.ok) {
+        return releaseReservationAndReturn(context, reservation, privacyModeError(fallbackPrivacyDecision), "credit_reserve_release_privacy_downgrade_blocked", {
+          input: effectiveInput,
+          model: responseModel,
+          promptTokens,
+          route,
+          costState,
+          latencyMs: Date.now() - startedAt,
+          providerId,
+          requestedRoute,
+          fallbackFrom,
+          fallbackReason,
+          runnerReceipt,
+          errorCode: "primary_backend_error_privacy_downgrade_blocked",
+          privacy
+        });
+      }
 
       const fallback = await runExternalFallback(routeInput, promptTokens);
       if (!fallback.ok) {
@@ -404,7 +491,8 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
           fallbackFrom: "ocean-provider",
           fallbackReason: "primary_backend_error",
           runnerReceipt,
-          errorCode: readErrorMessage(fallback)
+          errorCode: readErrorMessage(fallback),
+          privacy: fallbackPrivacyDecision.privacy
         });
       }
       ({ content, responseModel, promptTokens, completionTokens, providerCostUsd, providerId, runnerReceipt } = fallback);
@@ -412,6 +500,7 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
       fallbackReason = "primary_backend_error";
       route = "external-fallback";
       costState = "fallback_verified";
+      privacy = fallbackPrivacyDecision.privacy;
     }
   } else if (route === "external-fallback") {
     const fallback = await runExternalFallback(routeInput, promptTokens);
@@ -428,7 +517,8 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
         fallbackFrom,
         fallbackReason,
         runnerReceipt,
-        errorCode: readErrorMessage(fallback)
+        errorCode: readErrorMessage(fallback),
+        privacy
       });
     }
     ({ content, responseModel, promptTokens, completionTokens, providerCostUsd, providerId, runnerReceipt } = fallback);
@@ -457,7 +547,8 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
     fallbackFrom,
     fallbackReason,
     runnerReceipt,
-    reservation
+    reservation,
+    privacy
   });
 
   if (!usage.ok) {
@@ -522,7 +613,10 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
         userChargeUsd: usage.receipt.userChargeUsd,
         providerCostUsd: usage.receipt.providerCostUsd,
         grossMarginUsd: usage.receipt.grossMarginUsd,
-        knowledgeSources: knowledge?.sources
+        knowledgeSources: knowledge?.sources,
+        privacy: usage.receipt.privacy,
+        storesPromptOutputText: false,
+        storesOutputText: false
       }
     }
   };
@@ -583,6 +677,7 @@ async function runDocsBatchChatGateway(params: {
   featureLabel: string;
   monthlyRequests: Extract<Awaited<ReturnType<typeof checkFishMonthlyRequestLimit>>, { ok: true }>;
   rateLimit: Extract<ReturnType<typeof spendFishMinuteRateLimit>, { ok: true }>;
+  privacy: FishUsagePrivacy;
 }): Promise<FishChatGatewayResult> {
   const inputRef = hashInputRef(params.promptText);
   const result = await runOceanBatchJob(
@@ -598,6 +693,7 @@ async function runDocsBatchChatGateway(params: {
     {
       ledger: params.context.ledger,
       account: params.context.account,
+      privacy: params.privacy,
       quota: {
         principalId: params.context.principalId,
         dailyQuotaLimit: params.context.dailyQuotaLimit
@@ -667,16 +763,27 @@ async function runDocsBatchChatGateway(params: {
         userChargeUsd: result.usageReceipt.userChargeUsd,
         providerCostUsd: result.usageReceipt.providerCostUsd,
         grossMarginUsd: result.usageReceipt.grossMarginUsd,
+        privacy: result.usageReceipt.privacy,
         batchReceiptId: result.receipt.receiptId,
         batchJobId: result.receipt.jobId,
         batchSourceState: result.receipt.sourceState,
         batchAdapterMode: result.receipt.adapterMode,
         batchOutputRef: result.receipt.hashes.outputHash,
         inputRef,
-        storesPromptOutputText: false
+        storesPromptOutputText: false,
+        storesOutputText: false
       }
     }
   };
+}
+
+function privacyModeError(decision: Extract<ReturnType<typeof resolveFishPrivacy>, { ok: false }>) {
+  return jsonError(decision.status, decision.error, "privacy_error", {
+    requestedPrivacyMode: decision.requestedPrivacyMode,
+    acceptedPrivacyMode: decision.acceptedPrivacyMode,
+    rawPromptSentTo: decision.rawPromptSentTo,
+    allowPrivacyDowngrade: false
+  });
 }
 
 function docsBatchCompletionText(receipt: { sourceState: string; receiptId: string; jobId: string; hashes: { outputHash: string | null } }) {

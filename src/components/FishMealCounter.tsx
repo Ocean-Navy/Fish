@@ -62,6 +62,9 @@ type DishResult = {
   providerCostUsd?: number;
   totalTokens?: number;
   quotaRemaining?: number;
+  privacyMode?: string;
+  privacyDowngradeReason?: string | null;
+  rawPromptSentTo?: string;
   batchReceiptId?: string;
   batchJobId?: string;
   batchSourceState?: string;
@@ -245,6 +248,9 @@ export function FishMealCounter() {
         providerCostUsd: payload.fish?.providerCostUsd,
         totalTokens: payload.usage?.total_tokens,
         quotaRemaining: payload.fish?.quotaRemaining,
+        privacyMode: payload.fish?.privacy?.acceptedPrivacyMode,
+        privacyDowngradeReason: payload.fish?.privacy?.privacyDowngradeReason,
+        rawPromptSentTo: payload.fish?.privacy?.rawPromptSentTo,
         batchReceiptId: payload.fish?.batchReceiptId,
         batchJobId: payload.fish?.batchJobId,
         batchSourceState: payload.fish?.batchSourceState,
@@ -322,6 +328,9 @@ export function FishMealCounter() {
         userChargeUsd: usageReceipt?.userChargeUsd,
         providerCostUsd: receipt?.cost?.providerCostUsd,
         totalTokens: receipt?.usage?.totalTokens,
+        privacyMode: payload.fish?.privacy?.acceptedPrivacyMode ?? usageReceipt?.privacy?.acceptedPrivacyMode,
+        privacyDowngradeReason: payload.fish?.privacy?.privacyDowngradeReason ?? usageReceipt?.privacy?.privacyDowngradeReason,
+        rawPromptSentTo: payload.fish?.privacy?.rawPromptSentTo ?? usageReceipt?.privacy?.rawPromptSentTo,
         batchReceiptId: receipt?.receiptId,
         batchJobId: receipt?.jobId,
         batchSourceState: sourceState,
@@ -543,7 +552,14 @@ export function FishMealCounter() {
                 <Metric label="Credits left" value={String(result.creditsRemaining ?? 0)} />
                 <Metric label="Tokens" value={String(result.totalTokens ?? 0)} />
                 <Metric label={result.accessMode === "guest" ? "Orders left" : "User price"} value={result.accessMode === "guest" ? String(result.quotaRemaining ?? 0) : `$${(result.userChargeUsd ?? 0).toFixed(4)}`} />
+                <Metric label="Privacy" value={formatBadge(result.privacyMode ?? "route label")} />
+                <Metric label="Prompt path" value={formatBadge(result.rawPromptSentTo ?? "not stored")} />
               </div>
+              {result.privacyDowngradeReason ? (
+                <p className="mt-3 rounded-2xl border border-fish-gold/25 bg-fish-gold/10 p-4 text-sm font-black leading-6 text-fish-primary">
+                  Privacy mode changed: {formatBadge(result.privacyDowngradeReason)}.
+                </p>
+              ) : null}
               {result.fallbackFrom ? (
                 <p className="mt-3 rounded-2xl border border-fish-gold/25 bg-fish-gold/10 p-4 text-sm font-black leading-6 text-fish-primary">
                   Route changed: {formatBadge(result.fallbackFrom)} to {formatBadge(result.route ?? "")}

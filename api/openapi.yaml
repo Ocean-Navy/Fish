@@ -3833,6 +3833,13 @@ components:
               enum: [ask, code, explain, docs, images, proposal, ocean, api]
             fish_dish:
               type: string
+            requestedPrivacyMode:
+              type: string
+              enum: [local_demo, external_policy, ocean_demo_policy, selected_ocean_policy, hash_only_batch, ocean_hardened, ocean_tee, e2ee_to_tee]
+              description: Optional requested privacy mode. Fish rejects unavailable modes unless `allowPrivacyDowngrade` is true.
+            allowPrivacyDowngrade:
+              type: boolean
+              default: false
     FishUsageReceipt:
       type: object
       properties:
@@ -3898,6 +3905,8 @@ components:
         runnerReceipt:
           $ref: '#/components/schemas/RunnerReceiptSummary'
           nullable: true
+        privacy:
+          $ref: '#/components/schemas/FishUsagePrivacy'
     FishChatCompletion:
       type: object
       properties:
@@ -4016,6 +4025,8 @@ components:
               type: array
               items:
                 $ref: '#/components/schemas/FishKnowledgeSource'
+            privacy:
+              $ref: '#/components/schemas/FishUsagePrivacy'
             batchReceiptId:
               type: string
             batchJobId:
@@ -4034,6 +4045,31 @@ components:
             storesPromptOutputText:
               type: boolean
               enum: [false]
+            storesOutputText:
+              type: boolean
+              enum: [false]
+    FishUsagePrivacy:
+      type: object
+      properties:
+        requestedPrivacyMode:
+          type: string
+          nullable: true
+          enum: [local_demo, external_policy, ocean_demo_policy, selected_ocean_policy, hash_only_batch, ocean_hardened, ocean_tee, e2ee_to_tee]
+        acceptedPrivacyMode:
+          type: string
+          enum: [local_demo, external_policy, ocean_demo_policy, selected_ocean_policy, hash_only_batch, ocean_hardened, ocean_tee, e2ee_to_tee]
+        privacyDowngradeReason:
+          type: string
+          nullable: true
+        rawPromptSentTo:
+          type: string
+          enum: [local_process, external_provider, ocean_demo_provider, selected_ocean_provider, hash_only_batch_adapter]
+        storesPromptText:
+          type: boolean
+          enum: [false]
+        storesOutputText:
+          type: boolean
+          enum: [false]
     FishKnowledgeSource:
       type: object
       properties:

@@ -6,6 +6,8 @@ Fish should be honest about privacy from the first API surface. The current prot
 
 This plan defines a staged privacy ladder. It is product guidance and implementation contract language, not a claim that all tiers exist today.
 
+Current prototype status: `/v1/chat/completions`, `/api/dishes/:dishId/run`, `/v1/usage`, and `/v1/balance` usage receipts now expose a public-safe `privacy` object. It records the requested privacy mode, accepted route privacy mode, downgrade reason when explicitly allowed, raw prompt destination, and `storesPromptText=false` / `storesOutputText=false`.
+
 ## Principles
 
 - Do not call V1 cryptographically private.
@@ -120,6 +122,7 @@ Future request metadata:
 
 ```text
 requestedPrivacyMode
+allowPrivacyDowngrade
 acceptedPrivacyMode
 privacyDowngradeReason
 route
@@ -131,6 +134,19 @@ storesOutputText=false
 ```
 
 Receipts should record the accepted privacy mode and any downgrade reason. Public views should show the mode label and route, but never raw prompt or output text.
+
+Prototype metadata keys:
+
+```json
+{
+  "metadata": {
+    "requestedPrivacyMode": "selected_ocean_policy",
+    "allowPrivacyDowngrade": false
+  }
+}
+```
+
+If the requested mode is unavailable, Fish returns `privacy_mode_unavailable`. Setting `allowPrivacyDowngrade` to `true` lets Fish continue and records `privacyDowngradeReason`.
 
 ## Downgrade Policy
 
@@ -155,7 +171,7 @@ The `/docs` page should show the ladder in simple terms:
 - Privacy ladder is documented with user-facing claims and implementation requirements.
 - Docs distinguish current prototype behavior from future provider/TEE modes.
 - Proof, account, and billing plans agree that prompt/output text stays out of stored records.
-- Future routing work has clear downgrade and receipt fields to implement.
+- Routing work has clear downgrade and receipt fields to implement, and the current chat/API receipts already expose the prototype privacy object.
 
 ## Open Questions
 

@@ -32,9 +32,16 @@ type Receipt = {
   id: string;
   creditEntryId?: string | null;
   creditLane?: string;
+  privacy?: {
+    acceptedPrivacyMode?: string;
+    privacyDowngradeReason?: string | null;
+    rawPromptSentTo?: string;
+    storesPromptText?: false;
+    storesOutputText?: false;
+  };
   createdAt: string;
   model: string;
-  route: "mock" | "ocean-provider" | "external-fallback";
+  route: "mock" | "ocean-demo-vllm" | "ocean-provider" | "external-fallback";
   costState: "prototype_estimate" | "provider_verified" | "fallback_verified";
   totalTokens: number;
   creditsSpent: number;
@@ -337,7 +344,7 @@ function ReceiptNet({ receipts }: { receipts: Receipt[] }) {
               <div>
                 <p className="font-black text-white">{receipt.model}</p>
                 <p className="mt-1 break-all text-xs font-bold leading-5 text-fish-secondary">
-                  {formatRoute(receipt.route)} / {receipt.creditLane ?? "grant"} / {formatCostState(receipt.costState)}
+                  {formatRoute(receipt.route)} / {receipt.creditLane ?? "grant"} / {formatCostState(receipt.costState)} / {formatPrivacy(receipt.privacy?.acceptedPrivacyMode)}
                 </p>
               </div>
               <div className="text-left md:text-right">
@@ -367,6 +374,9 @@ function formatRoute(route: Receipt["route"]) {
   if (route === "mock") {
     return "demo";
   }
+  if (route === "ocean-demo-vllm") {
+    return "Ocean demo";
+  }
   if (route === "external-fallback") {
     return "outside AI";
   }
@@ -381,4 +391,35 @@ function formatCostState(state: Receipt["costState"]) {
     return "outside AI";
   }
   return "provider checked";
+}
+
+function formatPrivacy(mode: string | undefined) {
+  if (!mode) {
+    return "privacy label";
+  }
+  if (mode === "local_demo") {
+    return "local demo";
+  }
+  if (mode === "external_policy") {
+    return "outside policy";
+  }
+  if (mode === "ocean_demo_policy") {
+    return "Ocean demo policy";
+  }
+  if (mode === "selected_ocean_policy") {
+    return "Ocean policy";
+  }
+  if (mode === "hash_only_batch") {
+    return "hash-only docs";
+  }
+  if (mode === "ocean_hardened") {
+    return "hardened runner";
+  }
+  if (mode === "ocean_tee") {
+    return "hardware proof";
+  }
+  if (mode === "e2ee_to_tee") {
+    return "end-to-end private";
+  }
+  return mode.replaceAll("_", " ");
 }

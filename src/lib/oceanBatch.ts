@@ -10,6 +10,7 @@ import {
   type Account,
   type Ledger
 } from "@/lib/fishLedger";
+import { defaultFishPrivacyForRoute, type FishUsagePrivacy } from "@/lib/fishPrivacy";
 import { spendDailyQuota } from "@/lib/fishQuota";
 import type { DataState } from "@/lib/types";
 
@@ -41,6 +42,7 @@ type OceanBatchJobInput = Omit<OceanBatchJobRequestInput, "estimatedInputTokens"
 export type OceanBatchJobContext = {
   ledger: Ledger;
   account: Account;
+  privacy?: FishUsagePrivacy;
   quota?: {
     principalId: string;
     dailyQuotaLimit: number;
@@ -291,7 +293,8 @@ export async function runOceanBatchJob(request: OceanBatchJobRequestInput, conte
     providerCostUsd: outcome.cost.providerCostUsd,
     providerId: receipt.providerId,
     runnerReceipt: null,
-    reservation: reservationResult.reservation
+    reservation: reservationResult.reservation,
+    privacy: context.privacy ?? defaultFishPrivacyForRoute("ocean-batch")
   });
 
   if (!usage.ok) {

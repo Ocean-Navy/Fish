@@ -3,6 +3,7 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import path from "node:path";
 import { z } from "zod";
 import { FISH_DISH_MODELS, fishFeatureIdFromModel } from "@/lib/fishFeaturePolicy";
+import { defaultFishPrivacyForRoute, type FishUsagePrivacy } from "@/lib/fishPrivacy";
 import type { DataState } from "@/lib/types";
 
 const ROOT = process.cwd();
@@ -271,6 +272,7 @@ type UsageReceipt = {
   fallbackReason?: string | null;
   runnerReceipt?: RunnerReceiptSummary | null;
   errorCode?: string | null;
+  privacy?: FishUsagePrivacy;
 };
 
 export type FishUsageSummary = {
@@ -780,6 +782,7 @@ export async function recordChatUsage(params: {
   fallbackReason?: string | null;
   runnerReceipt?: RunnerReceiptSummary | null;
   reservation?: CreditReservation | null;
+  privacy?: FishUsagePrivacy;
 }) {
   const totalTokens = params.promptTokens + params.completionTokens;
   const creditsSpent = Math.max(1, Math.ceil(totalTokens / 1000));
@@ -840,7 +843,8 @@ export async function recordChatUsage(params: {
     requestedRoute: params.requestedRoute ?? null,
     fallbackFrom: params.fallbackFrom ?? null,
     fallbackReason: params.fallbackReason ?? null,
-    runnerReceipt: params.runnerReceipt ?? null
+    runnerReceipt: params.runnerReceipt ?? null,
+    privacy: params.privacy ?? defaultFishPrivacyForRoute(params.route ?? "mock")
   };
 
   await writeLedger(params.ledger);
@@ -880,6 +884,7 @@ export async function recordFailedChatUsage(params: {
   fallbackReason?: string | null;
   runnerReceipt?: RunnerReceiptSummary | null;
   errorCode?: string | null;
+  privacy?: FishUsagePrivacy;
 }) {
   const now = new Date().toISOString();
   params.account.requestCount += 1;
@@ -909,7 +914,8 @@ export async function recordFailedChatUsage(params: {
     fallbackFrom: params.fallbackFrom ?? null,
     fallbackReason: params.fallbackReason ?? null,
     runnerReceipt: params.runnerReceipt ?? null,
-    errorCode: params.errorCode ?? null
+    errorCode: params.errorCode ?? null,
+    privacy: params.privacy ?? defaultFishPrivacyForRoute(params.route ?? "mock")
   };
 
   await writeLedger(params.ledger);
