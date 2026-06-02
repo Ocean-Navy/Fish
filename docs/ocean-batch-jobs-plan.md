@@ -47,6 +47,14 @@ Sample modes are local proof only and write `sourceState: "sample"`.
 
 `ocean_http` posts to `FISH_OCEAN_BATCH_ENDPOINT` and writes `sourceState: "snapshot"` until a stronger Ocean-native receipt/proof path exists.
 
+The private adapter scaffold lives at:
+
+```text
+deploy/ocean-workload-adapter/
+```
+
+It defaults to dry-run mode, which returns a failed adapter result and cannot create a successful proof receipt. Live mode requires a proof wallet, Base RPC, selected `NODE_URL`, selected compute environment id, and an algorithm DID.
+
 ## Private Adapter Response
 
 The private adapter should return:

@@ -89,6 +89,35 @@ Fish API
 
 The adapter worker can be a tiny internal service because Ocean compute jobs may be slow, may need wallet secrets, and may need local output handling. Keep those secrets out of the public web process.
 
+Fish now has this scaffold under:
+
+```text
+deploy/ocean-workload-adapter/
+```
+
+It supports:
+
+```text
+GET /healthz
+GET /config
+POST /jobs
+```
+
+Dry-run mode is the default and never returns a successful proof. Live mode shells out to the official Ocean CLI checkout, starts the selected compute job, downloads job results, hashes the result directory, and returns the hash as `outputRef`.
+
+Use the public Oncompute environment discovery helper to select the node URL and compute environment id:
+
+```bash
+node scripts/discover-oncompute-envs.mjs --chain 8453 --free --limit 10
+```
+
+Then copy:
+
+```text
+nodeUrl -> NODE_URL
+envId   -> FISH_OCEAN_COMPUTE_ENV_ID
+```
+
 ## Adapter Contract
 
 Fish sends:
@@ -184,6 +213,27 @@ FISH_OCEAN_RESOURCES=<JSON resources, if paid>
 FISH_OCEAN_OUTPUT=<JSON output config, optional>
 ```
 
+The adapter template lives at:
+
+```text
+deploy/ocean-workload-adapter/env.example
+```
+
+Copy it to an ignored private file:
+
+```bash
+cp deploy/ocean-workload-adapter/env.example .env.ocean-proof.local
+```
+
+For the current Oncompute route, use:
+
+```text
+RPC=<Base mainnet RPC>
+chain id 8453
+gas token ETH on Base
+paid compute token USDC on Base
+```
+
 5. Configure Fish:
 
 ```text
@@ -223,6 +273,19 @@ usageReceipt.route is ocean-provider
 /api/ocean/batch/jobs includes the receipt
 /proof shows Docs batch evidence as non-sample
 ```
+
+## Current Blocking Inputs
+
+The scaffold can be tested without secrets, but the real proof still needs:
+
+```text
+fresh proof wallet private key or mnemonic
+Base mainnet RPC
+algorithm DID for the first document_summary workload
+selected NODE_URL and FISH_OCEAN_COMPUTE_ENV_ID from the discovery script
+```
+
+If free compute works, no paid token is needed for the first proof. If free compute fails due to provider/payment rules, fund the proof wallet with a small amount of Base ETH for gas and Base USDC for the selected paid environment.
 
 ## What To Give Codex
 
