@@ -31,6 +31,7 @@ export function PublicProofPage({ proof, scorecard, benchmarks, batch }: { proof
           <nav className="hidden items-center gap-6 text-sm font-black text-fish-secondary md:flex" aria-label="Proof navigation">
             <a className="hover:text-white" href="#boats">Boats</a>
             <a className="hover:text-white" href="#activity">Activity</a>
+            <Link className="hover:text-white" href={"/privacy" as Route}>Data policy</Link>
             <Link className="hover:text-white" href="/dashboard">Dashboard</Link>
           </nav>
           <Link className="inline-flex h-10 items-center rounded-full bg-gradient-to-r from-fish-accent to-fish-aqua px-4 text-sm font-black text-fish-navy950" href="/#pilot">

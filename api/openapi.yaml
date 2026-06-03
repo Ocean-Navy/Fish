@@ -139,7 +139,7 @@ paths:
                 $ref: '#/components/schemas/OceanBatchSummary'
     post:
       summary: Submit a capped Ocean batch job
-      description: Fish API-key route for Docs-style batch jobs. The request accepts input references only; raw document text and full output text are not accepted or stored by this contract.
+      description: Fish API-key route for batch dish jobs. The request accepts input references only; raw dish input and full output text are not accepted or stored by this contract.
       security:
         - bearerAuth: []
       requestBody:

@@ -41,6 +41,7 @@ export default function Home() {
             <a className="hover:text-white" href="#maps">Maps</a>
             <Link className="hover:text-white" href={"/ask" as NextRoute}>Ask Fish</Link>
             <Link className="hover:text-white" href={"/proof" as NextRoute}>Proof</Link>
+            <Link className="hover:text-white" href={"/privacy" as NextRoute}>Data policy</Link>
             <Link className="hover:text-white" href="/dashboard">Dashboard</Link>
           </nav>
           <a className="inline-flex h-10 items-center rounded-full bg-gradient-to-r from-fish-accent to-fish-aqua px-4 text-sm font-black text-fish-navy950" href="#pilot">
@@ -186,7 +187,10 @@ export default function Home() {
       <footer className="border-t border-fish-accent/15 px-4 py-8 text-sm font-bold text-fish-secondary sm:px-6 lg:px-8">
         <div className="mx-auto flex max-w-7xl flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <p>Built by Ocean Navy on Ocean Protocol. Not official unless approved.</p>
-          <p className="text-fish-gold">Product first. Token later.</p>
+          <div className="flex flex-wrap gap-4 text-fish-gold">
+            <Link href={"/privacy" as NextRoute}>Data policy</Link>
+            <p>Product first. Token later.</p>
+          </div>
         </div>
       </footer>
     </main>

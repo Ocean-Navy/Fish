@@ -70,6 +70,9 @@ export function RolePageShell({
             <Link className="hover:text-white" href="/dashboard">
               Dashboard
             </Link>
+            <Link className="hover:text-white" href={"/privacy" as Route}>
+              Data policy
+            </Link>
             <Link className="hover:text-white" href="/roadmap">
               Roadmap
             </Link>

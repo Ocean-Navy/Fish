@@ -18,7 +18,7 @@ const steps = [
 const cards = [
   { label: "API", title: "Dish models", body: "Use fish-ask, fish-code, fish-docs, fish-repo, fish-eval, fish-data, or fish-ocean-helper." },
   { label: "Routing", title: "Clear route labels", body: "Fish says whether an answer came from demo mode, outside AI, or selected Ocean providers." },
-  { label: "Credits", title: "Credits from day one", body: "Every request should show the credits it used." },
+  { label: "Data", title: "Tickets, not raw text", body: "Proof stores hashes, route labels, usage, and credits, not raw prompts or outputs." },
   { label: "Providers", title: "Proof for provider work", body: "Provider jobs need public-safe proof before they become normal routes." }
 ];
 
@@ -58,6 +58,9 @@ export default function DocsPage() {
               <Link className="inline-flex h-12 items-center justify-center rounded-full border border-fish-accent/40 px-6 text-sm font-black text-fish-accent" href={"/routing" as NextRoute}>
                 Route compass
               </Link>
+              <Link className="inline-flex h-12 items-center justify-center rounded-full border border-fish-accent/40 px-6 text-sm font-black text-fish-accent" href={"/privacy" as NextRoute}>
+                Data policy
+              </Link>
             </div>
           </div>
         </div>
@@ -85,7 +88,7 @@ export default function DocsPage() {
           </div>
 
           <p className="mt-5 rounded-3xl border border-fish-gold/25 bg-fish-gold/10 p-5 text-base font-black leading-7 text-fish-primary">
-            For now, do not treat Fish as private encryption. If outside AI is used, that provider receives the prompt.
+            For now, do not treat Fish as private encryption. If outside AI is used, that provider receives the prompt. Public proof still keeps raw prompts and outputs out of receipts, dashboards, and exports.
           </p>
         </div>
       </section>

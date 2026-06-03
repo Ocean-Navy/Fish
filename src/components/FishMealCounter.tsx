@@ -19,7 +19,9 @@ import {
   Waves
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import type { Route } from "next";
 import Image from "next/image";
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { FISH_DISHES, type FishDishDefinition } from "@/lib/fishDishes";
 
@@ -426,9 +428,14 @@ export function FishMealCounter() {
         </div>
 
         <div className="mt-5 rounded-[1.5rem] border border-fish-accent/15 bg-white/[0.035] p-4 text-sm font-bold leading-6 text-fish-secondary">
-          {activeDish.oceanBatch
-            ? `${activeDish.oceanBatch.inputLabel} becomes a hash-only kitchen ticket. Public proof does not show the raw order.`
-            : "No key needed for a small daily demo. API keys unlock balances, usage history, and higher caps."}
+          <span>
+            {activeDish.oceanBatch
+              ? `${activeDish.oceanBatch.inputLabel} becomes a hash-only kitchen ticket. Public proof does not show the raw order.`
+              : "No key needed for a small daily demo. API keys unlock balances, usage history, and higher caps."}
+          </span>{" "}
+          <Link className="font-black text-fish-accent hover:text-white" href={"/privacy" as Route}>
+            Data policy
+          </Link>
         </div>
 
         <div className="mt-5 min-h-80 rounded-[1.5rem] border border-fish-accent/18 bg-fish-navy950/45 p-5">

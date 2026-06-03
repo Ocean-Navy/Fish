@@ -215,7 +215,9 @@ receipt_hash text
 
 V0:
 
-- do not store prompts;
+- do not store raw prompts or outputs in receipts, public proof, dashboards, billing rows, or exports;
+- store proof tickets, hashes, source-state labels, route labels, usage, cost, and credit fields instead of raw order data;
+- label the active processing route so users can tell whether demo mode, outside AI, Ocean batch, or a selected provider handled the order;
 - do not store private wallet information beyond explicit form fields;
 - avoid telemetry that leaks sensitive data;
 - separate sample data from live data.
@@ -224,7 +226,10 @@ V1+:
 
 - API keys hashed at rest;
 - prompt logging disabled by default;
+- private upload storage with signed job references and short default input retention;
+- user-facing deletion for stored outputs and private job data;
 - provider receipts exclude prompt text;
+- selected providers reviewed for no prompt/output retention before receiving user workloads;
 - PII in forms encrypted or protected;
 - admin dashboard protected;
 - rate limiting.

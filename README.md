@@ -13,6 +13,7 @@ The public V0 is intentionally simple: a visual Venice fish-market homepage, rol
 - Simple Fish loop: stake OCEAN, catch FISH, use AI, providers get paid, Ocean grows.
 - `/dashboard` with live Oncompute/Ocean supply signals and sample-data fallback.
 - `/proof` with a simple public proof harbor for receipts, provider boats, payouts, and benchmarks.
+- `/privacy` with plain-language data handling rules for orders, proof tickets, providers, and future privacy modes.
 - Waitlist/provider intake APIs that persist JSON submissions locally.
 - Admin-only signup export for launch lead follow-up.
 - Prototype `/v1` AI API with local API keys, Fish Credits debits, and usage receipts.
@@ -69,6 +70,7 @@ Useful local routes:
 /dashboard
 /proof
 /routing
+/privacy
 /account
 /ask
 /api/health
@@ -275,7 +277,7 @@ FISH_EXTERNAL_FALLBACK_DAILY_BUDGET_USD=10
 FISH_EXTERNAL_FALLBACK_FREE_ALLOWED=false
 ```
 
-Fish stores usage numbers, route metadata, latency, cost estimates, and request hashes in local receipts. The raw prompt is sent to the configured backend, so that backend's privacy policy applies.
+Fish stores usage numbers, route metadata, latency, cost estimates, and request hashes in local receipts. It does not store raw prompts or outputs in receipts, public proof, dashboards, billing rows, or exports. The raw prompt is still sent to the configured backend when that route needs it to answer, so that backend's privacy policy applies. The public data-handling page is available at `/privacy`.
 
 Feature caps are layered under the global token limits. For example, Code can have a larger cap than Ask when `FISH_MAX_OUTPUT_TOKENS` is raised, while Images remain disabled until a paid image route exists.
 
@@ -518,7 +520,7 @@ GET /api/ocean/batch/jobs
 POST /api/ocean/batch/jobs
 ```
 
-`POST` requires a Fish API key and accepts only hash/reference input through `inputRef`; it does not accept or store raw input text. `adapterMode: "sample_success"` is the default local proof mode. Set `adapterMode: "ocean_http"` only when `FISH_OCEAN_BATCH_ENDPOINT` points to a private Oncompute/Ocean batch adapter. Fish checks `maxCostUsd` against `FISH_OCEAN_BATCH_DAILY_BUDGET_USD` before calling the batch adapter.
+`POST` requires a Fish API key and accepts only hash/reference input through `inputRef`; it does not accept or store raw input text. `adapterMode: "sample_success"` is the default local proof mode. Set `adapterMode: "ocean_http"` only when `FISH_OCEAN_BATCH_ENDPOINT` points to a private Oncompute/Ocean batch adapter. Fish checks `maxCostUsd` against `FISH_OCEAN_BATCH_DAILY_BUDGET_USD` before calling the batch adapter. Public proof must show tickets and hashes, not raw order data.
 
 Batch dishes sent through `/v1/chat/completions` or `/api/dishes/:dishId/run` use the same hash-only batch path:
 

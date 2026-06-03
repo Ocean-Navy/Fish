@@ -8,6 +8,8 @@ This plan defines a staged privacy ladder. It is product guidance and implementa
 
 Current prototype status: `/v1/chat/completions`, `/api/dishes/:dishId/run`, `/v1/usage`, and `/v1/balance` usage receipts now expose a public-safe `privacy` object. It records the requested privacy mode, accepted route privacy mode, downgrade reason when explicitly allowed, raw prompt destination, and `storesPromptText=false` / `storesOutputText=false`.
 
+The public user-facing page is `/privacy`. The implementation storage contract is `docs/data-handling-policy.md`.
+
 ## Principles
 
 - Do not call V1 cryptographically private.
@@ -16,6 +18,7 @@ Current prototype status: `/v1/chat/completions`, `/api/dishes/:dishId/run`, `/v
 - Match privacy claims to the real route used for the request.
 - Prefer clear "what happens to your prompt" copy over abstract privacy language.
 - Treat provider logging policy as a contract item before routing user workloads.
+- Do not claim zero retention, TEE, or end-to-end encryption until the route actually enforces and proves it.
 
 ## Privacy Ladder
 
