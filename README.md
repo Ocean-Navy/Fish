@@ -16,10 +16,10 @@ The public V0 is intentionally simple: a visual Venice fish-market homepage, rol
 - Waitlist/provider intake APIs that persist JSON submissions locally.
 - Admin-only signup export for launch lead follow-up.
 - Prototype `/v1` AI API with local API keys, Fish Credits debits, and usage receipts.
-- `/ask` with a Fish meal counter: Quick Catch, Code Roll, Clear Broth, Docs Bento, Image Catch, Proposal Platter, and Ocean Special.
+- `/ask` with a Fish meal counter: Ocean batch dishes (Docs Bento, Repo Roll, Eval Platter, Data Sushi) plus quick warm dishes.
 - `/api/meal/order` for a capped guest meal-counter demo without exposing a Fish API key.
 - `/api/warm/status` for public-safe warm Ocean demo readiness without endpoint URLs or secrets.
-- `/api/ocean/batch/jobs` for hash-only Docs/Ocean batch receipts, sample by default until a private batch adapter is configured.
+- `/api/ocean/batch/jobs` for hash-only Ocean batch dish receipts, sample by default until a private batch adapter is configured.
 - `/chat` remains available as the same pilot AI meal counter for chat-oriented links.
 - Production Docker image, Docker Compose service, and public nginx/systemd deployment.
 - Warm inference operator runbook and minimal Fish Runner sidecar for a private vLLM MVP path.
@@ -307,7 +307,7 @@ List models:
 curl -sS http://127.0.0.1:3000/v1/models
 ```
 
-Core dish aliases are listed as models too: `fish-ask`, `fish-code`, `fish-docs`, `fish-ocean-helper`, `fish-clear-broth`, and `fish-proposal`. Passing one of these as `model` applies that dish's feature limits and receipt label even if you do not send `metadata.fish_feature`. `fish-ocean-helper` adds a small local Fish/Ocean context pack and returns its source labels in `fish.knowledgeSources`.
+Core dish aliases are listed as models too: `fish-ask`, `fish-code`, `fish-docs`, `fish-repo`, `fish-eval`, `fish-data`, `fish-ocean-helper`, `fish-clear-broth`, and `fish-proposal`. Passing one of these as `model` applies that dish's feature limits and receipt label even if you do not send `metadata.fish_feature`. `fish-ocean-helper` adds a small local Fish/Ocean context pack and returns its source labels in `fish.knowledgeSources`.
 
 Fish rejects models that are not listed in the account plan before it spends quota, reserves credits, or calls a backend. Use `/v1/balance` or `/api/billing/plans` to see the current plan and allowed model IDs.
 
@@ -511,16 +511,25 @@ The report returns route rules, route candidates, conservative price bands, marg
 
 ## Ocean Batch Jobs
 
-The first Docs/Ocean batch contract is available at:
+The Ocean batch dish contract is available at:
 
 ```text
 GET /api/ocean/batch/jobs
 POST /api/ocean/batch/jobs
 ```
 
-`POST` requires a Fish API key and accepts only hash/reference input through `inputRef`; it does not accept or store raw document text. `adapterMode: "sample_success"` is the default local proof mode. Set `adapterMode: "ocean_http"` only when `FISH_OCEAN_BATCH_ENDPOINT` points to a private Oncompute/Ocean batch adapter. Fish checks `maxCostUsd` against `FISH_OCEAN_BATCH_DAILY_BUDGET_USD` before calling the batch adapter.
+`POST` requires a Fish API key and accepts only hash/reference input through `inputRef`; it does not accept or store raw input text. `adapterMode: "sample_success"` is the default local proof mode. Set `adapterMode: "ocean_http"` only when `FISH_OCEAN_BATCH_ENDPOINT` points to a private Oncompute/Ocean batch adapter. Fish checks `maxCostUsd` against `FISH_OCEAN_BATCH_DAILY_BUDGET_USD` before calling the batch adapter.
 
-Docs dish requests sent through `/v1/chat/completions` use the same hash-only batch path. `FISH_DOCS_BATCH_MAX_RUNTIME_SECONDS` and `FISH_DOCS_BATCH_MAX_COST_USD` cap the generated batch request before Fish calls the batch adapter.
+Batch dishes sent through `/v1/chat/completions` or `/api/dishes/:dishId/run` use the same hash-only batch path:
+
+| Dish | Model alias | Batch task |
+| --- | --- | --- |
+| Docs Bento | `fish-docs` | `document_summary` |
+| Repo Roll | `fish-repo` | `structured_extraction` |
+| Eval Platter | `fish-eval` | `batch_chat` |
+| Data Sushi | `fish-data` | `embeddings` |
+
+Per-dish runtime and cost caps can be set with `FISH_DOCS_BATCH_MAX_RUNTIME_SECONDS`, `FISH_DOCS_BATCH_MAX_COST_USD`, `FISH_REPO_BATCH_MAX_RUNTIME_SECONDS`, `FISH_REPO_BATCH_MAX_COST_USD`, `FISH_EVAL_BATCH_MAX_RUNTIME_SECONDS`, `FISH_EVAL_BATCH_MAX_COST_USD`, `FISH_DATA_BATCH_MAX_RUNTIME_SECONDS`, and `FISH_DATA_BATCH_MAX_COST_USD`.
 
 Batch receipts are written under `data/ocean-batch/`, and successful jobs also write Fish usage receipts so the public dashboard can count them as Ocean-native usage. See `docs/ocean-batch-jobs-plan.md` for the adapter contract.
 

@@ -42,6 +42,7 @@ type OceanBatchJobInput = Omit<OceanBatchJobRequestInput, "estimatedInputTokens"
 export type OceanBatchJobContext = {
   ledger: Ledger;
   account: Account;
+  featureId?: string;
   privacy?: FishUsagePrivacy;
   quota?: {
     principalId: string;
@@ -277,7 +278,7 @@ export async function runOceanBatchJob(request: OceanBatchJobRequestInput, conte
       stream: false,
       max_tokens: input.maxOutputTokens,
       metadata: {
-        fish_feature: "docs",
+        fish_feature: context.featureId ?? "ocean-batch",
         fish_batch_job_id: receipt.jobId,
         fish_batch_task_type: input.taskType
       }

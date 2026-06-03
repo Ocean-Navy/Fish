@@ -4,14 +4,14 @@ import { RolePageShell } from "@/components/RolePageShell";
 
 export const metadata: Metadata = {
   title: "Ask Fish - AI meal counter",
-  description: "Try Fish dishes for quick answers, code help, docs, proposals, images, and Ocean help."
+  description: "Try Fish dishes for quick answers and Ocean batch proof tickets."
 };
 
 const steps = [
-  { title: "Pick a dish", body: "Choose Quick Catch, Code Roll, Clear Broth, Docs Bento, Image Catch, Proposal Platter, or Ocean Special." },
+  { title: "Pick a dish", body: "Choose a quick taste or an Ocean batch dish." },
   { title: "Bring a key", body: "Use the Fish key from your pilot invite." },
-  { title: "Place order", body: "Each dish wraps the prompt for the same API route." },
-  { title: "Read the tab", body: "Fish shows route, credits, and activity id." }
+  { title: "Place order", body: "Fish prepares it behind the counter." },
+  { title: "Read the ticket", body: "Fish shows route, credits, and proof state." }
 ];
 
 const cards = [
@@ -26,10 +26,10 @@ export default function ChatPage() {
     <RolePageShell
       eyebrow="AI meal counter"
       title="Order from Fish."
-      subtitle="Ask, code, summarize docs, draft, or get Ocean help from one simple menu."
-      image="/assets/generated/fish-flow-use.png"
+      subtitle="Pick a dish. Fish prepares it. The ticket lands on your table."
+      image="/assets/generated/fish-dish-menu-market.webp"
       imageAlt="Venice market AI counter with Fish Ocean Navy styling"
-      chips={["Pilot key", "Menu prompts", "Route labels", "Credits"]}
+      chips={["Docs Bento", "Repo Roll", "Eval Platter", "Data Sushi", "Quick Catch"]}
       primaryAction={{ label: "Read API docs", href: "/docs" }}
       secondaryAction={{ label: "Check account", href: "/account" }}
       steps={steps}

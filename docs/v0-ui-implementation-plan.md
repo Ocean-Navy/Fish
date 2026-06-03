@@ -490,7 +490,7 @@ Implementation:
 V0 can ship these as sections, but reserve the route names:
 
 - `/dashboard`: full Ocean Network supply dashboard. Start with status header, KPI cards, GPU supply table, provider scorecard, usage proof placeholder, and OCEAN utility proof placeholder.
-- `/ask`: pilot Fish meal counter for Quick Catch, Code Roll, Clear Broth, Docs Bento, Image Catch, Proposal Platter, and Ocean Special, powered by the `/v1/chat/completions` contract with visible route and credit feedback. Image Catch stays disabled until paid image fallback or Ocean-native image routes exist.
+- `/ask`: pilot Fish meal counter for Ocean batch dishes (Docs Bento, Repo Roll, Eval Platter, Data Sushi) plus quick warm dishes, powered by the `/v1/chat/completions` and `/api/dishes/:dishId/run` contracts with visible route, credit, and proof-ticket feedback. Image Catch stays disabled until paid image fallback or Ocean-native image routes exist.
 - `/roadmap`: roadmap cards plus principle banner and launch caveats.
 - `/providers`: provider pilot form, provider promise, eligibility notes, scorecard explanation.
 - `/credits`: OCEAN staking, provider bonds, credits, and future-support explanation with caveats.

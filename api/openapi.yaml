@@ -223,14 +223,14 @@ paths:
   /api/dishes/{dishId}/run:
     post:
       summary: Run a Fish AI menu dish
-      description: Runs a menu dish such as ask, code, docs, proposal, or ocean with server-side prompts. Uses guest credits when no bearer key is provided and Fish API-key credits when authorization is present.
+      description: Runs a menu dish such as ask, code, docs, repo, eval, data, proposal, or ocean with server-side prompts. Batch dishes return public-safe ticket metadata. Uses guest credits when no bearer key is provided and Fish API-key credits when authorization is present.
       parameters:
         - in: path
           name: dishId
           required: true
           schema:
             type: string
-            enum: [ask, code, explain, docs, images, proposal, ocean]
+            enum: [ask, code, explain, docs, repo, eval, data, images, proposal, ocean]
       requestBody:
         required: true
         content:
@@ -1406,7 +1406,7 @@ paths:
   /v1/chat/completions:
     post:
       summary: Create a prototype chat completion
-      description: OpenAI-style route that requires a Fish API key, debits credits, writes a usage receipt, and can optionally call a configured external compatible backend. Dish model aliases such as `fish-ask`, `fish-code`, `fish-docs`, and `fish-ocean-helper` apply the matching Fish feature policy without requiring metadata.
+      description: OpenAI-style route that requires a Fish API key, debits credits, writes a usage receipt, and can optionally call a configured external compatible backend. Dish model aliases such as `fish-ask`, `fish-code`, `fish-docs`, `fish-repo`, `fish-eval`, `fish-data`, and `fish-ocean-helper` apply the matching Fish feature policy without requiring metadata.
       security:
         - bearerAuth: []
       requestBody:
@@ -2035,7 +2035,7 @@ components:
             properties:
               id:
                 type: string
-                enum: [ask, code, explain, docs, images, proposal, ocean, api]
+                enum: [ask, code, explain, docs, repo, eval, data, images, proposal, ocean, api]
               label:
                 type: string
               state:
@@ -3874,7 +3874,7 @@ components:
         fishFeature:
           type: string
           nullable: true
-          enum: [ask, code, explain, docs, proposal, ocean]
+          enum: [ask, code, explain, docs, repo, eval, data, proposal, ocean]
         featureLabel:
           type: string
           nullable: true
@@ -4347,7 +4347,7 @@ components:
       properties:
         id:
           type: string
-          enum: [ask, code, explain, docs, images, proposal, ocean]
+          enum: [ask, code, explain, docs, repo, eval, data, images, proposal, ocean]
         title:
           type: string
         subtitle:
@@ -4356,6 +4356,9 @@ components:
           type: string
         routeLabel:
           type: string
+        lane:
+          type: string
+          enum: [warm, batch, future]
         short:
           type: string
         placeholder:
@@ -4366,6 +4369,21 @@ components:
           type: string
         enabled:
           type: boolean
+        oceanBatch:
+          type: object
+          nullable: true
+          properties:
+            taskType:
+              type: string
+              enum: [document_summary, structured_extraction, embeddings, batch_chat]
+            inputLabel:
+              type: string
+            proofLabel:
+              type: string
+            maxRuntimeSeconds:
+              type: integer
+            maxCostUsd:
+              type: number
     FishDishRunRequest:
       type: object
       required: [prompt]
@@ -4398,7 +4416,7 @@ components:
         model:
           type: string
           default: fish-demo-chat
-          description: Use `fish-demo-chat` for the generic route, or a dish alias such as `fish-ask`, `fish-code`, `fish-docs`, `fish-ocean-helper`, `fish-clear-broth`, or `fish-proposal`.
+          description: Use `fish-demo-chat` for the generic route, or a dish alias such as `fish-ask`, `fish-code`, `fish-docs`, `fish-repo`, `fish-eval`, `fish-data`, `fish-ocean-helper`, `fish-clear-broth`, or `fish-proposal`.
         messages:
           type: array
           minItems: 1
@@ -4430,7 +4448,7 @@ components:
           properties:
             fish_feature:
               type: string
-              enum: [ask, code, explain, docs, images, proposal, ocean, api]
+              enum: [ask, code, explain, docs, repo, eval, data, images, proposal, ocean, api]
             fish_dish:
               type: string
             requestedPrivacyMode:

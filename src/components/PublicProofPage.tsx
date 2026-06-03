@@ -64,7 +64,7 @@ export function PublicProofPage({ proof, scorecard, benchmarks, batch }: { proof
           <div className="grid gap-3 sm:grid-cols-2">
             <HeroCounter icon={ReceiptText} label="Proof records" value={formatCompact(proof.verifiedReceipts)} />
             <HeroCounter icon={Ship} label="Ocean jobs" value={formatCompact(proof.oceanJobsRouted)} />
-            <HeroCounter icon={FileText} label="Docs batch" value={formatCompact(batch.succeededJobs)} />
+            <HeroCounter icon={FileText} label="Batch dishes" value={formatCompact(batch.succeededJobs)} />
             <HeroCounter icon={CircleDollarSign} label="Provider chest" value={formatUsd(proof.providerPayoutUsd)} />
           </div>
         </div>
@@ -74,13 +74,13 @@ export function PublicProofPage({ proof, scorecard, benchmarks, batch }: { proof
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <ProofTile label="Jobs routed" value={formatCompact(proof.oceanJobsRouted)} detail={`${formatCompact(proof.failedJobs + proof.timedOutJobs)} need review`} />
           <ProofTile label="Proof records" value={formatCompact(proof.verifiedReceipts)} detail={`${formatCompact(proof.receiptVerificationFailures)} need review`} />
-          <ProofTile label="Docs batch" value={formatCompact(batch.jobs)} detail={batch.dataState === "sample" ? "sample path" : "private adapter"} />
+          <ProofTile label="Batch dishes" value={formatCompact(batch.jobs)} detail={batch.dataState === "sample" ? "sample path" : "private adapter"} />
           <ProofTile label="Providers paid" value={formatUsd(proof.payouts.totals.paid)} detail={`${formatUsd(proof.payouts.totals.outstandingUsd)} still open`} />
           <ProofTile label="Benchmark runs" value={formatCompact(benchmarks.totals.benchmarkRuns)} detail={`${formatCompact(benchmarks.totals.untestedCells)} untested routes`} />
         </div>
       </MetricGroup>
 
-      <MetricGroup title="Docs Batch" eyebrow="Ocean batch path" state={batch.dataState}>
+      <MetricGroup title="Batch Dishes" eyebrow="Ocean batch path" state={batch.dataState}>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <ProofTile label="Batch jobs" value={formatCompact(batch.jobs)} />
           <ProofTile label="Succeeded" value={formatCompact(batch.succeededJobs)} />
@@ -100,7 +100,7 @@ export function PublicProofPage({ proof, scorecard, benchmarks, batch }: { proof
           </div>
         ) : (
           <div className="mt-3">
-            <EmptyHarbor text="No Docs batch receipts yet. The first hash-only batch job will appear here." />
+            <EmptyHarbor text="No batch dish receipts yet. The first hash-only batch job will appear here." />
           </div>
         )}
       </MetricGroup>

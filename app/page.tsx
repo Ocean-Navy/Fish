@@ -61,19 +61,19 @@ export default function Home() {
             </p>
             <h1 className="text-7xl font-black leading-none text-white sm:text-8xl lg:text-[11rem]">Fish</h1>
             <p className="mt-6 text-4xl font-black leading-tight text-fish-primary sm:text-6xl">
-              Turn Ocean Network compute into easy AI.
+              Pick an AI dish. Fish serves it.
             </p>
             <Link
               className="mt-8 flex min-h-16 max-w-2xl items-center justify-between gap-4 rounded-full border border-fish-accent/35 bg-white/95 px-5 text-left shadow-harbor transition hover:scale-[1.01]"
               href={"/ask" as NextRoute}
             >
-              <span className="truncate text-base font-black text-fish-navy900 sm:text-xl">Ask Fish anything...</span>
+              <span className="truncate text-base font-black text-fish-navy900 sm:text-xl">Open the dish menu...</span>
               <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-gradient-to-r from-fish-accent to-fish-aqua text-fish-navy950">
                 <Send className="h-5 w-5" aria-hidden="true" />
               </span>
             </Link>
             <div className="mt-5 flex flex-wrap gap-3 text-base font-black text-white">
-              {["Ask", "Code", "Docs", "Images", "API", "Dashboard"].map((item) => (
+              {["Docs Bento", "Repo Roll", "Eval Platter", "Data Sushi", "Quick Catch"].map((item) => (
                 <span key={item} className="rounded-full border border-fish-accent/25 bg-fish-navy950/55 px-4 py-2">
                   {item}
                 </span>
@@ -84,7 +84,7 @@ export default function Home() {
                 Enter market <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </a>
               <Link className="inline-flex h-12 items-center rounded-full border border-fish-accent/40 bg-fish-navy950/60 px-6 text-sm font-black text-white" href={"/ask" as NextRoute}>
-                Ask Fish
+                Order a dish
               </Link>
             </div>
           </div>

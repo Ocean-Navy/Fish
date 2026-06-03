@@ -1,7 +1,8 @@
 import type { FishRouterConfig } from "@/lib/fishRouter";
 
-export type FishFeatureId = "ask" | "code" | "explain" | "docs" | "images" | "proposal" | "ocean" | "api";
+export type FishFeatureId = "ask" | "code" | "explain" | "docs" | "repo" | "eval" | "data" | "images" | "proposal" | "ocean" | "api";
 export type FishFeatureState = "live-beta" | "beta" | "coming-soon";
+export type FishBatchTaskType = "document_summary" | "structured_extraction" | "embeddings" | "batch_chat";
 
 export type FishFeaturePolicy = {
   id: FishFeatureId;
@@ -27,6 +28,11 @@ type FishFeatureDefinition = {
   defaultMaxOutputTokens: number;
   aliases?: string[];
   modelAliases?: string[];
+  batch?: {
+    taskType: FishBatchTaskType;
+    defaultMaxRuntimeSeconds: number;
+    defaultMaxCostUsd: number;
+  };
 };
 
 const FEATURE_DEFINITIONS: FishFeatureDefinition[] = [
@@ -76,7 +82,63 @@ const FEATURE_DEFINITIONS: FishFeatureDefinition[] = [
     defaultMaxInputTokens: 4000,
     defaultMaxOutputTokens: 900,
     aliases: ["docs-bento"],
-    modelAliases: ["fish-docs", "fish-docs-bento"]
+    modelAliases: ["fish-docs", "fish-docs-bento"],
+    batch: {
+      taskType: "document_summary",
+      defaultMaxRuntimeSeconds: 600,
+      defaultMaxCostUsd: 1
+    }
+  },
+  {
+    id: "repo",
+    label: "Repo Roll",
+    state: "beta",
+    primary: "Ocean batch / Oncompute",
+    fallback: "Paid fallback only when enabled",
+    enabled: true,
+    defaultMaxInputTokens: 8000,
+    defaultMaxOutputTokens: 1000,
+    aliases: ["repo-roll", "code-map", "codebase-map"],
+    modelAliases: ["fish-repo", "fish-repo-roll"],
+    batch: {
+      taskType: "structured_extraction",
+      defaultMaxRuntimeSeconds: 900,
+      defaultMaxCostUsd: 1.5
+    }
+  },
+  {
+    id: "eval",
+    label: "Eval Platter",
+    state: "beta",
+    primary: "Ocean batch / Oncompute",
+    fallback: "Paid fallback only when enabled",
+    enabled: true,
+    defaultMaxInputTokens: 8000,
+    defaultMaxOutputTokens: 1200,
+    aliases: ["eval-platter", "scorecard"],
+    modelAliases: ["fish-eval", "fish-eval-platter"],
+    batch: {
+      taskType: "batch_chat",
+      defaultMaxRuntimeSeconds: 1200,
+      defaultMaxCostUsd: 2
+    }
+  },
+  {
+    id: "data",
+    label: "Data Sushi",
+    state: "beta",
+    primary: "Ocean batch / Oncompute",
+    fallback: "Paid fallback only when enabled",
+    enabled: true,
+    defaultMaxInputTokens: 8000,
+    defaultMaxOutputTokens: 900,
+    aliases: ["data-sushi", "embed-bowl", "embeddings"],
+    modelAliases: ["fish-data", "fish-data-sushi"],
+    batch: {
+      taskType: "embeddings",
+      defaultMaxRuntimeSeconds: 900,
+      defaultMaxCostUsd: 1.25
+    }
   },
   {
     id: "images",
@@ -157,6 +219,18 @@ export function fishFeatureIdFromModel(model: string | undefined) {
   return findFeatureDefinition(model)?.id ?? null;
 }
 
+export function getFishBatchFeatureConfig(id: FishFeatureId) {
+  const definition = FEATURE_DEFINITIONS.find((candidate) => candidate.id === id);
+  if (!definition?.batch) {
+    return null;
+  }
+  return {
+    featureId: definition.id,
+    label: definition.label,
+    ...definition.batch
+  };
+}
+
 function getFishFeaturePolicyById(id: FishFeatureId, routerConfig: FishRouterConfig) {
   return buildPolicy(FEATURE_DEFINITIONS.find((definition) => definition.id === id) ?? FEATURE_DEFINITIONS.at(-1)!, routerConfig);
 }
@@ -206,7 +280,7 @@ function buildPolicy(definition: FishFeatureDefinition, routerConfig: FishRouter
 }
 
 function featurePrimary(definition: FishFeatureDefinition, routerConfig: FishRouterConfig) {
-  if (!definition.enabled || definition.id === "api" || definition.id === "docs") {
+  if (!definition.enabled || definition.id === "api" || definition.batch) {
     return definition.primary;
   }
   const activeRoute = routerConfig.routes[routerConfig.activeRouteId];

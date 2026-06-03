@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The first Ocean batch path gives the Docs dish a clean backend contract without pretending that live Ocean batch execution is already configured.
+The first Ocean batch path gives Fish dishes a clean backend contract without pretending that live Ocean batch execution is already configured.
 
 Fish accepts a hash or storage reference, reserves Fish Credits, runs a sample or private batch adapter, writes a public-safe batch receipt, and then writes a normal Fish usage receipt for successful jobs.
 
@@ -29,11 +29,22 @@ Request shape:
 }
 ```
 
-`inputRef` is a hash or storage reference. Do not send raw document text to this endpoint.
+`inputRef` is a hash or storage reference. Do not send raw document text, repo text, datasets, or output text to this endpoint.
 
 Fish checks `maxCostUsd` against the remaining `FISH_OCEAN_BATCH_DAILY_BUDGET_USD` before calling a private adapter. The default daily cap is `$30`.
 
-`/v1/chat/completions` with `model: "fish-docs"` generates a hash-only `inputRef`, uses this batch contract, and returns an OpenAI-style chat response with batch receipt metadata. The generated batch request is capped by `FISH_DOCS_BATCH_MAX_RUNTIME_SECONDS` and `FISH_DOCS_BATCH_MAX_COST_USD`.
+`/v1/chat/completions` and `/api/dishes/:dishId/run` generate a hash-only `inputRef`, use this batch contract, and return an OpenAI-style response with batch receipt metadata for Ocean batch dishes.
+
+Current dish mapping:
+
+| Dish | Model alias | Task type | Default cap |
+| --- | --- | --- | --- |
+| Docs Bento | `fish-docs` | `document_summary` | 600 seconds / $1.00 |
+| Repo Roll | `fish-repo` | `structured_extraction` | 900 seconds / $1.50 |
+| Eval Platter | `fish-eval` | `batch_chat` | 1200 seconds / $2.00 |
+| Data Sushi | `fish-data` | `embeddings` | 900 seconds / $1.25 |
+
+Per-dish overrides use `FISH_<DISH>_BATCH_MAX_RUNTIME_SECONDS` and `FISH_<DISH>_BATCH_MAX_COST_USD`, where `<DISH>` is `DOCS`, `REPO`, `EVAL`, or `DATA`.
 
 ## Adapter Modes
 
@@ -91,7 +102,7 @@ Fish rejects successful adapter responses that exceed `maxCostUsd`, exceed token
 ## Privacy Rules
 
 - No raw prompt text.
-- No raw document text.
+- No raw dish input text.
 - No full output text in public receipts.
 - No provider endpoint URLs or API keys in public responses.
 - Batch receipts live under ignored `data/ocean-batch/`.

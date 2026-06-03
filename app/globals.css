@@ -70,9 +70,10 @@ textarea {
 }
 
 .fish-home-hero-bg {
-  background-image: url("/assets/generated/fish-market-hero.png");
-  background-position: 72% calc(50% + 4rem);
-  background-size: cover;
+  background-image: url("/assets/generated/fish-dish-menu-market.webp");
+  background-position: 53% 5rem;
+  background-repeat: no-repeat;
+  background-size: 180% auto;
 }
 
 .fish-proof-hero-image {
@@ -85,7 +86,8 @@ textarea {
 
 @media (min-width: 768px) {
   .fish-home-hero-bg {
-    background-position: center calc(50% + 4rem);
+    background-position: center;
+    background-size: cover;
   }
 
   .fish-proof-hero-image,

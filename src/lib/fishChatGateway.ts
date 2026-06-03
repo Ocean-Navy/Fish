@@ -17,7 +17,7 @@ import {
 } from "@/lib/fishLedger";
 import { ExternalChatError, runExternalChat } from "@/lib/externalChat";
 import { tryAcquireFishConcurrencySlot } from "@/lib/fishConcurrency";
-import { getFishFeaturePolicy } from "@/lib/fishFeaturePolicy";
+import { getFishBatchFeatureConfig, getFishFeaturePolicy, type FishBatchTaskType, type FishFeatureId } from "@/lib/fishFeaturePolicy";
 import { buildFishKnowledgeContext } from "@/lib/fishKnowledge";
 import { checkRouteDailyBudget, type RouteBudgetCheck } from "@/lib/fishBudget";
 import { spendDailyQuota } from "@/lib/fishQuota";
@@ -72,6 +72,7 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
 
   const routerConfig = getFishRouterConfig();
   const featurePolicy = getFishFeaturePolicy(input.metadata, routerConfig, input.model);
+  const batchFeature = getFishBatchFeatureConfig(featurePolicy.id);
   const privacyPreference = readFishPrivacyPreference(input.metadata);
   const modelAccess = checkFishModelAccess(input.model, context.account.planId);
   const originalPromptText = messagesToText(input);
@@ -136,16 +137,16 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
     });
   }
 
-  const docsPrivacy =
-    featurePolicy.id === "docs"
+  const batchPrivacy =
+    batchFeature
       ? resolveFishPrivacy({
           route: "ocean-batch",
           requestedPrivacyMode: privacyPreference.requestedPrivacyMode,
           allowPrivacyDowngrade: privacyPreference.allowPrivacyDowngrade
         })
       : null;
-  if (docsPrivacy && !docsPrivacy.ok) {
-    return privacyModeError(docsPrivacy);
+  if (batchPrivacy && !batchPrivacy.ok) {
+    return privacyModeError(batchPrivacy);
   }
 
   const plan = getFishPlan(context.account.planId);
@@ -171,20 +172,21 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
     });
   }
 
-  if (featurePolicy.id === "docs") {
-    if (!docsPrivacy?.ok) {
-      return jsonError(500, "docs_privacy_state_missing", "privacy_error");
+  if (batchFeature) {
+    if (!batchPrivacy?.ok) {
+      return jsonError(500, "batch_privacy_state_missing", "privacy_error");
     }
-    return runDocsBatchChatGateway({
+    return runBatchChatGateway({
       input,
       context,
       promptText,
       promptTokens,
       maxOutputTokens: requestedMaxOutputTokens,
       featureLabel: featurePolicy.label,
+      batchFeature,
       monthlyRequests,
       rateLimit,
-      privacy: docsPrivacy.privacy
+      privacy: batchPrivacy.privacy
     });
   }
 
@@ -668,13 +670,20 @@ function budgetExceededError(check: Extract<RouteBudgetCheck, { ok: false }>) {
   });
 }
 
-async function runDocsBatchChatGateway(params: {
+async function runBatchChatGateway(params: {
   input: ChatCompletionInput;
   context: FishChatGatewayContext;
   promptText: string;
   promptTokens: number;
   maxOutputTokens: number;
   featureLabel: string;
+  batchFeature: {
+    featureId: FishFeatureId;
+    label: string;
+    taskType: FishBatchTaskType;
+    defaultMaxRuntimeSeconds: number;
+    defaultMaxCostUsd: number;
+  };
   monthlyRequests: Extract<Awaited<ReturnType<typeof checkFishMonthlyRequestLimit>>, { ok: true }>;
   rateLimit: Extract<ReturnType<typeof spendFishMinuteRateLimit>, { ok: true }>;
   privacy: FishUsagePrivacy;
@@ -682,17 +691,18 @@ async function runDocsBatchChatGateway(params: {
   const inputRef = hashInputRef(params.promptText);
   const result = await runOceanBatchJob(
     {
-      taskType: "document_summary",
+      taskType: params.batchFeature.taskType,
       inputRef,
       estimatedInputTokens: params.promptTokens,
       maxOutputTokens: params.maxOutputTokens,
-      maxRuntimeSeconds: readDocsBatchMaxRuntimeSeconds(),
-      maxCostUsd: readDocsBatchMaxCostUsd(),
+      maxRuntimeSeconds: readBatchMaxRuntimeSeconds(params.batchFeature.featureId, params.batchFeature.defaultMaxRuntimeSeconds),
+      maxCostUsd: readBatchMaxCostUsd(params.batchFeature.featureId, params.batchFeature.defaultMaxCostUsd),
       adapterMode: process.env.FISH_OCEAN_BATCH_ENDPOINT?.trim() ? "ocean_http" : "sample_success"
     },
     {
       ledger: params.context.ledger,
       account: params.context.account,
+      featureId: params.batchFeature.featureId,
       privacy: params.privacy,
       quota: {
         principalId: params.context.principalId,
@@ -724,7 +734,7 @@ async function runDocsBatchChatGateway(params: {
           index: 0,
           message: {
             role: "assistant",
-            content: docsBatchCompletionText(result.receipt)
+            content: batchCompletionText(params.featureLabel, result.receipt)
           },
           finish_reason: "stop"
         }
@@ -786,23 +796,26 @@ function privacyModeError(decision: Extract<ReturnType<typeof resolveFishPrivacy
   });
 }
 
-function docsBatchCompletionText(receipt: { sourceState: string; receiptId: string; jobId: string; hashes: { outputHash: string | null } }) {
-  const path = receipt.sourceState === "snapshot" ? "Fish sent a hash-only job reference to the private Ocean batch adapter." : "Fish created a sample hash-only Docs batch receipt because no private Ocean batch adapter is configured.";
-  return `${path}\n\nBatch receipt: ${receipt.receiptId}\nJob: ${receipt.jobId}\nOutput reference: ${receipt.hashes.outputHash ?? "not available"}`;
+function batchCompletionText(featureLabel: string, receipt: { sourceState: string; receiptId: string; jobId: string; hashes: { outputHash: string | null } }) {
+  const path =
+    receipt.sourceState === "snapshot"
+      ? `Fish sent the ${featureLabel} job reference to the private Ocean batch kitchen.`
+      : `Fish prepared a sample ${featureLabel} receipt because the private Ocean batch kitchen is not configured yet.`;
+  return `${path}\n\nTicket: ${receipt.receiptId}\nJob: ${receipt.jobId}\nOutput reference: ${receipt.hashes.outputHash ?? "not available"}`;
 }
 
 function hashInputRef(value: string) {
   return `sha256:${createHash("sha256").update(value).digest("hex")}`;
 }
 
-function readDocsBatchMaxCostUsd() {
-  const parsed = Number(process.env.FISH_DOCS_BATCH_MAX_COST_USD ?? "1");
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 1;
+function readBatchMaxCostUsd(featureId: FishFeatureId, fallback: number) {
+  const parsed = Number(process.env[`FISH_${featureId.toUpperCase()}_BATCH_MAX_COST_USD`] ?? fallback);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
 }
 
-function readDocsBatchMaxRuntimeSeconds() {
-  const parsed = Number(process.env.FISH_DOCS_BATCH_MAX_RUNTIME_SECONDS ?? "600");
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : 600;
+function readBatchMaxRuntimeSeconds(featureId: FishFeatureId, fallback: number) {
+  const parsed = Number(process.env[`FISH_${featureId.toUpperCase()}_BATCH_MAX_RUNTIME_SECONDS`] ?? fallback);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
 
 async function releaseReservationAndReturn(

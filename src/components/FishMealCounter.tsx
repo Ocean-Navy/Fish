@@ -1,9 +1,13 @@
 "use client";
 
 import {
+  ChefHat,
+  ClipboardCheck,
   Code2,
+  Database,
   FileText,
   Fish,
+  GitBranch,
   ImageIcon,
   KeyRound,
   Lightbulb,
@@ -11,10 +15,11 @@ import {
   MessageSquareText,
   PenTool,
   Send,
-  Sparkles,
+  Utensils,
   Waves
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { FISH_DISHES, type FishDishDefinition } from "@/lib/fishDishes";
 
@@ -83,6 +88,9 @@ const dishIcons: Record<string, LucideIcon> = {
   code: Code2,
   explain: Lightbulb,
   docs: FileText,
+  repo: GitBranch,
+  eval: ClipboardCheck,
+  data: Database,
   images: ImageIcon,
   proposal: PenTool,
   ocean: Waves
@@ -93,6 +101,9 @@ const dishes: FishDish[] = FISH_DISHES.map((dish) => ({
   icon: dishIcons[dish.id] ?? MessageSquareText,
   disabled: !dish.enabled
 }));
+const oceanBatchDishes = dishes.filter((dish) => dish.lane === "batch");
+const quickDishes = dishes.filter((dish) => dish.lane === "warm");
+const futureDishes = dishes.filter((dish) => dish.lane === "future");
 
 function readStoredModel() {
   if (typeof window === "undefined") {
@@ -266,133 +277,34 @@ export function FishMealCounter() {
     }
   }
 
-  async function createDocsBatchReceipt() {
-    const key = apiKey.trim();
-    const userPrompt = prompt.trim();
-    if (activeDish.id !== "docs") {
-      setError("Batch receipts are for Docs Bento.");
-      return;
-    }
-    if (!key) {
-      setError("Add a Fish API key for batch receipts.");
-      return;
-    }
-    if (!userPrompt) {
-      setError("Add docs or notes first.");
-      return;
-    }
-
-    setIsLoading(true);
-    setError(null);
-    setResult(null);
-
-    try {
-      const inputRef = await sha256Ref(userPrompt);
-      const adapterMode = routePolicy?.backend?.oceanBatchConfigured ? "ocean_http" : "sample_success";
-      const response = await fetch("/api/ocean/batch/jobs", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          authorization: `Bearer ${key}`
-        },
-        body: JSON.stringify({
-          taskType: "document_summary",
-          inputRef,
-          estimatedInputTokens: estimateInputTokens(userPrompt),
-          maxOutputTokens: Math.min(orderMaxTokens, 512),
-          maxRuntimeSeconds: 600,
-          maxCostUsd: 1,
-          adapterMode
-        })
-      });
-      const payload = await response.json();
-      if (!response.ok) {
-        throw new Error(getErrorMessage(payload));
-      }
-
-      const receipt = payload.receipt;
-      const usageReceipt = payload.usageReceipt;
-      const sourceState = receipt?.sourceState ?? "sample";
-      setResult({
-        dishTitle: activeDish.title,
-        content:
-          sourceState === "snapshot"
-            ? "Docs batch receipt created. Fish sent a hash-only job reference to the private batch adapter."
-            : "Sample Docs batch receipt created. Fish kept this hash-only while the private Ocean batch adapter is not configured.",
-        model: receipt?.model ?? "ocean-batch-placeholder",
-        route: usageReceipt?.route ?? "ocean-provider",
-        costState: usageReceipt?.costState ?? receipt?.cost?.pricingState,
-        receiptId: usageReceipt?.id,
-        creditsSpent: usageReceipt?.creditsSpent,
-        creditsRemaining: payload.creditsRemaining,
-        userChargeUsd: usageReceipt?.userChargeUsd,
-        providerCostUsd: receipt?.cost?.providerCostUsd,
-        totalTokens: receipt?.usage?.totalTokens,
-        privacyMode: payload.fish?.privacy?.acceptedPrivacyMode ?? usageReceipt?.privacy?.acceptedPrivacyMode,
-        privacyDowngradeReason: payload.fish?.privacy?.privacyDowngradeReason ?? usageReceipt?.privacy?.privacyDowngradeReason,
-        rawPromptSentTo: payload.fish?.privacy?.rawPromptSentTo ?? usageReceipt?.privacy?.rawPromptSentTo,
-        batchReceiptId: receipt?.receiptId,
-        batchJobId: receipt?.jobId,
-        batchSourceState: sourceState,
-        batchAdapterMode: receipt?.adapterMode,
-        inputRef,
-        accessMode: "key"
-      });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Request failed.");
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
   return (
     <div className="grid gap-5 lg:grid-cols-[0.9fr_1.1fr]">
       <section className="space-y-4">
         <div className="rounded-[2rem] border border-fish-accent/25 bg-fish-surface/80 p-5 shadow-harbor sm:p-7">
           <div className="flex items-center gap-3">
             <span className="grid h-12 w-12 place-items-center rounded-2xl bg-fish-accent/15 text-fish-accent">
-              <Sparkles className="h-6 w-6" aria-hidden="true" />
+              <Utensils className="h-6 w-6" aria-hidden="true" />
             </span>
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">AI menu</p>
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">Fish market</p>
               <h2 className="text-3xl font-black text-white">Pick a dish.</h2>
             </div>
           </div>
 
-          <div className="mt-5 grid gap-3 sm:grid-cols-2">
-            {dishes.map((dish) => {
-              const Icon = dish.icon;
-              const isActive = dish.id === activeDish.id;
-              return (
-                <button
-                  key={dish.id}
-                  type="button"
-                  onClick={() => selectDish(dish.id)}
-                  aria-pressed={isActive}
-                  disabled={Boolean(dish.disabled)}
-                  className={`group min-h-40 rounded-[1.5rem] border p-4 text-left transition ${
-                    isActive
-                      ? "border-fish-accent bg-fish-accent/10 ring-2 ring-fish-accent/25"
-                      : dish.disabled
-                        ? "cursor-not-allowed border-white/10 bg-white/[0.02] opacity-65"
-                      : "border-fish-accent/18 bg-white/[0.035] hover:border-fish-accent/55"
-                  }`}
-                >
-                  <span className="flex items-start justify-between gap-3">
-                    <span className="grid h-11 w-11 place-items-center rounded-2xl bg-fish-navy950/70 text-fish-accent ring-1 ring-fish-accent/25">
-                      <Icon className="h-5 w-5" aria-hidden="true" />
-                    </span>
-                    <span className="rounded-full border border-fish-gold/25 bg-fish-gold/10 px-3 py-1 text-[0.68rem] font-black uppercase tracking-[0.08em] text-fish-gold">
-                      {dish.status}
-                    </span>
-                  </span>
-                  <span className="mt-4 block text-2xl font-black text-white">{dish.title}</span>
-                  <span className="mt-1 block text-sm font-black text-fish-accent">{dish.subtitle}</span>
-                  <span className="mt-2 block text-sm font-bold leading-6 text-fish-secondary">{dish.short}</span>
-                </button>
-              );
-            })}
+          <div className="relative mt-5 aspect-[16/9] overflow-hidden rounded-[1.5rem] border border-fish-accent/20 bg-fish-navy950">
+            <Image
+              src="/assets/generated/fish-dish-menu-market.webp"
+              alt=""
+              fill
+              sizes="(min-width: 1024px) 38vw, 100vw"
+              className="object-cover"
+              priority={false}
+            />
           </div>
+
+          <DishSection title="Ocean batch dishes" dishes={oceanBatchDishes} activeDishId={activeDish.id} onSelect={selectDish} />
+          <DishSection title="Quick tastes" dishes={quickDishes} activeDishId={activeDish.id} onSelect={selectDish} compact />
+          <DishSection title="Later" dishes={futureDishes} activeDishId={activeDish.id} onSelect={selectDish} compact />
 
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
             <a className="rounded-[1.25rem] border border-fish-accent/18 bg-fish-navy950/45 p-4 transition hover:border-fish-accent/55" href="/api">
@@ -499,7 +411,7 @@ export function FishMealCounter() {
             className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-fish-accent to-fish-aqua px-6 text-sm font-black text-fish-navy950 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isLoading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Send className="h-4 w-4" aria-hidden="true" />}
-            Place order
+            {activeDish.oceanBatch ? "Send to kitchen" : "Place order"}
           </button>
           <button
             type="button"
@@ -513,24 +425,10 @@ export function FishMealCounter() {
           </button>
         </div>
 
-        {activeDish.id === "docs" ? (
-          <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto]">
-            <div className="rounded-2xl border border-fish-accent/15 bg-white/[0.035] p-4 text-sm font-bold leading-6 text-fish-secondary">
-              Batch receipts use a hash of your docs, not the raw text.
-            </div>
-            <button
-              type="button"
-              onClick={createDocsBatchReceipt}
-              disabled={isLoading}
-              className="inline-flex h-12 items-center justify-center rounded-full border border-fish-accent/30 px-5 text-sm font-black text-fish-accent hover:border-fish-accent hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              Batch receipt
-            </button>
-          </div>
-        ) : null}
-
         <div className="mt-5 rounded-[1.5rem] border border-fish-accent/15 bg-white/[0.035] p-4 text-sm font-bold leading-6 text-fish-secondary">
-          No key needed for a small daily demo. API keys unlock balances, usage history, and higher caps.
+          {activeDish.oceanBatch
+            ? `${activeDish.oceanBatch.inputLabel} becomes a hash-only kitchen ticket. Public proof does not show the raw order.`
+            : "No key needed for a small daily demo. API keys unlock balances, usage history, and higher caps."}
         </div>
 
         <div className="mt-5 min-h-80 rounded-[1.5rem] border border-fish-accent/18 bg-fish-navy950/45 p-5">
@@ -573,14 +471,17 @@ export function FishMealCounter() {
               ) : null}
               {result.batchReceiptId ? (
                 <div className="mt-3 rounded-2xl border border-fish-accent/15 bg-white/[0.035] p-4 text-xs font-bold leading-6 text-fish-secondary">
+                  <p className="mb-2 text-sm font-black text-fish-primary">
+                    {activeDish.oceanBatch?.proofLabel ?? "Kitchen receipt"}
+                  </p>
                   <p>
-                    Batch receipt: <span className="break-all text-fish-accent">{result.batchReceiptId}</span>
+                    Ticket: <span className="break-all text-fish-accent">{result.batchReceiptId}</span>
                   </p>
                   <p>
                     Job: <span className="break-all text-fish-primary">{result.batchJobId}</span>
                   </p>
                   <p>
-                    State: <span className="text-fish-primary">{formatBadge(result.batchSourceState ?? "")}</span> / {formatBadge(result.batchAdapterMode ?? "")}
+                    Kitchen: <span className="text-fish-primary">{formatBadge(result.batchSourceState ?? "")}</span> / {formatBadge(result.batchAdapterMode ?? "")}
                   </p>
                   <p>
                     Input ref: <span className="break-all text-fish-primary">{result.inputRef}</span>
@@ -610,6 +511,66 @@ export function FishMealCounter() {
           )}
         </div>
       </section>
+    </div>
+  );
+}
+
+function DishSection({
+  title,
+  dishes: sectionDishes,
+  activeDishId,
+  onSelect,
+  compact = false
+}: {
+  title: string;
+  dishes: FishDish[];
+  activeDishId: string;
+  onSelect: (dishId: string) => void;
+  compact?: boolean;
+}) {
+  if (!sectionDishes.length) {
+    return null;
+  }
+  return (
+    <div className="mt-5">
+      <div className="mb-3 flex items-center gap-2">
+        <ChefHat className="h-4 w-4 text-fish-gold" aria-hidden="true" />
+        <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">{title}</p>
+      </div>
+      <div className={`grid gap-3 ${compact ? "sm:grid-cols-2" : "sm:grid-cols-2"}`}>
+        {sectionDishes.map((dish) => {
+          const Icon = dish.icon;
+          const isActive = dish.id === activeDishId;
+          return (
+            <button
+              key={dish.id}
+              type="button"
+              onClick={() => onSelect(dish.id)}
+              aria-pressed={isActive}
+              disabled={Boolean(dish.disabled)}
+              className={`group rounded-[1.5rem] border p-4 text-left transition ${compact ? "min-h-32" : "min-h-40"} ${
+                isActive
+                  ? "border-fish-accent bg-fish-accent/10 ring-2 ring-fish-accent/25"
+                  : dish.disabled
+                    ? "cursor-not-allowed border-white/10 bg-white/[0.02] opacity-65"
+                    : "border-fish-accent/18 bg-white/[0.035] hover:border-fish-accent/55"
+              }`}
+            >
+              <span className="flex items-start justify-between gap-3">
+                <span className="grid h-11 w-11 place-items-center rounded-2xl bg-fish-navy950/70 text-fish-accent ring-1 ring-fish-accent/25">
+                  <Icon className="h-5 w-5" aria-hidden="true" />
+                </span>
+                <span className="rounded-full border border-fish-gold/25 bg-fish-gold/10 px-3 py-1 text-[0.68rem] font-black uppercase tracking-[0.08em] text-fish-gold">
+                  {dish.status}
+                </span>
+              </span>
+              <span className="mt-4 block text-2xl font-black text-white">{dish.title}</span>
+              <span className="mt-1 block text-sm font-black text-fish-accent">{dish.subtitle}</span>
+              <span className="mt-2 block text-sm font-bold leading-6 text-fish-secondary">{dish.short}</span>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -662,16 +623,4 @@ function formatRouteLabel(value: string) {
     return "Outside AI";
   }
   return value;
-}
-
-function estimateInputTokens(value: string) {
-  return Math.max(1, Math.ceil(value.length / 4));
-}
-
-async function sha256Ref(value: string) {
-  const bytes = new TextEncoder().encode(value);
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
-  return `sha256:${Array.from(new Uint8Array(digest))
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("")}`;
 }

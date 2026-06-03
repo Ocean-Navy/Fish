@@ -159,10 +159,10 @@ export function getFishRoutePolicy(): FishRoutePolicy {
       },
       {
         id: "ocean-batch",
-        title: "Docs batch",
+        title: "Batch kitchen",
         state: oceanBatchConfigured ? "ready" : "pilot",
-        short: "Hash-only Docs jobs for batch work.",
-        privacy: "Fish sends input references, not raw document text.",
+        short: "Hash-only dish jobs for batch work.",
+        privacy: "Fish sends input references, not raw order text.",
         proof: "Ocean batch receipt plus normal Fish usage record."
       },
       {

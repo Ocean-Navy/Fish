@@ -19,7 +19,7 @@ const cards = [
   { label: "Live now", title: "/api/health", body: "Simple readiness check for deploys and server monitoring." },
   { label: "Live now", title: "/api/ocean/summary", body: "Dashboard summary with source-state labels and Ocean compute supply." },
   { label: "Live now", title: "/api/dashboard/summary", body: "One public summary for Fish usage, route status, warm AI readiness, and Ocean supply." },
-  { label: "Pilot", title: "/api/ocean/batch/jobs", body: "Hash-only Docs batch receipt path, sample until a private Ocean batch adapter is connected." },
+  { label: "Pilot", title: "/api/ocean/batch/jobs", body: "Hash-only batch dish receipt path, sample until a private Ocean batch adapter is connected." },
   { label: "Live now", title: "/api/waitlist", body: "Demand intake for users, builders, holders, and ecosystem partners." },
   { label: "Live now", title: "/api/warm/status", body: "Public-safe readiness for the active warm Ocean route." },
   { label: "Crew only", title: "/api/ocean/provider-readiness", body: "Admin check for selected-provider config, proof endpoint, models, and optional chat probe." },
