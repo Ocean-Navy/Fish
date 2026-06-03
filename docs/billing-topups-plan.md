@@ -4,7 +4,7 @@
 
 This plan covers the commercial Fish Credits layer before tokenized credits. It turns the current prototype credit ledger into a safer path toward free credits, subscriptions, prepaid top-ups, usage analytics, and payment integration.
 
-Billing is not provider settlement. Users can pay with Fish Credits, subscription credits, prepaid balance, fiat, or USDC later, but selected providers should be paid from hard settlement funds, reserves, or funded budgets.
+Billing is not provider settlement. Users can pay with Fish Credits, subscription credits, prepaid balance, card checkout, or USDC once the relevant provider secrets are configured, but selected providers should be paid from hard settlement funds, reserves, or funded budgets.
 
 ## Principles
 
@@ -86,7 +86,7 @@ operatorReason
 
 Fish has a simple pricing/limits model without over-promising token mechanics.
 
-Current prototype status: `/api/billing/plans` exposes Free, Pro, Team/API, and Provider-test plan metadata. `/api/billing/subscriptions` lets an operator activate a pilot plan, set expiry metadata, and grant subscription credits with idempotency protection. `/v1/balance` and `/account` show the account plan, source, start time, and expiry. Public checkout is still future-gated.
+Current prototype status: `/api/billing/plans` exposes Free, Pro, Team/API, and Provider-test plan metadata. `/api/billing/subscriptions` lets an operator activate a pilot plan, set expiry metadata, and grant subscription credits with idempotency protection. `/v1/balance` and `/account` show the account plan, source, start time, and expiry. Public subscription checkout is still future-gated; prepaid top-ups now have Stripe and USDC checkout paths when configured.
 
 ### Initial Plan Shape
 
@@ -123,7 +123,7 @@ oceanProviderAllowed
 
 Users can add prepaid balance after the product loop is proven.
 
-Current prototype status: `/api/billing/topups` lets an operator add credits to a pilot account with `x-fish-admin-token`. It is for grants and controlled prepaid testing only; public checkout is still future-gated.
+Current prototype status: `/api/billing/topups` lets an operator add credits to a pilot account with `x-fish-admin-token`. `/api/billing/checkout/stripe` creates Stripe Checkout sessions for prepaid credits, `/api/billing/webhooks/stripe` verifies Stripe signatures before credit issuance, `/api/billing/checkout/usdc` creates Base USDC payment requests, and `/api/billing/checkout/usdc/confirm` verifies an ERC-20 transfer through the configured RPC before credit issuance. The USDC checkout request can include `payerAddress`; when supplied, Fish requires the verified transfer sender to match it.
 
 ### Required Controls
 
@@ -144,6 +144,10 @@ GET  /v1/billing/usage
 GET  /v1/billing/usage-analytics
 POST /api/billing/topups
 POST /api/billing/subscriptions
+POST /api/billing/checkout/stripe
+POST /api/billing/webhooks/stripe
+POST /api/billing/checkout/usdc
+POST /api/billing/checkout/usdc/confirm
 POST /v1/topups
 POST /v1/admin/grants
 ```
@@ -190,11 +194,11 @@ subscription credits remaining
 
 ### Outcome
 
-The team can decide whether to connect Stripe, crypto checkout, or both.
+The team can operate Stripe and Base USDC prepaid top-ups safely enough for a capped public pilot.
 
 ### Required Work
 
-- payment provider choice;
+- payment provider choice; Stripe and Base USDC are the current implementation targets;
 - webhook idempotency;
 - tax and invoice assumptions;
 - refund and support flow;
@@ -212,10 +216,10 @@ The team can decide whether to connect Stripe, crypto checkout, or both.
 
 ## Public Page Requirements
 
-`/account` should keep checkout future-gated while showing the live pilot account facts:
+`/account` should show payment controls only as prepaid credit top-ups:
 
 - current balance and receipts are live prototype features;
-- operator-activated plan credits and top-ups are pilot features;
+- operator-activated plan credits, card top-ups, and USDC top-ups are pilot features;
 - credits need backing from revenue, reserves, or funded budgets;
 - no token, yield, or provider-payment promises.
 

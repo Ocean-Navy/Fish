@@ -7,12 +7,13 @@ import type { ReactNode } from "react";
 import { formatCompact, formatDateTime, formatNumber, formatUsd } from "@/lib/format";
 import type { BenchmarkSummary } from "@/lib/providerBenchmarks";
 import type { OceanBatchSummary } from "@/lib/oceanBatch";
+import type { OceanProofReadiness } from "@/lib/oceanProofReadiness";
 import type { ProofSummary } from "@/lib/providerJobs";
 import type { ProviderScorecardSummary } from "@/lib/providerScorecard";
 import type { DataState } from "@/lib/types";
 import { StatusBadge } from "@/components/StatusBadge";
 
-export function PublicProofPage({ proof, scorecard, benchmarks, batch }: { proof: ProofSummary; scorecard: ProviderScorecardSummary; benchmarks: BenchmarkSummary; batch: OceanBatchSummary }) {
+export function PublicProofPage({ proof, scorecard, benchmarks, batch, oceanProof }: { proof: ProofSummary; scorecard: ProviderScorecardSummary; benchmarks: BenchmarkSummary; batch: OceanBatchSummary; oceanProof: OceanProofReadiness }) {
   const hasLiveProof = proof.dataState === "live" && proof.verifiedReceipts > 0;
   const providerRows = scorecard.rows.filter((row) => row.selected || row.jobsRouted || row.benchmarkRuns).slice(0, 4);
   const receiptRows = proof.receipts.slice(0, 5);
@@ -66,6 +67,7 @@ export function PublicProofPage({ proof, scorecard, benchmarks, batch }: { proof
             <HeroCounter icon={ReceiptText} label="Proof records" value={formatCompact(proof.verifiedReceipts)} />
             <HeroCounter icon={Ship} label="Ocean jobs" value={formatCompact(proof.oceanJobsRouted)} />
             <HeroCounter icon={FileText} label="Batch dishes" value={formatCompact(batch.succeededJobs)} />
+            <HeroCounter icon={Gauge} label="Ocean gate" value={oceanProof.proofReady ? "Ready" : "Not yet"} />
             <HeroCounter icon={CircleDollarSign} label="Provider chest" value={formatUsd(proof.providerPayoutUsd)} />
           </div>
         </div>
@@ -78,6 +80,42 @@ export function PublicProofPage({ proof, scorecard, benchmarks, batch }: { proof
           <ProofTile label="Batch dishes" value={formatCompact(batch.jobs)} detail={batch.dataState === "sample" ? "sample path" : "private adapter"} />
           <ProofTile label="Providers paid" value={formatUsd(proof.payouts.totals.paid)} detail={`${formatUsd(proof.payouts.totals.outstandingUsd)} still open`} />
           <ProofTile label="Benchmark runs" value={formatCompact(benchmarks.totals.benchmarkRuns)} detail={`${formatCompact(benchmarks.totals.untestedCells)} untested routes`} />
+        </div>
+      </MetricGroup>
+
+      <MetricGroup title="Ocean Proof Gate" eyebrow="Milestone 3" state={oceanProof.dataState}>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <ProofTile label="Adapter" value={oceanProof.adapter.reachable ? "Reachable" : "Not ready"} detail={oceanProof.adapter.mode ? `mode ${oceanProof.adapter.mode}` : "no adapter"} />
+          <ProofTile label="Traffic gate" value={oceanProof.trafficReady ? "Ready" : "Blocked"} detail={oceanProof.adapter.liveReady ? "live adapter" : "needs live config"} />
+          <ProofTile label="Proof receipt" value={oceanProof.proof.hasNonSampleReceipt ? "Found" : "Missing"} detail={`${formatCompact(oceanProof.proof.nonSampleJobs)} non-sample jobs`} />
+          <ProofTile label="Daily budget" value={formatUsd(oceanProof.route.dailyBudgetUsd)} detail={oceanProof.route.batchEndpointConfigured ? "batch endpoint set" : "no batch endpoint"} />
+        </div>
+        <div className="mt-3 grid gap-3 lg:grid-cols-[1.1fr_0.9fr]">
+          <div className="rounded-[1.5rem] border border-fish-accent/20 bg-fish-surface/80 p-5 shadow-harbor">
+            <p className="text-xs font-black uppercase tracking-[0.12em] text-fish-gold">What blocks live proof?</p>
+            {oceanProof.blockers.length ? (
+              <ul className="mt-4 space-y-2">
+                {oceanProof.blockers.map((blocker) => (
+                  <li key={blocker} className="rounded-2xl border border-fish-coral/25 bg-fish-coral/10 p-3 text-sm font-black leading-6 text-fish-primary">
+                    {blocker}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-4 rounded-2xl border border-emerald-300/25 bg-emerald-400/10 p-3 text-sm font-black leading-6 text-emerald-100">Ocean workload proof is ready for public review.</p>
+            )}
+          </div>
+          <div className="rounded-[1.5rem] border border-fish-accent/20 bg-fish-surface/80 p-5 shadow-harbor">
+            <p className="text-xs font-black uppercase tracking-[0.12em] text-fish-gold">Selected pieces</p>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <MiniStat label="Node" value={yesNo(oceanProof.adapter.selected.nodeUrlConfigured)} />
+              <MiniStat label="Env" value={yesNo(oceanProof.adapter.selected.computeEnvIdConfigured)} />
+              <MiniStat label="Algo" value={yesNo(oceanProof.adapter.selected.algoDidConfigured)} />
+              <MiniStat label="Data" value={yesNo(oceanProof.adapter.selected.datasetDidsConfigured)} />
+              <MiniStat label="Output" value={yesNo(oceanProof.adapter.selected.outputConfigured)} />
+              <MiniStat label="Free" value={oceanProof.adapter.configuredForFreeCompute === null ? "-" : yesNo(oceanProof.adapter.configuredForFreeCompute)} />
+            </div>
+          </div>
         </div>
       </MetricGroup>
 
@@ -252,4 +290,8 @@ function statusClass(status: string) {
     return "bg-fish-accent/10 text-fish-secondary";
   }
   return "bg-red-500/15 text-red-100";
+}
+
+function yesNo(value: boolean) {
+  return value ? "Yes" : "No";
 }

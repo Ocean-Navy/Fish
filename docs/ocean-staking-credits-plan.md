@@ -26,6 +26,8 @@ operator verifies OCEAN lock intent
 GET  /api/staking/summary
 GET  /api/staking/positions
 POST /api/staking/positions
+GET  /api/staking/wallet-intents
+POST /api/staking/wallet-intents
 ```
 
 `POST /api/staking/positions` is admin-only and accepts:
@@ -39,6 +41,8 @@ POST /api/staking/positions
   "issueApiKey": true
 }
 ```
+
+`POST /api/staking/wallet-intents` is a website prototype for holders. It accepts a connected EVM address, chain id, intended OCEAN amount, lock days, a plain-language message, and an EVM signature. Fish stores only public-safe hashes and a short address prefix. This route does not issue credits and does not stake OCEAN; it records holder intent until a lock contract or operator verification flow exists.
 
 ## Budget Policy
 
@@ -63,4 +67,5 @@ Credits are capped by the remaining funded budget. If the budget is exhausted, p
 - Creating a funded position can issue a spendable Fish API key.
 - Public dashboard shows OCEAN staked, credits issued, credits spent, and budget remaining.
 - Public responses do not expose raw wallet references or API key hashes.
+- Wallet intent responses do not expose raw signatures or full wallet addresses.
 - Docker and Compose persist `/app/data/staking`.

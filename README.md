@@ -21,6 +21,8 @@ The public V0 is intentionally simple: a visual Venice fish-market homepage, rol
 - `/api/meal/order` for a capped guest meal-counter demo without exposing a Fish API key.
 - `/api/warm/status` for public-safe warm Ocean demo readiness without endpoint URLs or secrets.
 - `/api/ocean/batch/jobs` for hash-only Ocean batch dish receipts, sample by default until a private batch adapter is configured.
+- `/api/ocean/batch/readiness` for a public-safe Milestone 3 gate before claiming real Ocean workload proof.
+- `/credits` with an EVM wallet intent flow for future OCEAN lock credits; this records interest but does not stake tokens or issue credits.
 - `/chat` remains available as the same pilot AI meal counter for chat-oriented links.
 - Production Docker image, Docker Compose service, and public nginx/systemd deployment.
 - Warm inference operator runbook and minimal Fish Runner sidecar for a private vLLM MVP path.
@@ -77,6 +79,7 @@ Useful local routes:
 /api/ocean/summary
 /api/ocean/resources
 /api/ocean/batch/jobs
+/api/ocean/batch/readiness
 /api/billing/plans
 /api/billing/usage-analytics
 /api/routing/policy
@@ -91,6 +94,7 @@ Useful local routes:
 /api/proof/market-making
 /api/proof/payouts
 /api/staking/summary
+/api/staking/wallet-intents
 /api
 /docs
 /chat
@@ -235,6 +239,19 @@ FISH_EXTERNAL_PROVIDER_ID=external-compatible
 FISH_EXTERNAL_COST_USD_PER_1K_TOKENS=0
 FISH_EXTERNAL_FALLBACK_DAILY_BUDGET_USD=10
 FISH_EXTERNAL_FALLBACK_FREE_ALLOWED=false
+FISH_PUBLIC_APP_URL=http://127.0.0.1:3000
+FISH_MIN_CHECKOUT_USD=1
+FISH_MAX_CHECKOUT_USD=500
+FISH_STRIPE_SECRET_KEY=
+FISH_STRIPE_WEBHOOK_SECRET=
+FISH_STRIPE_WEBHOOK_TOLERANCE_SECONDS=300
+FISH_USDC_RECEIVE_ADDRESS=
+FISH_USDC_RPC_URL=
+FISH_USDC_CHAIN_ID=8453
+FISH_USDC_TOKEN_ADDRESS=0x833589fcD6EDb6E08f4c7C32D4f71b54bdA02913
+FISH_USDC_DECIMALS=6
+FISH_USDC_MIN_CONFIRMATIONS=1
+FISH_USDC_PAYMENT_TTL_MINUTES=60
 FISH_STAKING_CREDIT_BUDGET=10000
 FISH_STAKING_CREDITS_PER_OCEAN_MONTH=0.1
 ```
@@ -332,6 +349,43 @@ Check balance, credit lanes, and receipts:
 curl -sS http://127.0.0.1:3000/v1/balance -H "authorization: Bearer $FISH_API_KEY"
 curl -sS http://127.0.0.1:3000/v1/usage -H "authorization: Bearer $FISH_API_KEY"
 ```
+
+Add prepaid Fish Credits after checkout is configured:
+
+```bash
+curl -sS http://127.0.0.1:3000/api/billing/checkout/stripe \
+  -H 'content-type: application/json' \
+  -H "authorization: Bearer $FISH_API_KEY" \
+  -d '{"amountUsd":5}'
+```
+
+Set `FISH_STRIPE_SECRET_KEY`, `FISH_STRIPE_WEBHOOK_SECRET`, and `FISH_PUBLIC_APP_URL`. Configure Stripe to send signed webhooks to:
+
+```text
+https://<your-domain>/api/billing/webhooks/stripe
+```
+
+Fish accepts `checkout.session.completed`, verifies the Stripe signature, and grants `prepaid` credits idempotently by checkout session.
+
+USDC checkout uses Base USDC by default:
+
+```bash
+curl -sS http://127.0.0.1:3000/api/billing/checkout/usdc \
+  -H 'content-type: application/json' \
+  -H "authorization: Bearer $FISH_API_KEY" \
+  -d '{"amountUsd":5,"payerAddress":"0x..."}'
+```
+
+Set `FISH_USDC_RECEIVE_ADDRESS` and `FISH_USDC_RPC_URL`. The default token is Base USDC at `0x833589fcD6EDb6E08f4c7C32D4f71b54bdA02913`. After sending the exact amount, confirm it:
+
+```bash
+curl -sS http://127.0.0.1:3000/api/billing/checkout/usdc/confirm \
+  -H 'content-type: application/json' \
+  -H "authorization: Bearer $FISH_API_KEY" \
+  -d '{"paymentId":"pay_...","transactionHash":"0x..."}'
+```
+
+Fish verifies chain id, transaction success, confirmation count, token address, recipient address, and USDC amount before issuing credits. If `payerAddress` is supplied, Fish also requires the verified transfer sender to match it. The `/account` page can connect an injected EVM wallet and attach that address to the USDC payment request.
 
 Plan metadata is visible in balances and in the public catalog:
 
@@ -470,7 +524,16 @@ The response returns a one-time Fish API key when credits are issued. Public sta
 /api/staking/summary
 ```
 
-Staking positions are written under `data/staking/`, which is ignored by git. This is not an onchain staking contract; it is a funded-budget prototype for proving OCEAN lock intent, credit issuance, and credit spend.
+The `/credits` page also has a browser-wallet intent flow. It asks a holder to connect an EVM wallet, sign a plain-language OCEAN credit intent, and records only public-safe hashes plus an estimated credit amount:
+
+```text
+GET  /api/staking/wallet-intents
+POST /api/staking/wallet-intents
+```
+
+Wallet intents do not issue credits and do not stake OCEAN. They are a bridge toward a real lock contract or operator verification flow.
+
+Staking positions and wallet intents are written under `data/staking/`, which is ignored by git. This is not an onchain staking contract; it is a funded-budget prototype for proving OCEAN lock intent, credit issuance, and credit spend.
 
 ## Provider Benchmarks
 
@@ -518,6 +581,7 @@ The Ocean batch dish contract is available at:
 ```text
 GET /api/ocean/batch/jobs
 POST /api/ocean/batch/jobs
+GET /api/ocean/batch/readiness
 ```
 
 `POST` requires a Fish API key and accepts only hash/reference input through `inputRef`; it does not accept or store raw input text. `adapterMode: "sample_success"` is the default local proof mode. Set `adapterMode: "ocean_http"` only when `FISH_OCEAN_BATCH_ENDPOINT` points to a private Oncompute/Ocean batch adapter. Fish checks `maxCostUsd` against `FISH_OCEAN_BATCH_DAILY_BUDGET_USD` before calling the batch adapter. Public proof must show tickets and hashes, not raw order data.
@@ -534,6 +598,8 @@ Batch dishes sent through `/v1/chat/completions` or `/api/dishes/:dishId/run` us
 Per-dish runtime and cost caps can be set with `FISH_DOCS_BATCH_MAX_RUNTIME_SECONDS`, `FISH_DOCS_BATCH_MAX_COST_USD`, `FISH_REPO_BATCH_MAX_RUNTIME_SECONDS`, `FISH_REPO_BATCH_MAX_COST_USD`, `FISH_EVAL_BATCH_MAX_RUNTIME_SECONDS`, `FISH_EVAL_BATCH_MAX_COST_USD`, `FISH_DATA_BATCH_MAX_RUNTIME_SECONDS`, and `FISH_DATA_BATCH_MAX_COST_USD`.
 
 Batch receipts are written under `data/ocean-batch/`, and successful jobs also write Fish usage receipts so the public dashboard can count them as Ocean-native usage. See `docs/ocean-batch-jobs-plan.md` for the adapter contract.
+
+`/api/ocean/batch/readiness` and `/proof` show whether the private adapter is configured, reachable, live-ready, and backed by at least one successful non-sample Ocean batch receipt. The readiness response exposes booleans and blockers only; it does not expose adapter URLs, wallet secrets, API keys, prompt text, or output text.
 
 ## Repository Structure
 

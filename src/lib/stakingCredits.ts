@@ -83,7 +83,7 @@ export function parseStakingPositionRequest(body: unknown) {
 export async function createStakingPosition(input: StakingPositionRequestInput) {
   const positions = await readPositions();
   const now = new Date();
-  const earnedCredits = calculateCredits(input.oceanAmount, input.lockDays);
+  const earnedCredits = calculateStakingCredits(input.oceanAmount, input.lockDays);
   const budgetRemaining = Math.max(0, DEFAULT_CREDIT_BUDGET - sum(positions.map((position) => position.creditsIssued)));
   const creditsIssued = Math.min(earnedCredits, budgetRemaining);
   const accountResult = input.issueApiKey && creditsIssued > 0 ? await createApiKey(`Stake credits - ${input.holderLabel}`, creditsIssued) : null;
@@ -187,7 +187,7 @@ async function readPositions(): Promise<StakingPosition[]> {
   }
 }
 
-function calculateCredits(oceanAmount: number, lockDays: number) {
+export function calculateStakingCredits(oceanAmount: number, lockDays: number) {
   return Math.max(1, Math.floor(oceanAmount * (lockDays / 30) * DEFAULT_CREDITS_PER_OCEAN_MONTH));
 }
 

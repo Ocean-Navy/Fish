@@ -279,6 +279,19 @@ FISH_EXTERNAL_PROVIDER_ID=external-compatible
 FISH_EXTERNAL_COST_USD_PER_1K_TOKENS=0
 FISH_EXTERNAL_FALLBACK_DAILY_BUDGET_USD=10
 FISH_EXTERNAL_FALLBACK_FREE_ALLOWED=false
+FISH_PUBLIC_APP_URL=https://op.fish
+FISH_MIN_CHECKOUT_USD=1
+FISH_MAX_CHECKOUT_USD=500
+FISH_STRIPE_SECRET_KEY=
+FISH_STRIPE_WEBHOOK_SECRET=
+FISH_STRIPE_WEBHOOK_TOLERANCE_SECONDS=300
+FISH_USDC_RECEIVE_ADDRESS=
+FISH_USDC_RPC_URL=
+FISH_USDC_CHAIN_ID=8453
+FISH_USDC_TOKEN_ADDRESS=0x833589fcD6EDb6E08f4c7C32D4f71b54bdA02913
+FISH_USDC_DECIMALS=6
+FISH_USDC_MIN_CONFIRMATIONS=1
+FISH_USDC_PAYMENT_TTL_MINUTES=60
 FISH_STAKING_CREDIT_BUDGET=10000
 FISH_STAKING_CREDITS_PER_OCEAN_MONTH=0.1
 ```
@@ -286,10 +299,12 @@ FISH_STAKING_CREDITS_PER_OCEAN_MONTH=0.1
 Set `FISH_ADMIN_TOKEN` in production-like environments before issuing prototype API keys.
 Set `FISH_PROVIDER_ALLOWLIST` or mount `data/provider_allowlist.json` when the first selected providers are approved.
 Set `FISH_PROVIDER_JOB_ENDPOINTS=prov_abc=https://provider.example.com/fish/jobs` and optionally `FISH_PROVIDER_JOB_API_KEY` only when a selected provider has a private HTTP job adapter ready. Until then, keep provider proof on mock/sample data.
-Set `FISH_OCEAN_BATCH_ENDPOINT` and optionally `FISH_OCEAN_BATCH_API_KEY` only when a private Oncompute/Ocean batch adapter is ready. Until then, `/api/ocean/batch/jobs` should stay in sample mode.
+Set `FISH_OCEAN_BATCH_ENDPOINT` and optionally `FISH_OCEAN_BATCH_API_KEY` only when a private Oncompute/Ocean batch adapter is ready. Until then, `/api/ocean/batch/jobs` should stay in sample mode. Use `/api/ocean/batch/readiness` and `/proof` to verify that the adapter is reachable, live-ready, and backed by a successful non-sample receipt before claiming real Ocean workload proof.
 Set `FISH_DOCS_BATCH_MAX_RUNTIME_SECONDS` and `FISH_DOCS_BATCH_MAX_COST_USD` to cap Docs dish batch requests generated through `/v1/chat/completions`.
 Plan-based per-minute and monthly request limits come from the Fish plan table. Minute limits and concurrent request caps are in-memory MVP guards, while monthly limits and daily quotas are backed by local usage/quota JSON.
 Keep `FISH_CHAT_BACKEND=mock` for a no-secret local deployment. Set `FISH_CHAT_ROUTE=ocean-provider`, `FISH_OCEAN_PROVIDER_BASE_URL`, `FISH_OCEAN_PROVIDER_API_KEY`, and `FISH_OCEAN_PROVIDER_MODEL` only when a selected Ocean provider or Fish Runner `/v1` endpoint is ready. Set `FISH_CHAT_BACKEND=external`, `FISH_EXTERNAL_CHAT_BASE_URL`, `FISH_EXTERNAL_CHAT_API_KEY`, and `FISH_EXTERNAL_CHAT_MODEL` only when you want `/v1/chat/completions` to call an outside OpenAI-compatible backend.
+
+Paid credit checkout is disabled until secrets are set. For card checkout, set `FISH_STRIPE_SECRET_KEY`, `FISH_STRIPE_WEBHOOK_SECRET`, and `FISH_PUBLIC_APP_URL`, then configure Stripe webhooks for `/api/billing/webhooks/stripe`. For USDC checkout, set `FISH_USDC_RECEIVE_ADDRESS` and `FISH_USDC_RPC_URL`; Fish verifies Base USDC transfer logs before issuing prepaid credits. Keep `FISH_MIN_CHECKOUT_USD` and `FISH_MAX_CHECKOUT_USD` conservative until support/refund handling is ready.
 
 Warm inference operations are covered in `docs/warm-inference-runbook.md`. The MVP path is a private vLLM endpoint, ideally behind Fish Runner, on a GPU host that may also run Ocean Node for provider identity and anchoring. Keep the warm route on mock until the private endpoint is ready, then switch `FISH_CHAT_ROUTE=ocean-demo-vllm` for the demo lane or `FISH_CHAT_ROUTE=ocean-provider` for selected provider testing. Check `/routing`, `/api/routing/policy`, and `/api/warm/status` after changing routes.
 
@@ -326,10 +341,14 @@ Then browser-check:
 - `/api/proof/payouts`
 - `/api/proof/payouts?state=accrued&limit=10`
 - `/api/billing/plans`
+- `/api/billing/checkout/stripe` with a Fish API key when Stripe env is configured
+- `/api/billing/checkout/usdc` with a Fish API key when USDC env is configured
 - `/api/billing/subscriptions` with `x-fish-admin-token`
 - `/api/billing/topups` with `x-fish-admin-token`
 - `/api/billing/usage-analytics`
 - `/api/routing/policy`
 - `/api/warm/status`
+- `/api/ocean/batch/readiness`
 - `/api/staking/summary`
+- `/api/staking/wallet-intents`
 - `/api/submissions/export?format=csv` with `x-fish-admin-token`

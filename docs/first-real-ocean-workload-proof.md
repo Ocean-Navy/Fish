@@ -42,6 +42,14 @@ include the batch evidence on /proof
 
 So the missing part is not the Fish receipt ledger. The missing part is the real Ocean / Oncompute job runner behind `FISH_OCEAN_BATCH_ENDPOINT`.
 
+Fish also exposes a public-safe readiness gate:
+
+```text
+GET /api/ocean/batch/readiness
+```
+
+The readiness response checks whether the private adapter is configured, reachable, live-ready, and backed by at least one successful non-sample Ocean batch receipt. It exposes booleans and blockers only; it does not expose adapter URLs, wallet secrets, API keys, prompt text, or output text.
+
 ## What Is Needed
 
 To run an actual Ocean compute job through the official Ocean CLI path, the operator needs:

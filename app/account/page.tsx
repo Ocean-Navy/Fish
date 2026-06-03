@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 const steps = [
   { title: "Paste key", body: "Use your Fish pilot key." },
   { title: "See credits", body: "Check what came in, what was used, and what is left." },
-  { title: "See activity", body: "Review recent AI use without seeing prompt text." },
+  { title: "Add credits", body: "Top up by card or USDC when checkout is configured." },
   { title: "Manage key", body: "Rename, rotate, or revoke the active key." }
 ];
 
@@ -23,8 +23,8 @@ const cards = [
 
 const billingLanes = [
   { title: "Free credits", body: "Starter credits help early users try Fish." },
-  { title: "Plans", body: "Pilot plans can be activated by the operating crew." },
-  { title: "Top-ups", body: "Prepaid pilot credits can be added before checkout is public." },
+  { title: "Card", body: "Stripe checkout can issue prepaid credits after payment." },
+  { title: "USDC", body: "Base USDC can issue credits after transaction verification." },
   { title: "Provider pay", body: "Providers are paid from real funds, not promises." }
 ];
 
@@ -50,12 +50,12 @@ export default function AccountPage() {
       </section>
       <section className="px-4 pb-14 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl rounded-[2rem] border border-fish-accent/25 bg-fish-surface/80 p-6 shadow-harbor sm:p-8">
-          <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">Billing later</p>
+          <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">Paid credits</p>
           <div className="mt-4 grid gap-4 lg:grid-cols-[0.75fr_1.25fr] lg:items-start">
             <div>
-              <h2 className="text-3xl font-black leading-tight text-white sm:text-5xl">Credits first. Checkout later.</h2>
+              <h2 className="text-3xl font-black leading-tight text-white sm:text-5xl">Credits need backing.</h2>
               <p className="mt-3 text-lg font-bold leading-8 text-fish-secondary">
-                First we make balances, plans, and recent use clear. Public checkout comes after the rules are ready.
+                Paid credits let Fish cover runner and Ocean workload costs before usage grows.
               </p>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">

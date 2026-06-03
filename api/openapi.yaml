@@ -187,6 +187,17 @@ paths:
           description: Ocean batch backend failed
         '504':
           description: Ocean batch backend timed out
+  /api/ocean/batch/readiness:
+    get:
+      summary: Public-safe Ocean batch proof readiness
+      description: Milestone 3 readiness gate for the private Ocean workload adapter and successful non-sample Ocean batch receipts. Does not expose adapter URLs, wallet secrets, API keys, prompt text, or output text.
+      responses:
+        '200':
+          description: Ocean batch proof readiness
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OceanProofReadiness'
   /api/routing/policy:
     get:
       summary: Public Fish routing policy
@@ -366,6 +377,125 @@ paths:
           description: Admin token required
         '404':
           description: Fish account not found
+  /api/billing/checkout/stripe:
+    post:
+      summary: Create a Stripe Checkout session for Fish Credits
+      description: Fish API-key route that creates a prepaid credit checkout session. Credits are issued only after the signed Stripe webhook confirms payment.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FishCheckoutRequest'
+      responses:
+        '200':
+          description: Checkout session created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  object:
+                    type: string
+                    example: fish_checkout
+                  idempotent:
+                    type: boolean
+                  payment:
+                    $ref: '#/components/schemas/FishPaymentRequest'
+                  checkoutUrl:
+                    type: string
+                    nullable: true
+        '400':
+          description: Invalid checkout request
+        '401':
+          description: Fish API key required
+        '503':
+          description: Stripe checkout is not configured
+  /api/billing/webhooks/stripe:
+    post:
+      summary: Stripe webhook for paid Fish Credits
+      description: Verifies the Stripe signature and grants prepaid Fish Credits for paid `checkout.session.completed` events. The raw body must be signed by Stripe.
+      responses:
+        '200':
+          description: Webhook processed or ignored
+        '400':
+          description: Invalid Stripe signature or event metadata
+        '503':
+          description: Stripe webhook secret is not configured
+  /api/billing/checkout/usdc:
+    post:
+      summary: Create a Base USDC payment request for Fish Credits
+      description: Fish API-key route that returns a Base USDC amount, token, chain, recipient address, and payment id. Credits are not issued until `/confirm` verifies the transfer onchain.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FishUsdcCheckoutRequest'
+      responses:
+        '200':
+          description: USDC payment request created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  object:
+                    type: string
+                    example: fish_usdc_payment
+                  idempotent:
+                    type: boolean
+                  payment:
+                    $ref: '#/components/schemas/FishPaymentRequest'
+        '400':
+          description: Invalid USDC checkout request
+        '401':
+          description: Fish API key required
+        '503':
+          description: USDC checkout is not configured
+  /api/billing/checkout/usdc/confirm:
+    post:
+      summary: Confirm a Base USDC payment for Fish Credits
+      description: Verifies the transaction receipt through the configured RPC, checks ERC-20 transfer logs, and grants prepaid credits only after the expected recipient and amount are found.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FishUsdcConfirmationRequest'
+      responses:
+        '200':
+          description: USDC payment confirmed and credits issued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  object:
+                    type: string
+                    example: fish_usdc_payment_confirmation
+                  idempotent:
+                    type: boolean
+                  payment:
+                    $ref: '#/components/schemas/FishPaymentRequest'
+        '400':
+          description: Invalid confirmation request or no matching USDC transfer
+        '401':
+          description: Fish API key required
+        '403':
+          description: Payment belongs to another Fish account
+        '409':
+          description: Transaction needs more confirmations
+        '410':
+          description: Payment request expired
+        '503':
+          description: USDC RPC is not configured
   /api/billing/usage-analytics:
     get:
       summary: Aggregate Fish billing usage analytics
@@ -1176,6 +1306,42 @@ paths:
                     nullable: true
         '401':
           description: Admin token required
+  /api/staking/wallet-intents:
+    get:
+      summary: Public-safe signed OCEAN wallet intent list
+      description: Lists wallet lock intents with hashed addresses and signatures only. These intents do not issue credits until a lock contract or operator verification flow confirms them.
+      responses:
+        '200':
+          description: Public wallet intent summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WalletIntentSummary'
+    post:
+      summary: Record a signed OCEAN lock intent
+      description: Browser-wallet prototype for holders to sign OCEAN lock intent. The route stores public-safe hashes and estimated credits, but does not stake tokens or issue Fish Credits.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WalletIntentRequest'
+      responses:
+        '201':
+          description: Wallet intent recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  intent:
+                    $ref: '#/components/schemas/PublicWalletIntent'
+                  notice:
+                    type: string
+        '400':
+          description: Invalid signed wallet intent
   /api/waitlist:
     post:
       summary: Submit user/developer waitlist interest
@@ -1817,6 +1983,91 @@ components:
           type: number
         remainingUsd:
           type: number
+    OceanProofReadiness:
+      type: object
+      properties:
+        dataState:
+          type: string
+          enum: [live, snapshot, sample, unavailable]
+        generatedAt:
+          type: string
+        trafficReady:
+          type: boolean
+        proofReady:
+          type: boolean
+        route:
+          type: object
+          properties:
+            batchEndpointConfigured:
+              type: boolean
+            batchApiKeyConfigured:
+              type: boolean
+            providerIdConfigured:
+              type: boolean
+            dailyBudgetUsd:
+              type: number
+        adapter:
+          type: object
+          properties:
+            configured:
+              type: boolean
+            reachable:
+              type: boolean
+            healthState:
+              type: string
+              enum: [ok, error, not_configured]
+            mode:
+              type: string
+              nullable: true
+            liveReady:
+              type: boolean
+            configuredForFreeCompute:
+              type: boolean
+              nullable: true
+            selected:
+              type: object
+              properties:
+                nodeUrlConfigured:
+                  type: boolean
+                computeEnvIdConfigured:
+                  type: boolean
+                datasetDidsConfigured:
+                  type: boolean
+                algoDidConfigured:
+                  type: boolean
+                paymentTokenConfigured:
+                  type: boolean
+                resourcesConfigured:
+                  type: boolean
+                outputConfigured:
+                  type: boolean
+            missing:
+              type: array
+              items:
+                type: string
+            warnings:
+              type: array
+              items:
+                type: string
+        proof:
+          type: object
+          properties:
+            hasNonSampleReceipt:
+              type: boolean
+            nonSampleJobs:
+              type: integer
+            latestReceiptState:
+              type: string
+              enum: [live, snapshot, sample, unavailable]
+            latestReceiptAt:
+              type: string
+              nullable: true
+            succeededJobs:
+              type: integer
+        blockers:
+          type: array
+          items:
+            type: string
     OceanBatchReceipt:
       type: object
       properties:
@@ -3737,6 +3988,95 @@ components:
           type: array
           items:
             type: string
+    WalletIntentRequest:
+      type: object
+      additionalProperties: false
+      required: [address, chainId, oceanAmount, message, signature]
+      properties:
+        holderLabel:
+          type: string
+          maxLength: 80
+          default: Ocean holder
+        address:
+          type: string
+          pattern: '^0x[a-fA-F0-9]{40}$'
+        chainId:
+          type: integer
+          minimum: 1
+        oceanAmount:
+          type: number
+          minimum: 1
+        lockDays:
+          type: integer
+          minimum: 7
+          maximum: 730
+          default: 30
+        message:
+          type: string
+          description: Human-readable Fish OCEAN credit intent signed by the connected wallet.
+        signature:
+          type: string
+          pattern: '^0x[a-fA-F0-9]{130}$'
+    PublicWalletIntent:
+      type: object
+      properties:
+        intentVersion:
+          type: integer
+          enum: [1]
+        intentId:
+          type: string
+        holderLabel:
+          type: string
+        addressHash:
+          type: string
+        addressPrefix:
+          type: string
+        chainId:
+          type: integer
+        oceanAmount:
+          type: number
+        lockDays:
+          type: integer
+        estimatedCredits:
+          type: integer
+        messageHash:
+          type: string
+        signatureHash:
+          type: string
+        signatureState:
+          type: string
+          enum: [submitted_unverified]
+        sourceState:
+          type: string
+          enum: [snapshot]
+        createdAt:
+          type: string
+    WalletIntentSummary:
+      type: object
+      properties:
+        object:
+          type: string
+          example: list
+        dataState:
+          type: string
+          enum: [live, snapshot, sample, unavailable]
+        totals:
+          type: object
+          properties:
+            intents:
+              type: integer
+            oceanAmount:
+              type: number
+            estimatedCredits:
+              type: integer
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/PublicWalletIntent'
+        warnings:
+          type: array
+          items:
+            type: string
     ProofSummary:
       type: object
       properties:
@@ -3972,6 +4312,113 @@ components:
         paymentProviderEventId:
           type: string
           maxLength: 120
+    FishCheckoutRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        amountUsd:
+          type: number
+          minimum: 0.01
+          description: Dollar amount to convert into Fish Credits. Either amountUsd or credits is required.
+        credits:
+          type: integer
+          minimum: 1
+          description: Optional exact credit amount; amount is rounded up to cover the credit liability.
+        idempotencyKey:
+          type: string
+          maxLength: 120
+        successUrl:
+          type: string
+          format: uri
+        cancelUrl:
+          type: string
+          format: uri
+    FishUsdcCheckoutRequest:
+      allOf:
+        - $ref: '#/components/schemas/FishCheckoutRequest'
+        - type: object
+          additionalProperties: false
+          properties:
+            payerAddress:
+              type: string
+              pattern: '^0x[a-fA-F0-9]{40}$'
+              description: Optional sender address to require during transfer verification.
+    FishUsdcConfirmationRequest:
+      type: object
+      additionalProperties: false
+      required: [paymentId, transactionHash]
+      properties:
+        paymentId:
+          type: string
+        transactionHash:
+          type: string
+          pattern: '^0x[a-fA-F0-9]{64}$'
+    FishPaymentRequest:
+      type: object
+      properties:
+        paymentId:
+          type: string
+        provider:
+          type: string
+          enum: [stripe_checkout, usdc_base]
+        status:
+          type: string
+          enum: [pending, paid, failed, expired]
+        credits:
+          type: integer
+        amountUsd:
+          type: number
+        amountCents:
+          type: integer
+        amountUsdc:
+          type: string
+          description: Decimal USDC amount when provider is usdc_base.
+        currency:
+          type: string
+          enum: [USD, USDC]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+        expiresAt:
+          type: string
+          nullable: true
+        paidAt:
+          type: string
+          nullable: true
+        idempotencyKey:
+          type: string
+          nullable: true
+        providerSessionId:
+          type: string
+          nullable: true
+        providerPaymentIntentId:
+          type: string
+          nullable: true
+        checkoutUrl:
+          type: string
+          nullable: true
+        chainId:
+          type: integer
+          nullable: true
+        tokenAddress:
+          type: string
+          nullable: true
+        receiveAddress:
+          type: string
+          nullable: true
+        payerAddress:
+          type: string
+          nullable: true
+        amountAtomic:
+          type: string
+          nullable: true
+        transactionHash:
+          type: string
+          nullable: true
+        creditEntryId:
+          type: string
+          nullable: true
     FishSubscriptionActivationRequest:
       type: object
       additionalProperties: false

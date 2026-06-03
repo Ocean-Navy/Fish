@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { EvmStakeIntentPanel } from "@/components/EvmStakeIntentPanel";
 import { RolePageShell } from "@/components/RolePageShell";
 import { StakingCreditsPanel } from "@/components/StakingCreditsPanel";
 import { summarizeStakingCredits } from "@/lib/stakingCredits";
@@ -47,6 +48,7 @@ export default async function CreditsPage() {
       note="Credit rule: product first, token utility after usage. Fish credits should be backed by real demand and real payment coverage."
     >
       <StakingCreditsPanel summary={stakingSummary} />
+      <EvmStakeIntentPanel />
       <section className="px-4 pb-14 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl rounded-[2rem] border border-fish-gold/25 bg-fish-gold/10 p-6 shadow-harbor sm:p-8">
           <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">Token later</p>

@@ -1,7 +1,8 @@
 "use client";
 
-import { BadgeDollarSign, KeyRound, Loader2, ReceiptText, RefreshCcw, RotateCw, Save, ShieldX } from "lucide-react";
+import { BadgeDollarSign, CreditCard, KeyRound, Loader2, ReceiptText, RefreshCcw, RotateCw, Save, ShieldX, Wallet } from "lucide-react";
 import { useState } from "react";
+import { formatEvmAddress, parseEvmChainId } from "@/lib/evmWallet";
 import { formatDateTime, formatNumber, formatUsd } from "@/lib/format";
 
 type AccountPayload = {
@@ -67,6 +68,21 @@ type CreditLaneSummary = {
   expiresAt: string | null;
 };
 
+type FishPayment = {
+  paymentId: string;
+  provider: "stripe_checkout" | "usdc_base";
+  status: "pending" | "paid" | "failed" | "expired";
+  credits: number;
+  amountUsd: number;
+  amountUsdc?: string;
+  chainId: number | null;
+  tokenAddress: string | null;
+  receiveAddress: string | null;
+  expiresAt: string | null;
+  checkoutUrl: string | null;
+  transactionHash: string | null;
+};
+
 type FishPlan = {
   planId: string;
   label: string;
@@ -82,7 +98,10 @@ type FishPlan = {
 
 function getErrorMessage(payload: unknown) {
   if (payload && typeof payload === "object" && "error" in payload) {
-    const error = (payload as { error?: { message?: string } }).error;
+    const error = (payload as { error?: { message?: string } | string }).error;
+    if (typeof error === "string") {
+      return error;
+    }
     return error?.message ?? "request_failed";
   }
   return "request_failed";
@@ -99,6 +118,15 @@ export function FishAccountPanel() {
   const [isLoading, setIsLoading] = useState(false);
   const [isRevoking, setIsRevoking] = useState(false);
   const [isUpdatingKey, setIsUpdatingKey] = useState(false);
+  const [checkoutAmountUsd, setCheckoutAmountUsd] = useState("5");
+  const [usdcPayment, setUsdcPayment] = useState<FishPayment | null>(null);
+  const [usdcTransactionHash, setUsdcTransactionHash] = useState("");
+  const [isStartingStripe, setIsStartingStripe] = useState(false);
+  const [isStartingUsdc, setIsStartingUsdc] = useState(false);
+  const [isConfirmingUsdc, setIsConfirmingUsdc] = useState(false);
+  const [paymentWalletAddress, setPaymentWalletAddress] = useState("");
+  const [paymentWalletChainId, setPaymentWalletChainId] = useState<number | null>(null);
+  const [isConnectingPaymentWallet, setIsConnectingPaymentWallet] = useState(false);
 
   async function refreshAccount() {
     const key = apiKey.trim();
@@ -231,6 +259,163 @@ export function FishAccountPanel() {
       setError(err instanceof Error ? err.message : "request_failed");
     } finally {
       setIsRevoking(false);
+    }
+  }
+
+  function readCheckoutAmount() {
+    const parsed = Number(checkoutAmountUsd);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      setError("Choose a valid top-up amount.");
+      return null;
+    }
+    return Math.round(parsed * 100) / 100;
+  }
+
+  async function startStripeCheckout() {
+    const key = apiKey.trim();
+    const amountUsd = readCheckoutAmount();
+    if (!key || !amountUsd) {
+      setError(key ? "Choose a valid top-up amount." : "Add a Fish API key.");
+      return;
+    }
+    if (!account || account.account.status === "revoked") {
+      setError("Open an active key first.");
+      return;
+    }
+
+    setIsStartingStripe(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const response = await fetch("/api/billing/checkout/stripe", {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${key}`,
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({ amountUsd })
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(getErrorMessage(payload));
+      }
+      if (!payload.checkoutUrl) {
+        throw new Error("stripe_checkout_url_missing");
+      }
+      window.location.assign(payload.checkoutUrl);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "stripe_checkout_failed");
+    } finally {
+      setIsStartingStripe(false);
+    }
+  }
+
+  async function startUsdcCheckout() {
+    const key = apiKey.trim();
+    const amountUsd = readCheckoutAmount();
+    if (!key || !amountUsd) {
+      setError(key ? "Choose a valid top-up amount." : "Add a Fish API key.");
+      return;
+    }
+    if (!account || account.account.status === "revoked") {
+      setError("Open an active key first.");
+      return;
+    }
+
+    setIsStartingUsdc(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const response = await fetch("/api/billing/checkout/usdc", {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${key}`,
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({ amountUsd, payerAddress: paymentWalletAddress || undefined })
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(getErrorMessage(payload));
+      }
+      setUsdcPayment(payload.payment);
+      setNotice("USDC payment request created. Send the exact amount, then paste the transaction hash.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "usdc_checkout_failed");
+    } finally {
+      setIsStartingUsdc(false);
+    }
+  }
+
+  async function connectPaymentWallet() {
+    if (!window.ethereum) {
+      setError("No EVM wallet found in this browser.");
+      return;
+    }
+
+    setIsConnectingPaymentWallet(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
+      const [first] = Array.isArray(accounts) ? accounts : [];
+      if (typeof first !== "string") {
+        throw new Error("wallet_account_missing");
+      }
+      const rawChainId = await window.ethereum.request({ method: "eth_chainId" });
+      setPaymentWalletAddress(first);
+      setPaymentWalletChainId(parseEvmChainId(rawChainId));
+      setNotice("Wallet connected for USDC checkout.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "wallet_connection_failed");
+    } finally {
+      setIsConnectingPaymentWallet(false);
+    }
+  }
+
+  async function confirmUsdcCheckout() {
+    const key = apiKey.trim();
+    if (!key) {
+      setError("Add a Fish API key.");
+      return;
+    }
+    if (!usdcPayment) {
+      setError("Create a USDC payment first.");
+      return;
+    }
+    const transactionHash = usdcTransactionHash.trim();
+    if (!transactionHash) {
+      setError("Paste the USDC transaction hash.");
+      return;
+    }
+
+    setIsConfirmingUsdc(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const response = await fetch("/api/billing/checkout/usdc/confirm", {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${key}`,
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({
+          paymentId: usdcPayment.paymentId,
+          transactionHash
+        })
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(getErrorMessage(payload));
+      }
+      setUsdcPayment(payload.payment);
+      setNotice("USDC payment confirmed. Prepaid credits were added.");
+      setUsdcTransactionHash("");
+      await refreshAccount();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "usdc_confirmation_failed");
+    } finally {
+      setIsConfirmingUsdc(false);
     }
   }
 
@@ -370,6 +555,24 @@ export function FishAccountPanel() {
               ) : null}
             </div>
             <PlanDock account={account.account} />
+            <PaymentDock
+              amountUsd={checkoutAmountUsd}
+              onAmountChange={setCheckoutAmountUsd}
+              onStripeCheckout={startStripeCheckout}
+              onUsdcCheckout={startUsdcCheckout}
+              onUsdcConfirm={confirmUsdcCheckout}
+              usdcPayment={usdcPayment}
+              usdcTransactionHash={usdcTransactionHash}
+              onUsdcTransactionHashChange={setUsdcTransactionHash}
+              isStartingStripe={isStartingStripe}
+              isStartingUsdc={isStartingUsdc}
+              isConfirmingUsdc={isConfirmingUsdc}
+              paymentWalletAddress={paymentWalletAddress}
+              paymentWalletChainId={paymentWalletChainId}
+              isConnectingPaymentWallet={isConnectingPaymentWallet}
+              onConnectPaymentWallet={connectPaymentWallet}
+              disabled={account.account.status === "revoked"}
+            />
             <CreditLaneNet lanes={account.creditLanes} />
             <ReceiptNet receipts={receipts} />
           </div>
@@ -379,6 +582,146 @@ export function FishAccountPanel() {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function PaymentDock({
+  amountUsd,
+  onAmountChange,
+  onStripeCheckout,
+  onUsdcCheckout,
+  onUsdcConfirm,
+  usdcPayment,
+  usdcTransactionHash,
+  onUsdcTransactionHashChange,
+  isStartingStripe,
+  isStartingUsdc,
+  isConfirmingUsdc,
+  paymentWalletAddress,
+  paymentWalletChainId,
+  isConnectingPaymentWallet,
+  onConnectPaymentWallet,
+  disabled
+}: {
+  amountUsd: string;
+  onAmountChange: (value: string) => void;
+  onStripeCheckout: () => void;
+  onUsdcCheckout: () => void;
+  onUsdcConfirm: () => void;
+  usdcPayment: FishPayment | null;
+  usdcTransactionHash: string;
+  onUsdcTransactionHashChange: (value: string) => void;
+  isStartingStripe: boolean;
+  isStartingUsdc: boolean;
+  isConfirmingUsdc: boolean;
+  paymentWalletAddress: string;
+  paymentWalletChainId: number | null;
+  isConnectingPaymentWallet: boolean;
+  onConnectPaymentWallet: () => void;
+  disabled: boolean;
+}) {
+  const numericAmount = Number(amountUsd);
+  const estimatedCredits = Number.isFinite(numericAmount) && numericAmount > 0 ? Math.floor(numericAmount / 0.001) : 0;
+
+  return (
+    <div className="rounded-3xl border border-fish-accent/15 bg-fish-navy950/55 p-4">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="text-sm font-black uppercase tracking-[0.1em] text-fish-gold">Add credits</p>
+          <h3 className="mt-2 text-2xl font-black text-white">Pay for AI dishes.</h3>
+          <p className="mt-1 text-sm font-bold leading-6 text-fish-secondary">Credits are issued only after payment confirms.</p>
+        </div>
+        <div className="rounded-2xl border border-fish-accent/15 bg-white/[0.035] p-3 text-right">
+          <p className="text-xs font-black uppercase tracking-[0.08em] text-fish-secondary">Estimate</p>
+          <p className="mt-1 text-lg font-black text-white">{formatNumber(estimatedCredits)} credits</p>
+        </div>
+      </div>
+      <div className="grid gap-3 lg:grid-cols-[1fr_auto_auto] lg:items-end">
+        <label className="block">
+          <span className="text-sm font-black uppercase tracking-[0.1em] text-fish-gold">Amount USD</span>
+          <input
+            value={amountUsd}
+            onChange={(event) => onAmountChange(event.target.value)}
+            inputMode="decimal"
+            className="mt-2 h-11 w-full rounded-2xl border border-fish-accent/25 bg-fish-navy950/70 px-4 text-sm font-bold text-white outline-none transition placeholder:text-fish-muted focus:border-fish-accent"
+          />
+        </label>
+        <button
+          type="button"
+          onClick={onStripeCheckout}
+          disabled={disabled || isStartingStripe}
+          className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-fish-accent to-fish-aqua px-5 text-xs font-black text-fish-navy950 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {isStartingStripe ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <CreditCard className="h-4 w-4" aria-hidden="true" />}
+          Pay by card
+        </button>
+        <button
+          type="button"
+          onClick={onUsdcCheckout}
+          disabled={disabled || isStartingUsdc}
+          className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-fish-accent/35 px-5 text-xs font-black text-fish-accent transition hover:bg-fish-accent/10 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {isStartingUsdc ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Wallet className="h-4 w-4" aria-hidden="true" />}
+          Pay USDC
+        </button>
+      </div>
+      <div className="mt-3 flex flex-col gap-3 rounded-2xl border border-fish-accent/15 bg-white/[0.035] p-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.08em] text-fish-secondary">USDC wallet</p>
+          <p className="mt-1 text-sm font-black text-white">
+            {paymentWalletAddress ? `${formatEvmAddress(paymentWalletAddress)}${paymentWalletChainId ? ` / chain ${paymentWalletChainId}` : ""}` : "Optional, but safer for transfer checks."}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onConnectPaymentWallet}
+          disabled={disabled || isConnectingPaymentWallet}
+          className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-fish-gold/35 px-4 text-xs font-black text-fish-gold transition hover:bg-fish-gold/10 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {isConnectingPaymentWallet ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Wallet className="h-4 w-4" aria-hidden="true" />}
+          {paymentWalletAddress ? "Change wallet" : "Connect wallet"}
+        </button>
+      </div>
+      {usdcPayment ? (
+        <div className="mt-4 rounded-3xl border border-fish-gold/20 bg-fish-gold/10 p-4">
+          <div className="grid gap-3 lg:grid-cols-2">
+            <MiniMetric label="USDC amount" value={`${usdcPayment.amountUsdc ?? formatUsd(usdcPayment.amountUsd)} USDC`} />
+            <MiniMetric label="Chain" value={usdcPayment.chainId ? `Base ${usdcPayment.chainId}` : "Base"} />
+            <div className="rounded-2xl border border-white/10 bg-fish-navy950/45 p-3 lg:col-span-2">
+              <p className="text-[0.68rem] font-black uppercase tracking-[0.08em] text-fish-secondary">Send to</p>
+              <p className="mt-1 break-all font-mono text-xs font-black text-white">{usdcPayment.receiveAddress}</p>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-fish-navy950/45 p-3 lg:col-span-2">
+              <p className="text-[0.68rem] font-black uppercase tracking-[0.08em] text-fish-secondary">Token</p>
+              <p className="mt-1 break-all font-mono text-xs font-black text-white">{usdcPayment.tokenAddress}</p>
+            </div>
+          </div>
+          <div className="mt-3 grid gap-3 lg:grid-cols-[1fr_auto] lg:items-end">
+            <label className="block">
+              <span className="text-sm font-black uppercase tracking-[0.1em] text-fish-gold">Transaction hash</span>
+              <input
+                value={usdcTransactionHash}
+                onChange={(event) => onUsdcTransactionHashChange(event.target.value)}
+                placeholder="0x..."
+                className="mt-2 h-11 w-full rounded-2xl border border-fish-gold/25 bg-fish-navy950/70 px-4 font-mono text-xs font-bold text-white outline-none transition placeholder:text-fish-muted focus:border-fish-gold"
+              />
+            </label>
+            <button
+              type="button"
+              onClick={onUsdcConfirm}
+              disabled={disabled || isConfirmingUsdc || usdcPayment.status === "paid"}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-fish-gold/35 px-5 text-xs font-black text-fish-gold transition hover:bg-fish-gold/10 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isConfirmingUsdc ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Wallet className="h-4 w-4" aria-hidden="true" />}
+              {usdcPayment.status === "paid" ? "Confirmed" : "Confirm"}
+            </button>
+          </div>
+          <p className="mt-3 text-xs font-bold leading-5 text-fish-secondary">
+            Send the exact amount before {formatDateTime(usdcPayment.expiresAt)}. Credits are added after Fish verifies the USDC transfer onchain.
+          </p>
+        </div>
+      ) : null}
     </div>
   );
 }
