@@ -50,9 +50,11 @@ For Ocean Navy contributors and coding agents, start here:
 ```text
 AGENTS.md                    Repo-wide instructions for agentic coding tools
 CONTRIBUTING.md              Human contribution workflow and PR checklist
+SECURITY.md                  Security policy, review scope, and reporting guidance
 AGENTIC_DEVELOPMENT_PLAN.md  Current work lanes and task routing guide
 api/openapi.yaml             API contract for public and prototype routes
 docs/                        Feature plans, runbooks, and implementation contracts
+docs/codex-security-setup.md Codex Security cloud environment and scan setup
 contracts/                   Prototype Solidity contracts for OCEAN/FISH and capacity-pool research
 ```
 
