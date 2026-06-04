@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
+import { summarizeCapacitySettlements } from "@/lib/capacitySettlements";
 import { summarizeProof } from "@/lib/providerJobs";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  return NextResponse.json(await summarizeProof());
+  const [proof, capacitySettlements] = await Promise.all([summarizeProof(), summarizeCapacitySettlements()]);
+  return NextResponse.json({ ...proof, capacitySettlements });
 }

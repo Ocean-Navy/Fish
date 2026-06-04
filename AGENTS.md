@@ -62,6 +62,7 @@ src/lib/                     Data ingestion, route policy, ledgers, providers, p
 api/openapi.yaml             API contract
 docs/                        Feature plans, runbooks, and implementation contracts
 deploy/                      Docker, nginx, systemd, warm-inference deployment examples
+contracts/                   Prototype Solidity contracts and tests for OCEAN/FISH and capacity pool research
 data/*.json                  Checked-in examples and sample fallback data
 legacy/static-prototype/     Original static prototype reference
 backend/                     Older Python reference implementation
@@ -104,6 +105,7 @@ Runtime data under `data/submissions/`, `data/forms/`, `data/fish/`, `data/proof
 - Provider pilot and proof: `app/api/providers/*`, `app/api/proof/*`, `src/lib/provider*`, `src/lib/fishLedger.ts`, `docs/provider-pilot-plan.md`.
 - Batch jobs: `app/api/ocean/batch/jobs/route.ts`, `src/lib/oceanBatch.ts`, `docs/ocean-batch-jobs-plan.md`.
 - Staking credits: `app/api/staking/*`, `src/lib/stakingCredits.ts`, `docs/ocean-staking-credits-plan.md`.
+- Smart contract prototypes: `contracts/*`, `docs/fish-contracts-capacity-pool-plan.md`.
 - Deployment: `Dockerfile`, `docker-compose.yml`, `deploy/*`, `docs/deployment.md`.
 
 ## Pull Request Checklist For Agents
@@ -124,4 +126,3 @@ npm run verify
 ```
 
 For UI work, also check the changed route on mobile and desktop. For API work, include at least one local `curl` or equivalent request against the changed endpoint.
-

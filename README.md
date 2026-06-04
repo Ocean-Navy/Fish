@@ -53,6 +53,7 @@ CONTRIBUTING.md              Human contribution workflow and PR checklist
 AGENTIC_DEVELOPMENT_PLAN.md  Current work lanes and task routing guide
 api/openapi.yaml             API contract for public and prototype routes
 docs/                        Feature plans, runbooks, and implementation contracts
+contracts/                   Prototype Solidity contracts for OCEAN/FISH and capacity-pool research
 ```
 
 Before changing behavior, read the relevant source files and feature doc. Keep public copy clear that Fish is Ocean Navy-built, built on Ocean Protocol, and not official unless approved. Keep `live`, `snapshot`, `sample`, and `unavailable` data states distinct.
@@ -93,6 +94,8 @@ Useful local routes:
 /api/proof/benchmarks
 /api/proof/market-making
 /api/proof/payouts
+/api/proof/capacity-settlements
+/api/contracts/status
 /api/staking/summary
 /api/staking/wallet-intents
 /api
@@ -109,6 +112,9 @@ npm run typecheck  # TypeScript check
 npm run build      # Production Next.js build
 npm run smoke      # Typecheck + build
 npm run verify     # Lint + typecheck + build
+npm run contracts:compile
+npm run contracts:test
+npm run contracts:deploy:testnet
 ```
 
 The same commands are exposed through `make`:
@@ -254,6 +260,25 @@ FISH_USDC_MIN_CONFIRMATIONS=1
 FISH_USDC_PAYMENT_TTL_MINUTES=60
 FISH_STAKING_CREDIT_BUDGET=10000
 FISH_STAKING_CREDITS_PER_OCEAN_MONTH=0.1
+FISH_CONTRACT_CHAIN_ID=8453
+FISH_CONTRACT_CHAIN_NAME=Base
+FISH_CONTRACT_EXPLORER_URL=https://basescan.org
+FISH_CONTRACT_RPC_URL=
+FISH_CONTRACT_RPC_TIMEOUT_MS=4000
+FISH_CONTRACT_ACTIONS_ENABLED=false
+FISH_CONTRACT_SETTLEMENT_SUBMIT_ENABLED=false
+FISH_CONTRACT_SETTLEMENT_CONFIRMATIONS=1
+FISH_CONTRACT_MAINNET_WRITES_ALLOWED=false
+FISH_CONTRACT_DEPLOYER_PRIVATE_KEY=
+FISH_CONTRACT_OPERATOR_PRIVATE_KEY=
+FISH_CONTRACT_OCEAN_TOKEN_ADDRESS=
+FISH_CONTRACT_USDC_TOKEN_ADDRESS=0x833589fcD6EDb6E08f4c7C32D4f71b54bdA02913
+FISH_CONTRACT_FISH_TOKEN_ADDRESS=
+FISH_CONTRACT_OCEAN_STAKING_ADDRESS=
+FISH_CONTRACT_CAPACITY_POOL_ADDRESS=
+FISH_CONTRACT_TREASURY_ADDRESS=
+FISH_CONTRACT_EMISSION_SOURCE_ADDRESS=
+FISH_CONTRACT_OPERATOR_ADDRESS=
 ```
 
 Direct provider endpoints can be listed in:
@@ -500,7 +525,7 @@ curl -sS 'http://127.0.0.1:3000/api/proof/receipts/export?format=json&limit=50' 
   -H "x-fish-admin-token: $FISH_ADMIN_TOKEN"
 ```
 
-Provider job receipts, payout events, payout batches, and the local prototype signing key are written under `data/proof/`, which is ignored by git and should be backed up or moved to a database/secret manager before public scale-up.
+Provider job receipts, payout events, payout batches, capacity-pool settlement records, and the local prototype signing key are written under `data/proof/`, which is ignored by git and should be backed up or moved to a database/secret manager before public scale-up.
 
 ## OCEAN Staking Credits
 
@@ -532,6 +557,64 @@ POST /api/staking/wallet-intents
 ```
 
 Wallet intents do not issue credits and do not stake OCEAN. They are a bridge toward a real lock contract or operator verification flow.
+
+The `/credits` page also exposes the contract prototype status from:
+
+```text
+/api/contracts/status
+```
+
+By default this is read-only. Configure `FISH_CONTRACT_*` addresses and `FISH_CONTRACT_RPC_URL` after a testnet deployment. The status endpoint reads live totals from the configured contracts when RPC is available. Wallet write buttons remain disabled unless `FISH_CONTRACT_ACTIONS_ENABLED=true`, and Base mainnet writes stay blocked unless `FISH_CONTRACT_MAINNET_WRITES_ALLOWED=true`. Do not enable mainnet writes before audit, legal review, multisig ownership, and an incident-response runbook.
+
+Deploy a Base Sepolia test system with:
+
+```bash
+BASE_SEPOLIA_RPC_URL=https://... \
+FISH_CONTRACT_DEPLOYER_PRIVATE_KEY=0x... \
+npm run contracts:deploy:testnet
+```
+
+If no `FISH_CONTRACT_OCEAN_TOKEN_ADDRESS` or `FISH_CONTRACT_USDC_TOKEN_ADDRESS` is set, the deploy script creates test OCEAN and test USDC tokens so the full flow can be tested without real assets. The script prints a web-app env block and writes a local ignored artifact under `contracts/deployments/`.
+
+Paid demand that is settled into the FISH Capacity Pool can be recorded by an operator:
+
+```bash
+curl -sS http://127.0.0.1:3000/api/proof/capacity-settlements \
+  -H 'content-type: application/json' \
+  -H "x-fish-admin-token: $FISH_ADMIN_TOKEN" \
+  -d '{
+    "grossUsdcAmount":100,
+    "netUsdcAmount":90,
+    "operatorFeeUsdc":10,
+    "settlementSource":"api_subscription",
+    "idempotencyKey":"capacity-settlement-2026-06-04-001",
+    "transactionHash":"0x1111111111111111111111111111111111111111111111111111111111111111"
+  }'
+```
+
+To submit the actual capacity-pool transaction from the server, configure `FISH_CONTRACT_RPC_URL`, `FISH_CONTRACT_OPERATOR_PRIVATE_KEY`, `FISH_CONTRACT_SETTLEMENT_SUBMIT_ENABLED=true`, and include `"submitOnchain": true`. The route checks that the operator wallet is authorized by the capacity pool, approves USDC when needed, calls `recordPaidUsage`, waits for confirmations, then records the public-safe settlement row. `idempotencyKey` is required for onchain submission to prevent accidental duplicate submits.
+
+Capacity settlements are public-safe snapshot records unless submitted through the configured operator wallet. They are shown on `/proof`, `/dashboard`, `/api/dashboard/summary`, and through `GET /api/proof/capacity-settlements`.
+
+The `/credits` contract panel supports the complete prototype testnet lifecycle:
+
+```text
+approve OCEAN
+stake OCEAN
+mint FISH
+approve FISH
+stake FISH capacity
+claim USDC
+queue FISH capacity exit
+flush capacity batch
+claim FISH batch
+burn FISH
+claim OCEAN rewards
+start OCEAN exit
+finish OCEAN exit
+```
+
+Use the batch ID shown in `/api/contracts/status` or on the `/credits` panel when claiming a capacity withdrawal batch. The capacity batch must be flushed and then wait through the FISH cooldown before claiming. The OCEAN exit must also wait through the OCEAN cooldown before final withdrawal.
 
 Staking positions and wallet intents are written under `data/staking/`, which is ignored by git. This is not an onchain staking contract; it is a funded-budget prototype for proving OCEAN lock intent, credit issuance, and credit spend.
 

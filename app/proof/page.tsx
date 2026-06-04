@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { PublicProofPage } from "@/components/PublicProofPage";
+import { summarizeCapacitySettlements } from "@/lib/capacitySettlements";
 import { summarizeOceanBatchJobs } from "@/lib/oceanBatch";
 import { summarizeOceanProofReadiness } from "@/lib/oceanProofReadiness";
 import { summarizeBenchmarks } from "@/lib/providerBenchmarks";
@@ -14,6 +15,13 @@ export const metadata: Metadata = {
 };
 
 export default async function ProofPage() {
-  const [proof, scorecard, benchmarks, batch, oceanProof] = await Promise.all([summarizeProof(), summarizeProviderScorecard(), summarizeBenchmarks(), summarizeOceanBatchJobs(), summarizeOceanProofReadiness()]);
-  return <PublicProofPage proof={proof} scorecard={scorecard} benchmarks={benchmarks} batch={batch} oceanProof={oceanProof} />;
+  const [proof, scorecard, benchmarks, batch, oceanProof, capacitySettlements] = await Promise.all([
+    summarizeProof(),
+    summarizeProviderScorecard(),
+    summarizeBenchmarks(),
+    summarizeOceanBatchJobs(),
+    summarizeOceanProofReadiness(),
+    summarizeCapacitySettlements()
+  ]);
+  return <PublicProofPage proof={proof} scorecard={scorecard} benchmarks={benchmarks} batch={batch} oceanProof={oceanProof} capacitySettlements={capacitySettlements} />;
 }

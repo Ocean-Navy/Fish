@@ -184,7 +184,7 @@ X-Forwarded-For
 
 ## Persistent Data
 
-The V0 form sink, prototype API ledger, Ocean batch receipts, provider proof receipts, payout accounting files, benchmark runs, offchain staking credits, and the prototype proof signing key write JSON to:
+The V0 form sink, prototype API ledger, Ocean batch receipts, provider proof receipts, payout accounting files, capacity-pool settlement records, benchmark runs, offchain staking credits, and the prototype proof signing key write JSON to:
 
 ```text
 /app/data/submissions
@@ -294,6 +294,25 @@ FISH_USDC_MIN_CONFIRMATIONS=1
 FISH_USDC_PAYMENT_TTL_MINUTES=60
 FISH_STAKING_CREDIT_BUDGET=10000
 FISH_STAKING_CREDITS_PER_OCEAN_MONTH=0.1
+FISH_CONTRACT_CHAIN_ID=8453
+FISH_CONTRACT_CHAIN_NAME=Base
+FISH_CONTRACT_EXPLORER_URL=https://basescan.org
+FISH_CONTRACT_RPC_URL=
+FISH_CONTRACT_RPC_TIMEOUT_MS=4000
+FISH_CONTRACT_ACTIONS_ENABLED=false
+FISH_CONTRACT_SETTLEMENT_SUBMIT_ENABLED=false
+FISH_CONTRACT_SETTLEMENT_CONFIRMATIONS=1
+FISH_CONTRACT_MAINNET_WRITES_ALLOWED=false
+FISH_CONTRACT_DEPLOYER_PRIVATE_KEY=
+FISH_CONTRACT_OPERATOR_PRIVATE_KEY=
+FISH_CONTRACT_OCEAN_TOKEN_ADDRESS=
+FISH_CONTRACT_USDC_TOKEN_ADDRESS=0x833589fcD6EDb6E08f4c7C32D4f71b54bdA02913
+FISH_CONTRACT_FISH_TOKEN_ADDRESS=
+FISH_CONTRACT_OCEAN_STAKING_ADDRESS=
+FISH_CONTRACT_CAPACITY_POOL_ADDRESS=
+FISH_CONTRACT_TREASURY_ADDRESS=
+FISH_CONTRACT_EMISSION_SOURCE_ADDRESS=
+FISH_CONTRACT_OPERATOR_ADDRESS=
 ```
 
 Set `FISH_ADMIN_TOKEN` in production-like environments before issuing prototype API keys.
@@ -306,7 +325,88 @@ Keep `FISH_CHAT_BACKEND=mock` for a no-secret local deployment. Set `FISH_CHAT_R
 
 Paid credit checkout is disabled until secrets are set. For card checkout, set `FISH_STRIPE_SECRET_KEY`, `FISH_STRIPE_WEBHOOK_SECRET`, and `FISH_PUBLIC_APP_URL`, then configure Stripe webhooks for `/api/billing/webhooks/stripe`. For USDC checkout, set `FISH_USDC_RECEIVE_ADDRESS` and `FISH_USDC_RPC_URL`; Fish verifies Base USDC transfer logs before issuing prepaid credits. Keep `FISH_MIN_CHECKOUT_USD` and `FISH_MAX_CHECKOUT_USD` conservative until support/refund handling is ready.
 
+Contract status is read-only by default. Set the `FISH_CONTRACT_*` addresses and `FISH_CONTRACT_RPC_URL` after deploying the prototype contracts on a testnet. Keep `FISH_CONTRACT_ACTIONS_ENABLED=false` until the addresses, chain, roles, and test wallet path are reviewed. Keep `FISH_CONTRACT_SETTLEMENT_SUBMIT_ENABLED=false` until the operator wallet, USDC funding, allowance path, and idempotency process are tested. Keep `FISH_CONTRACT_MAINNET_WRITES_ALLOWED=false` unless the contracts have passed audit, legal review, multisig ownership, monitoring, and incident-response checks.
+
+For Base Sepolia contract testing:
+
+```bash
+BASE_SEPOLIA_RPC_URL=https://... \
+FISH_CONTRACT_DEPLOYER_PRIVATE_KEY=0x... \
+npm run contracts:deploy:testnet
+```
+
+The deploy script creates test OCEAN/test USDC when token addresses are not supplied, deploys FISH, the OCEAN staking proxy, and the Capacity Pool, grants the staking proxy the FISH minter/burner role, sets a simple mint curve, prints the web-app env block, and writes a local ignored deployment artifact.
+
 Warm inference operations are covered in `docs/warm-inference-runbook.md`. The MVP path is a private vLLM endpoint, ideally behind Fish Runner, on a GPU host that may also run Ocean Node for provider identity and anchoring. Keep the warm route on mock until the private endpoint is ready, then switch `FISH_CHAT_ROUTE=ocean-demo-vllm` for the demo lane or `FISH_CHAT_ROUTE=ocean-provider` for selected provider testing. Check `/routing`, `/api/routing/policy`, and `/api/warm/status` after changing routes.
+
+## Contract Testnet Operations
+
+Use Node 22 for the deploy helper. Deploy the prototype contracts to Base Sepolia only:
+
+```bash
+BASE_SEPOLIA_RPC_URL=https://... \
+FISH_CONTRACT_DEPLOYER_PRIVATE_KEY=0x... \
+npm run contracts:deploy:testnet
+```
+
+The testnet helper uses short cooldowns by default so the complete wallet lifecycle can be checked in one session:
+
+```text
+FISH_TESTNET_FISH_COOLDOWN_SECONDS=300
+FISH_TESTNET_OCEAN_COOLDOWN_SECONDS=300
+FISH_TESTNET_MIN_UNSTAKE_BATCH_OPEN_SECONDS=60
+```
+
+The script prints the `FISH_CONTRACT_*` web-app env block. Add those values to the app environment, restart the app, then verify:
+
+```bash
+curl -fsS http://127.0.0.1:3000/api/contracts/status
+```
+
+Expected testnet state after a successful configured read:
+
+```text
+dataState=live
+onchain.readVerified=true
+mode=testnet_actions when FISH_CONTRACT_ACTIONS_ENABLED=true
+```
+
+Server-submitted capacity settlements require:
+
+```text
+FISH_CONTRACT_RPC_URL
+FISH_CONTRACT_OPERATOR_PRIVATE_KEY
+FISH_CONTRACT_SETTLEMENT_SUBMIT_ENABLED=true
+FISH_ADMIN_TOKEN
+```
+
+Operator rules:
+
+- Use a separate operator key from the deployer once the first smoke test passes.
+- Keep the operator key in the server environment only; never commit it or place it in browser-exposed `NEXT_PUBLIC_*` variables.
+- Include a stable `idempotencyKey` for every onchain settlement. Reusing the same key must return the existing record and must not submit a second transaction.
+- Treat RPC mismatch, missing operator role, missing private key, and disabled settlement submit as fail-closed states.
+- If a transaction is submitted but the HTTP request fails before the response returns, check the chain and local settlement records before retrying. Retry with the same `idempotencyKey`.
+- Monitor operator USDC balance and allowance. The route approves USDC when needed, but the operator wallet must hold the settled USDC amount.
+- Keep `FISH_CONTRACT_MAINNET_WRITES_ALLOWED` unset until audit, legal review, multisig ownership, and an incident-response runbook are complete.
+
+Prototype wallet lifecycle to test on `/credits`:
+
+```text
+approve OCEAN
+stake OCEAN
+mint FISH
+approve FISH
+stake FISH capacity
+record paid USDC usage through /api/proof/capacity-settlements
+claim USDC
+queue FISH capacity exit
+flush capacity batch
+claim FISH batch after cooldown
+burn FISH
+start OCEAN exit
+finish OCEAN exit after cooldown
+```
 
 ## Verification
 
@@ -340,6 +440,8 @@ Then browser-check:
 - `/api/proof/market-making`
 - `/api/proof/payouts`
 - `/api/proof/payouts?state=accrued&limit=10`
+- `/api/proof/capacity-settlements`
+- `/api/contracts/status`
 - `/api/billing/plans`
 - `/api/billing/checkout/stripe` with a Fish API key when Stripe env is configured
 - `/api/billing/checkout/usdc` with a Fish API key when USDC env is configured

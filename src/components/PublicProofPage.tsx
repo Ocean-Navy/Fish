@@ -1,10 +1,11 @@
-import { CircleDollarSign, FileText, Fish, Gauge, ReceiptText, Ship } from "lucide-react";
+import { CircleDollarSign, FileText, Fish, Gauge, ReceiptText, Ship, Vault } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import type { Route } from "next";
 import type { ReactNode } from "react";
 import { formatCompact, formatDateTime, formatNumber, formatUsd } from "@/lib/format";
+import type { CapacitySettlementSummary } from "@/lib/capacitySettlements";
 import type { BenchmarkSummary } from "@/lib/providerBenchmarks";
 import type { OceanBatchSummary } from "@/lib/oceanBatch";
 import type { OceanProofReadiness } from "@/lib/oceanProofReadiness";
@@ -13,7 +14,21 @@ import type { ProviderScorecardSummary } from "@/lib/providerScorecard";
 import type { DataState } from "@/lib/types";
 import { StatusBadge } from "@/components/StatusBadge";
 
-export function PublicProofPage({ proof, scorecard, benchmarks, batch, oceanProof }: { proof: ProofSummary; scorecard: ProviderScorecardSummary; benchmarks: BenchmarkSummary; batch: OceanBatchSummary; oceanProof: OceanProofReadiness }) {
+export function PublicProofPage({
+  proof,
+  scorecard,
+  benchmarks,
+  batch,
+  oceanProof,
+  capacitySettlements
+}: {
+  proof: ProofSummary;
+  scorecard: ProviderScorecardSummary;
+  benchmarks: BenchmarkSummary;
+  batch: OceanBatchSummary;
+  oceanProof: OceanProofReadiness;
+  capacitySettlements: CapacitySettlementSummary;
+}) {
   const hasLiveProof = proof.dataState === "live" && proof.verifiedReceipts > 0;
   const providerRows = scorecard.rows.filter((row) => row.selected || row.jobsRouted || row.benchmarkRuns).slice(0, 4);
   const receiptRows = proof.receipts.slice(0, 5);
@@ -69,6 +84,7 @@ export function PublicProofPage({ proof, scorecard, benchmarks, batch, oceanProo
             <HeroCounter icon={FileText} label="Batch dishes" value={formatCompact(batch.succeededJobs)} />
             <HeroCounter icon={Gauge} label="Ocean gate" value={oceanProof.proofReady ? "Ready" : "Not yet"} />
             <HeroCounter icon={CircleDollarSign} label="Provider chest" value={formatUsd(proof.providerPayoutUsd)} />
+            <HeroCounter icon={Vault} label="Capacity pool" value={formatUsd(capacitySettlements.totals.netUsdcAmount)} />
           </div>
         </div>
       </section>
@@ -192,6 +208,34 @@ export function PublicProofPage({ proof, scorecard, benchmarks, batch, oceanProo
           <ProofTile label="Disputed" value={formatUsd(proof.payouts.totals.disputed)} />
           <ProofTile label="Voided" value={formatUsd(proof.payouts.totals.voided)} />
         </div>
+      </MetricGroup>
+
+      <MetricGroup title="Capacity Pool" eyebrow="Paid demand" state={capacitySettlements.dataState}>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <ProofTile label="Settlements" value={formatCompact(capacitySettlements.totals.settlements)} />
+          <ProofTile label="USDC recorded" value={formatUsd(capacitySettlements.totals.grossUsdcAmount)} />
+          <ProofTile label="Net to pool" value={formatUsd(capacitySettlements.totals.netUsdcAmount)} />
+          <ProofTile label="Operator fee" value={formatUsd(capacitySettlements.totals.operatorFeeUsdc)} />
+        </div>
+        {capacitySettlements.settlements.length ? (
+          <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {capacitySettlements.settlements.slice(0, 4).map((settlement) => (
+              <article key={settlement.settlementId} className="rounded-[1.5rem] border border-fish-accent/20 bg-fish-surface/80 p-5 shadow-harbor">
+                <p className="text-xs font-black uppercase tracking-[0.12em] text-fish-gold">{settlement.settlementSource.replaceAll("_", " ")}</p>
+                <h3 className="mt-3 text-xl font-black text-white">{formatUsd(settlement.netUsdcAmount)} net</h3>
+                <p className="mt-3 text-sm font-bold text-fish-secondary">
+                  {formatUsd(settlement.grossUsdcAmount)} recorded / {formatUsd(settlement.operatorFeeUsdc)} fee
+                </p>
+                <p className="mt-3 break-all text-xs font-bold leading-5 text-fish-secondary">{settlement.transactionHashPrefix ?? "No tx hash recorded"}</p>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <div className="mt-3">
+            <EmptyHarbor text="No capacity-pool settlement records yet. Paid demand records will appear here after operator review." />
+          </div>
+        )}
+        {capacitySettlements.warnings[1] ? <p className="mt-3 rounded-2xl border border-fish-gold/25 bg-fish-gold/10 p-4 text-sm font-black leading-6 text-fish-primary">{capacitySettlements.warnings[1]}</p> : null}
       </MetricGroup>
 
       <MetricGroup title="Benchmark Board" eyebrow="Route tests" state={benchmarks.dataState}>

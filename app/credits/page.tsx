@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { EvmStakeIntentPanel } from "@/components/EvmStakeIntentPanel";
+import { FishContractsPanel } from "@/components/FishContractsPanel";
 import { RolePageShell } from "@/components/RolePageShell";
 import { StakingCreditsPanel } from "@/components/StakingCreditsPanel";
+import { summarizeFishContracts } from "@/lib/fishContracts";
 import { summarizeStakingCredits } from "@/lib/stakingCredits";
 
 export const metadata: Metadata = {
@@ -31,7 +33,7 @@ const tokenGuardrails = [
 ];
 
 export default async function CreditsPage() {
-  const stakingSummary = await summarizeStakingCredits();
+  const [stakingSummary, contractStatus] = await Promise.all([summarizeStakingCredits(), summarizeFishContracts()]);
 
   return (
     <RolePageShell
@@ -48,6 +50,7 @@ export default async function CreditsPage() {
       note="Credit rule: product first, token utility after usage. Fish credits should be backed by real demand and real payment coverage."
     >
       <StakingCreditsPanel summary={stakingSummary} />
+      <FishContractsPanel status={contractStatus} />
       <EvmStakeIntentPanel />
       <section className="px-4 pb-14 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl rounded-[2rem] border border-fish-gold/25 bg-fish-gold/10 p-6 shadow-harbor sm:p-8">

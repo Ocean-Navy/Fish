@@ -1,4 +1,8 @@
 node_modules/
+contracts/node_modules/
+contracts/artifacts/
+contracts/cache/
+contracts/deployments/*.local.json
 .deps/
 __pycache__/
 *.pyc

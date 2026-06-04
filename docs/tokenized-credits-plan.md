@@ -123,6 +123,8 @@ internal ledger -> non-transferable or restricted transfer -> open transferabili
 
 Fish has a safe spec for the strongest Venice-like mechanic, but does not ship it early.
 
+Current prototype status: `contracts/` contains a local Solidity prototype for OCEAN deposit, non-transferable sOCEAN accounting, FISH mint/burn, and FISH burn-to-unlock. It is documented in `docs/fish-contracts-capacity-pool-plan.md`. This prototype is not audited and is not ready for mainnet funds.
+
 ### Concept Flow
 
 ```text
@@ -156,6 +158,10 @@ lock OCEAN or approved receipt-backed collateral
 ### Outcome
 
 Unused credits can be studied as a capacity-allocation layer without promising revenue sharing.
+
+Current prototype status: `contracts/` contains a Fish Capacity Pool inspired by AntSeed's DIEM capacity program. It accepts staked FISH, lets an authorized operator record paid USDC demand, takes an operator fee, and distributes net USDC pro-rata to FISH capacity stakers. This is a contract research artifact only; public launch requires legal/security review and conservative user terms.
+
+Website/API wiring status: `/credits` now shows contract status and gated testnet wallet controls for the full prototype lifecycle: stake OCEAN, mint FISH, stake FISH capacity, claim USDC, exit capacity batches, burn FISH, and withdraw unlocked OCEAN after cooldown. `/api/contracts/status` exposes public-safe address readiness, wallet action gates, settlement-submit gates, capacity batch pointers, and live onchain totals when `FISH_CONTRACT_RPC_URL` is configured. `/proof`, `/dashboard`, and `/api/proof/capacity-settlements` show capacity-pool settlement records. Operator-reported records remain `snapshot`; server-submitted `recordPaidUsage` transactions are recorded as `live` after confirmation.
 
 ### Concept Flow
 
@@ -211,6 +217,7 @@ The team can decide whether tokenized credits are ready for implementation.
 The `/credits` page should stay simple:
 
 - show staking credits as the active or prototype lane;
+- show contract status and wallet actions as gated testnet-only controls;
 - show provider bonds as a separate future supply-side lane;
 - show tokenized credits as a later lane;
 - avoid price, yield, or token-launch hype;

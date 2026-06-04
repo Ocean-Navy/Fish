@@ -667,6 +667,46 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ProofSummary'
+  /api/proof/capacity-settlements:
+    get:
+      summary: Public-safe FISH Capacity Pool settlement summary
+      description: Lists operator-reported paid-demand settlement records. Records are snapshot data until onchain verification is configured.
+      responses:
+        '200':
+          description: Capacity settlement summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CapacitySettlementSummary'
+    post:
+      summary: Admin-only FISH Capacity Pool settlement record
+      description: Records that paid demand was settled into the FISH Capacity Pool. The route stores public-safe amount and transaction metadata only.
+      security:
+        - adminToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CapacitySettlementRequest'
+      responses:
+        '201':
+          description: Capacity settlement recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  idempotent:
+                    type: boolean
+                  settlement:
+                    $ref: '#/components/schemas/CapacitySettlement'
+        '400':
+          description: Invalid capacity settlement request
+        '401':
+          description: Admin token required
   /api/proof/receipts:
     get:
       summary: Filterable public-safe provider job receipt ledger
@@ -1230,6 +1270,17 @@ paths:
                     nullable: true
                   message:
                     type: string
+  /api/contracts/status:
+    get:
+      summary: Public-safe Fish contract status and wallet action gates
+      description: Exposes configured contract addresses, chain metadata, missing required config, and whether wallet write actions are enabled. Does not verify onchain totals yet.
+      responses:
+        '200':
+          description: Fish contract status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FishContractStatus'
   /api/staking/summary:
     get:
       summary: Public offchain OCEAN staking credit summary
@@ -4077,6 +4128,350 @@ components:
           type: array
           items:
             type: string
+    FishContractAddress:
+      type: object
+      properties:
+        key:
+          type: string
+          enum: [oceanToken, fishToken, oceanStaking, capacityPool, usdcToken, treasury, emissionSource, operator]
+        label:
+          type: string
+        address:
+          type: string
+          nullable: true
+        configured:
+          type: boolean
+        required:
+          type: boolean
+        explorerUrl:
+          type: string
+          nullable: true
+    FishContractStatus:
+      type: object
+      properties:
+        dataState:
+          type: string
+          enum: [live, snapshot, sample, unavailable]
+        lastUpdated:
+          type: string
+        mode:
+          type: string
+          enum: [local_prototype, configured_read_only, testnet_actions, mainnet_read_only]
+        chain:
+          type: object
+          properties:
+            chainId:
+              type: integer
+            chainName:
+              type: string
+            explorerUrl:
+              type: string
+              nullable: true
+        rpc:
+          type: object
+          properties:
+            configured:
+              type: boolean
+            readTimeoutMs:
+              type: integer
+        deployment:
+          type: object
+          properties:
+            requiredConfigured:
+              type: boolean
+            configuredRequiredCount:
+              type: integer
+            requiredCount:
+              type: integer
+            missingRequired:
+              type: array
+              items:
+                type: string
+        walletActionGate:
+          type: object
+          properties:
+            actionsEnabled:
+              type: boolean
+            writesAllowed:
+              type: boolean
+            reason:
+              type: string
+        settlementSubmitGate:
+          type: object
+          properties:
+            submitEnabled:
+              type: boolean
+            submitAllowed:
+              type: boolean
+            reason:
+              type: string
+            hasOperatorPrivateKey:
+              type: boolean
+            confirmations:
+              type: integer
+        addresses:
+          type: array
+          items:
+            $ref: '#/components/schemas/FishContractAddress'
+        onchain:
+          $ref: '#/components/schemas/FishContractOnchainStatus'
+        actions:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                enum:
+                  - approve_ocean
+                  - stake_ocean
+                  - mint_fish
+                  - burn_fish
+                  - claim_ocean_rewards
+                  - initiate_ocean_unstake
+                  - finalize_ocean_unstake
+                  - approve_fish
+                  - stake_capacity
+                  - initiate_capacity_unstake
+                  - flush_capacity_batch
+                  - claim_capacity_batch
+                  - claim_usdc
+              label:
+                type: string
+              contractKey:
+                type: string
+              method:
+                type: string
+              enabled:
+                type: boolean
+        warnings:
+          type: array
+          items:
+            type: string
+    FishContractOnchainStatus:
+      type: object
+      properties:
+        sourceState:
+          type: string
+          enum: [live, snapshot, sample, unavailable]
+        readVerified:
+          type: boolean
+        error:
+          type: string
+          nullable: true
+        chainIdVerified:
+          type: boolean
+        chainIdObserved:
+          type: integer
+          nullable: true
+        decimals:
+          type: object
+          properties:
+            ocean:
+              type: integer
+              nullable: true
+            fish:
+              type: integer
+              nullable: true
+            usdc:
+              type: integer
+              nullable: true
+        oceanStaking:
+          type: object
+          properties:
+            totalStakedOcean:
+              type: string
+              nullable: true
+            totalLockedStakedOcean:
+              type: string
+              nullable: true
+            emissionRatePerSecond:
+              type: string
+              nullable: true
+            cooldownSeconds:
+              type: integer
+              nullable: true
+        fish:
+          type: object
+          properties:
+            totalSupply:
+              type: string
+              nullable: true
+        capacityPool:
+          type: object
+          properties:
+            totalStakedFish:
+              type: string
+              nullable: true
+            stakerCount:
+              type: integer
+              nullable: true
+            operatorFeeBps:
+              type: integer
+              nullable: true
+            totalUsdcDistributedEver:
+              type: string
+              nullable: true
+            totalUsdcReservedForStakers:
+              type: string
+              nullable: true
+            configuredOperatorIsOperator:
+              type: boolean
+              nullable: true
+            currentUnstakeBatch:
+              type: integer
+              nullable: true
+            oldestUnclaimedUnstakeBatch:
+              type: integer
+              nullable: true
+            flushableAt:
+              type: string
+              nullable: true
+    CapacitySettlementRequest:
+      type: object
+      additionalProperties: false
+      required: [grossUsdcAmount]
+      properties:
+        grossUsdcAmount:
+          type: number
+          minimum: 0.000001
+        netUsdcAmount:
+          type: number
+          minimum: 0
+        operatorFeeUsdc:
+          type: number
+          minimum: 0
+        settlementSource:
+          type: string
+          enum: [stripe, usdc_checkout, api_subscription, operator_adjustment]
+          default: operator_adjustment
+        transactionHash:
+          type: string
+          nullable: true
+          pattern: '^0x[a-fA-F0-9]{64}$'
+        capacityPoolAddress:
+          type: string
+          nullable: true
+          pattern: '^0x[a-fA-F0-9]{40}$'
+        paidDemandRef:
+          type: string
+          nullable: true
+        idempotencyKey:
+          type: string
+          nullable: true
+          minLength: 8
+          description: Required when submitOnchain is true.
+        submitOnchain:
+          type: boolean
+          default: false
+        occurredAt:
+          type: string
+        note:
+          type: string
+          nullable: true
+    CapacitySettlement:
+      type: object
+      properties:
+        settlementVersion:
+          type: integer
+          enum: [1]
+        settlementId:
+          type: string
+        settlementType:
+          type: string
+          enum: [fish_capacity_pool_settlement]
+        grossUsdcAmount:
+          type: number
+        netUsdcAmount:
+          type: number
+        operatorFeeUsdc:
+          type: number
+        settlementSource:
+          type: string
+          enum: [stripe, usdc_checkout, api_subscription, operator_adjustment]
+        transactionHash:
+          type: string
+          nullable: true
+        transactionHashPrefix:
+          type: string
+          nullable: true
+        approveTransactionHash:
+          type: string
+          nullable: true
+        submitState:
+          type: string
+          enum: [not_submitted, submitted]
+        onchainSubmission:
+          type: object
+          nullable: true
+          properties:
+            chainId:
+              type: integer
+            operatorAddressPrefix:
+              type: string
+            grossAmountRaw:
+              type: string
+            operatorFeeBps:
+              type: integer
+            recordPaidUsageBlockNumber:
+              type: integer
+              nullable: true
+            confirmations:
+              type: integer
+        capacityPoolAddress:
+          type: string
+          nullable: true
+        capacityPoolAddressPrefix:
+          type: string
+          nullable: true
+        paidDemandHash:
+          type: string
+          nullable: true
+        idempotencyHash:
+          type: string
+          nullable: true
+        sourceState:
+          type: string
+          enum: [live, snapshot]
+        visibility:
+          type: string
+          enum: [public]
+        occurredAt:
+          type: string
+        createdAt:
+          type: string
+    CapacitySettlementSummary:
+      type: object
+      properties:
+        dataState:
+          type: string
+          enum: [live, snapshot, sample, unavailable]
+        lastUpdated:
+          type: string
+        totals:
+          type: object
+          properties:
+            settlements:
+              type: integer
+            grossUsdcAmount:
+              type: number
+            netUsdcAmount:
+              type: number
+            operatorFeeUsdc:
+              type: number
+            onchainSubmittedSettlements:
+              type: integer
+        configuredCapacityPoolAddress:
+          type: string
+          nullable: true
+        settlements:
+          type: array
+          items:
+            $ref: '#/components/schemas/CapacitySettlement'
+        warnings:
+          type: array
+          items:
+            type: string
     ProofSummary:
       type: object
       properties:
@@ -4106,6 +4501,8 @@ components:
           type: integer
         payouts:
           $ref: '#/components/schemas/PayoutSummary'
+        capacitySettlements:
+          $ref: '#/components/schemas/CapacitySettlementSummary'
         receipts:
           type: array
           items:
@@ -4735,6 +5132,55 @@ components:
               type: number
             providerPayoutUsd:
               type: number
+            capacitySettlementGrossUsdc:
+              type: number
+            capacitySettlementNetUsdc:
+              type: number
+            capacitySettlementOperatorFeeUsdc:
+              type: number
+        contracts:
+          type: object
+          properties:
+            dataState:
+              type: string
+              enum: [live, snapshot, sample, unavailable]
+            mode:
+              type: string
+              enum: [local_prototype, configured_read_only, testnet_actions, mainnet_read_only]
+            chainId:
+              type: integer
+            chainName:
+              type: string
+            rpcConfigured:
+              type: boolean
+            requiredConfigured:
+              type: boolean
+            readVerified:
+              type: boolean
+            walletWritesAllowed:
+              type: boolean
+            settlementSubmitAllowed:
+              type: boolean
+            oceanStaking:
+              type: object
+            fish:
+              type: object
+            capacityPool:
+              type: object
+            capacitySettlements:
+              type: object
+              properties:
+                dataState:
+                  type: string
+                  enum: [live, snapshot, sample, unavailable]
+                settlements:
+                  type: integer
+                onchainSubmittedSettlements:
+                  type: integer
+                grossUsdcAmount:
+                  type: number
+                netUsdcAmount:
+                  type: number
         proof:
           type: object
           properties:

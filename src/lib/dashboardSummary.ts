@@ -1,23 +1,27 @@
 import { summarizeFishUsage } from "@/lib/fishLedger";
 import { collectOceanData } from "@/lib/oceanSupply";
+import { summarizeCapacitySettlements } from "@/lib/capacitySettlements";
+import { summarizeFishContracts } from "@/lib/fishContracts";
 import { getFishRouterConfig } from "@/lib/fishRouter";
 import { getFishRoutePolicy } from "@/lib/routePolicy";
 import { getWarmInferenceStatus } from "@/lib/warmInferenceStatus";
 import type { DataState } from "@/lib/types";
 
 export async function getFishDashboardSummary() {
-  const [oceanData, fishUsage, routePolicy, warmStatus] = await Promise.all([
+  const [oceanData, fishUsage, routePolicy, warmStatus, contractStatus, capacitySettlements] = await Promise.all([
     collectOceanData(),
     summarizeFishUsage(),
     Promise.resolve(getFishRoutePolicy()),
-    getWarmInferenceStatus({ timeoutMs: 1200 })
+    getWarmInferenceStatus({ timeoutMs: 1200 }),
+    summarizeFishContracts(),
+    summarizeCapacitySettlements()
   ]);
   const oceanSummary = oceanData.summary;
   const routerConfig = getFishRouterConfig();
   const activeRouteConfig = routerConfig.routes[routerConfig.activeRouteId];
 
   return {
-    dataState: combinedDataState([oceanSummary.dataState, fishUsage.dataState, routePolicy.dataState, warmStatus.dataState]),
+    dataState: combinedDataState([oceanSummary.dataState, fishUsage.dataState, routePolicy.dataState, warmStatus.dataState, contractStatus.dataState, capacitySettlements.dataState]),
     generatedAt: new Date().toISOString(),
     product: {
       name: "Fish",
@@ -89,7 +93,31 @@ export async function getFishDashboardSummary() {
       providerCostUsd: fishUsage.providerCostUsd,
       grossMarginUsd: fishUsage.grossMarginUsd,
       averageProviderCostUsd: fishUsage.averageProviderCostUsd,
-      providerPayoutUsd: fishUsage.providerPayoutUsd
+      providerPayoutUsd: fishUsage.providerPayoutUsd,
+      capacitySettlementGrossUsdc: capacitySettlements.totals.grossUsdcAmount,
+      capacitySettlementNetUsdc: capacitySettlements.totals.netUsdcAmount,
+      capacitySettlementOperatorFeeUsdc: capacitySettlements.totals.operatorFeeUsdc
+    },
+    contracts: {
+      dataState: contractStatus.dataState,
+      mode: contractStatus.mode,
+      chainId: contractStatus.chain.chainId,
+      chainName: contractStatus.chain.chainName,
+      rpcConfigured: contractStatus.rpc.configured,
+      requiredConfigured: contractStatus.deployment.requiredConfigured,
+      readVerified: contractStatus.onchain.readVerified,
+      walletWritesAllowed: contractStatus.walletActionGate.writesAllowed,
+      settlementSubmitAllowed: contractStatus.settlementSubmitGate.submitAllowed,
+      oceanStaking: contractStatus.onchain.oceanStaking,
+      fish: contractStatus.onchain.fish,
+      capacityPool: contractStatus.onchain.capacityPool,
+      capacitySettlements: {
+        dataState: capacitySettlements.dataState,
+        settlements: capacitySettlements.totals.settlements,
+        onchainSubmittedSettlements: capacitySettlements.totals.onchainSubmittedSettlements,
+        grossUsdcAmount: capacitySettlements.totals.grossUsdcAmount,
+        netUsdcAmount: capacitySettlements.totals.netUsdcAmount
+      }
     },
     proof: {
       runnerProofJobs: fishUsage.runnerProofJobs,
@@ -98,7 +126,7 @@ export async function getFishDashboardSummary() {
       storesPromptOutputText: false
     },
     rules: routePolicy.rules,
-    warnings: uniqueStrings([...oceanSummary.warnings, ...warmStatus.warnings]).slice(0, 8)
+    warnings: uniqueStrings([...oceanSummary.warnings, ...warmStatus.warnings, ...contractStatus.warnings, ...capacitySettlements.warnings]).slice(0, 10)
   };
 }
 

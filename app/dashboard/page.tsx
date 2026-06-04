@@ -1,4 +1,5 @@
 import { BenchmarkMatrixPanel } from "@/components/BenchmarkMatrixPanel";
+import { ContractUtilityPanel } from "@/components/ContractUtilityPanel";
 import { DashboardPreview } from "@/components/DashboardPreview";
 import { FishUsageSummary } from "@/components/FishUsageSummary";
 import { MarketMakingPanel } from "@/components/MarketMakingPanel";
@@ -9,7 +10,9 @@ import { ProviderScorecardPanel } from "@/components/ProviderScorecardPanel";
 import { StakingCreditsPanel } from "@/components/StakingCreditsPanel";
 import { WarmInferenceStatusPanel } from "@/components/WarmInferenceStatusPanel";
 import { collectOceanData } from "@/lib/oceanSupply";
+import { summarizeCapacitySettlements } from "@/lib/capacitySettlements";
 import { summarizeFishUsage } from "@/lib/fishLedger";
+import { summarizeFishContracts } from "@/lib/fishContracts";
 import { summarizeMarketMaking } from "@/lib/marketMaking";
 import { summarizeBenchmarks } from "@/lib/providerBenchmarks";
 import { summarizeProviderBonds } from "@/lib/providerBonds";
@@ -24,7 +27,7 @@ import Link from "next/link";
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  const [oceanData, fishUsage, providerPilot, proof, providerScorecard, providerBonds, benchmarks, stakingCredits, warmStatus] = await Promise.all([
+  const [oceanData, fishUsage, providerPilot, proof, providerScorecard, providerBonds, benchmarks, stakingCredits, warmStatus, contractStatus, capacitySettlements] = await Promise.all([
     collectOceanData(),
     summarizeFishUsage(),
     collectProviderPilotRegistry(),
@@ -33,7 +36,9 @@ export default async function DashboardPage() {
     summarizeProviderBonds(),
     summarizeBenchmarks(),
     summarizeStakingCredits(),
-    getWarmInferenceStatus()
+    getWarmInferenceStatus(),
+    summarizeFishContracts(),
+    summarizeCapacitySettlements()
   ]);
   const marketMaking = await summarizeMarketMaking({
     oceanSummary: oceanData.summary,
@@ -61,6 +66,7 @@ export default async function DashboardPage() {
       <FishUsageSummary summary={fishUsage} />
       <WarmInferenceStatusPanel status={warmStatus} />
       <StakingCreditsPanel summary={stakingCredits} />
+      <ContractUtilityPanel contractStatus={contractStatus} capacitySettlements={capacitySettlements} />
       <ProviderPilotPanel registry={providerPilot} />
       <ProviderScorecardPanel summary={providerScorecard} />
       <ProviderBondsPanel summary={providerBonds} />
