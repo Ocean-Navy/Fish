@@ -19,6 +19,7 @@ const ERC20_ABI = [
 ] as const;
 
 const OCEAN_STAKING_ABI = [
+  { type: "function", name: "balanceOf", stateMutability: "view", inputs: [{ name: "account", type: "address" }], outputs: [{ name: "", type: "uint256" }] },
   { type: "function", name: "cooldownDuration", stateMutability: "view", inputs: [], outputs: [{ name: "", type: "uint256" }] },
   { type: "function", name: "emissionRatePerSecond", stateMutability: "view", inputs: [], outputs: [{ name: "", type: "uint256" }] },
   { type: "function", name: "totalLockedStakedOcean", stateMutability: "view", inputs: [], outputs: [{ name: "", type: "uint256" }] },
@@ -408,6 +409,7 @@ async function readFishContractOnchainStatusUnsafe(config: FishContractConfig): 
     usdcDecimals,
     sOceanSupply,
     totalLockedStakedOcean,
+    bootstrapSOceanBalance,
     emissionRatePerSecond,
     cooldownDuration,
     fishTotalSupply,
@@ -426,6 +428,7 @@ async function readFishContractOnchainStatusUnsafe(config: FishContractConfig): 
       publicClient.readContract({ address: usdcToken, abi: ERC20_ABI, functionName: "decimals" }),
       publicClient.readContract({ address: oceanStaking, abi: OCEAN_STAKING_ABI, functionName: "totalSupply" }),
       publicClient.readContract({ address: oceanStaking, abi: OCEAN_STAKING_ABI, functionName: "totalLockedStakedOcean" }),
+      publicClient.readContract({ address: oceanStaking, abi: OCEAN_STAKING_ABI, functionName: "balanceOf", args: [oceanStaking] }),
       publicClient.readContract({ address: oceanStaking, abi: OCEAN_STAKING_ABI, functionName: "emissionRatePerSecond" }),
       publicClient.readContract({ address: oceanStaking, abi: OCEAN_STAKING_ABI, functionName: "cooldownDuration" }),
       publicClient.readContract({ address: fishToken, abi: ERC20_ABI, functionName: "totalSupply" }),
@@ -450,6 +453,7 @@ async function readFishContractOnchainStatusUnsafe(config: FishContractConfig): 
   const oceanDecimalsNumber = Number(oceanDecimals);
   const fishDecimalsNumber = Number(fishDecimals);
   const usdcDecimalsNumber = Number(usdcDecimals);
+  const visibleSOceanSupply = subtractFloor(sOceanSupply as bigint, bootstrapSOceanBalance as bigint);
 
   return {
     sourceState: "live",
@@ -463,7 +467,7 @@ async function readFishContractOnchainStatusUnsafe(config: FishContractConfig): 
       usdc: usdcDecimalsNumber
     },
     oceanStaking: {
-      totalStakedOcean: formatUnits(sOceanSupply as bigint, oceanDecimalsNumber),
+      totalStakedOcean: formatUnits(visibleSOceanSupply, oceanDecimalsNumber),
       totalLockedStakedOcean: formatUnits(totalLockedStakedOcean as bigint, oceanDecimalsNumber),
       emissionRatePerSecond: formatUnits(emissionRatePerSecond as bigint, oceanDecimalsNumber),
       cooldownSeconds: Number(cooldownDuration)
@@ -618,6 +622,10 @@ function defaultExplorerUrl(chainId: number) {
 
 function defaultUsdcAddress(chainId: number) {
   return chainId === BASE_CHAIN_ID ? BASE_USDC_ADDRESS : undefined;
+}
+
+function subtractFloor(value: bigint, delta: bigint) {
+  return value > delta ? value - delta : 0n;
 }
 
 function resolveDataState({ onchainState, requiredConfigured }: { onchainState: DataState; requiredConfigured: boolean }): DataState {
