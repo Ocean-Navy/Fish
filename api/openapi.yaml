@@ -4,7 +4,7 @@ info:
   version: 0.1.0
   description: API contract for the Fish landing page, Ocean Network supply dashboard, provider pilot, and waitlist.
 servers:
-  - url: http://127.0.0.1:8787
+  - url: http://127.0.0.1:3000
 paths:
   /api/health:
     get:
@@ -44,6 +44,11 @@ paths:
               schema:
                 type: object
                 properties:
+                  dataState:
+                    type: string
+                    enum: [live, snapshot, sample, unavailable]
+                  lastUpdated:
+                    type: string
                   resources:
                     type: array
                     items:
@@ -59,10 +64,1167 @@ paths:
               schema:
                 type: object
                 properties:
+                  dataState:
+                    type: string
+                    enum: [live, snapshot, sample, unavailable]
+                  lastUpdated:
+                    type: string
                   providers:
                     type: array
                     items:
                       $ref: '#/components/schemas/ProviderScore'
+  /api/ocean/provider-readiness:
+    post:
+      summary: Admin-only selected Ocean provider readiness check
+      description: Checks selected-provider route config, provider proof allowlist state, `/models`, and optionally one tiny chat probe without returning endpoint URLs, API keys, prompt text, or output text.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                probeModels:
+                  type: boolean
+                  default: true
+                probeChat:
+                  type: boolean
+                  default: false
+                  description: When true, sends one tiny chat request to the selected provider route. This may incur provider cost.
+                timeoutMs:
+                  type: integer
+                  minimum: 250
+                  maximum: 30000
+                  default: 3000
+                workloadType:
+                  type: string
+                  default: chat_batch
+                model:
+                  type: string
+                  description: Optional proof-job model to check against the provider allowlist.
+      responses:
+        '200':
+          description: Selected-provider readiness result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OceanProviderReadiness'
+        '400':
+          description: Invalid readiness request
+        '401':
+          description: Admin token required
+  /api/dashboard/summary:
+    get:
+      summary: Unified public Fish dashboard summary
+      description: Combines Fish usage, active route status, warm AI readiness, Ocean supply, and public-safe proof counters without prompts, outputs, endpoint URLs, or API keys.
+      responses:
+        '200':
+          description: Fish dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FishDashboardSummary'
+  /api/ocean/batch/jobs:
+    get:
+      summary: Public-safe Ocean batch job summary
+      description: Lists recent Ocean batch receipts without prompt text, output text, endpoint URLs, API keys, or private provider contact data.
+      responses:
+        '200':
+          description: Ocean batch summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OceanBatchSummary'
+    post:
+      summary: Submit a capped Ocean batch job
+      description: Fish API-key route for batch dish jobs. The request accepts input references only; raw dish input and full output text are not accepted or stored by this contract.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OceanBatchJobRequest'
+      responses:
+        '200':
+          description: Ocean batch job completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  receipt:
+                    $ref: '#/components/schemas/OceanBatchReceipt'
+                  usageReceipt:
+                    $ref: '#/components/schemas/FishUsageReceipt'
+                  creditsRemaining:
+                    type: integer
+                  budget:
+                    $ref: '#/components/schemas/OceanBatchBudgetState'
+                  quota:
+                    $ref: '#/components/schemas/FishQuotaState'
+                  monthlyRequests:
+                    $ref: '#/components/schemas/FishMonthlyRequestState'
+                  rateLimit:
+                    type: object
+                    properties:
+                      remaining:
+                        type: integer
+                      resetAt:
+                        type: string
+        '401':
+          description: Fish API key required
+        '402':
+          description: Insufficient Fish Credits
+        '429':
+          description: Ocean batch daily budget, monthly request limit, daily quota, or minute rate limit exceeded
+        '502':
+          description: Ocean batch backend failed
+        '504':
+          description: Ocean batch backend timed out
+  /api/ocean/batch/readiness:
+    get:
+      summary: Public-safe Ocean batch proof readiness
+      description: Milestone 3 readiness gate for the private Ocean workload adapter and successful non-sample Ocean batch receipts. Does not expose adapter URLs, wallet secrets, API keys, prompt text, or output text.
+      responses:
+        '200':
+          description: Ocean batch proof readiness
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OceanProofReadiness'
+  /api/routing/policy:
+    get:
+      summary: Public Fish routing policy
+      description: Public-safe route compass for mock chat, external fallback, selected Ocean providers, future privacy stages, and receipt rules. It does not expose secrets.
+      responses:
+        '200':
+          description: Route policy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FishRoutePolicy'
+  /api/warm/status:
+    get:
+      summary: Public-safe warm inference status
+      description: Shows whether the configured warm demo route is ready without exposing endpoint URLs, API keys, prompts, or outputs.
+      responses:
+        '200':
+          description: Warm route status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WarmInferenceStatus'
+  /api/features:
+    get:
+      summary: Public Fish AI menu
+      description: Lists simple Fish menu dishes, model aliases, route labels, caps, and feature policy without exposing prompts or backend secrets.
+      responses:
+        '200':
+          description: Fish feature menu
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FishFeatureMenu'
+  /api/dishes/{dishId}/run:
+    post:
+      summary: Run a Fish AI menu dish
+      description: Runs a menu dish such as ask, code, docs, repo, eval, data, proposal, or ocean with server-side prompts. Batch dishes return public-safe ticket metadata. Uses guest credits when no bearer key is provided and Fish API-key credits when authorization is present.
+      parameters:
+        - in: path
+          name: dishId
+          required: true
+          schema:
+            type: string
+            enum: [ask, code, explain, docs, repo, eval, data, images, proposal, ocean]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FishDishRunRequest'
+      responses:
+        '200':
+          description: Fish dish run completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FishChatCompletion'
+        '400':
+          description: Invalid dish request
+        '401':
+          description: Invalid bearer key when one is supplied
+        '402':
+          description: Insufficient Fish Credits
+        '404':
+          description: Fish dish not found
+        '501':
+          description: Fish dish not enabled
+  /api/meal/order:
+    post:
+      summary: Guest Fish meal-counter order
+      description: Capped guest route for the public meal counter. Uses the same chat request shape without exposing a Fish API key.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FishChatRequest'
+      responses:
+        '200':
+          description: Meal order completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FishChatCompletion'
+  /api/billing/plans:
+    get:
+      summary: Public Fish plan catalog
+      description: Prototype/future plan metadata with limits and routing permissions. This does not enable checkout.
+      responses:
+        '200':
+          description: Plan catalog
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  object:
+                    type: string
+                    example: list
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/FishPlan'
+  /api/billing/subscriptions:
+    post:
+      summary: Admin-only pilot subscription activation
+      description: Activates a pilot plan for an existing Fish account, writes subscription credit entries, and keeps public checkout future-gated.
+      security:
+        - adminToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FishSubscriptionActivationRequest'
+      responses:
+        '200':
+          description: Subscription activated, or an idempotent duplicate was ignored
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  object:
+                    type: string
+                    example: subscription_activation
+                  idempotent:
+                    type: boolean
+                  plan:
+                    $ref: '#/components/schemas/FishPlan'
+                  account:
+                    $ref: '#/components/schemas/FishAccount'
+                  entry:
+                    $ref: '#/components/schemas/FishCreditEntry'
+                  creditsRemaining:
+                    type: integer
+        '400':
+          description: Invalid subscription activation request
+        '401':
+          description: Admin token required
+        '404':
+          description: Fish account not found
+  /api/billing/topups:
+    post:
+      summary: Admin-only Fish credit top-up
+      description: Adds pilot credits to an existing account and writes an immutable credit ledger entry. This is not public checkout.
+      security:
+        - adminToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FishCreditTopupRequest'
+      responses:
+        '200':
+          description: Credits added, or an idempotent duplicate was ignored
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  object:
+                    type: string
+                    example: credit_topup
+                  idempotent:
+                    type: boolean
+                  account:
+                    $ref: '#/components/schemas/FishAccount'
+                  entry:
+                    $ref: '#/components/schemas/FishCreditEntry'
+                  creditsRemaining:
+                    type: integer
+        '400':
+          description: Invalid top-up request
+        '401':
+          description: Admin token required
+        '404':
+          description: Fish account not found
+  /api/billing/checkout/stripe:
+    post:
+      summary: Create a Stripe Checkout session for Fish Credits
+      description: Fish API-key route that creates a prepaid credit checkout session. Credits are issued only after the signed Stripe webhook confirms payment.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FishCheckoutRequest'
+      responses:
+        '200':
+          description: Checkout session created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  object:
+                    type: string
+                    example: fish_checkout
+                  idempotent:
+                    type: boolean
+                  payment:
+                    $ref: '#/components/schemas/FishPaymentRequest'
+                  checkoutUrl:
+                    type: string
+                    nullable: true
+        '400':
+          description: Invalid checkout request
+        '401':
+          description: Fish API key required
+        '503':
+          description: Stripe checkout is not configured
+  /api/billing/webhooks/stripe:
+    post:
+      summary: Stripe webhook for paid Fish Credits
+      description: Verifies the Stripe signature and grants prepaid Fish Credits for paid `checkout.session.completed` events. The raw body must be signed by Stripe.
+      responses:
+        '200':
+          description: Webhook processed or ignored
+        '400':
+          description: Invalid Stripe signature or event metadata
+        '503':
+          description: Stripe webhook secret is not configured
+  /api/billing/checkout/usdc:
+    post:
+      summary: Create a Base USDC payment request for Fish Credits
+      description: Fish API-key route that returns a Base USDC amount, token, chain, recipient address, and payment id. Credits are not issued until `/confirm` verifies the transfer onchain.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FishUsdcCheckoutRequest'
+      responses:
+        '200':
+          description: USDC payment request created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  object:
+                    type: string
+                    example: fish_usdc_payment
+                  idempotent:
+                    type: boolean
+                  payment:
+                    $ref: '#/components/schemas/FishPaymentRequest'
+        '400':
+          description: Invalid USDC checkout request
+        '401':
+          description: Fish API key required
+        '503':
+          description: USDC checkout is not configured
+  /api/billing/checkout/usdc/confirm:
+    post:
+      summary: Confirm a Base USDC payment for Fish Credits
+      description: Verifies the transaction receipt through the configured RPC, checks ERC-20 transfer logs, and grants prepaid credits only after the expected recipient and amount are found.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FishUsdcConfirmationRequest'
+      responses:
+        '200':
+          description: USDC payment confirmed and credits issued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  object:
+                    type: string
+                    example: fish_usdc_payment_confirmation
+                  idempotent:
+                    type: boolean
+                  payment:
+                    $ref: '#/components/schemas/FishPaymentRequest'
+        '400':
+          description: Invalid confirmation request or no matching USDC transfer
+        '401':
+          description: Fish API key required
+        '403':
+          description: Payment belongs to another Fish account
+        '409':
+          description: Transaction needs more confirmations
+        '410':
+          description: Payment request expired
+        '503':
+          description: USDC RPC is not configured
+  /api/billing/usage-analytics:
+    get:
+      summary: Aggregate Fish billing usage analytics
+      description: Public-safe aggregate billing metrics. Excludes API keys, raw prompts, outputs, and account-level rows.
+      responses:
+        '200':
+          description: Billing usage analytics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BillingUsageAnalytics'
+  /api/providers/pilot:
+    get:
+      summary: Public-safe provider pilot registry and selected allowlist
+      parameters:
+        - in: query
+          name: providerId
+          schema:
+            type: string
+          description: Optional provider id to check against the allowlist.
+        - in: query
+          name: workloadType
+          schema:
+            type: string
+            default: chat_batch
+        - in: query
+          name: model
+          schema:
+            type: string
+            default: fish-demo-chat
+      responses:
+        '200':
+          description: Provider pilot registry
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderPilotRegistry'
+  /api/providers/pilot/export:
+    get:
+      summary: Admin-only provider pilot outreach export
+      security:
+        - adminToken: []
+      responses:
+        '200':
+          description: Provider pilot operator export with private outreach fields
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderPilotOperatorExport'
+  /api/submissions/export:
+    get:
+      summary: Admin-only waitlist and provider signup export
+      security:
+        - adminToken: []
+      parameters:
+        - in: query
+          name: kind
+          schema:
+            type: string
+            enum: [all, waitlist, provider]
+            default: all
+        - in: query
+          name: format
+          schema:
+            type: string
+            enum: [json, csv]
+            default: json
+      responses:
+        '200':
+          description: Signup export
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubmissionExport'
+            text/csv:
+              schema:
+                type: string
+        '401':
+          description: Admin token required
+  /api/providers/jobs:
+    post:
+      summary: Run a selected-provider prototype batch job
+      description: Admin-only controlled adapter. Checks provider allowlist, never stores prompt/output text, and writes a public-safe signed provider job receipt. Mock adapter modes are marked sample and do not auto-accrue payout events.
+      security:
+        - adminToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [providerId, inputRef]
+              properties:
+                providerId:
+                  type: string
+                workloadType:
+                  type: string
+                  default: chat_batch
+                model:
+                  type: string
+                  default: fish-demo-chat
+                inputRef:
+                  type: string
+                  description: Hash or reference for the job input. Raw prompt text must not be submitted.
+                parameters:
+                  type: object
+                  properties:
+                    maxOutputTokens:
+                      type: integer
+                    temperature:
+                      type: number
+                maxRuntimeSeconds:
+                  type: integer
+                maxCostUsd:
+                  type: number
+                adapterMode:
+                  type: string
+                  enum: [mock_success, mock_failure, mock_timeout, provider_http]
+      responses:
+        '200':
+          description: Provider job completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  receipt:
+                    $ref: '#/components/schemas/ProviderJobReceipt'
+                  payoutEvent:
+                    nullable: true
+                    allOf:
+                      - $ref: '#/components/schemas/OperatorPayoutEvent'
+  /api/providers/smoke:
+    post:
+      summary: Run a deterministic selected-provider smoke job
+      description: Admin-only shortcut for provider onboarding. It builds a hash-only smoke input, checks the selected-provider allowlist, uses provider_http when a private provider endpoint is configured, and writes the same public-safe provider job receipt as /api/providers/jobs.
+      security:
+        - adminToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProviderSmokeRequest'
+      responses:
+        '200':
+          description: Provider smoke job completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderSmokeResponse'
+        '400':
+          description: Invalid smoke request
+        '401':
+          description: Admin token required
+        '403':
+          description: Provider is not selected for this workload or model
+        '502':
+          description: Provider smoke job failed or timed out
+  /api/proof/summary:
+    get:
+      summary: Public proof dashboard summary
+      responses:
+        '200':
+          description: Public proof summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProofSummary'
+  /api/proof/capacity-settlements:
+    get:
+      summary: Public-safe FISH Capacity Pool settlement summary
+      description: Lists operator-reported paid-demand settlement records. Records are snapshot data until onchain verification is configured.
+      responses:
+        '200':
+          description: Capacity settlement summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CapacitySettlementSummary'
+    post:
+      summary: Admin-only FISH Capacity Pool settlement record
+      description: Records that paid demand was settled into the FISH Capacity Pool. The route stores public-safe amount and transaction metadata only.
+      security:
+        - adminToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CapacitySettlementRequest'
+      responses:
+        '201':
+          description: Capacity settlement recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  idempotent:
+                    type: boolean
+                  settlement:
+                    $ref: '#/components/schemas/CapacitySettlement'
+        '400':
+          description: Invalid capacity settlement request
+        '401':
+          description: Admin token required
+  /api/proof/receipts:
+    get:
+      summary: Filterable public-safe provider job receipt ledger
+      parameters:
+        - in: query
+          name: provider
+          schema:
+            type: string
+          description: Provider id or public label substring.
+        - in: query
+          name: providerId
+          schema:
+            type: string
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [succeeded, failed, timed_out, not_allowed]
+        - in: query
+          name: backend
+          schema:
+            type: string
+            enum: [ocean_provider]
+        - in: query
+          name: receiptType
+          schema:
+            type: string
+            enum: [provider_job_receipt]
+        - in: query
+          name: signatureStatus
+          schema:
+            type: string
+            enum: [not_required, valid, invalid, missing]
+        - in: query
+          name: from
+          schema:
+            type: string
+          description: Inclusive createdAt lower bound.
+        - in: query
+          name: to
+          schema:
+            type: string
+          description: Inclusive createdAt upper bound.
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 100
+            minimum: 1
+            maximum: 500
+      responses:
+        '200':
+          description: Receipt list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReceiptLedgerResponse'
+  /api/proof/receipts/{receiptId}:
+    get:
+      summary: Public-safe provider job receipt detail
+      parameters:
+        - in: path
+          name: receiptId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Receipt detail without prompt or output text
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicReceiptDetail'
+        '404':
+          description: Receipt not found
+  /api/proof/receipts/export:
+    get:
+      summary: Admin-only provider receipt ledger export
+      security:
+        - adminToken: []
+      parameters:
+        - in: query
+          name: format
+          schema:
+            type: string
+            enum: [csv, json]
+            default: csv
+        - in: query
+          name: provider
+          schema:
+            type: string
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [succeeded, failed, timed_out, not_allowed]
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 100
+            minimum: 1
+            maximum: 500
+      responses:
+        '200':
+          description: CSV or JSON receipt ledger export for operator review
+          content:
+            text/csv:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        '401':
+          description: Admin token required
+  /api/proof/providers:
+    get:
+      summary: Public-safe provider scorecard
+      responses:
+        '200':
+          description: Provider scorecard summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderScorecardSummary'
+  /api/proof/benchmarks:
+    get:
+      summary: Public-safe provider benchmark matrix
+      parameters:
+        - in: query
+          name: selectedOnly
+          schema:
+            type: boolean
+            default: true
+          description: When true, show only currently selected provider rows.
+        - in: query
+          name: provider
+          schema:
+            type: string
+          description: Provider id or public label substring.
+        - in: query
+          name: providerId
+          schema:
+            type: string
+        - in: query
+          name: benchmarkId
+          schema:
+            type: string
+            enum: [tiny_smoke, small_chat, summary_batch]
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [succeeded, failed, timed_out, not_allowed, untested]
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 100
+            minimum: 1
+            maximum: 500
+      responses:
+        '200':
+          description: Provider benchmark matrix
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BenchmarkSummary'
+    post:
+      summary: Admin-only selected-provider benchmark run
+      description: Runs one fixed benchmark definition through the provider-job proof adapter. The request accepts provider id, benchmark id, and prototype adapter mode only; prompt and output text are never accepted or stored.
+      security:
+        - adminToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [providerId]
+              properties:
+                providerId:
+                  type: string
+                benchmarkId:
+                  type: string
+                  enum: [tiny_smoke, small_chat, summary_batch]
+                adapterMode:
+                  type: string
+                  enum: [mock_success, mock_failure, mock_timeout, provider_http]
+      responses:
+        '200':
+          description: Benchmark run completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  run:
+                    $ref: '#/components/schemas/BenchmarkRun'
+                  receipt:
+                    $ref: '#/components/schemas/ProviderJobReceipt'
+        '400':
+          description: Invalid benchmark request
+        '401':
+          description: Admin token required
+        '403':
+          description: Provider is not selected for the benchmark workload
+  /api/proof/market-making:
+    get:
+      summary: Public-safe market-making routing and cost report
+      responses:
+        '200':
+          description: Market-making report
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MarketMakingSummary'
+  /api/proof/provider-bonds:
+    get:
+      summary: Public-safe provider OCEAN bond summary
+      parameters:
+        - in: query
+          name: provider
+          schema:
+            type: string
+          description: Provider id or public label substring.
+        - in: query
+          name: providerId
+          schema:
+            type: string
+        - in: query
+          name: state
+          schema:
+            $ref: '#/components/schemas/ProviderBondState'
+        - in: query
+          name: activeOnly
+          schema:
+            type: boolean
+            default: false
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 100
+            minimum: 1
+            maximum: 500
+      responses:
+        '200':
+          description: Public-safe offchain provider bond summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderBondSummary'
+    post:
+      summary: Admin-only offchain provider OCEAN bond record
+      description: Creates or updates an offchain prototype bond record. Raw wallet references are hashed before storage.
+      security:
+        - adminToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProviderBondRequest'
+      responses:
+        '201':
+          description: Bond record created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  created:
+                    type: boolean
+                  position:
+                    $ref: '#/components/schemas/OperatorProviderBondPosition'
+        '200':
+          description: Bond record updated
+        '400':
+          description: Invalid bond request
+        '401':
+          description: Admin token required
+        '403':
+          description: Provider is not eligible to bond
+        '404':
+          description: Provider not found
+  /api/proof/payouts:
+    get:
+      summary: Public-safe provider payout accounting summary
+      parameters:
+        - in: query
+          name: provider
+          schema:
+            type: string
+          description: Provider id or public label substring.
+        - in: query
+          name: providerId
+          schema:
+            type: string
+        - in: query
+          name: state
+          schema:
+            type: string
+            enum: [accrued, review, approved, paid, disputed, voided]
+        - in: query
+          name: eventType
+          schema:
+            type: string
+            enum: [job_accrued, benchmark_stipend, manual_adjustment, refund, payout_approved, payout_paid, payout_voided]
+        - in: query
+          name: sourceReceiptId
+          schema:
+            type: string
+        - in: query
+          name: from
+          schema:
+            type: string
+          description: Inclusive createdAt lower bound.
+        - in: query
+          name: to
+          schema:
+            type: string
+          description: Inclusive createdAt upper bound.
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 100
+            minimum: 1
+            maximum: 500
+      responses:
+        '200':
+          description: Provider payout summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PayoutSummary'
+    post:
+      summary: Admin-only manual provider payout event
+      security:
+        - adminToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [providerId, amountUsd, reason]
+              properties:
+                providerId:
+                  type: string
+                providerLabel:
+                  type: string
+                sourceReceiptId:
+                  type: string
+                  nullable: true
+                sourceReceiptHash:
+                  type: string
+                  nullable: true
+                sourceSignatureStatus:
+                  type: string
+                  enum: [not_required, valid, invalid, missing]
+                  nullable: true
+                eventType:
+                  type: string
+                  enum: [job_accrued, benchmark_stipend, manual_adjustment, refund, payout_approved, payout_paid, payout_voided]
+                amount:
+                  type: number
+                currency:
+                  type: string
+                amountUsd:
+                  type: number
+                state:
+                  type: string
+                  enum: [accrued, review, approved, paid, disputed, voided]
+                operatorOwner:
+                  type: string
+                reason:
+                  type: string
+                transactionRef:
+                  type: string
+                  nullable: true
+      responses:
+        '201':
+          description: Payout event created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  event:
+                    $ref: '#/components/schemas/OperatorPayoutEvent'
+  /api/proof/payouts/batches:
+    get:
+      summary: Admin-only payout batch list
+      security:
+        - adminToken: []
+      responses:
+        '200':
+          description: Payout batch list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  object:
+                    type: string
+                    example: list
+                  dataState:
+                    type: string
+                    enum: [live, snapshot, sample, unavailable]
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PayoutBatch'
+    post:
+      summary: Admin-only payout review batch creation
+      security:
+        - adminToken: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                eventIds:
+                  type: array
+                  items:
+                    type: string
+                states:
+                  type: array
+                  items:
+                    type: string
+                    enum: [accrued, review, approved, paid, disputed, voided]
+                operatorOwner:
+                  type: string
+                reason:
+                  type: string
+      responses:
+        '201':
+          description: Payout batch created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  batch:
+                    $ref: '#/components/schemas/PayoutBatch'
+  /api/proof/payouts/batches/{batchId}/export:
+    get:
+      summary: Admin-only payout batch CSV export
+      security:
+        - adminToken: []
+      parameters:
+        - in: path
+          name: batchId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: CSV export for one payout batch and its payable events
+          content:
+            text/csv:
+              schema:
+                type: string
+        '401':
+          description: Admin token required
+        '404':
+          description: Payout batch not found
+  /api/proof/payouts/export:
+    get:
+      summary: Admin-only provider payout CSV export
+      security:
+        - adminToken: []
+      parameters:
+        - in: query
+          name: provider
+          schema:
+            type: string
+        - in: query
+          name: providerId
+          schema:
+            type: string
+        - in: query
+          name: state
+          schema:
+            type: string
+            enum: [accrued, review, approved, paid, disputed, voided]
+        - in: query
+          name: eventType
+          schema:
+            type: string
+            enum: [job_accrued, benchmark_stipend, manual_adjustment, refund, payout_approved, payout_paid, payout_voided]
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 100
+            minimum: 1
+            maximum: 500
+      responses:
+        '200':
+          description: CSV payout event export
+          content:
+            text/csv:
+              schema:
+                type: string
   /api/ocean/refresh:
     post:
       summary: Trigger a refresh of Ocean Network supply snapshots
@@ -95,6 +1257,142 @@ paths:
                     type: number
                   creditsSpent:
                     type: number
+                  creditsRemaining:
+                    type: number
+                  userChargeUsd:
+                    type: number
+                  providerCostUsd:
+                    type: number
+                  grossMarginUsd:
+                    type: number
+                  lastReceiptAt:
+                    type: string
+                    nullable: true
+                  message:
+                    type: string
+  /api/contracts/status:
+    get:
+      summary: Public-safe Fish contract status and wallet action gates
+      description: Exposes configured contract addresses, chain metadata, missing required config, and whether wallet write actions are enabled. Does not verify onchain totals yet.
+      responses:
+        '200':
+          description: Fish contract status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FishContractStatus'
+  /api/staking/summary:
+    get:
+      summary: Public offchain OCEAN staking credit summary
+      responses:
+        '200':
+          description: Staking credit summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StakingCreditSummary'
+  /api/staking/positions:
+    get:
+      summary: Public offchain OCEAN staking positions
+      responses:
+        '200':
+          description: Public staking positions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  object:
+                    type: string
+                    example: list
+                  dataState:
+                    type: string
+                    enum: [live, snapshot, sample, unavailable]
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PublicStakingPosition'
+    post:
+      summary: Admin-only offchain OCEAN stake record and Fish Credit issuance
+      security:
+        - adminToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [walletRef, oceanAmount]
+              properties:
+                holderLabel:
+                  type: string
+                walletRef:
+                  type: string
+                oceanAmount:
+                  type: number
+                lockDays:
+                  type: integer
+                budgetId:
+                  type: string
+                issueApiKey:
+                  type: boolean
+      responses:
+        '201':
+          description: Staking position recorded and credits issued when budget allows
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  position:
+                    $ref: '#/components/schemas/PublicStakingPosition'
+                  apiKey:
+                    type: string
+                    nullable: true
+                  keyNotice:
+                    type: string
+                    nullable: true
+        '401':
+          description: Admin token required
+  /api/staking/wallet-intents:
+    get:
+      summary: Public-safe signed OCEAN wallet intent list
+      description: Lists wallet lock intents with hashed addresses and signatures only. These intents do not issue credits until a lock contract or operator verification flow confirms them.
+      responses:
+        '200':
+          description: Public wallet intent summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WalletIntentSummary'
+    post:
+      summary: Record a signed OCEAN lock intent
+      description: Browser-wallet prototype for holders to sign OCEAN lock intent. The route stores public-safe hashes and estimated credits, but does not stake tokens or issue Fish Credits.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WalletIntentRequest'
+      responses:
+        '201':
+          description: Wallet intent recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  intent:
+                    $ref: '#/components/schemas/PublicWalletIntent'
+                  notice:
+                    type: string
+        '400':
+          description: Invalid signed wallet intent
   /api/waitlist:
     post:
       summary: Submit user/developer waitlist interest
@@ -137,7 +1435,288 @@ paths:
                     type: boolean
                   id:
                     type: string
+  /v1/api_keys:
+    get:
+      summary: Show the current Fish API key metadata
+      description: Returns public metadata for the bearer key without exposing the key hash or any other account rows.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Current key metadata
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  object:
+                    type: string
+                    example: list
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        label:
+                          type: string
+                        createdAt:
+                          type: string
+                        rotatedAt:
+                          type: string
+                          nullable: true
+                        lastUsedAt:
+                          type: string
+                          nullable: true
+                        status:
+                          type: string
+                          enum: [active, revoked]
+                        revokedAt:
+                          type: string
+                          nullable: true
+                        planId:
+                          type: string
+                          enum: [free, pro, team-api, provider-test]
+                        planActivatedAt:
+                          type: string
+                          nullable: true
+                        planExpiresAt:
+                          type: string
+                          nullable: true
+                        planSource:
+                          type: string
+                          nullable: true
+                          enum: [pilot_key, operator_subscription]
+                        creditBalance:
+                          type: integer
+                        requestCount:
+                          type: integer
+        '401':
+          description: Fish API key required
+    post:
+      summary: Create a prototype Fish API key
+      description: Requires an admin token in production. The returned key is shown once and stored only as a hash.
+      security:
+        - adminToken: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                label:
+                  type: string
+                creditGrant:
+                  type: integer
+                  minimum: 1
+                  maximum: 100000
+                planId:
+                  type: string
+                  enum: [free, pro, team-api, provider-test]
+                  default: free
+      responses:
+        '200':
+          description: Prototype key created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  object:
+                    type: string
+                    example: api_key
+                  key:
+                    type: string
+                  keyNotice:
+                    type: string
+                  account:
+                    $ref: '#/components/schemas/FishAccount'
+  /v1/api_keys/current:
+    patch:
+      summary: Rename or rotate the current Fish API key
+      description: Updates the bearer key label and optionally rotates the secret. A rotated key is returned once, stored only as a hash, and the previous key stops authenticating.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                label:
+                  type: string
+                  minLength: 1
+                  maxLength: 80
+                rotate:
+                  type: boolean
+                  default: false
+      responses:
+        '200':
+          description: Current key updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  object:
+                    type: string
+                    example: api_key
+                  rotated:
+                    type: boolean
+                  key:
+                    type: string
+                    nullable: true
+                  keyNotice:
+                    type: string
+                    nullable: true
+                  account:
+                    $ref: '#/components/schemas/FishAccount'
+        '400':
+          description: Invalid key update
+        '401':
+          description: Fish API key required
+    delete:
+      summary: Revoke the current Fish API key
+      description: Marks the bearer key as revoked. Existing balances and receipts remain available in storage, but the key can no longer authenticate future requests.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Current key revoked
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  object:
+                    type: string
+                    example: api_key
+                  revoked:
+                    type: boolean
+                  alreadyRevoked:
+                    type: boolean
+                  account:
+                    $ref: '#/components/schemas/FishAccount'
+        '401':
+          description: Fish API key required or already revoked
+  /v1/models:
+    get:
+      summary: List prototype Fish models and dish aliases
+      responses:
+        '200':
+          description: Model list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  object:
+                    type: string
+                    example: list
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/FishModel'
+  /v1/chat/completions:
+    post:
+      summary: Create a prototype chat completion
+      description: OpenAI-style route that requires a Fish API key, debits credits, writes a usage receipt, and can optionally call a configured external compatible backend. Dish model aliases such as `fish-ask`, `fish-code`, `fish-docs`, `fish-repo`, `fish-eval`, `fish-data`, and `fish-ocean-helper` apply the matching Fish feature policy without requiring metadata.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FishChatRequest'
+      responses:
+        '200':
+          description: Chat completion. When `stream` is true, the same settled completion is returned as OpenAI-style server-sent events.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FishChatCompletion'
+            text/event-stream:
+              schema:
+                type: string
+        '400':
+          description: Invalid request or unknown Fish model
+        '401':
+          description: Fish API key required
+        '402':
+          description: Insufficient Fish credits
+        '403':
+          description: Model or external fallback is not allowed for this plan
+        '429':
+          description: Monthly request limit, minute rate limit, daily quota, or route budget exceeded
+        '503':
+          description: Selected route is unavailable
+  /v1/balance:
+    get:
+      summary: Get prototype account balance
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Balance
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  object:
+                    type: string
+                    example: balance
+                  account:
+                    $ref: '#/components/schemas/FishAccount'
+                  creditLanes:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/FishCreditLane'
+                  monthlyRequests:
+                    $ref: '#/components/schemas/FishMonthlyRequestState'
+                  totals:
+                    $ref: '#/components/schemas/FishUsageTotals'
+  /v1/usage:
+    get:
+      summary: List recent prototype usage receipts
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Usage receipts
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  object:
+                    type: string
+                    example: list
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/FishUsageReceipt'
+                  creditLanes:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/FishCreditLane'
+                  monthlyRequests:
+                    $ref: '#/components/schemas/FishMonthlyRequestState'
+                  totals:
+                    $ref: '#/components/schemas/FishUsageTotals'
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+    adminToken:
+      type: apiKey
+      in: header
+      name: x-fish-admin-token
   schemas:
     OceanSummary:
       type: object
@@ -152,6 +1731,12 @@ components:
           type: array
           items:
             type: object
+        sourceCount:
+          type: integer
+        warnings:
+          type: array
+          items:
+            type: string
         kpis:
           type: object
           properties:
@@ -161,12 +1746,26 @@ components:
               type: number
             providerCount:
               type: integer
+            eligibleNodeCount:
+              type: integer
+            fishReadyProviderCount:
+              type: integer
             h200FromUsdHr:
               type: number
+              nullable: true
+            lowestListedGpuFee:
+              type: number
+              nullable: true
             oceanNativeJobs:
+              type: integer
+            benchmarkJobs:
               type: integer
             providerPayoutUsd:
               type: number
+              nullable: true
+            networkRevenueUsd:
+              type: number
+              nullable: true
         gpuSupply:
           type: array
           items:
@@ -188,8 +1787,13 @@ components:
           type: integer
         lowestUsdHr:
           type: number
+          nullable: true
         medianUsdHr:
           type: number
+          nullable: true
+        lowestListedPrice:
+          type: number
+          nullable: true
         regions:
           type: array
           items:
@@ -225,8 +1829,15 @@ components:
           type: string
         pricePerMinute:
           type: number
+          nullable: true
         pricePerHour:
           type: number
+          nullable: true
+        listedPrice:
+          type: number
+          nullable: true
+        priceBasis:
+          type: string
         status:
           type: string
     ProviderScore:
@@ -246,32 +1857,3790 @@ components:
           type: number
         lowestUsdHr:
           type: number
+          nullable: true
+        lowestListedPrice:
+          type: number
+          nullable: true
         uptime7d:
           type: number
+          nullable: true
         benchmarkStatus:
           type: string
         pilotEligible:
           type: boolean
+        nodeStatus:
+          type: string
+          enum: [eligible, not_eligible, unknown]
+        fishReadyStatus:
+          type: string
+          enum: [ready, selected, candidate, needs_review]
+        nodeHttp:
+          type: boolean
+          nullable: true
+        nodeP2p:
+          type: boolean
+          nullable: true
+        nodeVersion:
+          type: string
+          nullable: true
+        lastSeen:
+          type: string
+          nullable: true
+        readinessLabel:
+          type: string
+          nullable: true
+        verified:
+          type: boolean
+    OceanBatchJobRequest:
+      type: object
+      additionalProperties: false
+      required: [inputRef]
+      properties:
+        taskType:
+          type: string
+          enum: [document_summary, structured_extraction, embeddings, batch_chat]
+          default: document_summary
+        inputRef:
+          type: string
+          description: Hash or storage reference for the batch input. Raw document text must not be submitted.
+        estimatedInputTokens:
+          type: integer
+          minimum: 1
+          maximum: 200000
+        maxOutputTokens:
+          type: integer
+          minimum: 1
+          maximum: 8192
+          default: 512
+        maxRuntimeSeconds:
+          type: integer
+          minimum: 1
+          maximum: 3600
+          default: 600
+        maxCostUsd:
+          type: number
+          minimum: 0
+          maximum: 100
+          default: 1
+        adapterMode:
+          type: string
+          enum: [sample_success, sample_failure, ocean_http]
+          default: sample_success
+    ProviderSmokeRequest:
+      type: object
+      additionalProperties: false
+      required: [providerId]
+      properties:
+        providerId:
+          type: string
+        workloadType:
+          type: string
+          default: chat_batch
+        model:
+          type: string
+          default: fish-demo-chat
+        adapterMode:
+          type: string
+          enum: [mock_success, mock_failure, mock_timeout, provider_http]
+          description: Optional. Defaults to provider_http when a private endpoint is configured, otherwise mock_success sample mode.
+        maxRuntimeSeconds:
+          type: integer
+          minimum: 1
+          maximum: 120
+          default: 30
+        maxCostUsd:
+          type: number
+          minimum: 0
+          maximum: 5
+          default: 0.25
+        parameters:
+          type: object
+          properties:
+            maxOutputTokens:
+              type: integer
+              minimum: 1
+              maximum: 1024
+              default: 64
+            temperature:
+              type: number
+              minimum: 0
+              maximum: 2
+              default: 0.1
+    ProviderSmokeResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        error:
+          type: string
+        smoke:
+          type: object
+          properties:
+            inputRef:
+              type: string
+            adapterMode:
+              type: string
+              enum: [mock_success, mock_failure, mock_timeout, provider_http]
+            storesPromptOutputText:
+              type: boolean
+              enum: [false]
+        receipt:
+          $ref: '#/components/schemas/ProviderJobReceipt'
+        payoutEvent:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/OperatorPayoutEvent'
+    OceanBatchSummary:
+      type: object
+      properties:
+        dataState:
+          type: string
+          enum: [live, snapshot, sample, unavailable]
+        lastUpdated:
+          type: string
+        jobs:
+          type: integer
+        succeededJobs:
+          type: integer
+        failedJobs:
+          type: integer
+        timedOutJobs:
+          type: integer
+        tokensProcessed:
+          type: integer
+        providerCostUsd:
+          type: number
+        budget:
+          $ref: '#/components/schemas/OceanBatchBudgetState'
+        storesPromptOutputText:
+          type: boolean
+          enum: [false]
+        receipts:
+          type: array
+          items:
+            $ref: '#/components/schemas/OceanBatchReceipt'
+        warnings:
+          type: array
+          items:
+            type: string
+    OceanBatchBudgetState:
+      type: object
+      properties:
+        dailyBudgetUsd:
+          type: number
+        spentUsd:
+          type: number
+        estimatedCostUsd:
+          type: number
+        remainingUsd:
+          type: number
+    OceanProofReadiness:
+      type: object
+      properties:
+        dataState:
+          type: string
+          enum: [live, snapshot, sample, unavailable]
+        generatedAt:
+          type: string
+        trafficReady:
+          type: boolean
+        proofReady:
+          type: boolean
+        route:
+          type: object
+          properties:
+            batchEndpointConfigured:
+              type: boolean
+            batchApiKeyConfigured:
+              type: boolean
+            providerIdConfigured:
+              type: boolean
+            dailyBudgetUsd:
+              type: number
+        adapter:
+          type: object
+          properties:
+            configured:
+              type: boolean
+            reachable:
+              type: boolean
+            healthState:
+              type: string
+              enum: [ok, error, not_configured]
+            mode:
+              type: string
+              nullable: true
+            liveReady:
+              type: boolean
+            configuredForFreeCompute:
+              type: boolean
+              nullable: true
+            selected:
+              type: object
+              properties:
+                nodeUrlConfigured:
+                  type: boolean
+                computeEnvIdConfigured:
+                  type: boolean
+                datasetDidsConfigured:
+                  type: boolean
+                algoDidConfigured:
+                  type: boolean
+                paymentTokenConfigured:
+                  type: boolean
+                resourcesConfigured:
+                  type: boolean
+                outputConfigured:
+                  type: boolean
+            missing:
+              type: array
+              items:
+                type: string
+            warnings:
+              type: array
+              items:
+                type: string
+        proof:
+          type: object
+          properties:
+            hasNonSampleReceipt:
+              type: boolean
+            nonSampleJobs:
+              type: integer
+            latestReceiptState:
+              type: string
+              enum: [live, snapshot, sample, unavailable]
+            latestReceiptAt:
+              type: string
+              nullable: true
+            succeededJobs:
+              type: integer
+        blockers:
+          type: array
+          items:
+            type: string
+    OceanBatchReceipt:
+      type: object
+      properties:
+        receiptVersion:
+          type: integer
+        receiptType:
+          type: string
+          enum: [ocean_batch_job_receipt]
+        receiptId:
+          type: string
+        jobId:
+          type: string
+        providerJobId:
+          type: string
+          nullable: true
+        providerId:
+          type: string
+        taskType:
+          type: string
+          enum: [document_summary, structured_extraction, embeddings, batch_chat]
+        model:
+          type: string
+          enum: [ocean-batch-placeholder]
+        backend:
+          type: string
+          enum: [ocean_batch]
+        status:
+          type: string
+          enum: [succeeded, failed, timed_out]
+        sourceState:
+          type: string
+          enum: [live, snapshot, sample, unavailable]
+        adapterMode:
+          type: string
+          enum: [sample_success, sample_failure, ocean_http]
+        visibility:
+          type: string
+          enum: [public]
+        storesPromptOutputText:
+          type: boolean
+          enum: [false]
+        createdAt:
+          type: string
+        startedAt:
+          type: string
+        completedAt:
+          type: string
+        usage:
+          type: object
+          properties:
+            inputTokens:
+              type: integer
+            outputTokens:
+              type: integer
+            totalTokens:
+              type: integer
+            gpuSeconds:
+              type: number
+            items:
+              type: integer
+        cost:
+          type: object
+          properties:
+            userChargeUsd:
+              type: number
+            providerCostUsd:
+              type: number
+            pricingState:
+              type: string
+              enum: [prototype_estimate, provider_verified, not_applicable]
+        hashes:
+          type: object
+          properties:
+            inputHash:
+              type: string
+            outputHash:
+              type: string
+              nullable: true
+            canonicalReceiptHash:
+              type: string
+        errorCode:
+          type: string
+          nullable: true
+    FishRoutePolicy:
+      type: object
+      required: [dataState, generatedAt, activeRoute, backend, guardrails, modes, features, rules, nextMilestone]
+      properties:
+        dataState:
+          type: string
+          enum: [live, snapshot, sample, unavailable]
+        generatedAt:
+          type: string
+        activeRoute:
+          type: object
+          properties:
+            id:
+              type: string
+              enum: [mock, ocean-demo-vllm, ocean-provider, external-fallback]
+            label:
+              type: string
+            isRealAi:
+              type: boolean
+            privacy:
+              type: string
+            evidence:
+              type: string
+            status:
+              type: string
+              enum: [active, ready, needs-config, paused, disabled, pilot, future]
+        backend:
+          type: object
+          properties:
+            chatRoute:
+              type: string
+              enum: [mock, ocean-demo-vllm, ocean-provider, external-fallback]
+            paused:
+              type: boolean
+            killSwitch:
+              type: boolean
+            warmConfigured:
+              type: boolean
+            warmBaseUrlConfigured:
+              type: boolean
+            warmApiKeyConfigured:
+              type: boolean
+            warmModel:
+              type: string
+              nullable: true
+            warmProviderId:
+              type: string
+            selectedProviderConfigured:
+              type: boolean
+            selectedProviderBaseUrlConfigured:
+              type: boolean
+            selectedProviderApiKeyConfigured:
+              type: boolean
+            selectedProviderModel:
+              type: string
+              nullable: true
+            selectedProviderId:
+              type: string
+            externalConfigured:
+              type: boolean
+            externalBaseUrlConfigured:
+              type: boolean
+            externalApiKeyConfigured:
+              type: boolean
+            externalModel:
+              type: string
+              nullable: true
+            externalProviderId:
+              type: string
+            oceanBatchConfigured:
+              type: boolean
+            oceanBatchProviderId:
+              type: string
+            concurrencyActiveRequests:
+              type: integer
+            concurrencyActiveByRoute:
+              type: object
+              additionalProperties:
+                type: integer
+        guardrails:
+          type: object
+          properties:
+            maxInputTokens:
+              type: integer
+            maxOutputTokens:
+              type: integer
+            dailyKeyedQuota:
+              type: integer
+            dailyAnonymousQuota:
+              type: integer
+            maxConcurrentRequests:
+              type: integer
+            externalFallbackFreeAllowed:
+              type: boolean
+            dailyUsdBudgets:
+              type: object
+              additionalProperties:
+                type: number
+            oceanBatchDailyBudgetUsd:
+              type: number
+            quotaStorage:
+              type: string
+              enum: [local-json]
+            concurrencyStorage:
+              type: string
+              enum: [in-memory]
+            rateLimitStorage:
+              type: string
+              enum: [in-memory]
+        modes:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                enum: [mock, ocean-demo-vllm, ocean-provider, external-fallback, ocean-batch, ocean-private, hardened-runner, tee-runner]
+              title:
+                type: string
+              state:
+                type: string
+                enum: [active, ready, needs-config, paused, disabled, pilot, future]
+              short:
+                type: string
+              privacy:
+                type: string
+              proof:
+                type: string
+        features:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                enum: [ask, code, explain, docs, repo, eval, data, images, proposal, ocean, api]
+              label:
+                type: string
+              state:
+                type: string
+                enum: [live-beta, beta, coming-soon]
+              primary:
+                type: string
+              fallback:
+                type: string
+              cap:
+                type: string
+        rules:
+          type: array
+          items:
+            type: object
+            properties:
+              title:
+                type: string
+              body:
+                type: string
+        nextMilestone:
+          type: string
+    ProviderPilotRegistry:
+      type: object
+      properties:
+        dataState:
+          type: string
+          enum: [live, snapshot, sample, unavailable]
+        lastUpdated:
+          type: string
+        counts:
+          type: object
+          properties:
+            applications:
+              type: integer
+            applied:
+              type: integer
+            allowed:
+              type: integer
+            fishReady:
+              type: integer
+            paused:
+              type: integer
+            rejected:
+              type: integer
+        providers:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProviderPilotProfile'
+        allowlist:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProviderAllowlistEntry'
+        allowedFor:
+          nullable: true
+          type: object
+        warnings:
+          type: array
+          items:
+            type: string
+    OceanProviderReadiness:
+      type: object
+      properties:
+        object:
+          type: string
+          example: selected_ocean_provider_readiness
+        dataState:
+          type: string
+          enum: [live, snapshot, sample, unavailable]
+        generatedAt:
+          type: string
+        status:
+          type: string
+          enum: [ready, needs-config, needs-proof, failed]
+        trafficReady:
+          type: boolean
+        proofJobReady:
+          type: boolean
+        provider:
+          type: object
+          properties:
+            providerId:
+              type: string
+            publicLabel:
+              type: string
+        route:
+          type: object
+          properties:
+            routeId:
+              type: string
+              enum: [ocean-provider]
+            routeActive:
+              type: boolean
+            paused:
+              type: boolean
+            killSwitch:
+              type: boolean
+            configured:
+              type: boolean
+            baseUrlConfigured:
+              type: boolean
+            apiKeyConfigured:
+              type: boolean
+            configuredModel:
+              type: string
+              nullable: true
+        pilot:
+          type: object
+          properties:
+            allowlisted:
+              type: boolean
+            allowedForWorkload:
+              type: boolean
+            allowedForModel:
+              type: boolean
+            jobEndpointConfigured:
+              type: boolean
+            workloadType:
+              type: string
+            checkedModel:
+              type: string
+        probes:
+          type: object
+          properties:
+            models:
+              $ref: '#/components/schemas/OceanProviderEndpointProbe'
+            chat:
+              $ref: '#/components/schemas/OceanProviderChatProbe'
+        checks:
+          type: array
+          items:
+            $ref: '#/components/schemas/OceanProviderReadinessCheck'
+        warnings:
+          type: array
+          items:
+            type: string
+        nextActions:
+          type: array
+          items:
+            type: string
+    OceanProviderEndpointProbe:
+      type: object
+      properties:
+        state:
+          type: string
+          enum: [ok, failed, skipped]
+        latencyMs:
+          type: integer
+          nullable: true
+        statusCode:
+          type: integer
+          nullable: true
+        modelVisible:
+          type: boolean
+          nullable: true
+        message:
+          type: string
+    OceanProviderChatProbe:
+      type: object
+      properties:
+        state:
+          type: string
+          enum: [ok, failed, skipped]
+        latencyMs:
+          type: integer
+          nullable: true
+        model:
+          type: string
+          nullable: true
+        contentHash:
+          type: string
+          nullable: true
+        promptTokens:
+          type: integer
+          nullable: true
+        completionTokens:
+          type: integer
+          nullable: true
+        providerCostUsd:
+          type: number
+          nullable: true
+        runnerSignatureState:
+          type: string
+          nullable: true
+        runnerReceiptHash:
+          type: string
+          nullable: true
+        message:
+          type: string
+    OceanProviderReadinessCheck:
+      type: object
+      properties:
+        id:
+          type: string
+        label:
+          type: string
+        ready:
+          type: boolean
+        requiredFor:
+          type: string
+          enum: [traffic, proof, operator]
+        detail:
+          type: string
+    WarmInferenceStatus:
+      type: object
+      properties:
+        dataState:
+          type: string
+          enum: [live, snapshot, sample, unavailable]
+        generatedAt:
+          type: string
+        routeId:
+          type: string
+          enum: [ocean-demo-vllm, ocean-provider]
+        publicLabel:
+          type: string
+        providerId:
+          type: string
+        routeActive:
+          type: boolean
+        configured:
+          type: boolean
+        baseUrlConfigured:
+          type: boolean
+        apiKeyConfigured:
+          type: boolean
+        configuredModel:
+          type: string
+          nullable: true
+        probe:
+          type: object
+          properties:
+            state:
+              type: string
+              enum: [ok, failed, skipped]
+            latencyMs:
+              type: integer
+              nullable: true
+            statusCode:
+              type: integer
+              nullable: true
+            modelVisible:
+              type: boolean
+              nullable: true
+            message:
+              type: string
+        guardrails:
+          type: object
+        warnings:
+          type: array
+          items:
+            type: string
+    ProviderPilotProfile:
+      type: object
+      properties:
+        providerId:
+          type: string
+        displayName:
+          type: string
+        sourceApplicationId:
+          type: string
+          nullable: true
+        nodeEndpointHash:
+          type: string
+          nullable: true
+        healthEndpointHash:
+          type: string
+          nullable: true
+        region:
+          type: string
+        gpuTypes:
+          type: array
+          items:
+            type: string
+        capacitySummary:
+          type: string
+        priceShared:
+          type: boolean
+        payoutReady:
+          type: boolean
+        supportReady:
+          type: boolean
+        noLoggingPolicy:
+          type: boolean
+        approvedContainerReady:
+          type: boolean
+        readiness:
+          type: object
+          properties:
+            readyCount:
+              type: integer
+            totalCount:
+              type: integer
+            label:
+              type: string
+            checks:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    enum: [node, gpu, region, health, price, privacy, payout, support, container, allowlist]
+                  label:
+                    type: string
+                  ready:
+                    type: boolean
+        pilotStatus:
+          type: string
+          enum: [applied, contacted, verified, allowed, probation, paused, rejected, exited]
+        publicLabel:
+          type: string
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+    ProviderAllowlistEntry:
+      type: object
+      properties:
+        providerId:
+          type: string
+        allowedWorkloadTypes:
+          type: array
+          items:
+            type: string
+        allowedModels:
+          type: array
+          items:
+            type: string
+        maxConcurrentJobs:
+          type: integer
+        maxDailySpendUsd:
+          type: number
+        benchmarkRequired:
+          type: boolean
+        healthEndpointHash:
+          type: string
+          nullable: true
+        priceShared:
+          type: boolean
+        payoutReady:
+          type: boolean
+        noPromptOutputLogging:
+          type: boolean
+        approvedContainerCount:
+          type: integer
+        supportReady:
+          type: boolean
+        operatorOwner:
+          type: string
+        decisionReason:
+          type: string
+        startsAt:
+          type: string
+        expiresAt:
+          type: string
+          nullable: true
+    ProviderPilotOperatorExport:
+      type: object
+      properties:
+        exportedAt:
+          type: string
+        rows:
+          type: array
+          items:
+            type: object
+            properties:
+              providerId:
+                type: string
+              sourceApplicationId:
+                type: string
+              pilotStatus:
+                type: string
+              contact:
+                type: string
+              nodeEndpoint:
+                type: string
+              nodeEndpointHash:
+                type: string
+                nullable: true
+              gpuType:
+                type: string
+              region:
+                type: string
+              payoutPreference:
+                type: string
+              healthEndpoint:
+                type: string
+              priceHint:
+                type: string
+              supportContact:
+                type: string
+              approvedContainer:
+                type: string
+              noLoggingPolicy:
+                type: boolean
+              notes:
+                type: string
+              publicLabel:
+                type: string
+              createdAt:
+                type: string
+    SubmissionExport:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        exportedAt:
+          type: string
+        rows:
+          type: array
+          items:
+            $ref: '#/components/schemas/SubmissionExportRow'
+    SubmissionExportRow:
+      type: object
+      properties:
+        id:
+          type: string
+        kind:
+          type: string
+          enum: [waitlist, provider]
+        createdAt:
+          type: string
+        body:
+          $ref: '#/components/schemas/WaitlistRequest'
+    ProviderJobReceipt:
+      type: object
+      properties:
+        receiptVersion:
+          type: integer
+        receiptType:
+          type: string
+          example: provider_job_receipt
+        receiptId:
+          type: string
+        jobId:
+          type: string
+        providerJobId:
+          type: string
+          nullable: true
+        providerId:
+          type: string
+        providerLabel:
+          type: string
+        model:
+          type: string
+        workloadType:
+          type: string
+        backend:
+          type: string
+          enum: [ocean_provider]
+        status:
+          type: string
+          enum: [succeeded, failed, timed_out, not_allowed]
+        sourceState:
+          type: string
+          enum: [live, snapshot, sample, unavailable]
+        visibility:
+          type: string
+        createdAt:
+          type: string
+        startedAt:
+          type: string
+        completedAt:
+          type: string
+        usage:
+          type: object
+        cost:
+          type: object
+        hashes:
+          type: object
+          properties:
+            inputHash:
+              type: string
+            outputHash:
+              type: string
+              nullable: true
+            canonicalReceiptHash:
+              type: string
+        signer:
+          type: object
+          properties:
+            keyId:
+              type: string
+            algorithm:
+              type: string
+              enum: [none, ed25519]
+            publicKeyPem:
+              type: string
+              nullable: true
+        signatureStatus:
+          type: string
+          enum: [not_required, valid, invalid, missing]
+        signature:
+          type: string
+          nullable: true
+        errorCode:
+          type: string
+          nullable: true
+    ReceiptLedgerResponse:
+      type: object
+      properties:
+        object:
+          type: string
+          example: list
+        dataState:
+          type: string
+          enum: [live, snapshot, sample, unavailable]
+        filters:
+          type: object
+        count:
+          type: integer
+        totalCount:
+          type: integer
+        verificationFailures:
+          type: integer
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReceiptLedgerItem'
+    ReceiptLedgerItem:
+      type: object
+      properties:
+        receiptId:
+          type: string
+        receiptType:
+          type: string
+          enum: [provider_job_receipt]
+        jobId:
+          type: string
+        providerLabel:
+          type: string
+        model:
+          type: string
+        workloadType:
+          type: string
+        backend:
+          type: string
+          enum: [ocean_provider]
+        status:
+          type: string
+          enum: [succeeded, failed, timed_out, not_allowed]
+        sourceState:
+          type: string
+          enum: [live, snapshot, sample, unavailable]
+        usageSummary:
+          $ref: '#/components/schemas/ReceiptUsageSummary'
+        costSummary:
+          $ref: '#/components/schemas/ReceiptCostSummary'
+        signatureStatus:
+          type: string
+          enum: [not_required, valid, invalid, missing]
+        signatureVerified:
+          type: boolean
+        signatureError:
+          type: string
+          nullable: true
+        canonicalReceiptHash:
+          type: string
+        createdAt:
+          type: string
+        completedAt:
+          type: string
+        detailUrl:
+          type: string
+    PublicReceiptDetail:
+      type: object
+      properties:
+        object:
+          type: string
+          example: provider_job_receipt
+        receiptId:
+          type: string
+        receiptType:
+          type: string
+          enum: [provider_job_receipt]
+        jobId:
+          type: string
+        providerLabel:
+          type: string
+        model:
+          type: string
+        workloadType:
+          type: string
+        backend:
+          type: string
+          enum: [ocean_provider]
+        status:
+          type: string
+          enum: [succeeded, failed, timed_out, not_allowed]
+        sourceState:
+          type: string
+          enum: [live, snapshot, sample, unavailable]
+        visibility:
+          type: string
+          enum: [public]
+        timestamps:
+          type: object
+          properties:
+            createdAt:
+              type: string
+            startedAt:
+              type: string
+            completedAt:
+              type: string
+        usage:
+          $ref: '#/components/schemas/ReceiptUsageSummary'
+        cost:
+          $ref: '#/components/schemas/ReceiptCostSummary'
+        hashes:
+          type: object
+          properties:
+            canonicalReceiptHash:
+              type: string
+            computedCanonicalReceiptHash:
+              type: string
+            inputHashPrefix:
+              type: string
+            outputHashPrefix:
+              type: string
+              nullable: true
+        signer:
+          type: object
+          properties:
+            keyId:
+              type: string
+            algorithm:
+              type: string
+              enum: [none, ed25519]
+        signature:
+          type: object
+          properties:
+            status:
+              type: string
+              enum: [not_required, valid, invalid, missing]
+            verified:
+              type: boolean
+            error:
+              type: string
+              nullable: true
+        errorCode:
+          type: string
+          nullable: true
+    ReceiptUsageSummary:
+      type: object
+      properties:
+        inputTokens:
+          type: integer
+        outputTokens:
+          type: integer
+        totalTokens:
+          type: integer
+        gpuSeconds:
+          type: number
+    ReceiptCostSummary:
+      type: object
+      properties:
+        userChargeUsd:
+          type: number
+        providerCostUsd:
+          type: number
+        pricingState:
+          type: string
+          enum: [prototype_estimate, provider_verified, not_applicable]
+    PayoutEvent:
+      type: object
+      properties:
+        payoutEventId:
+          type: string
+        providerId:
+          type: string
+        providerLabel:
+          type: string
+        sourceReceiptId:
+          type: string
+          nullable: true
+        sourceReceiptHash:
+          type: string
+          nullable: true
+        sourceSignatureStatus:
+          type: string
+          enum: [not_required, valid, invalid, missing]
+          nullable: true
+        sourceKind:
+          type: string
+          enum: [receipt, manual_adjustment]
+        eventType:
+          type: string
+          enum: [job_accrued, benchmark_stipend, manual_adjustment, refund, payout_approved, payout_paid, payout_voided]
+        amount:
+          type: number
+        currency:
+          type: string
+        amountUsd:
+          type: number
+        state:
+          type: string
+          enum: [accrued, review, approved, paid, disputed, voided]
+        visibility:
+          type: string
+        sourceState:
+          type: string
+          enum: [live, snapshot, sample, unavailable]
+        createdAt:
+          type: string
+        approvedAt:
+          type: string
+          nullable: true
+        paidAt:
+          type: string
+          nullable: true
+        hasOperatorReason:
+          type: boolean
+        hasTransactionRef:
+          type: boolean
+    OperatorPayoutEvent:
+      allOf:
+        - $ref: '#/components/schemas/PayoutEvent'
+        - type: object
+          properties:
+            operatorOwner:
+              type: string
+            reason:
+              type: string
+            transactionRef:
+              type: string
+              nullable: true
+    BenchmarkRun:
+      type: object
+      properties:
+        benchmarkRunVersion:
+          type: integer
+          enum: [1]
+        benchmarkRunId:
+          type: string
+        benchmarkId:
+          type: string
+          enum: [tiny_smoke, small_chat, summary_batch]
+        providerId:
+          type: string
+        providerLabel:
+          type: string
+        modelClass:
+          type: string
+        workloadType:
+          type: string
+        model:
+          type: string
+        inputSizeBucket:
+          type: string
+        outputSizeBucket:
+          type: string
+        batchSize:
+          type: integer
+        adapterVersion:
+          type: string
+        status:
+          type: string
+          enum: [succeeded, failed, timed_out, not_allowed]
+        sourceState:
+          type: string
+          enum: [live, snapshot, sample, unavailable]
+        visibility:
+          type: string
+        receiptId:
+          type: string
+        receiptSignatureStatus:
+          type: string
+          enum: [not_required, valid, invalid, missing]
+        jobId:
+          type: string
+        sampleSize:
+          type: integer
+        queueSeconds:
+          type: number
+          nullable: true
+        runtimeSeconds:
+          type: number
+        gpuSeconds:
+          type: number
+        inputTokens:
+          type: integer
+        outputTokens:
+          type: integer
+        tokensPerSecond:
+          type: number
+        providerCostUsd:
+          type: number
+        costPer1kTokensUsd:
+          type: number
+          nullable: true
+        createdAt:
+          type: string
+    BenchmarkMatrixRow:
+      type: object
+      properties:
+        providerId:
+          type: string
+        providerLabel:
+          type: string
+        selected:
+          type: boolean
+        benchmarkId:
+          type: string
+        title:
+          type: string
+        modelClass:
+          type: string
+        workloadType:
+          type: string
+        inputSizeBucket:
+          type: string
+        outputSizeBucket:
+          type: string
+        batchSize:
+          type: integer
+        adapterVersion:
+          type: string
+        latestStatus:
+          type: string
+          enum: [succeeded, failed, timed_out, not_allowed, untested]
+        sampleSize:
+          type: integer
+        successRate:
+          type: number
+          nullable: true
+        medianQueueSeconds:
+          type: number
+          nullable: true
+        medianRuntimeSeconds:
+          type: number
+          nullable: true
+        tokensPerSecond:
+          type: number
+          nullable: true
+        providerCostUsd:
+          type: number
+          nullable: true
+        costPer1kTokensUsd:
+          type: number
+          nullable: true
+        receiptSignatureStatus:
+          type: string
+        latestReceiptId:
+          type: string
+          nullable: true
+        latestReceiptUrl:
+          type: string
+          nullable: true
+        latestJobId:
+          type: string
+          nullable: true
+        failureDetail:
+          type: object
+          nullable: true
+          properties:
+            status:
+              type: string
+              enum: [failed, timed_out, not_allowed]
+            receiptUrl:
+              type: string
+            message:
+              type: string
+        lastRunAt:
+          type: string
+          nullable: true
+    BenchmarkReportRow:
+      type: object
+      properties:
+        benchmarkId:
+          type: string
+          enum: [tiny_smoke, small_chat, summary_batch]
+        title:
+          type: string
+        selectedProviders:
+          type: integer
+        testedProviders:
+          type: integer
+        successfulProviders:
+          type: integer
+        latestPassRate:
+          type: number
+          nullable: true
+        medianRuntimeSeconds:
+          type: number
+          nullable: true
+        medianCostPer1kTokensUsd:
+          type: number
+          nullable: true
+        bestProviderLabel:
+          type: string
+          nullable: true
+        lastRunAt:
+          type: string
+          nullable: true
+    BenchmarkReport:
+      type: object
+      properties:
+        visibility:
+          type: string
+          enum: [public]
+        storesPromptOutputText:
+          type: boolean
+          enum: [false]
+        rows:
+          type: array
+          items:
+            $ref: '#/components/schemas/BenchmarkReportRow'
+    BenchmarkSummary:
+      type: object
+      properties:
+        dataState:
+          type: string
+          enum: [live, snapshot, sample, unavailable]
+        lastUpdated:
+          type: string
+        filters:
+          type: object
+        definitions:
+          type: array
+          items:
+            type: object
+        runs:
+          type: array
+          items:
+            $ref: '#/components/schemas/BenchmarkRun'
+        matrix:
+          type: array
+          items:
+            $ref: '#/components/schemas/BenchmarkMatrixRow'
+        report:
+          $ref: '#/components/schemas/BenchmarkReport'
+        totals:
+          type: object
+          properties:
+            selectedProviders:
+              type: integer
+            benchmarkRuns:
+              type: integer
+            successfulRuns:
+              type: integer
+            failedRuns:
+              type: integer
+            timedOutRuns:
+              type: integer
+            untestedCells:
+              type: integer
+            passRate:
+              type: number
+              nullable: true
+        warnings:
+          type: array
+          items:
+            type: string
+    ProviderBondState:
+      type: string
+      enum: [draft, active, unlock_requested, unlockable, released, held, disputed, paused]
+    ProviderBondRequest:
+      type: object
+      required: [providerId, decisionReason]
+      properties:
+        bondId:
+          type: string
+        providerId:
+          type: string
+        providerLabel:
+          type: string
+        bondState:
+          $ref: '#/components/schemas/ProviderBondState'
+        oceanAmount:
+          type: number
+        walletRef:
+          type: string
+          description: Raw wallet reference. The server hashes this value before storage.
+        walletRefHash:
+          type: string
+          description: Pre-hashed wallet reference when the operator does not want to submit a raw wallet reference.
+        startsAt:
+          type: string
+        unlockRequestedAt:
+          type: string
+          nullable: true
+        unlockAvailableAt:
+          type: string
+          nullable: true
+        unlockDelayDays:
+          type: integer
+          default: 30
+        operatorOwner:
+          type: string
+        decisionReason:
+          type: string
+    OperatorProviderBondPosition:
+      type: object
+      properties:
+        bondId:
+          type: string
+        providerId:
+          type: string
+        providerLabel:
+          type: string
+        bondState:
+          $ref: '#/components/schemas/ProviderBondState'
+        oceanAmount:
+          type: number
+        walletRefHash:
+          type: string
+        startsAt:
+          type: string
+        unlockRequestedAt:
+          type: string
+          nullable: true
+        unlockAvailableAt:
+          type: string
+          nullable: true
+        operatorOwner:
+          type: string
+        decisionReason:
+          type: string
+        offchainPrototype:
+          type: boolean
+          enum: [true]
+        visibility:
+          type: string
+          enum: [operator]
+        sourceState:
+          type: string
+          enum: [live, snapshot, sample, unavailable]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+    PublicProviderBondRow:
+      type: object
+      properties:
+        bondId:
+          type: string
+        providerId:
+          type: string
+        providerLabel:
+          type: string
+        bondState:
+          $ref: '#/components/schemas/ProviderBondState'
+        amountBucket:
+          type: string
+        activeForRouting:
+          type: boolean
+        bondTier:
+          type: integer
+        unlockState:
+          type: string
+          enum: [locked, unlock_requested, unlockable, released, held, paused, disputed, draft]
+        unlockAvailableAt:
+          type: string
+          nullable: true
+        offchainPrototype:
+          type: boolean
+          enum: [true]
+        updatedAt:
+          type: string
+    ProviderBondSummary:
+      type: object
+      properties:
+        dataState:
+          type: string
+          enum: [live, snapshot, sample, unavailable]
+        lastUpdated:
+          type: string
+        visibility:
+          type: string
+          enum: [public]
+        offchainPrototype:
+          type: boolean
+          enum: [true]
+        filters:
+          type: object
+        totals:
+          type: object
+          properties:
+            records:
+              type: integer
+            providers:
+              type: integer
+            bondedProviders:
+              type: integer
+            activeBonds:
+              type: integer
+            heldOrDisputedBonds:
+              type: integer
+            pausedBonds:
+              type: integer
+            releasedBonds:
+              type: integer
+            activeOceanBondedRounded:
+              type: number
+            activeOceanBondedBucket:
+              type: string
+            averageLockDays:
+              type: number
+              nullable: true
+        routeRules:
+          type: array
+          items:
+            type: string
+        rows:
+          type: array
+          items:
+            $ref: '#/components/schemas/PublicProviderBondRow'
+        warnings:
+          type: array
+          items:
+            type: string
+    ProviderScoreInputs:
+      type: object
+      properties:
+        reliability:
+          type: number
+        performance:
+          type: number
+        costConfidence:
+          type: number
+        operatorReadiness:
+          type: number
+    ProviderScorecardRow:
+      type: object
+      properties:
+        providerId:
+          type: string
+        providerLabel:
+          type: string
+        region:
+          type: string
+        gpuTypes:
+          type: array
+          items:
+            type: string
+        pilotStatus:
+          type: string
+        displayState:
+          type: string
+          enum: [new, allowed, preferred, probation, paused, exited]
+        selected:
+          type: boolean
+        maxDailySpendUsd:
+          type: number
+          nullable: true
+        selectionStartedAt:
+          type: string
+          nullable: true
+        selectionExpiresAt:
+          type: string
+          nullable: true
+        hasOperatorDecision:
+          type: boolean
+        score:
+          type: integer
+        bondState:
+          oneOf:
+            - $ref: '#/components/schemas/ProviderBondState'
+            - type: string
+              enum: [none]
+        bondAmountBucket:
+          type: string
+        bondActiveForRouting:
+          type: boolean
+        bondScoreTier:
+          type: integer
+        bondBoostTier:
+          type: integer
+        bondRouteTier:
+          type: integer
+        bondBoostEligible:
+          type: boolean
+        bondBoostBlockedReason:
+          type: string
+          nullable: true
+        bondUpdatedAt:
+          type: string
+          nullable: true
+        bondUnlockAvailableAt:
+          type: string
+          nullable: true
+        scoreLabel:
+          type: string
+        scoreInputs:
+          $ref: '#/components/schemas/ProviderScoreInputs'
+        signal:
+          type: string
+          enum: [ready, proving, needs_run, review, attention]
+        jobsRouted:
+          type: integer
+        successfulJobs:
+          type: integer
+        failedJobs:
+          type: integer
+        timedOutJobs:
+          type: integer
+        successRate:
+          type: number
+          nullable: true
+        verifiedReceipts:
+          type: integer
+        receiptWarnings:
+          type: integer
+        benchmarkRuns:
+          type: integer
+        benchmarkPassRate:
+          type: number
+          nullable: true
+        latestBenchmarkStatus:
+          type: string
+          enum: [succeeded, failed, timed_out, not_allowed, untested]
+        medianBenchmarkRuntimeSeconds:
+          type: number
+          nullable: true
+        costPer1kTokensUsd:
+          type: number
+          nullable: true
+        outstandingUsd:
+          type: number
+        paidUsd:
+          type: number
+        payoutEvents:
+          type: integer
+        latestActivityAt:
+          type: string
+          nullable: true
+        marketBadges:
+          type: array
+          items:
+            type: string
+    ProviderScorecardSummary:
+      type: object
+      properties:
+        dataState:
+          type: string
+          enum: [live, snapshot, sample, unavailable]
+        lastUpdated:
+          type: string
+        totals:
+          type: object
+          properties:
+            providers:
+              type: integer
+            selectedProviders:
+              type: integer
+            readyProviders:
+              type: integer
+            preferredProviders:
+              type: integer
+            jobsRouted:
+              type: integer
+            verifiedReceipts:
+              type: integer
+            benchmarkRuns:
+              type: integer
+            bondedProviders:
+              type: integer
+            routeBoostedProviders:
+              type: integer
+            outstandingUsd:
+              type: number
+            paidUsd:
+              type: number
+        rows:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProviderScorecardRow'
+        warnings:
+          type: array
+          items:
+            type: string
+    MarketCostModel:
+      type: object
+      properties:
+        benchmarkId:
+          type: string
+        title:
+          type: string
+        modelClass:
+          type: string
+        workloadType:
+          type: string
+        providerCount:
+          type: integer
+        sampleSize:
+          type: integer
+        providerCostUsdPer1kTokens:
+          type: number
+          nullable: true
+        suggestedUserPriceUsdPer1kTokens:
+          type: number
+          nullable: true
+        grossMarginUsdPer1kTokens:
+          type: number
+          nullable: true
+        grossMarginRate:
+          type: number
+          nullable: true
+        reserveContributionUsdPer1kTokens:
+          type: number
+          nullable: true
+        pricingConfidence:
+          type: string
+          enum: [none, low, medium, high]
+        bestProviderLabel:
+          type: string
+          nullable: true
+    MarketRouteCandidate:
+      type: object
+      properties:
+        providerId:
+          type: string
+        providerLabel:
+          type: string
+        displayState:
+          type: string
+        signal:
+          type: string
+        score:
+          type: integer
+        bondState:
+          oneOf:
+            - $ref: '#/components/schemas/ProviderBondState'
+            - type: string
+              enum: [none]
+        bondAmountBucket:
+          type: string
+        bondRouteTier:
+          type: integer
+        bondBoostEligible:
+          type: boolean
+        routeState:
+          type: string
+          enum: [route_now, pilot_only, benchmark_first, watch, pause]
+        routeReason:
+          type: string
+        benchmarkId:
+          type: string
+          nullable: true
+        benchmarkStatus:
+          type: string
+        benchmarkPassRate:
+          type: number
+          nullable: true
+        medianRuntimeSeconds:
+          type: number
+          nullable: true
+        providerCostUsdPer1kTokens:
+          type: number
+          nullable: true
+        suggestedUserPriceUsdPer1kTokens:
+          type: number
+          nullable: true
+        grossMarginUsdPer1kTokens:
+          type: number
+          nullable: true
+        maxDailySpendUsd:
+          type: number
+          nullable: true
+        badges:
+          type: array
+          items:
+            type: string
+    MarketMakingSummary:
+      type: object
+      properties:
+        dataState:
+          type: string
+          enum: [live, snapshot, sample, unavailable]
+        lastUpdated:
+          type: string
+        visibility:
+          type: string
+          enum: [public]
+        storesPromptOutputText:
+          type: boolean
+          enum: [false]
+        routeRules:
+          type: array
+          items:
+            type: string
+        demand:
+          type: object
+          properties:
+            fishRequests:
+              type: integer
+            creditsSpent:
+              type: number
+            grossMarginUsd:
+              type: number
+            demandState:
+              type: string
+              enum: [live, snapshot, sample, unavailable]
+        supply:
+          type: object
+          properties:
+            oceanProviders:
+              type: integer
+            totalGpus:
+              type: integer
+            availableGpus:
+              type: integer
+            supplyState:
+              type: string
+              enum: [live, snapshot, sample, unavailable]
+        totals:
+          type: object
+          properties:
+            selectedProviders:
+              type: integer
+            routeNow:
+              type: integer
+            pilotOnly:
+              type: integer
+            benchmarkFirst:
+              type: integer
+            watch:
+              type: integer
+            paused:
+              type: integer
+            costModels:
+              type: integer
+            pricingConfidence:
+              type: string
+              enum: [none, low, medium, high]
+            routeBoostedProviders:
+              type: integer
+        costModels:
+          type: array
+          items:
+            $ref: '#/components/schemas/MarketCostModel'
+        routes:
+          type: array
+          items:
+            $ref: '#/components/schemas/MarketRouteCandidate'
+        publicNarrative:
+          type: string
+        warnings:
+          type: array
+          items:
+            type: string
+    PayoutBatch:
+      type: object
+      properties:
+        payoutBatchId:
+          type: string
+        state:
+          type: string
+          enum: [review, approved, paid, voided]
+        eventIds:
+          type: array
+          items:
+            type: string
+        providerCount:
+          type: integer
+        eventCount:
+          type: integer
+        amountUsd:
+          type: number
+        currency:
+          type: string
+        sourceState:
+          type: string
+          enum: [live, snapshot, sample, unavailable]
+        visibility:
+          type: string
+        createdAt:
+          type: string
+        createdBy:
+          type: string
+        reason:
+          type: string
+        approvedAt:
+          type: string
+          nullable: true
+        paidAt:
+          type: string
+          nullable: true
+        transactionRefs:
+          type: array
+          items:
+            type: string
+    PublicPayoutBatch:
+      type: object
+      properties:
+        payoutBatchId:
+          type: string
+        state:
+          type: string
+          enum: [review, approved, paid, voided]
+        providerCount:
+          type: integer
+        eventCount:
+          type: integer
+        amountUsd:
+          type: number
+        currency:
+          type: string
+        sourceState:
+          type: string
+          enum: [live, snapshot, sample, unavailable]
+        visibility:
+          type: string
+        createdAt:
+          type: string
+        approvedAt:
+          type: string
+          nullable: true
+        paidAt:
+          type: string
+          nullable: true
+        exportUrl:
+          type: string
+        hasOperatorReason:
+          type: boolean
+        hasTransactionRefs:
+          type: boolean
+    PayoutProviderSummary:
+      type: object
+      properties:
+        providerId:
+          type: string
+        providerLabel:
+          type: string
+        eventCount:
+          type: integer
+        receiptLinkedEvents:
+          type: integer
+        manualAdjustmentEvents:
+          type: integer
+        latestEventAt:
+          type: string
+          nullable: true
+        totals:
+          type: object
+          properties:
+            accrued:
+              type: number
+            review:
+              type: number
+            approved:
+              type: number
+            paid:
+              type: number
+            disputed:
+              type: number
+            voided:
+              type: number
+            outstandingUsd:
+              type: number
+            excludedUsd:
+              type: number
+    PayoutSummary:
+      type: object
+      properties:
+        dataState:
+          type: string
+          enum: [live, snapshot, sample, unavailable]
+        lastUpdated:
+          type: string
+        filters:
+          type: object
+        providerCount:
+          type: integer
+        eventCount:
+          type: integer
+        batchCount:
+          type: integer
+        totals:
+          type: object
+          properties:
+            accrued:
+              type: number
+            review:
+              type: number
+            approved:
+              type: number
+            paid:
+              type: number
+            disputed:
+              type: number
+            voided:
+              type: number
+            outstandingUsd:
+              type: number
+            excludedUsd:
+              type: number
+        providerSummaries:
+          type: array
+          items:
+            $ref: '#/components/schemas/PayoutProviderSummary'
+        events:
+          type: array
+          items:
+            $ref: '#/components/schemas/PayoutEvent'
+        batches:
+          type: array
+          items:
+            $ref: '#/components/schemas/PublicPayoutBatch'
+        warnings:
+          type: array
+          items:
+            type: string
+    PublicStakingPosition:
+      type: object
+      properties:
+        positionVersion:
+          type: integer
+          enum: [1]
+        positionId:
+          type: string
+        holderLabel:
+          type: string
+        budgetId:
+          type: string
+        oceanAmount:
+          type: number
+        lockDays:
+          type: integer
+        creditsPerOceanMonth:
+          type: number
+        creditsEarned:
+          type: number
+        creditsIssued:
+          type: number
+        creditState:
+          type: string
+          enum: [issued, partial, queued]
+        sourceState:
+          type: string
+          enum: [live, snapshot, sample, unavailable]
+        visibility:
+          type: string
+          enum: [public]
+        createdAt:
+          type: string
+        unlocksAt:
+          type: string
+        walletHashPrefix:
+          type: string
+        creditsSpent:
+          type: number
+        creditsRemaining:
+          type: number
+    StakingCreditSummary:
+      type: object
+      properties:
+        dataState:
+          type: string
+          enum: [live, snapshot, sample, unavailable]
+        lastUpdated:
+          type: string
+        policy:
+          type: object
+          properties:
+            budgetId:
+              type: string
+            creditBudget:
+              type: number
+            creditsPerOceanMonth:
+              type: number
+            minLockDays:
+              type: integer
+            maxLockDays:
+              type: integer
+            onchainState:
+              type: string
+              enum: [offchain_prototype]
+        totals:
+          type: object
+          properties:
+            positions:
+              type: integer
+            activePositions:
+              type: integer
+            queuedPositions:
+              type: integer
+            oceanStaked:
+              type: number
+            creditsEarned:
+              type: number
+            creditsIssued:
+              type: number
+            creditsSpent:
+              type: number
+            creditsRemaining:
+              type: number
+            budgetRemaining:
+              type: number
+            averageLockDays:
+              type: number
+              nullable: true
+        positions:
+          type: array
+          items:
+            $ref: '#/components/schemas/PublicStakingPosition'
+        warnings:
+          type: array
+          items:
+            type: string
+    WalletIntentRequest:
+      type: object
+      additionalProperties: false
+      required: [address, chainId, oceanAmount, message, signature]
+      properties:
+        holderLabel:
+          type: string
+          maxLength: 80
+          default: Ocean holder
+        address:
+          type: string
+          pattern: '^0x[a-fA-F0-9]{40}$'
+        chainId:
+          type: integer
+          minimum: 1
+        oceanAmount:
+          type: number
+          minimum: 1
+        lockDays:
+          type: integer
+          minimum: 7
+          maximum: 730
+          default: 30
+        message:
+          type: string
+          description: Human-readable Fish OCEAN credit intent signed by the connected wallet.
+        signature:
+          type: string
+          pattern: '^0x[a-fA-F0-9]{130}$'
+    PublicWalletIntent:
+      type: object
+      properties:
+        intentVersion:
+          type: integer
+          enum: [1]
+        intentId:
+          type: string
+        holderLabel:
+          type: string
+        addressHash:
+          type: string
+        addressPrefix:
+          type: string
+        chainId:
+          type: integer
+        oceanAmount:
+          type: number
+        lockDays:
+          type: integer
+        estimatedCredits:
+          type: integer
+        messageHash:
+          type: string
+        signatureHash:
+          type: string
+        signatureState:
+          type: string
+          enum: [submitted_unverified]
+        sourceState:
+          type: string
+          enum: [snapshot]
+        createdAt:
+          type: string
+    WalletIntentSummary:
+      type: object
+      properties:
+        object:
+          type: string
+          example: list
+        dataState:
+          type: string
+          enum: [live, snapshot, sample, unavailable]
+        totals:
+          type: object
+          properties:
+            intents:
+              type: integer
+            oceanAmount:
+              type: number
+            estimatedCredits:
+              type: integer
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/PublicWalletIntent'
+        warnings:
+          type: array
+          items:
+            type: string
+    FishContractAddress:
+      type: object
+      properties:
+        key:
+          type: string
+          enum: [oceanToken, fishToken, oceanStaking, capacityPool, usdcToken, treasury, emissionSource, operator]
+        label:
+          type: string
+        address:
+          type: string
+          nullable: true
+        configured:
+          type: boolean
+        required:
+          type: boolean
+        explorerUrl:
+          type: string
+          nullable: true
+    FishContractStatus:
+      type: object
+      properties:
+        dataState:
+          type: string
+          enum: [live, snapshot, sample, unavailable]
+        lastUpdated:
+          type: string
+        mode:
+          type: string
+          enum: [local_prototype, configured_read_only, testnet_actions, mainnet_read_only]
+        chain:
+          type: object
+          properties:
+            chainId:
+              type: integer
+            chainName:
+              type: string
+            explorerUrl:
+              type: string
+              nullable: true
+        rpc:
+          type: object
+          properties:
+            configured:
+              type: boolean
+            readTimeoutMs:
+              type: integer
+        deployment:
+          type: object
+          properties:
+            requiredConfigured:
+              type: boolean
+            configuredRequiredCount:
+              type: integer
+            requiredCount:
+              type: integer
+            missingRequired:
+              type: array
+              items:
+                type: string
+        walletActionGate:
+          type: object
+          properties:
+            actionsEnabled:
+              type: boolean
+            writesAllowed:
+              type: boolean
+            reason:
+              type: string
+        settlementSubmitGate:
+          type: object
+          properties:
+            submitEnabled:
+              type: boolean
+            submitAllowed:
+              type: boolean
+            reason:
+              type: string
+            hasOperatorPrivateKey:
+              type: boolean
+            confirmations:
+              type: integer
+        addresses:
+          type: array
+          items:
+            $ref: '#/components/schemas/FishContractAddress'
+        onchain:
+          $ref: '#/components/schemas/FishContractOnchainStatus'
+        actions:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                enum:
+                  - approve_ocean
+                  - stake_ocean
+                  - mint_fish
+                  - burn_fish
+                  - claim_ocean_rewards
+                  - initiate_ocean_unstake
+                  - finalize_ocean_unstake
+                  - approve_fish
+                  - stake_capacity
+                  - initiate_capacity_unstake
+                  - flush_capacity_batch
+                  - claim_capacity_batch
+                  - claim_usdc
+              label:
+                type: string
+              contractKey:
+                type: string
+              method:
+                type: string
+              enabled:
+                type: boolean
+        warnings:
+          type: array
+          items:
+            type: string
+    FishContractOnchainStatus:
+      type: object
+      properties:
+        sourceState:
+          type: string
+          enum: [live, snapshot, sample, unavailable]
+        readVerified:
+          type: boolean
+        error:
+          type: string
+          nullable: true
+        chainIdVerified:
+          type: boolean
+        chainIdObserved:
+          type: integer
+          nullable: true
+        decimals:
+          type: object
+          properties:
+            ocean:
+              type: integer
+              nullable: true
+            fish:
+              type: integer
+              nullable: true
+            usdc:
+              type: integer
+              nullable: true
+        oceanStaking:
+          type: object
+          properties:
+            totalStakedOcean:
+              type: string
+              nullable: true
+            totalLockedStakedOcean:
+              type: string
+              nullable: true
+            emissionRatePerSecond:
+              type: string
+              nullable: true
+            cooldownSeconds:
+              type: integer
+              nullable: true
+        fish:
+          type: object
+          properties:
+            totalSupply:
+              type: string
+              nullable: true
+        capacityPool:
+          type: object
+          properties:
+            totalStakedFish:
+              type: string
+              nullable: true
+            stakerCount:
+              type: integer
+              nullable: true
+            operatorFeeBps:
+              type: integer
+              nullable: true
+            totalUsdcDistributedEver:
+              type: string
+              nullable: true
+            totalUsdcReservedForStakers:
+              type: string
+              nullable: true
+            configuredOperatorIsOperator:
+              type: boolean
+              nullable: true
+            currentUnstakeBatch:
+              type: integer
+              nullable: true
+            oldestUnclaimedUnstakeBatch:
+              type: integer
+              nullable: true
+            flushableAt:
+              type: string
+              nullable: true
+    CapacitySettlementRequest:
+      type: object
+      additionalProperties: false
+      required: [grossUsdcAmount]
+      properties:
+        grossUsdcAmount:
+          type: number
+          minimum: 0.000001
+        netUsdcAmount:
+          type: number
+          minimum: 0
+        operatorFeeUsdc:
+          type: number
+          minimum: 0
+        settlementSource:
+          type: string
+          enum: [stripe, usdc_checkout, api_subscription, operator_adjustment]
+          default: operator_adjustment
+        transactionHash:
+          type: string
+          nullable: true
+          pattern: '^0x[a-fA-F0-9]{64}$'
+        capacityPoolAddress:
+          type: string
+          nullable: true
+          pattern: '^0x[a-fA-F0-9]{40}$'
+        paidDemandRef:
+          type: string
+          nullable: true
+        idempotencyKey:
+          type: string
+          nullable: true
+          minLength: 8
+          description: Required when submitOnchain is true.
+        submitOnchain:
+          type: boolean
+          default: false
+        occurredAt:
+          type: string
+        note:
+          type: string
+          nullable: true
+    CapacitySettlement:
+      type: object
+      properties:
+        settlementVersion:
+          type: integer
+          enum: [1]
+        settlementId:
+          type: string
+        settlementType:
+          type: string
+          enum: [fish_capacity_pool_settlement]
+        grossUsdcAmount:
+          type: number
+        netUsdcAmount:
+          type: number
+        operatorFeeUsdc:
+          type: number
+        settlementSource:
+          type: string
+          enum: [stripe, usdc_checkout, api_subscription, operator_adjustment]
+        transactionHash:
+          type: string
+          nullable: true
+        transactionHashPrefix:
+          type: string
+          nullable: true
+        approveTransactionHash:
+          type: string
+          nullable: true
+        submitState:
+          type: string
+          enum: [not_submitted, submitted]
+        onchainSubmission:
+          type: object
+          nullable: true
+          properties:
+            chainId:
+              type: integer
+            operatorAddressPrefix:
+              type: string
+            grossAmountRaw:
+              type: string
+            operatorFeeBps:
+              type: integer
+            recordPaidUsageBlockNumber:
+              type: integer
+              nullable: true
+            confirmations:
+              type: integer
+        capacityPoolAddress:
+          type: string
+          nullable: true
+        capacityPoolAddressPrefix:
+          type: string
+          nullable: true
+        paidDemandHash:
+          type: string
+          nullable: true
+        idempotencyHash:
+          type: string
+          nullable: true
+        sourceState:
+          type: string
+          enum: [live, snapshot]
+        visibility:
+          type: string
+          enum: [public]
+        occurredAt:
+          type: string
+        createdAt:
+          type: string
+    CapacitySettlementSummary:
+      type: object
+      properties:
+        dataState:
+          type: string
+          enum: [live, snapshot, sample, unavailable]
+        lastUpdated:
+          type: string
+        totals:
+          type: object
+          properties:
+            settlements:
+              type: integer
+            grossUsdcAmount:
+              type: number
+            netUsdcAmount:
+              type: number
+            operatorFeeUsdc:
+              type: number
+            onchainSubmittedSettlements:
+              type: integer
+        configuredCapacityPoolAddress:
+          type: string
+          nullable: true
+        settlements:
+          type: array
+          items:
+            $ref: '#/components/schemas/CapacitySettlement'
+        warnings:
+          type: array
+          items:
+            type: string
+    ProofSummary:
+      type: object
+      properties:
+        dataState:
+          type: string
+          enum: [live, snapshot, sample, unavailable]
+        lastUpdated:
+          type: string
+        oceanJobsRouted:
+          type: integer
+        verifiedReceipts:
+          type: integer
+        pilotProviders:
+          type: integer
+        providerPayoutUsd:
+          type: number
+        benchmarkPassRate:
+          type: number
+          nullable: true
+        oceanNativeShare:
+          type: number
+        failedJobs:
+          type: integer
+        timedOutJobs:
+          type: integer
+        receiptVerificationFailures:
+          type: integer
+        payouts:
+          $ref: '#/components/schemas/PayoutSummary'
+        capacitySettlements:
+          $ref: '#/components/schemas/CapacitySettlementSummary'
+        receipts:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProviderJobReceipt'
+        warnings:
+          type: array
+          items:
+            type: string
     WaitlistRequest:
       type: object
-      required: [contact]
+      required: [contact, subscriberRoles]
       properties:
         contact:
           type: string
+        subscriberRoles:
+          type: array
+          items:
+            type: string
+            enum: [user, developer, provider, oceanHolder]
         useCase:
           type: string
         expectedUsage:
+          type: string
+        nodeEndpoint:
+          type: string
+        healthEndpoint:
+          type: string
+        gpuType:
+          type: string
+        region:
+          type: string
+        priceHint:
+          type: string
+        payoutPreference:
+          type: string
+        supportContact:
+          type: string
+        approvedContainer:
+          type: string
+        noLoggingPolicy:
+          type: boolean
+        notes:
           type: string
         apiInterest:
           type: boolean
         oceanHolder:
           type: boolean
+    FishAccount:
+      type: object
+      properties:
+        id:
+          type: string
+        label:
+          type: string
+        createdAt:
+          type: string
+        rotatedAt:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [active, revoked]
+        revokedAt:
+          type: string
+          nullable: true
+        planId:
+          type: string
+          enum: [free, pro, team-api, provider-test]
+        planActivatedAt:
+          type: string
+          nullable: true
+        planExpiresAt:
+          type: string
+          nullable: true
+        planSource:
+          type: string
+          nullable: true
+          enum: [pilot_key, operator_subscription]
+        plan:
+          $ref: '#/components/schemas/FishPlan'
+        creditBalance:
+          type: integer
+        totalCreditsGranted:
+          type: integer
+        totalCreditsSpent:
+          type: integer
+        requestCount:
+          type: integer
+        lastUsedAt:
+          type: string
+          nullable: true
+    FishModel:
+      type: object
+      properties:
+        id:
+          type: string
+        object:
+          type: string
+          example: model
+        created:
+          type: integer
+        owned_by:
+          type: string
+        description:
+          type: string
+        fishFeature:
+          type: string
+          nullable: true
+          enum: [ask, code, explain, docs, repo, eval, data, proposal, ocean]
+        featureLabel:
+          type: string
+          nullable: true
+        state:
+          type: string
+          nullable: true
+    FishUsageTotals:
+      type: object
+      properties:
+        requests:
+          type: integer
+        creditsSpent:
+          type: integer
+        creditsRemaining:
+          type: integer
+        userChargeUsd:
+          type: number
+        providerCostUsd:
+          type: number
+        grossMarginUsd:
+          type: number
+    FishPlan:
+      type: object
+      properties:
+        planId:
+          type: string
+          enum: [free, pro, team-api, provider-test]
+        label:
+          type: string
+        state:
+          type: string
+          enum: [prototype, future]
+        monthlyCreditGrant:
+          type: integer
+        rateLimitPerMinute:
+          type: integer
+        monthlyRequestLimit:
+          type: integer
+        maxStoredThreadItems:
+          type: integer
+        allowedModels:
+          type: array
+          items:
+            type: string
+        externalFallbackAllowed:
+          type: boolean
+        oceanProviderAllowed:
+          type: boolean
+    FishCreditLane:
+      type: object
+      properties:
+        lane:
+          type: string
+          enum: [grant, subscription, prepaid, staking, adjustment, refund]
+        balance:
+          type: integer
+        granted:
+          type: integer
+        spent:
+          type: integer
+        refunds:
+          type: integer
+        adjustments:
+          type: integer
+        entries:
+          type: integer
+        expiresAt:
+          type: string
+          nullable: true
+    FishCreditTopupRequest:
+      type: object
+      additionalProperties: false
+      required: [accountId, amount]
+      properties:
+        accountId:
+          type: string
+        amount:
+          type: integer
+          minimum: 1
+          maximum: 1000000
+        lane:
+          type: string
+          enum: [grant, subscription, prepaid, staking, adjustment]
+          default: prepaid
+        reason:
+          type: string
+          maxLength: 140
+          default: operator_credit_topup
+        expiresAt:
+          type: string
+          nullable: true
+        idempotencyKey:
+          type: string
+          maxLength: 120
+        paymentProviderEventId:
+          type: string
+          maxLength: 120
+    FishCheckoutRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        amountUsd:
+          type: number
+          minimum: 0.01
+          description: Dollar amount to convert into Fish Credits. Either amountUsd or credits is required.
+        credits:
+          type: integer
+          minimum: 1
+          description: Optional exact credit amount; amount is rounded up to cover the credit liability.
+        idempotencyKey:
+          type: string
+          maxLength: 120
+        successUrl:
+          type: string
+          format: uri
+        cancelUrl:
+          type: string
+          format: uri
+    FishUsdcCheckoutRequest:
+      allOf:
+        - $ref: '#/components/schemas/FishCheckoutRequest'
+        - type: object
+          additionalProperties: false
+          properties:
+            payerAddress:
+              type: string
+              pattern: '^0x[a-fA-F0-9]{40}$'
+              description: Optional sender address to require during transfer verification.
+    FishUsdcConfirmationRequest:
+      type: object
+      additionalProperties: false
+      required: [paymentId, transactionHash]
+      properties:
+        paymentId:
+          type: string
+        transactionHash:
+          type: string
+          pattern: '^0x[a-fA-F0-9]{64}$'
+    FishPaymentRequest:
+      type: object
+      properties:
+        paymentId:
+          type: string
+        provider:
+          type: string
+          enum: [stripe_checkout, usdc_base]
+        status:
+          type: string
+          enum: [pending, paid, failed, expired]
+        credits:
+          type: integer
+        amountUsd:
+          type: number
+        amountCents:
+          type: integer
+        amountUsdc:
+          type: string
+          description: Decimal USDC amount when provider is usdc_base.
+        currency:
+          type: string
+          enum: [USD, USDC]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+        expiresAt:
+          type: string
+          nullable: true
+        paidAt:
+          type: string
+          nullable: true
+        idempotencyKey:
+          type: string
+          nullable: true
+        providerSessionId:
+          type: string
+          nullable: true
+        providerPaymentIntentId:
+          type: string
+          nullable: true
+        checkoutUrl:
+          type: string
+          nullable: true
+        chainId:
+          type: integer
+          nullable: true
+        tokenAddress:
+          type: string
+          nullable: true
+        receiveAddress:
+          type: string
+          nullable: true
+        payerAddress:
+          type: string
+          nullable: true
+        amountAtomic:
+          type: string
+          nullable: true
+        transactionHash:
+          type: string
+          nullable: true
+        creditEntryId:
+          type: string
+          nullable: true
+    FishSubscriptionActivationRequest:
+      type: object
+      additionalProperties: false
+      required: [accountId, planId]
+      properties:
+        accountId:
+          type: string
+        planId:
+          type: string
+          enum: [free, pro, team-api, provider-test]
+        creditGrant:
+          type: integer
+          minimum: 0
+          maximum: 1000000
+          description: Defaults to the target plan monthly credit grant.
+        reason:
+          type: string
+          maxLength: 140
+          default: operator_subscription_activation
+        startsAt:
+          type: string
+        expiresAt:
+          type: string
+          nullable: true
+          description: Defaults to one month after startsAt.
+        idempotencyKey:
+          type: string
+          maxLength: 120
+        paymentProviderEventId:
+          type: string
+          maxLength: 120
+        subscriptionRef:
+          type: string
+          maxLength: 160
+    FishCreditEntry:
+      type: object
+      properties:
+        entryId:
+          type: string
+        accountId:
+          type: string
+        lane:
+          type: string
+          enum: [grant, subscription, prepaid, staking, adjustment, refund]
+        kind:
+          type: string
+          enum: [grant, debit, refund, adjustment]
+        amount:
+          type: integer
+        requestId:
+          type: string
+          nullable: true
+        receiptId:
+          type: string
+          nullable: true
+        expiresAt:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+        operatorReason:
+          type: string
+          nullable: true
+        idempotencyKey:
+          type: string
+          nullable: true
+        paymentProviderEventId:
+          type: string
+          nullable: true
+    FishQuotaState:
+      type: object
+      properties:
+        used:
+          type: integer
+        remaining:
+          type: integer
+        limit:
+          type: integer
+    FishMonthlyRequestState:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        limit:
+          type: integer
+        used:
+          type: integer
+        remaining:
+          type: integer
+        resetAt:
+          type: string
+    BillingUsageAnalytics:
+      type: object
+      properties:
+        dataState:
+          type: string
+          enum: [live, snapshot, sample, unavailable]
+        generatedAt:
+          type: string
+        totals:
+          type: object
+          properties:
+            requests:
+              type: integer
+            creditsSpent:
+              type: integer
+            creditsRemaining:
+              type: integer
+            userChargeUsd:
+              type: number
+            providerCostUsd:
+              type: number
+            grossMarginUsd:
+              type: number
+            batchReceiptId:
+              type: string
+            batchJobId:
+              type: string
+            batchSourceState:
+              type: string
+              enum: [live, snapshot, sample, unavailable]
+            batchAdapterMode:
+              type: string
+              enum: [sample_success, sample_failure, ocean_http]
+            batchOutputRef:
+              type: string
+              nullable: true
+            inputRef:
+              type: string
+            storesPromptOutputText:
+              type: boolean
+              enum: [false]
+            refunds:
+              type: integer
+            failures:
+              type: integer
+        requestsByDay:
+          type: array
+          items:
+            type: object
+            properties:
+              date:
+                type: string
+              requests:
+                type: integer
+              creditsSpent:
+                type: integer
+              userChargeUsd:
+                type: number
+              providerCostUsd:
+                type: number
+        creditsByLane:
+          type: array
+          items:
+            $ref: '#/components/schemas/FishCreditLane'
+        creditsByModel:
+          type: array
+          items:
+            type: object
+            properties:
+              model:
+                type: string
+              requests:
+                type: integer
+              creditsSpent:
+                type: integer
+              totalTokens:
+                type: integer
+        routeMix:
+          type: array
+          items:
+            type: object
+            properties:
+              route:
+                type: string
+                enum: [mock, ocean-demo-vllm, ocean-provider, external-fallback]
+              requests:
+                type: integer
+              creditsSpent:
+                type: integer
+              userChargeUsd:
+                type: number
+              providerCostUsd:
+                type: number
+    FishDashboardSummary:
+      type: object
+      properties:
+        dataState:
+          type: string
+          enum: [live, snapshot, sample, unavailable]
+        generatedAt:
+          type: string
+        product:
+          type: object
+          properties:
+            name:
+              type: string
+            tagline:
+              type: string
+            publicState:
+              type: string
+              enum: [real-ai-pilot, demo-pilot]
+        activeRoute:
+          type: object
+          properties:
+            id:
+              type: string
+              enum: [mock, ocean-demo-vllm, ocean-provider, external-fallback]
+            label:
+              type: string
+            status:
+              type: string
+              enum: [active, ready, needs-config, paused, disabled, pilot, future]
+            isRealAi:
+              type: boolean
+            providerId:
+              type: string
+        warmRoute:
+          type: object
+          properties:
+            routeId:
+              type: string
+              enum: [ocean-demo-vllm, ocean-provider]
+            label:
+              type: string
+            providerId:
+              type: string
+            active:
+              type: boolean
+            configured:
+              type: boolean
+            model:
+              type: string
+              nullable: true
+            probeState:
+              type: string
+              enum: [ok, failed, skipped]
+            modelVisible:
+              type: boolean
+              nullable: true
+            latencyMs:
+              type: integer
+              nullable: true
+        fishUsage:
+          type: object
+          properties:
+            requests:
+              type: integer
+            accounts:
+              type: integer
+            tokensServed:
+              type: integer
+            oceanNativeJobs:
+              type: integer
+            externalFallbackJobs:
+              type: integer
+            mockJobs:
+              type: integer
+            oceanNativeShare:
+              type: number
+            runnerProofJobs:
+              type: integer
+            runnerVerifiedJobs:
+              type: integer
+            failedRequests:
+              type: integer
+            averageLatencyMs:
+              type: number
+            creditsSpent:
+              type: integer
+            creditsRemaining:
+              type: integer
+            lastReceiptAt:
+              type: string
+              nullable: true
+        oceanSupply:
+          type: object
+          properties:
+            dataState:
+              type: string
+              enum: [live, snapshot, sample, unavailable]
+            lastUpdated:
+              type: string
+            sourceCount:
+              type: integer
+            totalGpus:
+              type: integer
+            availableGpus:
+              type: integer
+            providerCount:
+              type: integer
+            eligibleNodeCount:
+              type: integer
+            fishReadyProviderCount:
+              type: integer
+            topGpuSupply:
+              type: array
+              items:
+                type: object
+            topProviders:
+              type: array
+              items:
+                type: object
+        economics:
+          type: object
+          properties:
+            userChargeUsd:
+              type: number
+            providerCostUsd:
+              type: number
+            grossMarginUsd:
+              type: number
+            averageProviderCostUsd:
+              type: number
+            providerPayoutUsd:
+              type: number
+            capacitySettlementGrossUsdc:
+              type: number
+            capacitySettlementNetUsdc:
+              type: number
+            capacitySettlementOperatorFeeUsdc:
+              type: number
+        contracts:
+          type: object
+          properties:
+            dataState:
+              type: string
+              enum: [live, snapshot, sample, unavailable]
+            mode:
+              type: string
+              enum: [local_prototype, configured_read_only, testnet_actions, mainnet_read_only]
+            chainId:
+              type: integer
+            chainName:
+              type: string
+            rpcConfigured:
+              type: boolean
+            requiredConfigured:
+              type: boolean
+            readVerified:
+              type: boolean
+            walletWritesAllowed:
+              type: boolean
+            settlementSubmitAllowed:
+              type: boolean
+            oceanStaking:
+              type: object
+            fish:
+              type: object
+            capacityPool:
+              type: object
+            capacitySettlements:
+              type: object
+              properties:
+                dataState:
+                  type: string
+                  enum: [live, snapshot, sample, unavailable]
+                settlements:
+                  type: integer
+                onchainSubmittedSettlements:
+                  type: integer
+                grossUsdcAmount:
+                  type: number
+                netUsdcAmount:
+                  type: number
+        proof:
+          type: object
+          properties:
+            runnerProofJobs:
+              type: integer
+            runnerSignedJobs:
+              type: integer
+            runnerVerifiedJobs:
+              type: integer
+            storesPromptOutputText:
+              type: boolean
+              enum: [false]
+        rules:
+          type: array
+          items:
+            type: object
+            properties:
+              title:
+                type: string
+              body:
+                type: string
+        warnings:
+          type: array
+          items:
+            type: string
+    FishFeatureMenu:
+      type: object
+      properties:
+        object:
+          type: string
+          enum: [list]
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/FishFeatureMenuItem'
+        activeRoute:
+          type: object
+          properties:
+            id:
+              type: string
+              enum: [mock, ocean-demo-vllm, ocean-provider, external-fallback]
+            label:
+              type: string
+            isRealAi:
+              type: boolean
+            status:
+              type: string
+              enum: [active, ready, needs-config, paused, disabled]
+        guardrails:
+          type: object
+        policies:
+          type: array
+          items:
+            type: object
+    FishFeatureMenuItem:
+      type: object
+      properties:
+        id:
+          type: string
+          enum: [ask, code, explain, docs, repo, eval, data, images, proposal, ocean]
+        title:
+          type: string
+        subtitle:
+          type: string
+        status:
+          type: string
+        routeLabel:
+          type: string
+        lane:
+          type: string
+          enum: [warm, batch, future]
+        short:
+          type: string
+        placeholder:
+          type: string
+        maxTokens:
+          type: integer
+        modelAlias:
+          type: string
+        enabled:
+          type: boolean
+        oceanBatch:
+          type: object
+          nullable: true
+          properties:
+            taskType:
+              type: string
+              enum: [document_summary, structured_extraction, embeddings, batch_chat]
+            inputLabel:
+              type: string
+            proofLabel:
+              type: string
+            maxRuntimeSeconds:
+              type: integer
+            maxCostUsd:
+              type: number
+    FishDishRunRequest:
+      type: object
+      required: [prompt]
+      properties:
+        prompt:
+          type: string
+          minLength: 1
+          maxLength: 20000
+        model:
+          type: string
+          description: Optional model override. Defaults to the dish model alias.
+        max_tokens:
+          type: integer
+          minimum: 1
+          maximum: 4096
+        temperature:
+          type: number
+          minimum: 0
+          maximum: 2
+        stream:
+          type: boolean
+          default: false
+        metadata:
+          type: object
+          additionalProperties: true
+    FishChatRequest:
+      type: object
+      required: [messages]
+      properties:
+        model:
+          type: string
+          default: fish-demo-chat
+          description: Use `fish-demo-chat` for the generic route, or a dish alias such as `fish-ask`, `fish-code`, `fish-docs`, `fish-repo`, `fish-eval`, `fish-data`, `fish-ocean-helper`, `fish-clear-broth`, or `fish-proposal`.
+        messages:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            properties:
+              role:
+                type: string
+                enum: [system, user, assistant, tool]
+              content:
+                oneOf:
+                  - type: string
+                  - type: array
+                    items: {}
+        stream:
+          type: boolean
+          default: false
+        temperature:
+          type: number
+          minimum: 0
+          maximum: 2
+        max_tokens:
+          type: integer
+          minimum: 1
+          maximum: 4096
+        metadata:
+          type: object
+          additionalProperties: true
+          properties:
+            fish_feature:
+              type: string
+              enum: [ask, code, explain, docs, repo, eval, data, images, proposal, ocean, api]
+            fish_dish:
+              type: string
+            requestedPrivacyMode:
+              type: string
+              enum: [local_demo, external_policy, ocean_demo_policy, selected_ocean_policy, hash_only_batch, ocean_hardened, ocean_tee, e2ee_to_tee]
+              description: Optional requested privacy mode. Fish rejects unavailable modes unless `allowPrivacyDowngrade` is true.
+            allowPrivacyDowngrade:
+              type: boolean
+              default: false
+    FishUsageReceipt:
+      type: object
+      properties:
+        id:
+          type: string
+        accountId:
+          type: string
+        creditEntryId:
+          type: string
+          nullable: true
+        creditLane:
+          type: string
+          enum: [grant, subscription, prepaid, staking, adjustment, refund]
+        createdAt:
+          type: string
+        model:
+          type: string
+        route:
+          type: string
+          enum: [mock, ocean-demo-vllm, ocean-provider, external-fallback]
+        requestedRoute:
+          type: string
+          nullable: true
+          enum: [mock, ocean-demo-vllm, ocean-provider, external-fallback]
+        fallbackFrom:
+          type: string
+          nullable: true
+          enum: [mock, ocean-demo-vllm, ocean-provider, external-fallback]
+        fallbackReason:
+          type: string
+          nullable: true
+        feature:
+          type: string
+          nullable: true
+        costState:
+          type: string
+          enum: [prototype_estimate, provider_verified, fallback_verified]
+        status:
+          type: string
+          enum: [succeeded, failed]
+        errorCode:
+          type: string
+          nullable: true
+        promptTokens:
+          type: integer
+        completionTokens:
+          type: integer
+        totalTokens:
+          type: integer
+        creditsSpent:
+          type: integer
+        userChargeUsd:
+          type: number
+        providerCostUsd:
+          type: number
+        grossMarginUsd:
+          type: number
+        providerId:
+          type: string
+          nullable: true
+        requestHash:
+          type: string
+        runnerReceipt:
+          $ref: '#/components/schemas/RunnerReceiptSummary'
+          nullable: true
+        privacy:
+          $ref: '#/components/schemas/FishUsagePrivacy'
+    FishChatCompletion:
+      type: object
+      properties:
+        id:
+          type: string
+        object:
+          type: string
+          example: chat.completion
+        created:
+          type: integer
+        model:
+          type: string
+        choices:
+          type: array
+          items:
+            type: object
+        usage:
+          type: object
+          properties:
+            prompt_tokens:
+              type: integer
+            completion_tokens:
+              type: integer
+            total_tokens:
+              type: integer
+        fish:
+          type: object
+          properties:
+            route:
+              type: string
+              enum: [mock, ocean-demo-vllm, ocean-provider, external-fallback]
+            requestedRoute:
+              type: string
+              nullable: true
+              enum: [mock, ocean-demo-vllm, ocean-provider, external-fallback]
+            fallbackFrom:
+              type: string
+              nullable: true
+              enum: [mock, ocean-demo-vllm, ocean-provider, external-fallback]
+            fallbackReason:
+              type: string
+              nullable: true
+            feature:
+              type: string
+              nullable: true
+            featureLabel:
+              type: string
+            dishId:
+              type: string
+              nullable: true
+            accessMode:
+              type: string
+              nullable: true
+              enum: [guest, key]
+            costState:
+              type: string
+              enum: [prototype_estimate, provider_verified, fallback_verified]
+            receiptId:
+              type: string
+            status:
+              type: string
+            routeLabel:
+              type: string
+            providerId:
+              type: string
+              nullable: true
+            runnerReceiptHash:
+              type: string
+              nullable: true
+            runnerSignatureState:
+              type: string
+              nullable: true
+              enum: [unsigned, signed, verified, invalid, missing]
+            runnerId:
+              type: string
+              nullable: true
+            latencyMs:
+              type: integer
+            dailyBudgetUsd:
+              type: number
+            dailyBudgetRemainingUsd:
+              type: number
+            estimatedProviderCostUsd:
+              type: number
+            quotaRemaining:
+              type: integer
+            monthlyRequestRemaining:
+              type: integer
+              nullable: true
+            monthlyRequestResetAt:
+              type: string
+              nullable: true
+            rateLimitRemaining:
+              type: integer
+              nullable: true
+            rateLimitResetAt:
+              type: string
+              nullable: true
+            creditReserveId:
+              type: string
+            creditsReserved:
+              type: integer
+            creditsReleased:
+              type: integer
+            creditsSpent:
+              type: integer
+            creditsRemaining:
+              type: integer
+            userChargeUsd:
+              type: number
+            providerCostUsd:
+              type: number
+            grossMarginUsd:
+              type: number
+            knowledgeSources:
+              type: array
+              items:
+                $ref: '#/components/schemas/FishKnowledgeSource'
+            privacy:
+              $ref: '#/components/schemas/FishUsagePrivacy'
+            batchReceiptId:
+              type: string
+            batchJobId:
+              type: string
+            batchSourceState:
+              type: string
+              enum: [live, snapshot, sample, unavailable]
+            batchAdapterMode:
+              type: string
+              enum: [sample_success, sample_failure, ocean_http]
+            batchOutputRef:
+              type: string
+              nullable: true
+            inputRef:
+              type: string
+            storesPromptOutputText:
+              type: boolean
+              enum: [false]
+            storesOutputText:
+              type: boolean
+              enum: [false]
+    FishUsagePrivacy:
+      type: object
+      properties:
+        requestedPrivacyMode:
+          type: string
+          nullable: true
+          enum: [local_demo, external_policy, ocean_demo_policy, selected_ocean_policy, hash_only_batch, ocean_hardened, ocean_tee, e2ee_to_tee]
+        acceptedPrivacyMode:
+          type: string
+          enum: [local_demo, external_policy, ocean_demo_policy, selected_ocean_policy, hash_only_batch, ocean_hardened, ocean_tee, e2ee_to_tee]
+        privacyDowngradeReason:
+          type: string
+          nullable: true
+        rawPromptSentTo:
+          type: string
+          enum: [local_process, external_provider, ocean_demo_provider, selected_ocean_provider, hash_only_batch_adapter]
+        storesPromptText:
+          type: boolean
+          enum: [false]
+        storesOutputText:
+          type: boolean
+          enum: [false]
+    FishKnowledgeSource:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        source:
+          type: string
+    RunnerReceiptSummary:
+      type: object
+      nullable: true
+      properties:
+        runnerReceiptVersion:
+          type: integer
+          nullable: true
+        jobId:
+          type: string
+          nullable: true
+        routeId:
+          type: string
+          nullable: true
+        providerId:
+          type: string
+          nullable: true
+        runnerId:
+          type: string
+          nullable: true
+        status:
+          type: string
+          nullable: true
+        canonicalReceiptHash:
+          type: string
+          nullable: true
+        computedCanonicalReceiptHash:
+          type: string
+          nullable: true
+        signerKeyId:
+          type: string
+          nullable: true
+        signerAlgorithm:
+          type: string
+          nullable: true
+        signatureState:
+          type: string
+          enum: [unsigned, signed, verified, invalid, missing]
+        signatureError:
+          type: string
+          nullable: true
     ProviderApplication:
       type: object
       required: [contact]
       properties:
         contact:
           type: string
+        subscriberRoles:
+          type: array
+          items:
+            type: string
+            enum: [user, developer, provider, oceanHolder]
         nodeEndpoint:
           type: string
         gpuType:

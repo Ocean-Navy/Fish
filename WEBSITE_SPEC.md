@@ -4,12 +4,13 @@
 
 Build a polished public website and dashboard that convinces the Ocean community that Fish is a credible product-first path to OCEAN utility.
 
-The first website should do four jobs:
+The first website should do five jobs:
 
 1. Explain the concept in under 30 seconds.
 2. Show Ocean Network compute supply and usage metrics.
 3. Recruit users, providers, and OCEAN holders into the pilot.
 4. Give agentic coders a clean foundation for the full product roadmap.
+5. Explain data handling plainly enough that users understand what is stored, what is public, and who may process an order.
 
 ## Primary URL structure
 
@@ -19,6 +20,7 @@ The first website should do four jobs:
 /roadmap                Roadmap and milestones
 /providers              Provider pilot page
 /credits                OCEAN staking / Fish Credits explainer
+/privacy                Plain-language data handling and privacy modes
 /docs                   Developer docs placeholder
 /api                    API status and future docs placeholder
 ```
@@ -348,4 +350,3 @@ Prototype stack in this package:
 - Static HTML/CSS/JS landing page.
 - Python backend for data ingestion proxy.
 - Sample dashboard data fallback.
-

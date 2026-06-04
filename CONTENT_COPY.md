@@ -59,6 +59,15 @@ More users, provider demand, and usage proof.
 Providers are paid from real usage, reserves, or funded budgets — not by staking magic.
 ```
 
+## Data policy
+
+```text
+Your order is used to prepare your dish.
+Public proof shows tickets, hashes, route labels, usage, and credits.
+Public proof does not show your raw order or answer.
+The route label tells you who processed the order.
+```
+
 ## Footer disclaimer
 
 ```text

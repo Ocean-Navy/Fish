@@ -118,7 +118,18 @@ Fish is an Ocean Navy-built product concept that turns Ocean Network compute int
 
 The current hero direction uses a geometric dolphin captain, a Venice-at-night canal world, and a fish-to-food metaphor. This is intentionally playful, but the UI must remain serious enough for OCEAN holders, providers, and developers.
 
+Strategic visual thesis: Fish is a Venice fork with an Ocean Navy skin. The site should borrow the Venice feeling of canals, night markets, warm lantern reflections, and cinematic harbor scenes, then layer in Ocean Navy symbols, compute-dot motifs, OCEAN utility, and a clearer AI product flow.
+
+Experience model: the public V0 should feel like entering a Venice fish market. Different visitors should get different entrances and lightweight interfaces:
+
+- **Users** enter through the chat counter.
+- **Builders** enter through the API hatch.
+- **Providers** enter through the dock master.
+- **OCEAN holders** enter through the vault door.
+
 The product should never look like a cheap meme coin page. It should look like a real AI product with a memorable mascot.
+
+Do not directly copy protected Venice or Ocean Protocol logos, typography, or exact UI layouts unless the team confirms usage rights. Use them as inspiration for mood, composition, and metaphor, while keeping Fish visually distinct.
 
 Core feeling:
 
@@ -126,6 +137,18 @@ Core feeling:
 - **Ocean Navy**: captain, maps, docks, rope, lanterns, ships, expedition energy.
 - **Venice wink**: canal bridges, gondolas, pescheria market hints, warm reflection lights.
 - **AI product**: dashboards, API cards, metrics, receipts, provider status.
+
+## Source Image Direction
+
+Preferred generation source for future bitmap brand explorations: **GPT Image 2.0**, when available. Use these images as visual direction and mood references before converting the language into UI/UX components:
+
+- `public/assets/fish-ocean-navy-venice.png`: primary all-in-one one-pager reference. Strong Ocean Navy/Venice direction, useful for launch mood and hero atmosphere.
+- `public/assets/visual-identity/fish-ocean-protocol-captain.png`: captain-at-harbor variant with clearer Ocean Protocol co-branding. Useful as a reference for mascot pose, night harbor lighting, and flow-card illustration style.
+- `public/assets/visual-identity/fish-venice-market-dolphin.png`: Venice fish-market variant with a friendlier dolphin and cleaner bottom benefit strip. Useful as a reference for the AI-as-food metaphor and softer mascot expression.
+
+These source images include baked-in text and should not be treated as production UI screenshots. For product UI, extract the style, composition, color, mascot posture, and scene motifs, then render text, buttons, forms, and dashboard elements as accessible HTML/CSS.
+
+If the active image tool cannot select GPT Image 2.0 directly, do not silently treat a generated result as final brand direction. Use the available model for rough exploration only, then mark the asset for human review.
 
 ## Colors
 
@@ -144,7 +167,7 @@ Do not use flat black backgrounds. Always use layered navy gradients with subtle
 
 Use a modern grotesk such as Inter or a close system equivalent. Headlines should be very large, tight, and confident. Body copy should be minimal and plain.
 
-Wording must be ELI5:
+Wording must be simple:
 
 - Good: “Users buy AI. Providers get paid. OCEAN gains utility.”
 - Bad: “A composable dual-tokenized compute-credit primitive for decentralized inference.”

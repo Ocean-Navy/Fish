@@ -38,6 +38,9 @@ Use this slogan in hero copy, launch posts, and early community materials.
 5. **OCEAN utility must be measurable.**
    The website should track OCEAN staked, OCEAN bonded, credits earned, credits spent, and future buy/lock/burn metrics.
 
+6. **Privacy claims must match the route.**
+   Fish should show what processed an order and what is stored. Do not claim TEE, E2EE, zero retention, or "not even Fish can see it" until the route can prove that.
+
 ## Target audiences
 
 ### Everyday users
@@ -232,4 +235,3 @@ Users buy AI
 - Credits spent.
 - Credits outstanding.
 - Revenue allocated to reserves or OCEAN support.
-

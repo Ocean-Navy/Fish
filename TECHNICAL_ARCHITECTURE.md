@@ -4,8 +4,8 @@
 
 ```text
 Browser
-  → static landing page
-  → dashboard API backend
+  → Next.js App Router landing page
+  → Next.js API routes
   → Ocean Network / Oncompute public APIs and direct Ocean Node APIs
   → sample fallback if live data unavailable
 ```
@@ -28,14 +28,14 @@ Browser / API client
 
 ## V0 components
 
-### Static landing page
+### App Router landing page
 
 Location:
 
 ```text
-app/index.html
-app/styles.css
-app/app.js
+app/page.tsx
+app/globals.css
+src/components/*
 ```
 
 Purpose:
@@ -49,8 +49,8 @@ Purpose:
 Location:
 
 ```text
-backend/server.py
-backend/ocean_supply.py
+app/api/ocean/*/route.ts
+src/lib/oceanSupply.ts
 ```
 
 Purpose:
@@ -60,13 +60,15 @@ Purpose:
 - label live/sample state;
 - serve JSON endpoints.
 
+The original Python prototype remains in `backend/` as reference code. The production V0 path is the TypeScript/Next.js implementation.
+
 ### Sample data
 
 Location:
 
 ```text
 data/sample_supply.json
-app/data/sample_supply.json
+public/data/sample_supply.json
 ```
 
 Purpose:
@@ -78,7 +80,7 @@ Purpose:
 
 ### Frontend
 
-- Next.js App Router or equivalent modern React framework.
+- Next.js App Router.
 - TypeScript.
 - Tailwind CSS generated from `DESIGN.md` tokens.
 - Server components for dashboard pages where useful.
@@ -213,7 +215,9 @@ receipt_hash text
 
 V0:
 
-- do not store prompts;
+- do not store raw prompts or outputs in receipts, public proof, dashboards, billing rows, or exports;
+- store proof tickets, hashes, source-state labels, route labels, usage, cost, and credit fields instead of raw order data;
+- label the active processing route so users can tell whether demo mode, outside AI, Ocean batch, or a selected provider handled the order;
 - do not store private wallet information beyond explicit form fields;
 - avoid telemetry that leaks sensitive data;
 - separate sample data from live data.
@@ -222,7 +226,10 @@ V1+:
 
 - API keys hashed at rest;
 - prompt logging disabled by default;
+- private upload storage with signed job references and short default input retention;
+- user-facing deletion for stored outputs and private job data;
 - provider receipts exclude prompt text;
+- selected providers reviewed for no prompt/output retention before receiving user workloads;
 - PII in forms encrypted or protected;
 - admin dashboard protected;
 - rate limiting.
@@ -241,4 +248,3 @@ POST /v1/api_keys
 ```
 
 This is not required for V0 landing page.
-

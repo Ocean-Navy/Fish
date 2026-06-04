@@ -1,0 +1,21 @@
+{
+  "providers": [
+    {
+      "sourceApplicationId": "replace-with-provider-application-id",
+      "healthEndpoint": "https://provider.example.com/fish/healthz",
+      "jobEndpoint": "https://provider.example.com/fish/jobs",
+      "allowedWorkloadTypes": ["chat_batch"],
+      "allowedModels": ["fish-demo-chat"],
+      "maxConcurrentJobs": 1,
+      "maxDailySpendUsd": 5,
+      "benchmarkRequired": true,
+      "priceHint": "operator-reviewed pilot price",
+      "payoutReady": true,
+      "noPromptOutputLogging": true,
+      "approvedContainers": ["fish-runner:v0"],
+      "supportContact": "ops@example.com",
+      "operatorOwner": "operator-handle",
+      "decisionReason": "Manual pilot approval after node verification"
+    }
+  ]
+}

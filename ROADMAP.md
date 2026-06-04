@@ -110,6 +110,8 @@ Success criteria:
 
 **Goal:** move from batch jobs to faster API experience.
 
+Planning detail: see `docs/fish-runner-plan.md`.
+
 Deliverables:
 
 - provider `fish-runner`;
@@ -129,6 +131,8 @@ Success criteria:
 
 **Goal:** create supply-side OCEAN utility.
 
+Planning detail: see `docs/provider-bonds-plan.md`.
+
 Deliverables:
 
 - provider bond contract;
@@ -146,6 +150,8 @@ Success criteria:
 ## Phase 7 — Credits/tokenization later
 
 **Goal:** make Fish Credits more composable only after usage exists.
+
+Planning detail: see `docs/tokenized-credits-plan.md`.
 
 Deliverables:
 
@@ -165,5 +171,7 @@ Success criteria:
 
 **Goal:** gradually match the valuable product layers of Venice, not just its token loop.
 
-See `VENICE_PARITY_ROADMAP.md`.
+Commercial layer detail: see `docs/billing-topups-plan.md`.
+Privacy layer detail: see `docs/privacy-modes-plan.md`.
 
+See `VENICE_PARITY_ROADMAP.md`.

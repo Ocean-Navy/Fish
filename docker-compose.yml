@@ -1,17 +1,60 @@
 services:
-  fish-api:
-    image: python:3.11-slim
-    working_dir: /app/backend
-    command: python3 server.py
-    volumes:
-      - .:/app
+  fish-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: opfish-web:latest
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: 0.0.0.0
+      ONCOMPUTE_MAX_PAGES: "3"
+      FISH_ADMIN_TOKEN: ${FISH_ADMIN_TOKEN:-}
+      FISH_PROVIDER_ALLOWLIST: ${FISH_PROVIDER_ALLOWLIST:-}
+      FISH_CHAT_ROUTE: ${FISH_CHAT_ROUTE:-mock}
+      FISH_CHAT_BACKEND: ${FISH_CHAT_BACKEND:-mock}
+      FISH_MAX_INPUT_TOKENS: ${FISH_MAX_INPUT_TOKENS:-1000}
+      FISH_MAX_OUTPUT_TOKENS: ${FISH_MAX_OUTPUT_TOKENS:-512}
+      FISH_DAILY_KEYED_QUOTA: ${FISH_DAILY_KEYED_QUOTA:-20}
+      FISH_DAILY_ANONYMOUS_QUOTA: ${FISH_DAILY_ANONYMOUS_QUOTA:-5}
+      FISH_GUEST_CREDIT_GRANT: ${FISH_GUEST_CREDIT_GRANT:-25}
+      FISH_CHAT_PAUSED: ${FISH_CHAT_PAUSED:-false}
+      FISH_ROUTER_KILL_SWITCH: ${FISH_ROUTER_KILL_SWITCH:-false}
+      FISH_MOCK_DAILY_BUDGET_USD: ${FISH_MOCK_DAILY_BUDGET_USD:-0}
+      FISH_OCEAN_DEMO_VLLM_BASE_URL: ${FISH_OCEAN_DEMO_VLLM_BASE_URL:-}
+      FISH_OCEAN_DEMO_VLLM_API_KEY: ${FISH_OCEAN_DEMO_VLLM_API_KEY:-}
+      FISH_OCEAN_DEMO_VLLM_MODEL: ${FISH_OCEAN_DEMO_VLLM_MODEL:-}
+      FISH_OCEAN_DEMO_PROVIDER_ID: ${FISH_OCEAN_DEMO_PROVIDER_ID:-ocean-navy-demo-node}
+      FISH_OCEAN_DEMO_COST_USD_PER_1K_TOKENS: ${FISH_OCEAN_DEMO_COST_USD_PER_1K_TOKENS:-0}
+      FISH_OCEAN_DEMO_DAILY_BUDGET_USD: ${FISH_OCEAN_DEMO_DAILY_BUDGET_USD:-50}
+      FISH_EXTERNAL_CHAT_BASE_URL: ${FISH_EXTERNAL_CHAT_BASE_URL:-}
+      FISH_EXTERNAL_CHAT_API_KEY: ${FISH_EXTERNAL_CHAT_API_KEY:-}
+      FISH_EXTERNAL_CHAT_MODEL: ${FISH_EXTERNAL_CHAT_MODEL:-}
+      FISH_EXTERNAL_PROVIDER_ID: ${FISH_EXTERNAL_PROVIDER_ID:-external-compatible}
+      FISH_EXTERNAL_COST_USD_PER_1K_TOKENS: ${FISH_EXTERNAL_COST_USD_PER_1K_TOKENS:-0}
+      FISH_EXTERNAL_FALLBACK_DAILY_BUDGET_USD: ${FISH_EXTERNAL_FALLBACK_DAILY_BUDGET_USD:-10}
+      FISH_EXTERNAL_FALLBACK_FREE_ALLOWED: ${FISH_EXTERNAL_FALLBACK_FREE_ALLOWED:-false}
+      FISH_STAKING_CREDIT_BUDGET: ${FISH_STAKING_CREDIT_BUDGET:-10000}
+      FISH_STAKING_CREDITS_PER_OCEAN_MONTH: ${FISH_STAKING_CREDITS_PER_OCEAN_MONTH:-0.1}
     ports:
-      - "8787:8787"
-  fish-static:
-    image: python:3.11-slim
-    working_dir: /app/app
-    command: python3 -m http.server 5173
+      - "3000:3000"
     volumes:
-      - .:/app
-    ports:
-      - "5173:5173"
+      - fish-submissions:/app/data/submissions
+      - fish-ledger:/app/data/fish
+      - fish-ocean-batch:/app/data/ocean-batch
+      - fish-proof:/app/data/proof
+      - fish-staking:/app/data/staking
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+volumes:
+  fish-submissions:
+  fish-ledger:
+  fish-ocean-batch:
+  fish-proof:
+  fish-staking:
