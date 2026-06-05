@@ -912,9 +912,10 @@ export async function summarizeFishUsage(): Promise<FishUsageSummary> {
   const oceanNativeJobs = receipts.filter((receipt) => receipt.route === "ocean-provider" || receipt.route === "ocean-demo-vllm").length;
   const externalFallbackJobs = receipts.filter((receipt) => receipt.route === "external-fallback").length;
   const mockJobs = receipts.filter((receipt) => receipt.route === "mock").length;
-  const runnerProofJobs = receipts.filter((receipt) => receipt.runnerReceipt?.canonicalReceiptHash).length;
-  const runnerSignedJobs = receipts.filter((receipt) => receipt.runnerReceipt?.signatureState === "signed" || receipt.runnerReceipt?.signatureState === "verified").length;
-  const runnerVerifiedJobs = receipts.filter((receipt) => receipt.runnerReceipt?.signatureState === "verified").length;
+  const verifiedRunnerReceipts = receipts.filter((receipt) => receipt.runnerReceipt?.signatureState === "verified");
+  const runnerProofJobs = verifiedRunnerReceipts.length;
+  const runnerSignedJobs = verifiedRunnerReceipts.length;
+  const runnerVerifiedJobs = verifiedRunnerReceipts.length;
   const tokensServed = receipts.reduce((sum, receipt) => sum + receipt.totalTokens, 0);
   const failedRequests = receipts.filter((receipt) => receipt.status === "failed").length;
   const latencyValues = receipts.map((receipt) => receipt.latencyMs).filter((latency) => Number.isFinite(latency));
