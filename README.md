@@ -671,7 +671,7 @@ POST /api/ocean/batch/jobs
 GET /api/ocean/batch/readiness
 ```
 
-`POST` requires a Fish API key and accepts only hash/reference input through `inputRef`; it does not accept or store raw input text. `adapterMode: "sample_success"` is the default local proof mode. Set `adapterMode: "ocean_http"` only when `FISH_OCEAN_BATCH_ENDPOINT` points to a private Oncompute/Ocean batch adapter. Fish checks `maxCostUsd` against `FISH_OCEAN_BATCH_DAILY_BUDGET_USD` before calling the batch adapter. Public proof must show tickets and hashes, not raw order data.
+`POST` requires a Fish API key and accepts only hash/reference input through `inputRef`; it does not accept or store raw input text. `adapterMode: "sample_success"` is the default local proof mode. Set `adapterMode: "ocean_http"` only when `FISH_OCEAN_BATCH_ENDPOINT` points to a private Oncompute/Ocean batch adapter. For `adapterMode: "ocean_http"`, Fish atomically reserves `maxCostUsd` against `FISH_OCEAN_BATCH_DAILY_BUDGET_USD` before calling the batch adapter; sample/prototype receipts do not count against the real Ocean daily spend cap. Public proof must show tickets and hashes, not raw order data.
 
 Batch dishes sent through `/v1/chat/completions` or `/api/dishes/:dishId/run` use the same hash-only batch path and require an authenticated Fish API key on a plan allowed to use Ocean provider capacity. Guest meal-counter credits cannot start Ocean batch adapter work.
 
