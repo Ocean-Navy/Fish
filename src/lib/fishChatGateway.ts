@@ -747,6 +747,7 @@ async function runBatchChatGateway(params: {
   privacy: FishUsagePrivacy;
 }): Promise<FishChatGatewayResult> {
   const inputRef = hashInputRef(params.promptText);
+  const adapterMode = process.env.FISH_OCEAN_BATCH_ENDPOINT?.trim() && canUseOceanProviderRoute(params.context) ? "ocean_http" : "sample_success";
   const result = await runOceanBatchJob(
     {
       taskType: params.batchFeature.taskType,
@@ -755,7 +756,7 @@ async function runBatchChatGateway(params: {
       maxOutputTokens: params.maxOutputTokens,
       maxRuntimeSeconds: readBatchMaxRuntimeSeconds(params.batchFeature.featureId, params.batchFeature.defaultMaxRuntimeSeconds),
       maxCostUsd: readBatchMaxCostUsd(params.batchFeature.featureId, params.batchFeature.defaultMaxCostUsd),
-      adapterMode: process.env.FISH_OCEAN_BATCH_ENDPOINT?.trim() ? "ocean_http" : "sample_success"
+      adapterMode
     },
     {
       ledger: params.context.ledger,
