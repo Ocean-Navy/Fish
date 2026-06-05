@@ -165,17 +165,6 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
     return privacyModeError(batchPrivacy);
   }
 
-  const monthlyRequests = await checkFishMonthlyRequestLimit(context.account, plan.monthlyRequestLimit);
-  if (!monthlyRequests.ok) {
-    return jsonError(monthlyRequests.status, monthlyRequests.error, "quota_error", {
-      planId: plan.planId,
-      limit: monthlyRequests.limit,
-      used: monthlyRequests.used,
-      remaining: monthlyRequests.remaining,
-      resetAt: monthlyRequests.resetAt
-    });
-  }
-
   const rateLimit = spendFishMinuteRateLimit(context.principalId, plan.rateLimitPerMinute);
   if (!rateLimit.ok) {
     return jsonError(429, "rate_limit_exceeded", "rate_limit_error", {
@@ -184,6 +173,17 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
       used: rateLimit.used,
       remaining: rateLimit.remaining,
       resetAt: rateLimit.resetAt
+    });
+  }
+
+  const monthlyRequests = await checkFishMonthlyRequestLimit(context.account, plan.monthlyRequestLimit);
+  if (!monthlyRequests.ok) {
+    return jsonError(monthlyRequests.status, monthlyRequests.error, "quota_error", {
+      planId: plan.planId,
+      limit: monthlyRequests.limit,
+      used: monthlyRequests.used,
+      remaining: monthlyRequests.remaining,
+      resetAt: monthlyRequests.resetAt
     });
   }
 

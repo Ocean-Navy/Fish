@@ -47,24 +47,6 @@ export async function POST(request: Request) {
     );
   }
 
-  const monthlyRequests = await checkFishMonthlyRequestLimit(auth.account, plan.monthlyRequestLimit);
-  if (!monthlyRequests.ok) {
-    return NextResponse.json(
-      {
-        error: {
-          message: monthlyRequests.error,
-          type: "quota_error",
-          planId: plan.planId,
-          limit: monthlyRequests.limit,
-          used: monthlyRequests.used,
-          remaining: monthlyRequests.remaining,
-          resetAt: monthlyRequests.resetAt
-        }
-      },
-      { status: monthlyRequests.status }
-    );
-  }
-
   const rateLimit = spendFishMinuteRateLimit(`key:${auth.account.id}`, plan.rateLimitPerMinute);
   if (!rateLimit.ok) {
     return NextResponse.json(
@@ -80,6 +62,24 @@ export async function POST(request: Request) {
         }
       },
       { status: 429 }
+    );
+  }
+
+  const monthlyRequests = await checkFishMonthlyRequestLimit(auth.account, plan.monthlyRequestLimit);
+  if (!monthlyRequests.ok) {
+    return NextResponse.json(
+      {
+        error: {
+          message: monthlyRequests.error,
+          type: "quota_error",
+          planId: plan.planId,
+          limit: monthlyRequests.limit,
+          used: monthlyRequests.used,
+          remaining: monthlyRequests.remaining,
+          resetAt: monthlyRequests.resetAt
+        }
+      },
+      { status: monthlyRequests.status }
     );
   }
 
