@@ -60,9 +60,6 @@ export type ProviderPilotStatus = "applied" | "contacted" | "verified" | "allowe
 export type ProviderProfile = {
   providerId: string;
   displayName: string;
-  sourceApplicationId: string | null;
-  nodeEndpointHash: string | null;
-  healthEndpointHash: string | null;
   region: string;
   gpuTypes: string[];
   capacitySummary: string;
@@ -76,6 +73,12 @@ export type ProviderProfile = {
   publicLabel: string;
   createdAt: string;
   updatedAt: string;
+};
+
+type InternalProviderProfile = ProviderProfile & {
+  sourceApplicationId: string | null;
+  nodeEndpointHash: string | null;
+  healthEndpointHash: string | null;
 };
 
 export type ProviderReadinessCheck = {
@@ -98,16 +101,19 @@ export type ProviderAllowlistEntry = {
   maxConcurrentJobs: number;
   maxDailySpendUsd: number;
   benchmarkRequired: boolean;
-  healthEndpointHash: string | null;
   priceShared: boolean;
   payoutReady: boolean;
   noPromptOutputLogging: boolean;
   approvedContainerCount: number;
   supportReady: boolean;
-  operatorOwner: string;
-  decisionReason: string;
   startsAt: string;
   expiresAt: string | null;
+};
+
+type InternalProviderAllowlistEntry = ProviderAllowlistEntry & {
+  healthEndpointHash: string | null;
+  operatorOwner: string;
+  decisionReason: string;
 };
 
 export type ProviderPilotRegistry = {
@@ -179,8 +185,8 @@ export async function collectProviderPilotRegistry(): Promise<ProviderPilotRegis
       paused: publicProviders.filter((provider) => provider.pilotStatus === "paused").length,
       rejected: publicProviders.filter((provider) => provider.pilotStatus === "rejected").length
     },
-    providers: publicProviders,
-    allowlist,
+    providers: publicProviders.map(redactProviderProfile),
+    allowlist: allowlist.map(redactAllowlistEntry),
     warnings:
       publicProviders.length === 0
         ? ["No provider applications found yet. Provider registry will populate from /api/providers/apply submissions."]
@@ -216,9 +222,19 @@ export async function resolveProviderJobEndpoint(providerId: string) {
 }
 
 export async function collectProviderPilotOperatorExport(): Promise<ProviderPilotOperatorExport> {
-  const registry = await collectProviderPilotRegistry();
-  const submissions = await readProviderSubmissions();
-  const byApplicationId = new Map(registry.providers.map((provider) => [provider.sourceApplicationId, provider]));
+  const [submissions, allowlistCandidates] = await Promise.all([readProviderSubmissions(), readAllowlistCandidates()]);
+  const submissionProviders = submissions.map((submission) => buildProviderProfile(submission));
+  const allowlist = buildAllowlist([...submissionProviders, ...buildAllowlistOnlyProfiles(submissionProviders, allowlistCandidates)], allowlistCandidates);
+  const allowedProviderIds = new Set(allowlist.map((entry) => entry.providerId));
+  const byApplicationId = new Map(
+    submissionProviders.map((provider) => [
+      provider.sourceApplicationId,
+      {
+        ...provider,
+        pilotStatus: allowedProviderIds.has(provider.providerId) ? ("allowed" as const) : provider.pilotStatus
+      }
+    ])
+  );
 
   return {
     exportedAt: new Date().toISOString(),
@@ -328,14 +344,14 @@ function readProviderJobEndpointEnv(providerId: string) {
     .find((entry) => entry.providerId === providerId && entry.endpoint)?.endpoint ?? null;
 }
 
-function buildProviderProfile(submission: z.infer<typeof submissionSchema>): ProviderProfile {
+function buildProviderProfile(submission: z.infer<typeof submissionSchema>): InternalProviderProfile {
   const providerId = providerIdForSubmission(submission);
   const gpuTypes = splitList(submission.body.gpuType);
   const region = submission.body.region || "Review needed";
 
   return {
     providerId,
-    displayName: displayNameForSubmission(submission, providerId),
+    displayName: displayNameForProviderId(providerId),
     sourceApplicationId: submission.id,
     nodeEndpointHash: submission.body.nodeEndpoint ? shortHash(submission.body.nodeEndpoint) : null,
     healthEndpointHash: submission.body.healthEndpoint ? shortHash(submission.body.healthEndpoint) : null,
@@ -355,7 +371,7 @@ function buildProviderProfile(submission: z.infer<typeof submissionSchema>): Pro
   };
 }
 
-function buildAllowlist(providers: ProviderProfile[], candidates: AllowlistCandidate[]): ProviderAllowlistEntry[] {
+function buildAllowlist(providers: InternalProviderProfile[], candidates: AllowlistCandidate[]): InternalProviderAllowlistEntry[] {
   return candidates.flatMap((candidate) => {
     const provider = findCandidateProvider(providers, candidate);
     if (!provider) {
@@ -385,7 +401,7 @@ function buildAllowlist(providers: ProviderProfile[], candidates: AllowlistCandi
   });
 }
 
-function buildAllowlistOnlyProfiles(providers: ProviderProfile[], candidates: AllowlistCandidate[]): ProviderProfile[] {
+function buildAllowlistOnlyProfiles(providers: InternalProviderProfile[], candidates: AllowlistCandidate[]): InternalProviderProfile[] {
   const existingProviderIds = new Set(providers.map((provider) => provider.providerId));
   const existingNodeHashes = new Set(providers.map((provider) => provider.nodeEndpointHash).filter(Boolean));
   return candidates.flatMap((candidate) => {
@@ -410,7 +426,7 @@ function buildAllowlistOnlyProfiles(providers: ProviderProfile[], candidates: Al
     return [
       {
         providerId,
-        displayName: displayNameForAllowlistCandidate(candidate, providerId),
+        displayName: displayNameForProviderId(providerId),
         sourceApplicationId: null,
         nodeEndpointHash,
         healthEndpointHash: candidate.healthEndpoint?.trim() ? shortHash(candidate.healthEndpoint.trim()) : null,
@@ -432,7 +448,7 @@ function buildAllowlistOnlyProfiles(providers: ProviderProfile[], candidates: Al
   });
 }
 
-function withReadiness(provider: ProviderProfile, allowlist?: ProviderAllowlistEntry): ProviderProfile {
+function withReadiness(provider: InternalProviderProfile, allowlist?: InternalProviderAllowlistEntry): InternalProviderProfile {
   const checks: ProviderReadinessCheck[] = [
     { id: "node", label: "Ocean Node", ready: Boolean(provider.nodeEndpointHash) },
     { id: "gpu", label: "GPU", ready: provider.gpuTypes.length > 0 },
@@ -463,6 +479,16 @@ function withReadiness(provider: ProviderProfile, allowlist?: ProviderAllowlistE
   };
 }
 
+function redactProviderProfile(provider: InternalProviderProfile): ProviderProfile {
+  const { sourceApplicationId: _sourceApplicationId, nodeEndpointHash: _nodeEndpointHash, healthEndpointHash: _healthEndpointHash, ...publicProvider } = provider;
+  return publicProvider;
+}
+
+function redactAllowlistEntry(entry: InternalProviderAllowlistEntry): ProviderAllowlistEntry {
+  const { healthEndpointHash: _healthEndpointHash, operatorOwner: _operatorOwner, decisionReason: _decisionReason, ...publicEntry } = entry;
+  return publicEntry;
+}
+
 function emptyReadiness(): ProviderReadinessSummary {
   return {
     readyCount: 0,
@@ -472,7 +498,7 @@ function emptyReadiness(): ProviderReadinessSummary {
   };
 }
 
-function findCandidateProvider(providers: ProviderProfile[], candidate: AllowlistCandidate) {
+function findCandidateProvider(providers: InternalProviderProfile[], candidate: AllowlistCandidate) {
   if (candidate.providerId) {
     return providers.find((provider) => provider.providerId === candidate.providerId);
   }
@@ -490,19 +516,7 @@ function providerIdForSubmission(submission: z.infer<typeof submissionSchema>) {
   return `prov_${shortHash([submission.id, submission.body.nodeEndpoint, submission.body.contact].filter(Boolean).join(":"))}`;
 }
 
-function displayNameForSubmission(submission: z.infer<typeof submissionSchema>, providerId: string) {
-  const host = safeHost(submission.body.nodeEndpoint);
-  if (host && !isIpLike(host)) {
-    return host.split(".").slice(0, 2).join(".");
-  }
-  return `Provider ${providerId.slice(-6)}`;
-}
-
-function displayNameForAllowlistCandidate(candidate: AllowlistCandidate, providerId: string) {
-  const host = safeHost(candidate.nodeEndpoint ?? "");
-  if (host && !isIpLike(host)) {
-    return host.split(".").slice(0, 2).join(".");
-  }
+function displayNameForProviderId(providerId: string) {
   return `Provider ${providerId.slice(-6)}`;
 }
 
@@ -516,21 +530,6 @@ function splitList(value: string) {
     .map((part) => part.trim())
     .filter(Boolean)
     .slice(0, 6);
-}
-
-function safeHost(value: string) {
-  if (!value) {
-    return "";
-  }
-  try {
-    return new URL(value).hostname;
-  } catch {
-    return "";
-  }
-}
-
-function isIpLike(value: string) {
-  return /^\d{1,3}(\.\d{1,3}){3}$/.test(value) || value.includes(":");
 }
 
 function shortHash(value: string) {
