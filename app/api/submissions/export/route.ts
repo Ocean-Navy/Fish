@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { toCsv } from "@/lib/csv";
 import { requireAdmin } from "@/lib/fishLedger";
 import { listSubmissions, type StoredSubmission, type SubmissionKind } from "@/lib/submissions";
 
@@ -20,7 +21,7 @@ export async function GET(request: Request) {
 
   const rows = await listSubmissions(kind as SubmissionKind | "all");
   if (url.searchParams.get("format") === "csv") {
-    return new Response(toCsv(rows), {
+    return new Response(submissionsToCsv(rows), {
       headers: {
         "content-disposition": `attachment; filename="fish-submissions-${kind}.csv"`,
         "content-type": "text/csv; charset=utf-8"
@@ -35,7 +36,7 @@ export async function GET(request: Request) {
   });
 }
 
-function toCsv(rows: StoredSubmission[]) {
+function submissionsToCsv(rows: StoredSubmission[]) {
   const headers = [
     "createdAt",
     "kind",
@@ -75,9 +76,5 @@ function toCsv(rows: StoredSubmission[]) {
     row.body.notes
   ]);
 
-  return [headers, ...values].map((line) => line.map(csvCell).join(",")).join("\n");
-}
-
-function csvCell(value: string) {
-  return `"${value.replaceAll('"', '""')}"`;
+  return toCsv(headers, values);
 }
