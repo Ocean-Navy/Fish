@@ -795,9 +795,9 @@ export async function summarizeAccountById(accountId: string) {
 export async function reserveFishCredits(params: { ledger: Ledger; account: Account; credits: number; reason: string }) {
   const credits = Math.max(0, Math.ceil(params.credits));
   const now = new Date().toISOString();
-  await ensureAccountCreditSeed(params.account, now);
-  const spendableBalance = await readSpendableCreditBalance(params.account, now);
   if (credits === 0) {
+    await ensureAccountCreditSeed(params.account, now);
+    const spendableBalance = await readSpendableCreditBalance(params.account, now);
     return {
       ok: false as const,
       status: 400,
@@ -806,35 +806,61 @@ export async function reserveFishCredits(params: { ledger: Ledger; account: Acco
       available: spendableBalance
     };
   }
-  if (spendableBalance < credits) {
-    return {
-      ok: false as const,
-      status: 402,
-      error: "insufficient_fish_credits",
-      needed: credits,
-      available: spendableBalance
+
+  const result = await withLedgerMutation(async (ledger) => {
+    const account = ledger.accounts.find((candidate) => candidate.id === params.account.id);
+    if (!account) {
+      return {
+        ok: false as const,
+        status: 401,
+        error: "account_not_found",
+        needed: credits,
+        available: 0
+      };
+    }
+
+    await ensureAccountCreditSeed(account, now);
+    const spendableBalance = await readSpendableCreditBalance(account, now);
+    if (spendableBalance < credits) {
+      syncLedgerAccountSnapshot(params, ledger, account);
+      return {
+        ok: false as const,
+        status: 402,
+        error: "insufficient_fish_credits",
+        needed: credits,
+        available: spendableBalance
+      };
+    }
+
+    const lane = await selectSpendLane(account, credits, now);
+    const reservation: CreditReservation = {
+      requestId: randomUUID(),
+      reserveEntryId: randomUUID(),
+      accountId: account.id,
+      lane,
+      credits,
+      createdAt: now
     };
+
+    account.creditBalance -= credits;
+    syncLedgerAccountSnapshot(params, ledger, account);
+    return {
+      ok: true as const,
+      reservation
+    };
+  });
+
+  if (!result.ok) {
+    return result;
   }
 
-  const lane = await selectSpendLane(params.account, credits, now);
-  const reservation: CreditReservation = {
-    requestId: randomUUID(),
-    reserveEntryId: randomUUID(),
-    accountId: params.account.id,
-    lane,
-    credits,
-    createdAt: now
-  };
-
-  params.account.creditBalance -= credits;
-  await writeLedger(params.ledger);
   await appendCreditEntry({
-    entryId: reservation.reserveEntryId,
+    entryId: result.reservation.reserveEntryId,
     accountId: params.account.id,
-    lane: reservation.lane,
+    lane: result.reservation.lane,
     kind: "adjustment",
     amount: -credits,
-    requestId: reservation.requestId,
+    requestId: result.reservation.requestId,
     receiptId: null,
     expiresAt: null,
     createdAt: now,
@@ -843,7 +869,7 @@ export async function reserveFishCredits(params: { ledger: Ledger; account: Acco
 
   return {
     ok: true as const,
-    reservation
+    reservation: result.reservation
   };
 }
 
@@ -852,11 +878,21 @@ export async function releaseFishCreditReservation(params: { ledger: Ledger; acc
     return;
   }
   const now = new Date().toISOString();
-  params.account.creditBalance += params.reservation.credits;
-  await writeLedger(params.ledger);
+  const released = await withLedgerMutation(async (ledger) => {
+    const account = ledger.accounts.find((candidate) => candidate.id === params.reservation.accountId);
+    if (!account) {
+      return false;
+    }
+    account.creditBalance += params.reservation.credits;
+    syncLedgerAccountSnapshot(params, ledger, account);
+    return true;
+  });
+  if (!released) {
+    return;
+  }
   await appendCreditEntry({
     entryId: randomUUID(),
-    accountId: params.account.id,
+    accountId: params.reservation.accountId,
     lane: params.reservation.lane,
     kind: "adjustment",
     amount: params.reservation.credits,
@@ -967,52 +1003,76 @@ export async function recordChatUsage(params: {
   const tokenCreditsSpent = Math.max(1, Math.ceil(totalTokens / 1000));
   const minimumCreditsSpent = Math.max(0, Math.ceil(params.minimumCreditsSpent ?? 0));
   const estimatedCreditsSpent = Math.max(tokenCreditsSpent, minimumCreditsSpent);
-  if (params.reservation) {
-    await releaseFishCreditReservation({
-      ledger: params.ledger,
-      account: params.account,
-      reservation: params.reservation,
-      receiptId: null,
-      reason: "credit_reserve_release_before_debit"
-    });
-  }
   const now = new Date().toISOString();
-  await ensureAccountCreditSeed(params.account, now);
-  // A backend that ignores the reserved max-token cap must not turn a paid provider call into
-  // a post-call 402 with no debit. Spend the available reserved balance instead.
-  const creditsSpent =
-    params.reservation && params.account.creditBalance < estimatedCreditsSpent
-      ? Math.max(1, params.account.creditBalance)
-      : estimatedCreditsSpent;
-  if (!params.reservation) {
-    const spendableBalance = await readSpendableCreditBalance(params.account, now);
-    if (spendableBalance < creditsSpent) {
+  const settlement = await withLedgerMutation(async (ledger) => {
+    const account = ledger.accounts.find((candidate) => candidate.id === params.account.id);
+    if (!account) {
+      return {
+        ok: false as const,
+        status: 401,
+        error: "account_not_found",
+        needed: estimatedCreditsSpent,
+        available: 0
+      };
+    }
+
+    await ensureAccountCreditSeed(account, now);
+    if (params.reservation) {
+      account.creditBalance += params.reservation.credits;
+    }
+
+    // A backend that ignores the reserved max-token cap must not turn a paid provider call into
+    // a post-call 402 with no debit. Spend the available reserved balance instead.
+    const creditsSpent =
+      params.reservation && account.creditBalance < estimatedCreditsSpent
+        ? Math.max(1, account.creditBalance)
+        : estimatedCreditsSpent;
+
+    if (!params.reservation) {
+      const spendableBalance = await readSpendableCreditBalance(account, now);
+      if (spendableBalance < creditsSpent) {
+        syncLedgerAccountSnapshot(params, ledger, account);
+        return {
+          ok: false as const,
+          status: 402,
+          error: "insufficient_fish_credits",
+          needed: creditsSpent,
+          available: spendableBalance
+        };
+      }
+    } else if (account.creditBalance < creditsSpent) {
+      syncLedgerAccountSnapshot(params, ledger, account);
       return {
         ok: false as const,
         status: 402,
         error: "insufficient_fish_credits",
-        needed: creditsSpent,
-        available: spendableBalance
+        needed: estimatedCreditsSpent,
+        available: account.creditBalance
       };
     }
-  } else if (params.account.creditBalance < creditsSpent) {
+
+    const creditLane = params.reservation?.lane ?? (await selectSpendLane(account, creditsSpent, now));
+    account.creditBalance -= creditsSpent;
+    account.totalCreditsSpent += creditsSpent;
+    account.requestCount += 1;
+    account.lastUsedAt = now;
+    syncLedgerAccountSnapshot(params, ledger, account);
     return {
-      ok: false as const,
-      status: 402,
-      error: "insufficient_fish_credits",
-      needed: estimatedCreditsSpent,
-      available: params.account.creditBalance
+      ok: true as const,
+      creditLane,
+      creditsSpent,
+      creditsRemaining: account.creditBalance
     };
+  });
+  if (!settlement.ok) {
+    return settlement;
   }
 
-  const creditLane = params.reservation?.lane ?? (await selectSpendLane(params.account, creditsSpent, now));
+  const creditLane = settlement.creditLane;
+  const creditsSpent = settlement.creditsSpent;
   const userChargeUsd = Number((creditsSpent * FISH_CREDIT_USD).toFixed(6));
   const providerCostUsd = Number((params.providerCostUsd ?? 0).toFixed(6));
   const grossMarginUsd = Number((userChargeUsd - providerCostUsd).toFixed(6));
-  params.account.creditBalance -= creditsSpent;
-  params.account.totalCreditsSpent += creditsSpent;
-  params.account.requestCount += 1;
-  params.account.lastUsedAt = now;
 
   const requestId = params.reservation?.requestId ?? randomUUID();
   const receiptId = randomUUID();
@@ -1045,8 +1105,21 @@ export async function recordChatUsage(params: {
     privacy: params.privacy ?? defaultFishPrivacyForRoute(params.route ?? "mock")
   };
 
-  await writeLedger(params.ledger);
   await writeReceipt(receipt);
+  if (params.reservation) {
+    await appendCreditEntry({
+      entryId: randomUUID(),
+      accountId: params.reservation.accountId,
+      lane: params.reservation.lane,
+      kind: "adjustment",
+      amount: params.reservation.credits,
+      requestId: params.reservation.requestId,
+      receiptId,
+      expiresAt: null,
+      createdAt: now,
+      operatorReason: "credit_reserve_release_before_debit"
+    });
+  }
   await appendCreditEntry({
     entryId: creditEntryId,
     accountId: params.account.id,
@@ -1063,7 +1136,7 @@ export async function recordChatUsage(params: {
   return {
     ok: true as const,
     receipt,
-    creditsRemaining: params.account.creditBalance
+    creditsRemaining: settlement.creditsRemaining
   };
 }
 
@@ -1085,8 +1158,23 @@ export async function recordFailedChatUsage(params: {
   privacy?: FishUsagePrivacy;
 }) {
   const now = new Date().toISOString();
-  params.account.requestCount += 1;
-  params.account.lastUsedAt = now;
+  const recorded = await withLedgerMutation(async (ledger) => {
+    const account = ledger.accounts.find((candidate) => candidate.id === params.account.id);
+    if (!account) {
+      return false;
+    }
+    account.requestCount += 1;
+    account.lastUsedAt = now;
+    syncLedgerAccountSnapshot(params, ledger, account);
+    return true;
+  });
+  if (!recorded) {
+    return {
+      ok: false as const,
+      status: 401,
+      error: "account_not_found"
+    };
+  }
   const receipt: UsageReceipt = {
     id: randomUUID(),
     accountId: params.account.id,
@@ -1116,7 +1204,6 @@ export async function recordFailedChatUsage(params: {
     privacy: params.privacy ?? defaultFishPrivacyForRoute(params.route ?? "mock")
   };
 
-  await writeLedger(params.ledger);
   await writeReceipt(receipt);
   return {
     ok: true as const,
@@ -1244,6 +1331,26 @@ async function readLedger(): Promise<Ledger> {
 }
 
 let ledgerWriteQueue = Promise.resolve();
+
+async function withLedgerMutation<T>(mutation: (ledger: Ledger) => Promise<T>): Promise<T> {
+  const run = ledgerWriteQueue.then(async () => {
+    const ledger = await readLedger();
+    const result = await mutation(ledger);
+    await mkdir(LEDGER_DIR, { recursive: true });
+    await writeFile(ACCOUNTS_PATH, JSON.stringify(ledger, null, 2));
+    return result;
+  });
+  ledgerWriteQueue = run.then(
+    () => undefined,
+    () => undefined
+  );
+  return run;
+}
+
+function syncLedgerAccountSnapshot(params: { ledger: Ledger; account: Account }, latestLedger: Ledger, latestAccount: Account) {
+  params.ledger.accounts = latestLedger.accounts;
+  Object.assign(params.account, latestAccount);
+}
 
 async function writeLedger(ledger: Ledger) {
   const write = ledgerWriteQueue.then(async () => {
