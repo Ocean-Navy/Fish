@@ -2,7 +2,7 @@ import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
-import { addFishCredits, FISH_CREDIT_USD, type Account } from "@/lib/fishLedger";
+import { addFishCredits, FISH_CREDIT_USD, summarizeBillingUsageAnalytics, type Account } from "@/lib/fishLedger";
 
 const ROOT = process.cwd();
 const PAYMENT_DIR = path.join(ROOT, "data", "fish");
@@ -43,6 +43,7 @@ const usdcConfirmSchema = z.object({
 type CheckoutInput = z.infer<typeof checkoutSchema>;
 type UsdcCheckoutInput = z.infer<typeof usdcCheckoutSchema>;
 type UsdcConfirmInput = z.infer<typeof usdcConfirmSchema>;
+export type FishPaymentAmountInput = Pick<CheckoutInput, "amountUsd" | "credits">;
 
 type FishPaymentProvider = "stripe_checkout" | "usdc_base";
 type FishPaymentStatus = "pending" | "paid" | "failed" | "expired";
@@ -96,23 +97,29 @@ export function parseUsdcConfirmRequest(body: unknown) {
 }
 
 export async function createStripeCheckoutPayment(account: Account, input: CheckoutInput) {
-  const secretKey = cleanEnv(process.env.FISH_STRIPE_SECRET_KEY);
-  if (!secretKey) {
-    return { ok: false as const, status: 503, error: "stripe_checkout_not_configured" };
-  }
-
-  const amount = normalizePaymentAmount(input);
+  const amount = normalizeFishPaymentAmount(input);
   if (!amount.ok) {
     return amount;
   }
 
-  const existing = input.idempotencyKey ? await findReusablePayment(account.id, "stripe_checkout", input.idempotencyKey) : null;
+  const ledger = await readPaymentLedger();
+  const existing = input.idempotencyKey ? findReusablePayment(ledger, account.id, "stripe_checkout", input.idempotencyKey) : null;
   if (existing) {
     return {
       ok: true as const,
       idempotent: true,
       payment: publicPayment(existing)
     };
+  }
+
+  const gate = await assertPaidTopupCanStart(ledger, amount.credits);
+  if (!gate.ok) {
+    return gate;
+  }
+
+  const secretKey = cleanEnv(process.env.FISH_STRIPE_SECRET_KEY);
+  if (!secretKey) {
+    return { ok: false as const, status: 503, error: "stripe_checkout_not_configured" };
   }
 
   const now = new Date().toISOString();
@@ -183,7 +190,7 @@ export async function createStripeCheckoutPayment(account: Account, input: Check
     creditEntryId: null,
     failureReason: null
   };
-  await appendPayment(payment);
+  await appendPayment(payment, ledger);
 
   return {
     ok: true as const,
@@ -201,11 +208,10 @@ export async function handleStripeWebhook(rawBody: string, signatureHeader: stri
     return { ok: false as const, status: 400, error: "invalid_stripe_signature" };
   }
 
-  const event = JSON.parse(rawBody) as {
-    id?: string;
-    type?: string;
-    data?: { object?: Record<string, unknown> };
-  };
+  const event = parseStripeEvent(rawBody);
+  if (!event) {
+    return { ok: false as const, status: 400, error: "invalid_stripe_event_json" };
+  }
 
   if (event.type !== "checkout.session.completed") {
     return {
@@ -237,6 +243,23 @@ export async function handleStripeWebhook(rawBody: string, signatureHeader: stri
   }
   if (payment.accountId !== accountId) {
     return { ok: false as const, status: 400, error: "stripe_session_account_mismatch" };
+  }
+  if (payment.provider !== "stripe_checkout") {
+    return { ok: false as const, status: 400, error: "stripe_session_provider_mismatch" };
+  }
+  if (payment.providerSessionId && payment.providerSessionId !== sessionId) {
+    return { ok: false as const, status: 400, error: "stripe_session_id_mismatch" };
+  }
+  if (credits !== payment.credits) {
+    return { ok: false as const, status: 400, error: "stripe_session_credit_mismatch" };
+  }
+  const mode = stringValue(session?.mode);
+  if (mode && mode !== "payment") {
+    return { ok: false as const, status: 400, error: "stripe_session_mode_mismatch" };
+  }
+  const currency = stringValue(session?.currency);
+  if (currency && currency.toLowerCase() !== "usd") {
+    return { ok: false as const, status: 400, error: "stripe_session_currency_mismatch" };
   }
   const amountTotal = numberFromString(session?.amount_total);
   if (amountTotal !== null && amountTotal < payment.amountCents) {
@@ -282,23 +305,29 @@ export async function handleStripeWebhook(rawBody: string, signatureHeader: stri
 }
 
 export async function createUsdcPayment(account: Account, input: UsdcCheckoutInput) {
-  const receiveAddress = cleanEnv(process.env.FISH_USDC_RECEIVE_ADDRESS);
-  if (!receiveAddress || !isAddress(receiveAddress)) {
-    return { ok: false as const, status: 503, error: "usdc_checkout_not_configured" };
-  }
-
-  const amount = normalizePaymentAmount(input);
+  const amount = normalizeFishPaymentAmount(input);
   if (!amount.ok) {
     return amount;
   }
 
-  const existing = input.idempotencyKey ? await findReusablePayment(account.id, "usdc_base", input.idempotencyKey) : null;
+  const ledger = await readPaymentLedger();
+  const existing = input.idempotencyKey ? findReusablePayment(ledger, account.id, "usdc_base", input.idempotencyKey) : null;
   if (existing) {
     return {
       ok: true as const,
       idempotent: true,
       payment: publicPayment(existing)
     };
+  }
+
+  const gate = await assertPaidTopupCanStart(ledger, amount.credits);
+  if (!gate.ok) {
+    return gate;
+  }
+
+  const receiveAddress = cleanEnv(process.env.FISH_USDC_RECEIVE_ADDRESS);
+  if (!receiveAddress || !isAddress(receiveAddress)) {
+    return { ok: false as const, status: 503, error: "usdc_checkout_not_configured" };
   }
 
   const now = new Date().toISOString();
@@ -331,7 +360,7 @@ export async function createUsdcPayment(account: Account, input: UsdcCheckoutInp
     creditEntryId: null,
     failureReason: null
   };
-  await appendPayment(payment);
+  await appendPayment(payment, ledger);
 
   return {
     ok: true as const,
@@ -402,15 +431,30 @@ export async function confirmUsdcPayment(account: Account, input: UsdcConfirmInp
   };
 }
 
-function normalizePaymentAmount(input: CheckoutInput) {
+export function normalizeFishPaymentAmount(input: FishPaymentAmountInput) {
   const minUsd = readNumber(process.env.FISH_MIN_CHECKOUT_USD, 1);
   const maxUsd = readNumber(process.env.FISH_MAX_CHECKOUT_USD, 500);
-  const amountCents = input.amountUsd !== undefined ? Math.round(input.amountUsd * 100) : Math.ceil((input.credits ?? 0) * FISH_CREDIT_USD * 100);
+  const creditsProvided = input.credits !== undefined;
+  const amountProvided = input.amountUsd !== undefined;
+  const requestedCredits = input.credits ?? 0;
+  const requestedAmountCents = amountProvided ? Math.round((input.amountUsd ?? 0) * 100) : 0;
+  const requiredCentsForCredits = creditsProvided ? creditsToCents(requestedCredits) : 0;
+  const amountCents = amountProvided ? requestedAmountCents : requiredCentsForCredits;
   const amountUsd = amountCents / 100;
-  const credits = input.credits ?? Math.floor(amountUsd / FISH_CREDIT_USD);
+  const credits = creditsProvided ? requestedCredits : Math.floor(amountCents / (FISH_CREDIT_USD * 100));
 
   if (!Number.isFinite(amountCents) || amountCents <= 0 || credits <= 0) {
     return { ok: false as const, status: 400, error: "invalid_checkout_amount" };
+  }
+  if (amountProvided && creditsProvided && requestedAmountCents !== requiredCentsForCredits) {
+    return {
+      ok: false as const,
+      status: 400,
+      error: "checkout_amount_credit_mismatch",
+      expectedAmountUsd: requiredCentsForCredits / 100,
+      requestedAmountUsd: amountUsd,
+      requestedCredits
+    };
   }
   if (amountUsd < minUsd) {
     return { ok: false as const, status: 400, error: "checkout_amount_below_minimum", minimumUsd: minUsd };
@@ -425,6 +469,38 @@ function normalizePaymentAmount(input: CheckoutInput) {
     amountUsd,
     credits
   };
+}
+
+async function assertPaidTopupCanStart(paymentLedger: FishPaymentLedger, newCredits: number) {
+  if (readBoolean(process.env.FISH_PAID_TOPUPS_PAUSED, false)) {
+    return { ok: false as const, status: 503, error: "paid_topups_paused" };
+  }
+
+  const cap = readOptionalInteger(process.env.FISH_MAX_OUTSTANDING_PREPAID_CREDITS);
+  if (cap === null || cap <= 0) {
+    return { ok: false as const, status: 503, error: "paid_credit_liability_cap_not_configured" };
+  }
+
+  const analytics = await summarizeBillingUsageAnalytics();
+  const now = Date.now();
+  const prepaidBalance = analytics.creditsByLane.find((lane) => lane.lane === "prepaid")?.balance ?? 0;
+  const pendingPaidCredits = paymentLedger.payments
+    .filter((payment) => payment.status === "pending" && (!payment.expiresAt || Date.parse(payment.expiresAt) >= now))
+    .reduce((sum, payment) => sum + payment.credits, 0);
+  const projected = prepaidBalance + pendingPaidCredits + newCredits;
+  if (projected > cap) {
+    return {
+      ok: false as const,
+      status: 409,
+      error: "paid_credit_liability_cap_exceeded",
+      cap,
+      currentPrepaidCredits: prepaidBalance,
+      pendingPaidCredits,
+      requestedCredits: newCredits
+    };
+  }
+
+  return { ok: true as const };
 }
 
 async function verifyUsdcReceipt(rpcUrl: string, payment: FishPaymentRequest, transactionHash: string) {
@@ -533,8 +609,7 @@ function safeEqualHex(left: string, right: string) {
   return leftBuffer.length === rightBuffer.length && timingSafeEqual(leftBuffer, rightBuffer);
 }
 
-async function findReusablePayment(accountId: string, provider: FishPaymentProvider, idempotencyKey: string) {
-  const ledger = await readPaymentLedger();
+function findReusablePayment(ledger: FishPaymentLedger, accountId: string, provider: FishPaymentProvider, idempotencyKey: string) {
   return (
     ledger.payments.find(
       (payment) =>
@@ -547,8 +622,8 @@ async function findReusablePayment(accountId: string, provider: FishPaymentProvi
   );
 }
 
-async function appendPayment(payment: FishPaymentRequest) {
-  const ledger = await readPaymentLedger();
+async function appendPayment(payment: FishPaymentRequest, ledger?: FishPaymentLedger) {
+  ledger ??= await readPaymentLedger();
   ledger.payments.push(payment);
   await writePaymentLedger(ledger);
 }
@@ -596,6 +671,10 @@ function amountCentsToAtomic(amountCents: number, decimals: number) {
   return BigInt(amountCents) * 10n ** BigInt(decimals - 2);
 }
 
+function creditsToCents(credits: number) {
+  return Math.ceil(credits * FISH_CREDIT_USD * 100);
+}
+
 function atomicToDecimal(value: string, decimals: number) {
   const atomic = BigInt(value);
   const base = 10n ** BigInt(decimals);
@@ -641,6 +720,19 @@ function readInteger(value: string | undefined, fallback: number) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function readOptionalInteger(value: string | undefined) {
+  const parsed = Number.parseInt(value ?? "", 10);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function readBoolean(value: string | undefined, fallback: boolean) {
+  const clean = value?.trim().toLowerCase();
+  if (!clean) {
+    return fallback;
+  }
+  return clean === "1" || clean === "true" || clean === "yes" || clean === "on";
+}
+
 function numberFromString(value: unknown) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
@@ -652,4 +744,19 @@ function stringValue(value: unknown) {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+function parseStripeEvent(rawBody: string):
+  | {
+      id?: string;
+      type?: string;
+      data?: { object?: Record<string, unknown> };
+    }
+  | null {
+  try {
+    const event = JSON.parse(rawBody);
+    return isRecord(event) ? event : null;
+  } catch {
+    return null;
+  }
 }

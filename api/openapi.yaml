@@ -380,7 +380,7 @@ paths:
   /api/billing/checkout/stripe:
     post:
       summary: Create a Stripe Checkout session for Fish Credits
-      description: Fish API-key route that creates a prepaid credit checkout session. Credits are issued only after the signed Stripe webhook confirms payment.
+      description: Fish API-key route that creates a prepaid credit checkout session when paid top-ups are not paused and the prepaid liability cap has room. Credits are issued only after the signed Stripe webhook confirms payment.
       security:
         - bearerAuth: []
       requestBody:
@@ -412,7 +412,7 @@ paths:
         '401':
           description: Fish API key required
         '503':
-          description: Stripe checkout is not configured
+          description: Stripe checkout is not configured, paid top-ups are paused, or prepaid liability cap is missing
   /api/billing/webhooks/stripe:
     post:
       summary: Stripe webhook for paid Fish Credits
@@ -427,7 +427,7 @@ paths:
   /api/billing/checkout/usdc:
     post:
       summary: Create a Base USDC payment request for Fish Credits
-      description: Fish API-key route that returns a Base USDC amount, token, chain, recipient address, and payment id. Credits are not issued until `/confirm` verifies the transfer onchain.
+      description: Fish API-key route that returns a Base USDC amount, token, chain, recipient address, and payment id when paid top-ups are not paused and the prepaid liability cap has room. Credits are not issued until `/confirm` verifies the transfer onchain.
       security:
         - bearerAuth: []
       requestBody:
@@ -456,7 +456,7 @@ paths:
         '401':
           description: Fish API key required
         '503':
-          description: USDC checkout is not configured
+          description: USDC checkout is not configured, paid top-ups are paused, or prepaid liability cap is missing
   /api/billing/checkout/usdc/confirm:
     post:
       summary: Confirm a Base USDC payment for Fish Credits
@@ -4716,11 +4716,11 @@ components:
         amountUsd:
           type: number
           minimum: 0.01
-          description: Dollar amount to convert into Fish Credits. Either amountUsd or credits is required.
+          description: Dollar amount to convert into Fish Credits. Either amountUsd or credits is required. If both amountUsd and credits are supplied, they must match the configured credit price exactly.
         credits:
           type: integer
           minimum: 1
-          description: Optional exact credit amount; amount is rounded up to cover the credit liability.
+          description: Optional exact credit amount; the amount is rounded up to cover the credit liability. If amountUsd is also supplied, the values must match exactly.
         idempotencyKey:
           type: string
           maxLength: 120

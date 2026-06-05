@@ -250,6 +250,8 @@ FISH_EXTERNAL_FALLBACK_FREE_ALLOWED=false
 FISH_PUBLIC_APP_URL=http://127.0.0.1:3000
 FISH_MIN_CHECKOUT_USD=1
 FISH_MAX_CHECKOUT_USD=500
+FISH_MAX_OUTSTANDING_PREPAID_CREDITS=
+FISH_PAID_TOPUPS_PAUSED=false
 FISH_STRIPE_SECRET_KEY=
 FISH_STRIPE_WEBHOOK_SECRET=
 FISH_STRIPE_WEBHOOK_TOLERANCE_SECONDS=300
@@ -377,7 +379,7 @@ curl -sS http://127.0.0.1:3000/v1/balance -H "authorization: Bearer $FISH_API_KE
 curl -sS http://127.0.0.1:3000/v1/usage -H "authorization: Bearer $FISH_API_KEY"
 ```
 
-Add prepaid Fish Credits after checkout is configured:
+Add prepaid Fish Credits after checkout is configured and a prepaid liability cap is set:
 
 ```bash
 curl -sS http://127.0.0.1:3000/api/billing/checkout/stripe \
@@ -386,13 +388,13 @@ curl -sS http://127.0.0.1:3000/api/billing/checkout/stripe \
   -d '{"amountUsd":5}'
 ```
 
-Set `FISH_STRIPE_SECRET_KEY`, `FISH_STRIPE_WEBHOOK_SECRET`, and `FISH_PUBLIC_APP_URL`. Configure Stripe to send signed webhooks to:
+Set `FISH_STRIPE_SECRET_KEY`, `FISH_STRIPE_WEBHOOK_SECRET`, `FISH_PUBLIC_APP_URL`, and `FISH_MAX_OUTSTANDING_PREPAID_CREDITS`. Fish rejects checkout requests when paid top-ups are paused, when the cap is missing, or when the requested credits would exceed the cap. Configure Stripe to send signed webhooks to:
 
 ```text
 https://<your-domain>/api/billing/webhooks/stripe
 ```
 
-Fish accepts `checkout.session.completed`, verifies the Stripe signature, and grants `prepaid` credits idempotently by checkout session.
+Fish accepts `checkout.session.completed`, verifies the Stripe signature, checks the session metadata against the local payment request, and grants `prepaid` credits idempotently by checkout session.
 
 USDC checkout uses Base USDC by default:
 
@@ -403,7 +405,7 @@ curl -sS http://127.0.0.1:3000/api/billing/checkout/usdc \
   -d '{"amountUsd":5,"payerAddress":"0x..."}'
 ```
 
-Set `FISH_USDC_RECEIVE_ADDRESS` and `FISH_USDC_RPC_URL`. The default token is Base USDC at `0x833589fcD6EDb6E08f4c7C32D4f71b54bdA02913`. After sending the exact amount, confirm it:
+Set `FISH_USDC_RECEIVE_ADDRESS`, `FISH_USDC_RPC_URL`, and `FISH_MAX_OUTSTANDING_PREPAID_CREDITS`. The default token is Base USDC at `0x833589fcD6EDb6E08f4c7C32D4f71b54bdA02913`. After sending the exact amount, confirm it:
 
 ```bash
 curl -sS http://127.0.0.1:3000/api/billing/checkout/usdc/confirm \
