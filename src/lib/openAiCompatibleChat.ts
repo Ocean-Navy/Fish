@@ -109,7 +109,11 @@ export async function runOpenAiCompatibleChat(
     completionTokens,
     providerCostUsd,
     providerId: config.providerId,
-    runnerReceipt: readAndVerifyRunnerReceipt(payload)
+    runnerReceipt: readAndVerifyRunnerReceipt(payload, {
+      expectedRouteId: routeContext?.routeId,
+      expectedProviderId: config.providerId,
+      expectedStatus: "succeeded"
+    })
   };
 }
 

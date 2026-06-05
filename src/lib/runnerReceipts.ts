@@ -7,7 +7,13 @@ type TrustedRunnerKey = {
   publicKeyPem: string;
 };
 
-export function readAndVerifyRunnerReceipt(payload: unknown): RunnerReceiptSummary | null {
+export type RunnerReceiptVerificationContext = {
+  expectedRouteId?: string | null;
+  expectedProviderId?: string | null;
+  expectedStatus?: string | null;
+};
+
+export function readAndVerifyRunnerReceipt(payload: unknown, context: RunnerReceiptVerificationContext = {}): RunnerReceiptSummary | null {
   const receipt = readPath(payload, ["fish_runner"]);
   if (!isRecord(receipt)) {
     return null;
@@ -19,6 +25,9 @@ export function readAndVerifyRunnerReceipt(payload: unknown): RunnerReceiptSumma
   const signerKeyId = readString(receipt, ["signer", "keyId"]);
   const signerAlgorithm = readString(receipt, ["signer", "algorithm"]);
   const signature = readString(receipt, ["signature"]);
+  const routeId = readString(receipt, ["routeId"]);
+  const providerId = readString(receipt, ["providerId"]);
+  const status = readString(receipt, ["status"]);
   const verification = verifyRunnerSignature({
     canonicalPayload,
     canonicalReceiptHash,
@@ -27,20 +36,25 @@ export function readAndVerifyRunnerReceipt(payload: unknown): RunnerReceiptSumma
     signerAlgorithm,
     signature
   });
+  const matchedVerification = verifyRunnerReceiptContext({
+    verification,
+    receipt: { routeId, providerId, status },
+    context
+  });
 
   return {
     runnerReceiptVersion: readNumber(receipt, ["runnerReceiptVersion"]),
     jobId: readString(receipt, ["jobId"]),
-    routeId: readString(receipt, ["routeId"]),
-    providerId: readString(receipt, ["providerId"]),
+    routeId,
+    providerId,
     runnerId: readString(receipt, ["runnerId"]),
-    status: readString(receipt, ["status"]),
+    status,
     canonicalReceiptHash,
     computedCanonicalReceiptHash,
     signerKeyId,
     signerAlgorithm,
-    signatureState: verification.state,
-    signatureError: verification.error
+    signatureState: matchedVerification.state,
+    signatureError: matchedVerification.error
   };
 }
 
@@ -70,7 +84,7 @@ function verifyRunnerSignature(input: {
 
   const publicKeyPem = trustedRunnerPublicKey(input.signerKeyId);
   if (!publicKeyPem) {
-    return { state: "signed", error: "trusted_runner_public_key_not_configured" };
+    return { state: "invalid", error: "trusted_runner_public_key_not_configured" };
   }
 
   try {
@@ -80,6 +94,29 @@ function verifyRunnerSignature(input: {
   } catch {
     return { state: "invalid", error: "signature_verification_error" };
   }
+}
+
+function verifyRunnerReceiptContext(input: {
+  verification: { state: RunnerReceiptSummary["signatureState"]; error: string | null };
+  receipt: { routeId: string | null; providerId: string | null; status: string | null };
+  context: RunnerReceiptVerificationContext;
+}): { state: RunnerReceiptSummary["signatureState"]; error: string | null } {
+  const expectedRouteId = cleanNullable(input.context.expectedRouteId);
+  if (expectedRouteId && input.receipt.routeId !== expectedRouteId) {
+    return { state: "invalid", error: "route_id_mismatch" };
+  }
+
+  const expectedProviderId = cleanNullable(input.context.expectedProviderId);
+  if (expectedProviderId && input.receipt.providerId !== expectedProviderId) {
+    return { state: "invalid", error: "provider_id_mismatch" };
+  }
+
+  const expectedStatus = cleanNullable(input.context.expectedStatus);
+  if (expectedStatus && input.receipt.status !== expectedStatus) {
+    return { state: "invalid", error: "status_mismatch" };
+  }
+
+  return input.verification;
 }
 
 function trustedRunnerPublicKey(keyId: string) {
@@ -194,6 +231,10 @@ function normalizePem(value: string | null) {
 }
 
 function cleanEnv(value: string | undefined) {
+  return cleanNullable(value);
+}
+
+function cleanNullable(value: string | null | undefined) {
   const clean = value?.trim();
   return clean ? clean : null;
 }

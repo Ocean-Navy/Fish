@@ -192,7 +192,7 @@ export type RunnerReceiptSummary = {
   computedCanonicalReceiptHash?: string | null;
   signerKeyId: string | null;
   signerAlgorithm?: string | null;
-  signatureState: "unsigned" | "signed" | "verified" | "invalid" | "missing";
+  signatureState: "unsigned" | "verified" | "invalid" | "missing";
   signatureError?: string | null;
 };
 
@@ -852,7 +852,7 @@ export async function summarizeFishUsage(): Promise<FishUsageSummary> {
   const externalFallbackJobs = receipts.filter((receipt) => receipt.route === "external-fallback").length;
   const mockJobs = receipts.filter((receipt) => receipt.route === "mock").length;
   const runnerProofJobs = receipts.filter((receipt) => receipt.runnerReceipt?.canonicalReceiptHash).length;
-  const runnerSignedJobs = receipts.filter((receipt) => receipt.runnerReceipt?.signatureState === "signed" || receipt.runnerReceipt?.signatureState === "verified").length;
+  const runnerSignedJobs = receipts.filter((receipt) => receipt.runnerReceipt?.signatureState === "verified").length;
   const runnerVerifiedJobs = receipts.filter((receipt) => receipt.runnerReceipt?.signatureState === "verified").length;
   const tokensServed = receipts.reduce((sum, receipt) => sum + receipt.totalTokens, 0);
   const failedRequests = receipts.filter((receipt) => receipt.status === "failed").length;
