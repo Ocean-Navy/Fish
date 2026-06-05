@@ -376,6 +376,26 @@ Use the warm profile when the same GPU VM should run vLLM and Fish Runner:
 make ocean-demo-up-warm FISH_OCEAN_DEMO_ENV=.env.ocean-demo-stack
 ```
 
+On Apple Silicon, run MLX on the macOS host and use the MLX profile instead:
+
+```bash
+python3 -m venv .venv-mlx
+source .venv-mlx/bin/activate
+pip install -U mlx-lm
+mlx_lm.server --model mlx-community/Llama-3.2-3B-Instruct-4bit --host 127.0.0.1 --port 8080
+make ocean-demo-up-mlx FISH_OCEAN_DEMO_ENV=.env.ocean-demo-stack
+```
+
+For the local website, point Fish Gateway at Fish Runner:
+
+```text
+FISH_CHAT_ROUTE=ocean-first
+FISH_OCEAN_DEMO_VLLM_BASE_URL=http://127.0.0.1:8088/v1
+FISH_OCEAN_DEMO_VLLM_API_KEY=<FISH_RUNNER_API_KEY>
+FISH_OCEAN_DEMO_VLLM_MODEL=mlx-community/Llama-3.2-3B-Instruct-4bit
+FISH_OCEAN_DEMO_PROVIDER_ID=ocean-navy-local-mlx
+```
+
 The stack includes Ocean Node, Typesense, the private Ocean workload adapter, optional vLLM, and optional Fish Runner. It is intended to prove that test dishes can run through an Ocean Node operated by Ocean Navy without paying third-party Oncompute providers during early testing. It should not be described as proof of paid third-party Oncompute demand.
 
 Keep these private by default:
@@ -385,9 +405,10 @@ OCEAN_NODE_HTTP_BIND=127.0.0.1
 OCEAN_WORKLOAD_ADAPTER_BIND=127.0.0.1
 FISH_VLLM_BIND=127.0.0.1
 FISH_RUNNER_BIND=127.0.0.1
+FISH_MLX_BASE_URL=http://host.docker.internal:8080/v1
 ```
 
-Expose Fish Runner and the adapter only through a private network, WireGuard, SSH tunnel, cloud private IP, or nginx allowlist. Never expose raw vLLM publicly. Ocean Node mounts the Docker socket for compute execution, so this stack belongs on a dedicated VM with conservative free-job caps.
+Expose Fish Runner and the adapter only through a private network, WireGuard, SSH tunnel, cloud private IP, or nginx allowlist. Never expose raw vLLM or raw MLX publicly. Ocean Node mounts the Docker socket for compute execution, so this stack belongs on a dedicated VM with conservative free-job caps.
 
 After the stack is running:
 

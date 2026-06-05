@@ -1,15 +1,16 @@
 # Fish Ocean Demo Stack
 
-This stack is the GPU-VM side of the public testnet demo.
+This stack is the GPU-side of the public testnet demo. On NVIDIA hosts it can run vLLM inside Docker. On Apple Silicon Macs, run MLX on the macOS host and run Fish Runner in Docker against `host.docker.internal`.
 
 It packages:
 
 - Ocean Node and Typesense;
 - a Docker compute environment for free test jobs;
 - the private Fish Ocean workload adapter behind `FISH_OCEAN_BATCH_ENDPOINT`;
-- optional vLLM and Fish Runner for warm chat.
+- optional vLLM and Fish Runner for warm chat;
+- optional host-MLX Fish Runner profile for Apple Silicon local testing.
 
-It is meant for a dedicated GPU VM. Do not run this stack on the small public web VM.
+It is meant for a dedicated GPU VM or a local high-memory Apple Silicon test machine. Do not run this stack on the small public web VM.
 
 ## What This Proves
 
@@ -32,8 +33,9 @@ scripts/smoke-ocean-demo-stack.sh
 
 ## Prerequisites
 
-- Ubuntu GPU VM with Docker Engine and Docker Compose plugin.
+- Docker Engine and Docker Compose plugin.
 - NVIDIA driver and NVIDIA Container Toolkit if the warm vLLM profile or GPU Ocean jobs are enabled.
+- On Apple Silicon, `mlx-lm` installed on the macOS host if the `mlx` profile is used.
 - Dedicated low-funds Ocean Node wallet.
 - Dedicated low-funds Ocean proof wallet for the workload adapter.
 - RPC URL for the chain used by Ocean CLI and the selected Ocean job path.
@@ -72,6 +74,7 @@ OCEAN_NODE_HTTP_BIND=127.0.0.1
 OCEAN_WORKLOAD_ADAPTER_BIND=127.0.0.1
 FISH_VLLM_BIND=127.0.0.1
 FISH_RUNNER_BIND=127.0.0.1
+FISH_MLX_BASE_URL=http://host.docker.internal:8080/v1
 ```
 
 Expose only through a private network, WireGuard, SSH tunnel, cloud private IP, or nginx allowlist when connecting the public web VM.
@@ -96,7 +99,7 @@ Dry-run mode is expected until Ocean CLI, algorithm DID, and compute environment
 
 ## Start Warm Chat Profile
 
-The warm profile adds vLLM and Fish Runner:
+The `warm` profile adds NVIDIA vLLM and Fish Runner:
 
 ```bash
 docker compose \
@@ -122,6 +125,48 @@ FISH_VLLM_MODEL=<FISH_VLLM_SERVED_MODEL_NAME>
 FISH_RUNNER_BASE_URL=http://127.0.0.1:8088
 FISH_RUNNER_API_KEY=<FISH_RUNNER_API_KEY>
 ```
+
+## Apple Silicon MLX Profile
+
+Docker on macOS does not expose the Apple GPU/Metal runtime to Linux containers in the same way NVIDIA Container Toolkit exposes CUDA GPUs. For an M-series Mac, run MLX on the host and let Dockerized Fish Runner call it through `host.docker.internal`.
+
+Install and start MLX on the macOS host:
+
+```bash
+python3 -m venv .venv-mlx
+source .venv-mlx/bin/activate
+pip install -U mlx-lm
+mlx_lm.server \
+  --model mlx-community/Llama-3.2-3B-Instruct-4bit \
+  --host 127.0.0.1 \
+  --port 8080
+```
+
+Smoke the host MLX server:
+
+```bash
+FISH_MLX_BASE_URL=http://127.0.0.1:8080/v1 \
+FISH_MLX_MODEL=mlx-community/Llama-3.2-3B-Instruct-4bit \
+scripts/smoke-mlx-openai-compatible.sh
+```
+
+Start Ocean Node, adapter, and Fish Runner for MLX:
+
+```bash
+make ocean-demo-up-mlx FISH_OCEAN_DEMO_ENV=.env.ocean-demo-stack
+```
+
+Point the local website at the runner:
+
+```text
+FISH_CHAT_ROUTE=ocean-first
+FISH_OCEAN_DEMO_VLLM_BASE_URL=http://127.0.0.1:8088/v1
+FISH_OCEAN_DEMO_VLLM_API_KEY=<FISH_RUNNER_API_KEY>
+FISH_OCEAN_DEMO_VLLM_MODEL=mlx-community/Llama-3.2-3B-Instruct-4bit
+FISH_OCEAN_DEMO_PROVIDER_ID=ocean-navy-local-mlx
+```
+
+This tests Fish web, Fish Runner receipts, local Apple Silicon inference, Ocean Node startup, and adapter wiring. It does not test NVIDIA vLLM behavior or GPU access inside Ocean compute containers.
 
 ## Live Ocean Dish Path
 
@@ -188,7 +233,7 @@ FISH_OCEAN_DEMO_COST_USD_PER_1K_TOKENS=<operator estimate>
 FISH_OCEAN_DEMO_DAILY_BUDGET_USD=<small cap>
 ```
 
-Do not expose raw vLLM publicly. Fish Gateway should call Fish Runner, not vLLM.
+Do not expose raw vLLM or raw MLX publicly. Fish Gateway should call Fish Runner, not the model server.
 
 ## Shutdown
 
@@ -197,6 +242,7 @@ docker compose \
   -f deploy/ocean-demo-stack/docker-compose.yml \
   --env-file .env.ocean-demo-stack \
   --profile warm \
+  --profile mlx \
   down
 ```
 

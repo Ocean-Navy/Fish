@@ -199,6 +199,8 @@ make ocean-demo-up FISH_OCEAN_DEMO_ENV=.env.ocean-demo-stack
 
 Add `--profile warm` through `make ocean-demo-up-warm` when the GPU host should also run vLLM and Fish Runner.
 
+On Apple Silicon, run `mlx_lm.server` on the macOS host and start `make ocean-demo-up-mlx` instead. Docker will run Ocean Node, the adapter, and Fish Runner; Fish Runner calls MLX at `host.docker.internal:8080`.
+
 This stack is for a testnet/free-compute demo using our own Ocean Node. It can prove that Fish dishes run through an Ocean Node we operate; it does not prove paid third-party Oncompute demand. Keep raw vLLM and the workload adapter private, and point the web VM only at the Fish Runner `/v1` surface plus the adapter `/jobs` endpoint over a private network.
 
 See `deploy/ocean-demo-stack/README.md`.

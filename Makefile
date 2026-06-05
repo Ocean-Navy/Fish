@@ -1,6 +1,6 @@
 BASIC_USER ?= fish
 
-.PHONY: install dev build typecheck lint verify serve-api smoke docker-build docker-up docker-down preview-config preview-up preview-down ocean-demo-config ocean-demo-up ocean-demo-up-warm ocean-demo-down ocean-demo-smoke nginx-password health zip
+.PHONY: install dev build typecheck lint verify serve-api smoke docker-build docker-up docker-down preview-config preview-up preview-down ocean-demo-config ocean-demo-up ocean-demo-up-warm ocean-demo-up-mlx ocean-demo-down ocean-demo-smoke nginx-password health zip
 
 install:
 	npm ci
@@ -53,8 +53,11 @@ ocean-demo-up:
 ocean-demo-up-warm:
 	docker compose -f deploy/ocean-demo-stack/docker-compose.yml --env-file $${FISH_OCEAN_DEMO_ENV:-.env.ocean-demo-stack} --profile warm up -d
 
+ocean-demo-up-mlx:
+	docker compose -f deploy/ocean-demo-stack/docker-compose.yml --env-file $${FISH_OCEAN_DEMO_ENV:-.env.ocean-demo-stack} --profile mlx up -d ocean-typesense ocean-node ocean-workload-adapter fish-runner-mlx
+
 ocean-demo-down:
-	docker compose -f deploy/ocean-demo-stack/docker-compose.yml --env-file $${FISH_OCEAN_DEMO_ENV:-.env.ocean-demo-stack} --profile warm down
+	docker compose -f deploy/ocean-demo-stack/docker-compose.yml --env-file $${FISH_OCEAN_DEMO_ENV:-.env.ocean-demo-stack} --profile warm --profile mlx down
 
 ocean-demo-smoke:
 	scripts/smoke-ocean-demo-stack.sh $${FISH_OCEAN_DEMO_ENV:-.env.ocean-demo-stack}

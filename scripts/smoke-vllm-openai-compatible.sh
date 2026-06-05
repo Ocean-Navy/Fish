@@ -4,6 +4,7 @@ set -euo pipefail
 base_url="${FISH_VLLM_BASE_URL:-http://127.0.0.1:8000/v1}"
 model="${FISH_VLLM_MODEL:-}"
 api_key="${FISH_VLLM_API_KEY:-}"
+label="${FISH_OPENAI_COMPATIBLE_LABEL:-vLLM}"
 
 if [[ -z "$model" ]]; then
   echo "Set FISH_VLLM_MODEL to the served model name, for example fish-warm-chat." >&2
@@ -38,4 +39,4 @@ curl "${curl_args[@]}" \
   -X POST "$base_url/chat/completions" \
   --data @"$payload_file" >/dev/null
 
-echo "vLLM OpenAI-compatible smoke passed for $base_url using model $model."
+echo "$label OpenAI-compatible smoke passed for $base_url using model $model."

@@ -7,8 +7,10 @@ const PORT = Number(process.env.FISH_RUNNER_PORT || "8088");
 const RUNNER_ID = process.env.FISH_RUNNER_ID || "runner_ocean_navy_demo";
 const PROVIDER_ID = process.env.FISH_RUNNER_PROVIDER_ID || "ocean-navy-demo-node";
 const API_KEY = cleanEnv(process.env.FISH_RUNNER_API_KEY);
+const ENGINE_TYPE = cleanEnv(process.env.FISH_RUNNER_ENGINE_TYPE) || "vllm";
 const VLLM_BASE_URL = cleanEnv(process.env.FISH_RUNNER_VLLM_BASE_URL) || "http://127.0.0.1:8000/v1";
 const VLLM_API_KEY = cleanEnv(process.env.FISH_RUNNER_VLLM_API_KEY);
+const UPSTREAM_MODEL = cleanEnv(process.env.FISH_RUNNER_UPSTREAM_MODEL);
 const MODEL_IDS = (process.env.FISH_RUNNER_MODELS || process.env.FISH_VLLM_SERVED_MODEL_NAME || "fish-warm-chat")
   .split(",")
   .map((model) => model.trim())
@@ -80,7 +82,7 @@ async function handleChat(request, response) {
   const model = typeof input.model === "string" && input.model.trim() ? input.model.trim() : MODEL_IDS[0];
   const upstreamBody = {
     ...input,
-    model,
+    model: UPSTREAM_MODEL || model,
     stream: false
   };
 
@@ -109,7 +111,7 @@ async function handleChat(request, response) {
         firstTokenMs: null
       });
       return sendJson(response, upstream.ok ? 502 : upstream.status, {
-        error: "vllm_backend_error",
+        error: `${ENGINE_TYPE}_backend_error`,
         fish_runner: receipt
       });
     }
@@ -119,7 +121,7 @@ async function handleChat(request, response) {
       jobId,
       routeId,
       idempotencyKey,
-      model: readString(payload, ["model"]) || model,
+      model: UPSTREAM_MODEL ? model : readString(payload, ["model"]) || model,
       status: "succeeded",
       startedAt,
       completedAt,
@@ -163,7 +165,7 @@ async function healthPayload() {
     generatedAt: new Date().toISOString(),
     ready: anyWarm && activeRequests < MAX_QUEUE,
     engine: {
-      type: "vllm",
+      type: ENGINE_TYPE,
       status: anyWarm ? "online" : "offline"
     },
     queue: {
@@ -187,8 +189,8 @@ async function modelPayloads() {
     id,
     object: "model",
     owned_by: PROVIDER_ID,
-    engine: "vllm",
-    warmState: probe.ok && probe.modelIds.includes(id) ? "warm" : probe.ok ? "warming" : "offline",
+    engine: ENGINE_TYPE,
+    warmState: probe.ok && modelIsWarm(probe.modelIds, id) ? "warm" : probe.ok ? "warming" : "offline",
     contextTokens: CONTEXT_TOKENS,
     priceUsdPer1kTokens: PRICE_USD_PER_1K_TOKENS,
     supportedFeatures: ["chat"],
@@ -214,6 +216,13 @@ async function probeVllmModels() {
   }
 }
 
+function modelIsWarm(modelIds, id) {
+  if (modelIds.includes(id)) {
+    return true;
+  }
+  return Boolean(UPSTREAM_MODEL && modelIds.includes(UPSTREAM_MODEL));
+}
+
 function buildRunnerReceipt({ jobId, routeId, idempotencyKey, model, status, startedAt, completedAt, input, outputText, payload, firstTokenMs }) {
   const usage = {
     inputTokens: readNumber(payload, ["usage", "prompt_tokens"]) ?? estimateTokens(JSON.stringify(input.messages ?? [])),
@@ -228,7 +237,7 @@ function buildRunnerReceipt({ jobId, routeId, idempotencyKey, model, status, sta
     providerId: PROVIDER_ID,
     runnerId: RUNNER_ID,
     model,
-    engine: "vllm",
+    engine: ENGINE_TYPE,
     status,
     startedAt: startedAt.toISOString(),
     completedAt: completedAt.toISOString(),

@@ -115,6 +115,8 @@ deploy/ocean-demo-stack/env.example
 
 That stack is the current public-testnet target because it runs the Ocean Node and Fish workload adapter beside vLLM on the same GPU VM.
 
+On Apple Silicon, use the same stack with the `mlx` profile: run `mlx_lm.server` on the macOS host and run Fish Runner in Docker against `host.docker.internal:8080`. This is good for local website + runner + inference testing, but it is not the same as NVIDIA vLLM or GPU access inside Ocean compute containers.
+
 Do not commit this file.
 
 To create an Ed25519 runner signing key for the env file, generate it on the operator machine and store the escaped private key as `FISH_RUNNER_SIGNING_PRIVATE_KEY_PEM`:
@@ -211,6 +213,17 @@ cp deploy/ocean-demo-stack/env.example .env.ocean-demo-stack
 node scripts/generate-ocean-node-compute-env.mjs --env
 make ocean-demo-up-warm FISH_OCEAN_DEMO_ENV=.env.ocean-demo-stack
 scripts/smoke-ocean-demo-stack.sh .env.ocean-demo-stack
+```
+
+For local Apple Silicon testing:
+
+```bash
+python3 -m venv .venv-mlx
+source .venv-mlx/bin/activate
+pip install -U mlx-lm
+mlx_lm.server --model mlx-community/Llama-3.2-3B-Instruct-4bit --host 127.0.0.1 --port 8080
+scripts/smoke-mlx-openai-compatible.sh
+make ocean-demo-up-mlx FISH_OCEAN_DEMO_ENV=.env.ocean-demo-stack
 ```
 
 For this MVP:

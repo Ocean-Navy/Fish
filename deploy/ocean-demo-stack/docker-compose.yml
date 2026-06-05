@@ -155,6 +155,7 @@ services:
       FISH_RUNNER_ID: ${FISH_RUNNER_ID:-runner_ocean_navy_demo}
       FISH_RUNNER_PROVIDER_ID: ${FISH_RUNNER_PROVIDER_ID:-ocean-navy-demo-node}
       FISH_RUNNER_API_KEY: ${FISH_RUNNER_API_KEY:-change-me-runner-key}
+      FISH_RUNNER_ENGINE_TYPE: vllm
       FISH_RUNNER_VLLM_BASE_URL: http://vllm:8000/v1
       FISH_RUNNER_VLLM_API_KEY: ${FISH_VLLM_API_KEY:-change-me-vllm-key}
       FISH_RUNNER_MODELS: ${FISH_VLLM_SERVED_MODEL_NAME:-fish-warm-chat}
@@ -163,6 +164,38 @@ services:
       FISH_RUNNER_MAX_QUEUE: ${FISH_RUNNER_MAX_QUEUE:-2}
       FISH_RUNNER_SIGNING_PRIVATE_KEY_PEM: ${FISH_RUNNER_SIGNING_PRIVATE_KEY_PEM:-}
       FISH_RUNNER_SIGNING_KEY_ID: ${FISH_RUNNER_SIGNING_KEY_ID:-runner-ocean-navy-demo-ed25519}
+    command:
+      - node
+      - /app/fish-runner.mjs
+    networks:
+      - fish-ocean-demo
+
+  fish-runner-mlx:
+    image: node:22-slim
+    profiles:
+      - mlx
+    restart: unless-stopped
+    working_dir: /app
+    ports:
+      - "${FISH_RUNNER_BIND:-127.0.0.1}:${FISH_RUNNER_PORT:-8088}:8088"
+    volumes:
+      - ../warm-inference/fish-runner.mjs:/app/fish-runner.mjs:ro
+    environment:
+      FISH_RUNNER_HOST: 0.0.0.0
+      FISH_RUNNER_PORT: "8088"
+      FISH_RUNNER_ID: ${FISH_RUNNER_ID:-runner_ocean_navy_mlx_demo}
+      FISH_RUNNER_PROVIDER_ID: ${FISH_RUNNER_PROVIDER_ID:-ocean-navy-local-mlx}
+      FISH_RUNNER_API_KEY: ${FISH_RUNNER_API_KEY:-change-me-runner-key}
+      FISH_RUNNER_ENGINE_TYPE: mlx
+      FISH_RUNNER_VLLM_BASE_URL: ${FISH_MLX_BASE_URL:-http://host.docker.internal:8080/v1}
+      FISH_RUNNER_VLLM_API_KEY: ${FISH_MLX_API_KEY:-}
+      FISH_RUNNER_MODELS: ${FISH_MLX_MODEL:-mlx-community/Llama-3.2-3B-Instruct-4bit}
+      FISH_RUNNER_UPSTREAM_MODEL: ${FISH_MLX_UPSTREAM_MODEL:-mlx-community/Llama-3.2-3B-Instruct-4bit}
+      FISH_RUNNER_CONTEXT_TOKENS: ${FISH_MLX_CONTEXT_TOKENS:-4096}
+      FISH_RUNNER_PRICE_USD_PER_1K_TOKENS: ${FISH_RUNNER_PRICE_USD_PER_1K_TOKENS:-0}
+      FISH_RUNNER_MAX_QUEUE: ${FISH_RUNNER_MAX_QUEUE:-1}
+      FISH_RUNNER_SIGNING_PRIVATE_KEY_PEM: ${FISH_RUNNER_SIGNING_PRIVATE_KEY_PEM:-}
+      FISH_RUNNER_SIGNING_KEY_ID: ${FISH_RUNNER_SIGNING_KEY_ID:-runner-ocean-navy-mlx-demo-ed25519}
     command:
       - node
       - /app/fish-runner.mjs
