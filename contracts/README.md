@@ -51,6 +51,20 @@ npm run contracts:security
 
 This compiles the Solidity contracts, runs the complete Hardhat test suite, runs the invariant-style Hardhat tests, and then runs optional Slither static analysis when `slither` is available on `PATH`.
 
+For dependency-isolated Slither without installing Python packages locally:
+
+```bash
+npm run contracts:security:docker
+```
+
+The Docker runner uses `trailofbits/eth-security-toolbox:latest` by default, mounts `contracts/` into the container, and keeps container Node dependencies in the `opfish-slither-node-modules` Docker volume so host `contracts/node_modules` is not rewritten. Override the image or platform with:
+
+```bash
+SLITHER_DOCKER_IMAGE=trailofbits/eth-security-toolbox:latest \
+SLITHER_DOCKER_PLATFORM=linux/amd64 \
+npm run contracts:security:docker
+```
+
 For CI or an audit-prep machine where static analysis must not be skipped:
 
 ```bash
@@ -68,6 +82,7 @@ Useful narrower commands:
 ```bash
 npm --prefix contracts run test:unit
 npm --prefix contracts run test:invariants
+npm --prefix contracts run security:static:docker
 npm --prefix contracts run security:static:strict
 ```
 
