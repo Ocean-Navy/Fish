@@ -9,6 +9,8 @@ type FishKnowledgeSnippet = FishKnowledgeSource & {
   body: string;
 };
 
+export const FISH_KNOWLEDGE_QUERY_CHAR_LIMIT = 12000;
+
 const FISH_KNOWLEDGE_SNIPPETS: FishKnowledgeSnippet[] = [
   {
     id: "fish-product-loop",
@@ -55,11 +57,12 @@ const FISH_KNOWLEDGE_SNIPPETS: FishKnowledgeSnippet[] = [
 ];
 
 export function buildFishKnowledgeContext(query: string, limit = 3) {
-  const tokens = tokenize(query);
+  const normalizedQuery = query.slice(0, FISH_KNOWLEDGE_QUERY_CHAR_LIMIT).toLowerCase();
+  const tokens = tokenizeNormalized(normalizedQuery);
   const scored = FISH_KNOWLEDGE_SNIPPETS.map((snippet, index) => ({
     snippet,
     index,
-    score: snippet.keywords.reduce((sum, keyword) => sum + (tokens.has(keyword) ? 2 : query.toLowerCase().includes(keyword) ? 1 : 0), 0)
+    score: snippet.keywords.reduce((sum, keyword) => sum + (tokens.has(keyword) ? 2 : normalizedQuery.includes(keyword) ? 1 : 0), 0)
   }))
     .sort((a, b) => b.score - a.score || a.index - b.index)
     .slice(0, Math.max(1, limit));
@@ -78,6 +81,6 @@ export function buildFishKnowledgeContext(query: string, limit = 3) {
   };
 }
 
-function tokenize(value: string) {
-  return new Set(value.toLowerCase().split(/[^a-z0-9-]+/).filter(Boolean));
+function tokenizeNormalized(value: string) {
+  return new Set(value.split(/[^a-z0-9-]+/).filter(Boolean));
 }

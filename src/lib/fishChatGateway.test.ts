@@ -156,6 +156,38 @@ test("Fish docs batch chat uses the global concurrency guard", async () => {
   }
 });
 
+test("Ocean helper rejects oversized prompts before quota or credit mutations", async () => {
+  const account = buildAccount({
+    id: "security-test-account",
+    label: "Security test account",
+    keyHash: "test-key-hash",
+    createdAt: new Date(0).toISOString()
+  });
+  const ledger: Ledger = { accounts: [account] };
+
+  const result = await runFishChatGateway(
+    {
+      model: "fish-ocean-helper",
+      messages: [{ role: "user", content: "x".repeat(12000) }],
+      stream: false
+    },
+    {
+      ledger,
+      account,
+      principalId: "security-test-principal",
+      dailyQuotaLimit: 1,
+      allowExternalFallback: false,
+      authenticatedApiKey: false
+    }
+  );
+
+  assert.equal(result.ok, false);
+  assert.equal(result.status, 400);
+  assert.equal((result.body.error as { message?: string }).message, "max_input_tokens_exceeded");
+  assert.equal(account.creditBalance, 25);
+  assert.equal(account.requestCount, 0);
+});
+
 function rememberEnv() {
   for (const key of touchedEnv) {
     previousEnv.set(key, process.env[key]);
