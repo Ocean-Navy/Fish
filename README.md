@@ -345,7 +345,7 @@ curl -sS http://127.0.0.1:3000/v1/api_keys \
   -d '{"label":"Local pilot","creditGrant":1000,"planId":"free"}'
 ```
 
-In local development, `FISH_ADMIN_TOKEN` may be empty. Set it in production before issuing keys.
+In local development, `FISH_ADMIN_TOKEN` may be empty. Set it to a unique long random secret in production before issuing keys; public placeholder values such as `change-me-for-production` are rejected by the admin guard.
 
 List models:
 
