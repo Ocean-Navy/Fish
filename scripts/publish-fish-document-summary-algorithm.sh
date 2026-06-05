@@ -35,6 +35,20 @@ else
   metadata_file="$(node "${repo_root}/scripts/prepare-fish-algorithm-metadata.mjs")"
 fi
 
+if [[ -z "${PRIVATE_KEY:-}" && -n "${OCEAN_PROOF_PRIVATE_KEY:-}" ]]; then
+  export PRIVATE_KEY="${OCEAN_PROOF_PRIVATE_KEY}"
+fi
+
+if [[ -z "${MNEMONIC:-}" && -n "${OCEAN_PROOF_MNEMONIC:-}" ]]; then
+  export MNEMONIC="${OCEAN_PROOF_MNEMONIC}"
+fi
+
+if [[ -z "${RPC:-}" && -n "${OCEAN_PROOF_RPC:-}" ]]; then
+  export RPC="${OCEAN_PROOF_RPC}"
+fi
+
+export AVOID_LOOP_RUN="${AVOID_LOOP_RUN:-true}"
+
 if [[ -z "${OCEAN_CLI_DIR:-}" ]]; then
   echo "OCEAN_CLI_DIR is required. Run scripts/bootstrap-ocean-cli.sh first." >&2
   exit 1
@@ -42,6 +56,10 @@ fi
 
 if [[ "${OCEAN_CLI_DIR}" != /* ]]; then
   OCEAN_CLI_DIR="${repo_root}/${OCEAN_CLI_DIR}"
+fi
+
+if [[ ! -d "${OCEAN_CLI_DIR}" && "${OCEAN_CLI_DIR}" == "/ocean-cli" && -d "${repo_root}/.deps/ocean-cli" ]]; then
+  OCEAN_CLI_DIR="${repo_root}/.deps/ocean-cli"
 fi
 
 if [[ -z "${PRIVATE_KEY:-}" && -z "${MNEMONIC:-}" ]]; then
@@ -61,8 +79,16 @@ if [[ ! -d "${OCEAN_CLI_DIR}" ]]; then
   exit 1
 fi
 
+set +e
 output="$(cd "${OCEAN_CLI_DIR}" && npm run cli publishAlgo "${metadata_file}" 2>&1)"
+status=$?
+set -e
 echo "${output}"
+
+if [[ "${status}" -ne 0 ]]; then
+  echo "Ocean CLI publishAlgo failed with exit code ${status}." >&2
+  exit "${status}"
+fi
 
 did="$(printf '%s\n' "${output}" | grep -Eo 'did:op:[a-f0-9]{64}' | tail -n 1 || true)"
 if [[ -z "${did}" ]]; then

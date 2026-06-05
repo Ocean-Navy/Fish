@@ -54,6 +54,26 @@ node scripts/generate-ocean-node-compute-env.mjs --env
 
 Paste the printed `OCEAN_NODE_DOCKER_COMPUTE_ENVIRONMENTS=...` value into `.env.ocean-demo-stack`.
 
+For a private demo, restrict free compute to the Ocean proof wallet that the workload adapter signs with:
+
+```bash
+node scripts/generate-ocean-node-compute-env.mjs \
+  --free-access-address 0xYourProofWallet \
+  --env
+```
+
+For Apple Silicon/local CPU proof runs through `local_ocean_node` mode, generate the environment with local image builds enabled:
+
+```bash
+node scripts/generate-ocean-node-compute-env.mjs \
+  --cpu-only \
+  --allow-image-build \
+  --free-access-address 0xYourProofWallet \
+  --env
+```
+
+Keep this for a private local demo only. Free image builds let Ocean Node build the tiny proof algorithm image on the host; they should stay disabled for public third-party free compute unless the node is intentionally hardened for that use. `free.access.addresses` should not be empty on a public or private test node unless the node is intentionally offering free jobs to everyone.
+
 Edit at least:
 
 ```text
@@ -66,6 +86,8 @@ OCEAN_WORKLOAD_ADAPTER_API_KEY
 OCEAN_PROOF_PRIVATE_KEY or OCEAN_PROOF_MNEMONIC
 OCEAN_PROOF_RPC
 ```
+
+The chain behind `OCEAN_PROOF_RPC` must be supported by the Ocean CLI contract address bundle, or `ADDRESS_FILE` must point at a custom Ocean contracts address file. The bundled Ocean CLI 2.0.0 addresses include Base mainnet (`8453`) but not Base Sepolia (`84532`). For Base Sepolia tests, first obtain the Ocean contract addresses for that chain and set `ADDRESS_FILE`; otherwise use a supported testnet or Base mainnet.
 
 For a private first test, keep these endpoints bound to localhost:
 
@@ -80,6 +102,17 @@ FISH_MLX_BASE_URL=http://host.docker.internal:8080/v1
 The template stores Ocean Node localfs payloads under `/tmp/ocean-node-persistent-storage` inside the container. This is intentionally local-demo friendly because Docker Desktop named volumes mounted under `/data` can be unwritable for the Ocean Node process. For a persistent production node, set `OCEAN_NODE_PERSISTENT_STORAGE` to a writable mounted path and verify the node stays up before exposing it.
 
 Expose only through a private network, WireGuard, SSH tunnel, cloud private IP, or nginx allowlist when connecting the public web VM.
+
+The free compute guard is layered:
+
+```text
+free.access.addresses=<only the Ocean proof wallet address>
+OCEAN_NODE_HTTP_BIND=127.0.0.1 or private network only
+OCEAN_WORKLOAD_ADAPTER_API_KEY=<secret>
+OCEAN_WORKLOAD_ADAPTER_BIND=127.0.0.1 or private network only
+```
+
+Do not publish the Ocean Node HTTP API or workload adapter directly to the internet for the demo stack.
 
 ## Start Ocean Node And Adapter
 
@@ -170,7 +203,24 @@ FISH_OCEAN_DEMO_PROVIDER_ID=ocean-navy-local-mlx
 
 This tests Fish web, Fish Runner receipts, local Apple Silicon inference, Ocean Node startup, and adapter wiring. It does not test NVIDIA vLLM behavior or GPU access inside Ocean compute containers.
 
-## Live Ocean Dish Path
+## Local Ocean Node Dish Path
+
+This mode lets Fish validate the stack against our own Ocean Node before renting a GPU server or paying external Oncompute providers:
+
+```text
+OCEAN_WORKLOAD_ADAPTER_MODE=local_ocean_node
+OCEAN_PROOF_PRIVATE_KEY or OCEAN_PROOF_MNEMONIC
+NODE_URL=http://ocean-node:8000
+FISH_OCEAN_COMPUTE_ENV_ID=<id from /api/services/computeEnvironments>
+OCEAN_CLI_DIR=/ocean-cli
+FISH_OCEAN_LOCAL_BASE_IMAGE=python:3.11-slim
+```
+
+`local_ocean_node` uses Ocean Node's signed `/api/services/freeCompute`, `/api/services/compute`, and `/api/services/computeResult` APIs directly. It runs a tiny raw-code Python proof in an Ocean C2D container and returns the output tar hash to Fish. This is a real local Ocean Node compute job, not a sample adapter, but it is still conservative proof: it does not prove paid external Oncompute demand or GPU inference.
+
+The Ocean proof wallet address must be present in the selected compute environment's `free.access.addresses`; otherwise the adapter should not be able to start a free job.
+
+## Live Ocean CLI Dish Path
 
 The adapter is live only when this health payload says `liveReady: true`:
 
@@ -184,11 +234,13 @@ Required live values:
 OCEAN_WORKLOAD_ADAPTER_MODE=live
 OCEAN_PROOF_PRIVATE_KEY or OCEAN_PROOF_MNEMONIC
 OCEAN_PROOF_RPC
+ADDRESS_FILE=<optional custom Ocean contracts address file>
 NODE_URL=http://ocean-node:8000
 FISH_OCEAN_DATASET_DIDS=[]
 FISH_OCEAN_ALGO_DID=did:op:...
 FISH_OCEAN_COMPUTE_ENV_ID=<id from /api/services/computeEnvironments>
 OCEAN_CLI_DIR=/ocean-cli
+AVOID_LOOP_RUN=true
 ```
 
 Use `startFreeCompute` first. Leave these empty for free test jobs:

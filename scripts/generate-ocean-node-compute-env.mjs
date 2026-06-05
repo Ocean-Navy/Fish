@@ -5,11 +5,9 @@ import process from "node:process";
 const options = parseArgs(process.argv.slice(2));
 const gpus = options.cpuOnly ? [] : detectNvidiaGpus();
 const computeEnvironment = {
-  socketPath: "/var/run/docker.sock",
-  scanImages: options.scanImages,
+  id: options.environmentId,
+  description: options.description,
   enableNetwork: false,
-  imageRetentionDays: 3,
-  imageCleanupInterval: 86400,
   resources: [
     {
       id: "disk",
@@ -39,9 +37,8 @@ const computeEnvironment = {
     maxJobDuration: options.freeMaxJobDuration,
     minJobDuration: options.freeMinJobDuration,
     maxJobs: options.freeMaxJobs,
-    allowImageBuild: false,
     access: {
-      addresses: [],
+      addresses: options.freeAccessAddresses,
       accessLists: []
     },
     resources: [
@@ -49,11 +46,20 @@ const computeEnvironment = {
       { id: "ram", max: options.freeRamGb },
       { id: "disk", max: options.freeDiskGb },
       ...gpus.map((_, index) => ({ id: `${options.gpuIdPrefix}${index}`, max: options.freeGpu }))
-    ]
+    ],
+    allowImageBuild: options.allowImageBuild
   }
 };
 
-const json = options.pretty ? JSON.stringify([computeEnvironment], null, 2) : JSON.stringify([computeEnvironment]);
+const dockerCluster = {
+  socketPath: "/var/run/docker.sock",
+  scanImages: options.scanImages,
+  imageRetentionDays: 3,
+  imageCleanupInterval: 86400,
+  environments: [computeEnvironment]
+};
+
+const json = options.pretty ? JSON.stringify([dockerCluster], null, 2) : JSON.stringify([dockerCluster]);
 if (options.env) {
   console.log(`OCEAN_NODE_DOCKER_COMPUTE_ENVIRONMENTS='${json}'`);
 } else {
@@ -65,6 +71,10 @@ function parseArgs(args) {
     cpuOnly: false,
     diskGb: 20,
     env: false,
+    environmentId: "fish-local-free",
+    description: "Fish local free compute",
+    allowImageBuild: false,
+    freeAccessAddresses: [],
     freeCpu: 1,
     freeDiskGb: 1,
     freeGpu: 1,
@@ -88,10 +98,18 @@ function parseArgs(args) {
       result.env = true;
     } else if (arg === "--pretty") {
       result.pretty = true;
+    } else if (arg === "--allow-image-build") {
+      result.allowImageBuild = true;
+    } else if (arg === "--free-access-address" || arg === "--free-access-addresses") {
+      result.freeAccessAddresses.push(...readAddressList(args[++index] || ""));
     } else if (arg === "--no-scan") {
       result.scanImages = false;
     } else if (arg === "--disk-gb") {
       result.diskGb = readPositiveInt(args[++index], result.diskGb);
+    } else if (arg === "--environment-id") {
+      result.environmentId = sanitizeId(args[++index] || result.environmentId);
+    } else if (arg === "--description") {
+      result.description = String(args[++index] || result.description).trim() || result.description;
     } else if (arg === "--free-cpu") {
       result.freeCpu = readPositiveInt(args[++index], result.freeCpu);
     } else if (arg === "--free-ram-gb") {
@@ -147,6 +165,14 @@ function sanitizeId(value) {
   return value.replace(/[^A-Za-z0-9_-]/g, "") || "fishGPU";
 }
 
+function readAddressList(value) {
+  return String(value)
+    .split(",")
+    .map((address) => address.trim())
+    .filter(Boolean)
+    .filter((address) => /^0x[0-9a-fA-F]{40}$/.test(address));
+}
+
 function printHelp() {
   console.log(`Usage: node scripts/generate-ocean-node-compute-env.mjs [options]
 
@@ -158,6 +184,12 @@ Options:
   --pretty                      Pretty-print JSON
   --cpu-only                    Do not include GPU resources
   --no-scan                     Set scanImages=false
+  --allow-image-build           Allow free jobs to build local Docker images
+  --free-access-address 0x...   Restrict free jobs to this wallet address; repeat or comma-separate
+  --environment-id fish-local-free
+                                Stable environment id suffix for Ocean Node
+  --description "Fish local free compute"
+                                Environment description
   --disk-gb 20                  Disk resource advertised to Ocean Node
   --free-cpu 1                  CPU max for free jobs
   --free-ram-gb 4               RAM max for free jobs

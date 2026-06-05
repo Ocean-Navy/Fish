@@ -232,6 +232,7 @@ If storage is not ready, the adapter can hash the result locally and return only
 ```text
 PRIVATE_KEY=<dedicated proof wallet>
 RPC=<chain RPC>
+ADDRESS_FILE=<optional custom Ocean contracts address file>
 NODE_URL=<selected Ocean node URL or p2p address>
 FISH_OCEAN_DATASET_DIDS=<comma-separated DIDs or []>
 FISH_OCEAN_ALGO_DID=<algorithm DID>
@@ -240,6 +241,8 @@ FISH_OCEAN_PAYMENT_TOKEN=<paid token, if paid>
 FISH_OCEAN_RESOURCES=<JSON resources, if paid>
 FISH_OCEAN_OUTPUT=<JSON output config, optional>
 ```
+
+The selected RPC chain must be supported by the Ocean CLI contract address bundle, or `ADDRESS_FILE` must point at a custom address file for deployed Ocean contracts on that chain. The bundled Ocean CLI 2.0.0 addresses include Base mainnet (`8453`) but not Base Sepolia (`84532`), so Base Sepolia requires a custom `ADDRESS_FILE` before `publishAlgo` can work.
 
 The adapter template lives at:
 
@@ -284,6 +287,8 @@ chain id 8453
 gas token ETH on Base
 paid compute token USDC on Base
 ```
+
+For a free local Ocean Node demo, a supported testnet can be used instead if the Ocean contracts are deployed there and the proof wallet has gas on that chain. Fish's own Base Sepolia prototype contracts do not automatically make Ocean CLI asset publishing work on Base Sepolia.
 
 5. Configure Fish:
 

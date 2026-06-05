@@ -107,7 +107,7 @@ function healthPayload() {
     ok: true,
     adapterVersion,
     mode: config.mode,
-    liveReady: config.missing.length === 0 && config.mode === "live",
+    liveReady: isExecutableMode(config.mode) && config.missing.length === 0,
     configuredForFreeCompute: config.freeCompute,
     missing: config.missing,
     warnings: config.warnings,
@@ -120,10 +120,10 @@ function configPayload() {
   return {
     adapterVersion,
     mode: config.mode,
-    liveReady: config.missing.length === 0 && config.mode === "live",
+    liveReady: isExecutableMode(config.mode) && config.missing.length === 0,
     selected: publicSelection(config),
     cli: {
-      commandMode: config.cliBin ? "direct-binary" : "ocean-cli-repo",
+      commandMode: config.mode === "local_ocean_node" ? "direct-ocean-node-http" : config.cliBin ? "direct-binary" : "ocean-cli-repo",
       oceanCliDir: config.oceanCliDir ? redactPath(config.oceanCliDir) : null,
       startCommand: config.freeCompute ? config.startFreeCommand : config.startPaidCommand,
       downloadCommand: config.downloadCommand
@@ -147,6 +147,12 @@ function publicSelection(config) {
 
 async function runAdapterJob(job) {
   const config = readAdapterConfig();
+  if (config.mode === "local_ocean_node") {
+    if (config.missing.length) {
+      return failedOutcome(job, "adapter_not_configured", { missing: config.missing });
+    }
+    return runLocalOceanNodeJob(config, job);
+  }
   if (config.mode !== "live") {
     return failedOutcome(job, "adapter_dry_run");
   }
@@ -202,6 +208,87 @@ async function runAdapterJob(job) {
       currency: "USDC"
     },
     outputRef
+  };
+}
+
+async function runLocalOceanNodeJob(config, job) {
+  const startedAt = Date.now();
+  await mkdir(jobDir, { recursive: true });
+  await mkdir(resultRootDir, { recursive: true });
+  const localJobDir = path.join(jobDir, sanitizePathPart(job.jobId));
+  const localResultDir = path.join(resultRootDir, sanitizePathPart(job.jobId));
+  await mkdir(localJobDir, { recursive: true });
+  await mkdir(localResultDir, { recursive: true });
+
+  const signer = await buildOceanNodeSigner(config);
+  const algorithm = buildLocalOceanNodeAlgorithm(job);
+  const startBody = {
+    consumerAddress: signer.address,
+    ...(await signedOceanNodeFields(config, signer, "freeStartCompute")),
+    environment: config.computeEnvId,
+    maxJobDuration: job.maxRuntimeSeconds,
+    resources: readLocalOceanResources(),
+    datasets: [],
+    algorithm,
+    metadata: {
+      fishJobId: job.jobId,
+      taskType: job.taskType,
+      inputRefHash: hashText(job.inputRef)
+    }
+  };
+
+  const start = await fetchJson(`${config.nodeUrl}/api/services/freeCompute`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(startBody)
+  });
+  await writeJobArtifact(localJobDir, "start.json", redactStartPayload(start));
+  if (start.status < 200 || start.status >= 300 || !Array.isArray(start.body) || !start.body[0]?.jobId) {
+    return failedOutcome(job, "local_ocean_node_start_failed");
+  }
+
+  const providerJobId = start.body[0].jobId;
+  const status = await pollLocalOceanJob(config, signer.address, providerJobId, job.maxRuntimeSeconds);
+  await writeJobArtifact(localJobDir, "status.json", status);
+  const row = status.row;
+  if (!row) {
+    return failedOutcome(job, "local_ocean_node_status_missing", { providerJobId });
+  }
+  if (!isLocalOceanJobSuccessful(row)) {
+    return failedOutcome(job, "local_ocean_node_job_failed", { providerJobId });
+  }
+
+  const outputResult = Array.isArray(row.results) ? row.results.find((result) => result.type === "output") : null;
+  if (!outputResult || !Number.isInteger(outputResult.index)) {
+    return failedOutcome(job, "local_ocean_node_output_missing", { providerJobId });
+  }
+
+  const output = await fetchLocalOceanResult(config, signer, providerJobId, outputResult.index);
+  if (output.status < 200 || output.status >= 300 || !output.bytes.length) {
+    await writeJobArtifact(localJobDir, "download-error.json", { status: output.status, bytes: output.bytes.length });
+    return failedOutcome(job, "local_ocean_node_result_download_failed", { providerJobId });
+  }
+  const tarPath = path.join(localResultDir, "outputs.tar");
+  await writeFile(tarPath, output.bytes);
+  const outputHash = createHash("sha256").update(output.bytes).digest("hex");
+  const elapsedSeconds = Math.max(1, Math.ceil((Date.now() - startedAt) / 1000));
+  const outputTokens = Math.min(job.maxOutputTokens, Math.max(1, Math.ceil(output.bytes.length / 4)));
+
+  return {
+    jobId: job.jobId,
+    providerJobId,
+    status: "succeeded",
+    usage: {
+      inputTokens: job.estimatedInputTokens,
+      outputTokens,
+      gpuSeconds: elapsedSeconds,
+      items: 1
+    },
+    cost: {
+      amount: 0,
+      currency: "USDC"
+    },
+    outputRef: `sha256:${outputHash}`
   };
 }
 
@@ -277,6 +364,7 @@ function runOceanCli(config, command, args, timeoutMs) {
 function oceanCliEnv() {
   return {
     ...process.env,
+    AVOID_LOOP_RUN: process.env.AVOID_LOOP_RUN || "true",
     PRIVATE_KEY: process.env.PRIVATE_KEY,
     MNEMONIC: process.env.MNEMONIC,
     RPC: process.env.RPC,
@@ -377,6 +465,10 @@ function failedOutcome(job, errorCode, extra = {}) {
   };
 }
 
+function isExecutableMode(mode) {
+  return mode === "live" || mode === "local_ocean_node";
+}
+
 function readAdapterConfig() {
   const mode = process.env.OCEAN_WORKLOAD_ADAPTER_MODE?.trim() || "dry_run";
   const nodeUrl = process.env.NODE_URL?.trim() || "";
@@ -394,8 +486,15 @@ function readAdapterConfig() {
   const missing = [];
   const warnings = [];
 
-  if (mode !== "dry_run" && mode !== "live") {
-    warnings.push("Unknown OCEAN_WORKLOAD_ADAPTER_MODE; dry_run is safest until live is selected explicitly.");
+  if (mode !== "dry_run" && mode !== "live" && mode !== "local_ocean_node") {
+    warnings.push("Unknown OCEAN_WORKLOAD_ADAPTER_MODE; dry_run is safest until live or local_ocean_node is selected explicitly.");
+  }
+  if (mode === "local_ocean_node") {
+    if (!walletConfigured) missing.push("PRIVATE_KEY or MNEMONIC");
+    if (!nodeUrl) missing.push("NODE_URL");
+    if (!computeEnvId) missing.push("FISH_OCEAN_COMPUTE_ENV_ID");
+    if (!oceanCliDir) missing.push("OCEAN_CLI_DIR");
+    if (oceanCliDir && !existsSync(path.join(oceanCliDir, "node_modules", "ethers"))) missing.push("OCEAN_CLI_DIR with ethers dependency");
   }
   if (mode === "live") {
     if (!walletConfigured) missing.push("PRIVATE_KEY or MNEMONIC");
@@ -437,6 +536,179 @@ function readAdapterConfig() {
     missing,
     warnings
   };
+}
+
+async function buildOceanNodeSigner(config) {
+  const ethers = require(path.join(config.oceanCliDir, "node_modules", "ethers"));
+  const privateKey = process.env.PRIVATE_KEY?.trim();
+  const mnemonic = process.env.MNEMONIC?.trim();
+  if (privateKey) {
+    const wallet = new ethers.Wallet(privateKey);
+    return { ethers, wallet, address: wallet.address };
+  }
+  const wallet = ethers.Wallet.fromPhrase(mnemonic);
+  return { ethers, wallet, address: wallet.address };
+}
+
+async function signedOceanNodeFields(config, signer, command) {
+  const nonceResponse = await fetchJson(`${config.nodeUrl}/api/services/nonce?userAddress=${encodeURIComponent(signer.address)}`);
+  const currentNonce = Number(nonceResponse.body?.nonce);
+  if (!Number.isInteger(currentNonce) || currentNonce < 0) {
+    throw new Error("Ocean Node nonce response was invalid");
+  }
+  const nonce = String(currentNonce + 1);
+  const message = String(signer.address) + nonce + command;
+  const consumerMessage = signer.ethers.solidityPackedKeccak256(["bytes"], [signer.ethers.hexlify(signer.ethers.toUtf8Bytes(message))]);
+  const signature = await signer.wallet.signMessage(consumerMessage);
+  return { nonce, signature };
+}
+
+function buildLocalOceanNodeAlgorithm(job) {
+  return {
+    meta: {
+      rawcode: localOceanNodeRawCode(),
+      language: "python",
+      version: "0.1.0",
+      container: {
+        entrypoint: "python $ALGO",
+        image: "fish-local-ocean-node-proof",
+        tag: "latest",
+        dockerfile: `FROM ${process.env.FISH_OCEAN_LOCAL_BASE_IMAGE?.trim() || "python:3.11-slim"}\n`
+      }
+    },
+    envs: {
+      FISH_TASK_TYPE: job.taskType,
+      FISH_INPUT_REF: job.inputRef,
+      FISH_JOB_ID: job.jobId
+    }
+  };
+}
+
+function localOceanNodeRawCode() {
+  return `#!/usr/bin/env python3
+import hashlib
+import json
+import os
+import time
+from pathlib import Path
+
+out = Path("/data/outputs")
+out.mkdir(parents=True, exist_ok=True)
+payload = {
+    "schemaVersion": 1,
+    "algorithm": "fish-local-ocean-node-proof",
+    "algorithmVersion": "0.1.0",
+    "taskType": os.getenv("FISH_TASK_TYPE", "document_summary"),
+    "jobId": os.getenv("FISH_JOB_ID", ""),
+    "createdAtEpoch": int(time.time()),
+    "inputRef": os.getenv("FISH_INPUT_REF", ""),
+    "message": "Fish local Ocean Node free compute proof ran inside an Ocean C2D container.",
+    "storesPromptOutputText": False,
+}
+payload["outputHash"] = hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
+(out / "fish-proof-receipt.json").write_text(json.dumps(payload, indent=2) + "\\n")
+(out / "summary.txt").write_text(payload["message"] + "\\n")
+print(json.dumps({"ok": True, "outputHash": payload["outputHash"]}))
+`;
+}
+
+function readLocalOceanResources() {
+  const raw = process.env.FISH_OCEAN_LOCAL_RESOURCES?.trim();
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parsed;
+      }
+    } catch {
+      // Fall through to defaults.
+    }
+  }
+  return [
+    { id: "cpu", amount: 1 },
+    { id: "ram", amount: 1 },
+    { id: "disk", amount: 1 }
+  ];
+}
+
+async function pollLocalOceanJob(config, consumerAddress, providerJobId, maxRuntimeSeconds) {
+  const timeoutMs = Math.min(Math.max(maxRuntimeSeconds * 1000 + 120000, 120000), readPositiveInt(process.env.FISH_OCEAN_LOCAL_RESULT_TIMEOUT_MS, 900000));
+  const intervalMs = readPositiveInt(process.env.FISH_OCEAN_POLL_INTERVAL_MS, 5000);
+  const attempts = [];
+  const startedAt = Date.now();
+  let row = null;
+  while (Date.now() - startedAt <= timeoutMs) {
+    const url = `${config.nodeUrl}/api/services/compute?consumerAddress=${encodeURIComponent(consumerAddress)}&jobId=${encodeURIComponent(providerJobId)}`;
+    const response = await fetchJson(url);
+    attempts.push({ status: response.status, body: response.body });
+    row = Array.isArray(response.body) ? response.body[0] : null;
+    if (isLocalOceanStatusTerminal(row)) {
+      return { ok: true, row, attempts };
+    }
+    await sleep(intervalMs);
+  }
+  return { ok: false, row, attempts };
+}
+
+function isLocalOceanStatusTerminal(row) {
+  if (!row) {
+    return false;
+  }
+  if (row.statusText === "Job finished") {
+    return true;
+  }
+  return Boolean(row.dateFinished && row.terminationDetails?.exitCode !== null && row.terminationDetails?.exitCode !== undefined && hasLocalOceanOutput(row));
+}
+
+function isLocalOceanJobSuccessful(row) {
+  if (!row || row.terminationDetails?.exitCode !== 0) {
+    return false;
+  }
+  if (row.statusText === "Job finished") {
+    return true;
+  }
+  return Boolean(row.dateFinished && hasLocalOceanOutput(row));
+}
+
+function hasLocalOceanOutput(row) {
+  return Array.isArray(row?.results) && row.results.some((result) => result.type === "output" && Number.isInteger(result.index));
+}
+
+async function fetchLocalOceanResult(config, signer, providerJobId, index) {
+  const auth = await signedOceanNodeFields(config, signer, "getComputeResult");
+  const url =
+    `${config.nodeUrl}/api/services/computeResult?consumerAddress=${encodeURIComponent(signer.address)}` +
+    `&jobId=${encodeURIComponent(providerJobId)}&index=${encodeURIComponent(String(index))}` +
+    `&nonce=${encodeURIComponent(auth.nonce)}&signature=${encodeURIComponent(auth.signature)}`;
+  const response = await fetch(url);
+  return {
+    status: response.status,
+    headers: Object.fromEntries(response.headers.entries()),
+    bytes: Buffer.from(await response.arrayBuffer())
+  };
+}
+
+async function fetchJson(url, options = {}) {
+  const response = await fetch(url, options);
+  const text = await response.text();
+  let body = text;
+  try {
+    body = text ? JSON.parse(text) : null;
+  } catch {
+    // Keep text body.
+  }
+  return { status: response.status, headers: Object.fromEntries(response.headers.entries()), body };
+}
+
+function redactStartPayload(value) {
+  if (!value || typeof value !== "object") {
+    return value;
+  }
+  return JSON.parse(redactText(JSON.stringify(value)));
+}
+
+function hashText(value) {
+  return createHash("sha256").update(String(value)).digest("hex");
 }
 
 function parseJobRequest(body) {

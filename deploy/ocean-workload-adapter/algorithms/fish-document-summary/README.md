@@ -57,10 +57,12 @@ export OCEAN_CLI_DIR="$(pwd)/.deps/ocean-cli"
 Set the proof wallet and selected Ocean node:
 
 ```bash
-export PRIVATE_KEY="..."
-export RPC="https://your-base-mainnet-rpc"
+export OCEAN_PROOF_PRIVATE_KEY="..."
+export OCEAN_PROOF_RPC="https://your-base-or-base-sepolia-rpc"
 export NODE_URL="/ip4/.../tcp/9000"
 ```
+
+Use `FISH_ALGORITHM_CHAIN_ID=84532` for Base Sepolia testnet, or `8453` for Base mainnet.
 
 Set a public URL for `algorithm.py`.
 
@@ -74,6 +76,7 @@ Example after a public `main` merge:
 
 ```bash
 export FISH_ALGORITHM_FILE_URL="https://raw.githubusercontent.com/Ocean-Navy/Fish/main/deploy/ocean-workload-adapter/algorithms/fish-document-summary/algorithm.py"
+export FISH_ALGORITHM_CHAIN_ID=84532
 ```
 
 Publish:

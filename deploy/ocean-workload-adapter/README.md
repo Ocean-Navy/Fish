@@ -3,8 +3,10 @@
 This is the private service that sits behind `FISH_OCEAN_BATCH_ENDPOINT`.
 
 It must not be exposed as a public API. It holds the Ocean proof wallet in its
-environment and shells out to the official Ocean CLI checkout to start one real
-Ocean / Oncompute compute job.
+environment and starts real Ocean compute jobs through either:
+
+- `live`: the official Ocean CLI checkout and published Ocean asset DIDs;
+- `local_ocean_node`: signed direct `/freeCompute` calls to our own Ocean Node.
 
 ## Why This Exists
 
@@ -22,8 +24,8 @@ This adapter supplies the missing private part:
 ```text
 Fish API
   -> private adapter /jobs
-  -> Ocean CLI
-  -> Ocean / Oncompute compute environment
+  -> Ocean CLI or local Ocean Node freeCompute
+  -> Ocean compute environment
   -> downloaded job result
   -> sha256 outputRef
 ```
@@ -31,6 +33,10 @@ Fish API
 Dry-run mode never returns `status: "succeeded"`. Live mode only returns
 success after the Ocean CLI starts a job and `downloadJobResults` writes a
 non-empty result directory that can be hashed.
+
+`local_ocean_node` mode returns success only after Ocean Node starts a real C2D
+Docker job, the job finishes, and the adapter downloads the Ocean Node
+`outputs.tar` result.
 
 ## Setup
 
@@ -51,6 +57,15 @@ FISH_OCEAN_ALGO_DID
 FISH_OCEAN_COMPUTE_ENV_ID
 OCEAN_CLI_DIR
 ```
+
+For `local_ocean_node`, `RPC`, `FISH_OCEAN_DATASET_DIDS`, and
+`FISH_OCEAN_ALGO_DID` are not required. The local node must expose a free
+compute environment and, for the default raw-code proof algorithm, that
+environment must allow image builds.
+
+The free compute environment should restrict `free.access.addresses` to the
+adapter's Ocean proof wallet address. Leaving that list empty can make free
+compute available to anyone who can reach the Ocean Node API.
 
 Prepare the Ocean CLI checkout with:
 
@@ -119,7 +134,14 @@ node deploy/ocean-workload-adapter/server.mjs
 scripts/smoke-ocean-workload-adapter.sh
 ```
 
-Live:
+Local Ocean Node mode:
+
+```bash
+OCEAN_WORKLOAD_ADAPTER_MODE=local_ocean_node \
+node deploy/ocean-workload-adapter/server.mjs --env-file .env.ocean-proof.local
+```
+
+Ocean CLI live mode:
 
 ```bash
 OCEAN_WORKLOAD_ADAPTER_MODE=live \

@@ -40,28 +40,35 @@ node -e 'const fs=require("fs"); const rows=JSON.parse(fs.readFileSync("/tmp/fis
 
 echo "Checking Ocean workload adapter"
 curl -fsS "http://127.0.0.1:${adapter_port}/healthz" >/tmp/fish-ocean-adapter-health.json
+adapter_mode="$(node -e 'const fs=require("fs"); const row=JSON.parse(fs.readFileSync("/tmp/fish-ocean-adapter-health.json","utf8")); console.log(row.mode || "unknown");')"
 node -e 'const fs=require("fs"); const row=JSON.parse(fs.readFileSync("/tmp/fish-ocean-adapter-health.json","utf8")); console.log(`adapter mode: ${row.mode}, liveReady: ${row.liveReady}`);'
 
-echo "Submitting adapter dry-run smoke job"
+echo "Submitting adapter smoke job"
 auth_args=()
 if [[ -n "${adapter_key}" ]]; then
   auth_args=(-H "authorization: Bearer ${adapter_key}")
 fi
+smoke_job_id="smoke_ocean_demo_stack_$(date +%s)"
 curl -fsS \
   "${auth_args[@]+"${auth_args[@]}"}" \
   -H "content-type: application/json" \
   -X POST "http://127.0.0.1:${adapter_port}/jobs" \
-  --data '{
-    "jobId": "smoke_ocean_demo_stack",
-    "idempotencyKey": "smoke_ocean_demo_stack",
-    "taskType": "document_summary",
-    "inputRef": "sha256:smoke-ocean-demo-stack",
-    "estimatedInputTokens": 100,
-    "maxOutputTokens": 32,
-    "maxRuntimeSeconds": 60,
-    "maxCostUsd": 1
-  }' >/tmp/fish-ocean-adapter-job.json
-node -e 'const fs=require("fs"); const row=JSON.parse(fs.readFileSync("/tmp/fish-ocean-adapter-job.json","utf8")); console.log(`adapter job status: ${row.status}, errorCode: ${row.errorCode || "-"}`);'
+  --data "{\"jobId\":\"${smoke_job_id}\",\"idempotencyKey\":\"${smoke_job_id}\",\"taskType\":\"document_summary\",\"inputRef\":\"sha256:smoke-ocean-demo-stack\",\"estimatedInputTokens\":100,\"maxOutputTokens\":32,\"maxRuntimeSeconds\":60,\"maxCostUsd\":1}" >/tmp/fish-ocean-adapter-job.json
+ADAPTER_MODE="${adapter_mode}" node - <<'NODE'
+const fs = require("fs");
+const mode = process.env.ADAPTER_MODE;
+const row = JSON.parse(fs.readFileSync("/tmp/fish-ocean-adapter-job.json", "utf8"));
+if (mode === "dry_run") {
+  if (row.status !== "failed" || row.errorCode !== "adapter_dry_run") {
+    throw new Error(`expected dry-run failure, got ${row.status}/${row.errorCode || "-"}`);
+  }
+} else if (mode === "live" || mode === "local_ocean_node") {
+  if (row.status !== "succeeded" || typeof row.outputRef !== "string" || !row.outputRef.startsWith("sha256:")) {
+    throw new Error(`expected executable adapter success with sha256 outputRef, got ${row.status}/${row.errorCode || "-"}`);
+  }
+}
+console.log(`adapter job status: ${row.status}, errorCode: ${row.errorCode || "-"}, outputRef: ${row.outputRef || "-"}`);
+NODE
 
 if curl -fsS "http://127.0.0.1:${runner_port}/healthz" >/tmp/fish-runner-health.json 2>/dev/null; then
   node -e 'const fs=require("fs"); const row=JSON.parse(fs.readFileSync("/tmp/fish-runner-health.json","utf8")); console.log(`runner: ${row.runnerId || row.id || "online"}`);'

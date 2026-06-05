@@ -12,6 +12,7 @@ const defaultOutput = path.join(repoRoot, "data/ocean-workload-adapter/fish-docu
 
 const options = parseArgs(process.argv.slice(2));
 const algorithmUrl = options.url || process.env.FISH_ALGORITHM_FILE_URL?.trim();
+const chainId = readPositiveInt(options.chainId || process.env.FISH_ALGORITHM_CHAIN_ID);
 
 if (!algorithmUrl) {
   console.error("FISH_ALGORITHM_FILE_URL is required.");
@@ -34,6 +35,9 @@ if (options.checkUrl) {
 
 const template = JSON.parse(await readFile(options.template, "utf8"));
 template.services[0].files.files[0].url = algorithmUrl;
+if (chainId) {
+  template.chainId = chainId;
+}
 template.metadata.created = new Date().toISOString();
 template.metadata.updated = template.metadata.created;
 
@@ -46,6 +50,7 @@ function parseArgs(args) {
     template: defaultTemplate,
     output: defaultOutput,
     url: "",
+    chainId: "",
     checkUrl: true
   };
   for (let index = 0; index < args.length; index += 1) {
@@ -56,6 +61,8 @@ function parseArgs(args) {
       result.output = path.resolve(args[++index] || "");
     } else if (arg === "--url") {
       result.url = args[++index] || "";
+    } else if (arg === "--chain-id") {
+      result.chainId = args[++index] || "";
     } else if (arg === "--check-url=false") {
       result.checkUrl = false;
     } else if (arg === "--help" || arg === "-h") {
@@ -82,8 +89,14 @@ function printHelp() {
 
 Options:
   --url <url>             Public algorithm.py URL. Defaults to FISH_ALGORITHM_FILE_URL.
+  --chain-id <id>         Override metadata chainId. Defaults to FISH_ALGORITHM_CHAIN_ID.
   --template <path>       Metadata template path.
   --output <path>         Prepared metadata output path.
   --check-url=false       Skip public URL fetch check.
 `);
+}
+
+function readPositiveInt(value) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
 }

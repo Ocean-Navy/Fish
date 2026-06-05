@@ -66,6 +66,10 @@ deploy/ocean-workload-adapter/
 
 It defaults to dry-run mode, which returns a failed adapter result and cannot create a successful proof receipt. Live mode requires a proof wallet, Base RPC, selected `NODE_URL`, selected compute environment id, and an algorithm DID.
 
+For testnet demos, the Ocean CLI chain must have Ocean contract addresses. The bundled Ocean CLI 2.0.0 address file includes Base mainnet (`8453`) but not Base Sepolia (`84532`); Base Sepolia needs a custom `ADDRESS_FILE` before the Fish algorithm can be published there.
+
+For local stack validation before a GPU VM, the private adapter can run in `local_ocean_node` mode. That mode bypasses Ocean CLI asset publishing and submits a signed raw-code `/freeCompute` job to our own Ocean Node. It still creates a real Ocean C2D Docker job and returns an output tar hash, but it should be described as local Ocean Node proof, not paid Oncompute demand or GPU-backed inference.
+
 The first prepared algorithm bundle is:
 
 ```text
