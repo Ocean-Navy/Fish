@@ -218,7 +218,9 @@ FISH_ROUTER_KILL_SWITCH=false
 FISH_MAX_INPUT_TOKENS=1000
 FISH_MAX_OUTPUT_TOKENS=512
 FISH_DAILY_KEYED_QUOTA=20
+# Shared across unauthenticated meal-counter guests; API-key users get keyed quota above.
 FISH_DAILY_ANONYMOUS_QUOTA=5
+# Granted once to the shared unauthenticated guest account, not once per browser.
 FISH_GUEST_CREDIT_GRANT=25
 FISH_MAX_CONCURRENT_REQUESTS=8
 FISH_MOCK_DAILY_BUDGET_USD=0
@@ -380,7 +382,7 @@ No public warm route should run without:
 - max output tokens;
 - plan-based per-minute request limit;
 - plan-based monthly request limit;
-- max requests per anonymous user per day;
+- max shared anonymous guest requests per day;
 - max concurrent requests;
 - model-level daily request limit;
 - model-level daily cost limit;
@@ -388,7 +390,7 @@ No public warm route should run without:
 - timeout and cancellation handling;
 - fallback disabled by default for anonymous users.
 
-For first public testing, keep anonymous users to a very small allowance such as 3 to 5 short messages per day and 512 output tokens per response.
+For first public testing, keep the shared anonymous guest bucket to a very small allowance such as 3 to 5 short messages per day and 512 output tokens per response. API-key users should use keyed quota instead of the shared guest bucket.
 
 ## Smoke Test From Fish Gateway
 

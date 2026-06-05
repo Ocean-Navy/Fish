@@ -18,7 +18,7 @@ The public V0 is intentionally simple: a visual Venice fish-market homepage, rol
 - Admin-only signup export for launch lead follow-up.
 - Prototype `/v1` AI API with local API keys, Fish Credits debits, and usage receipts.
 - `/ask` with a Fish meal counter: Ocean batch dishes (Docs Bento, Repo Roll, Eval Platter, Data Sushi) plus quick warm dishes.
-- `/api/meal/order` for a capped guest meal-counter demo without exposing a Fish API key.
+- `/api/meal/order` for a globally capped guest meal-counter demo without exposing a Fish API key.
 - `/api/warm/status` for public-safe warm Ocean demo readiness without endpoint URLs or secrets.
 - `/api/ocean/batch/jobs` for hash-only Ocean batch dish receipts, sample by default until a private batch adapter is configured.
 - `/api/ocean/batch/readiness` for a public-safe Milestone 3 gate before claiming real Ocean workload proof.
@@ -229,7 +229,9 @@ FISH_CHAT_BACKEND=mock
 FISH_MAX_INPUT_TOKENS=1000
 FISH_MAX_OUTPUT_TOKENS=512
 FISH_DAILY_KEYED_QUOTA=20
+# Shared across unauthenticated meal-counter guests; API-key users get keyed quota above.
 FISH_DAILY_ANONYMOUS_QUOTA=5
+# Granted once to the shared unauthenticated guest account, not once per browser.
 FISH_GUEST_CREDIT_GRANT=25
 FISH_CHAT_PAUSED=false
 FISH_ROUTER_KILL_SWITCH=false
