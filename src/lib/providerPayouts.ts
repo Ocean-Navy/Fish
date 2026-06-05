@@ -140,6 +140,25 @@ export type PayoutProviderSummary = {
   };
 };
 
+type PayoutTotals = Record<PayoutState, number> & {
+  outstandingUsd: number;
+  excludedUsd: number;
+};
+
+export type PublicPayoutSummary = {
+  dataState: DataState;
+  lastUpdated: string;
+  filters: Record<string, never>;
+  providerCount: null;
+  eventCount: null;
+  batchCount: null;
+  totals: PayoutTotals;
+  providerSummaries: PayoutProviderSummary[];
+  events: PublicPayoutEvent[];
+  batches: PublicPayoutBatch[];
+  warnings: string[];
+};
+
 export type PayoutSummary = {
   dataState: DataState;
   lastUpdated: string;
@@ -147,10 +166,7 @@ export type PayoutSummary = {
   providerCount: number;
   eventCount: number;
   batchCount: number;
-  totals: Record<PayoutState, number> & {
-    outstandingUsd: number;
-    excludedUsd: number;
-  };
+  totals: PayoutTotals;
   providerSummaries: PayoutProviderSummary[];
   events: PublicPayoutEvent[];
   batches: PublicPayoutBatch[];
@@ -265,12 +281,7 @@ export async function createPayoutBatch(input: PayoutBatchRequestInput) {
 }
 
 export async function summarizePayouts(query: PayoutQuery = { limit: 100 }): Promise<PayoutSummary> {
-  const [events, batches] = await Promise.all([readPayoutEvents(), readPayoutBatches()]);
-  const filteredEvents = filterPayoutEvents(events, query);
-  const sortedEvents = filteredEvents.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-  const sortedBatches = filterPayoutBatches(batches, filteredEvents, query).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-  const lastUpdated = [sortedEvents.at(-1)?.createdAt, sortedBatches.at(-1)?.createdAt].filter(Boolean).sort().at(-1);
-  const totals = buildPayoutTotals(filteredEvents);
+  const { events, batches, filteredEvents, sortedEvents, sortedBatches, lastUpdated, totals } = await collectPayoutSummaryData(query);
 
   return {
     dataState: sourceStateSummary([...events.map((event) => event.sourceState), ...batches.map((batch) => batch.sourceState)]),
@@ -285,6 +296,37 @@ export async function summarizePayouts(query: PayoutQuery = { limit: 100 }): Pro
     batches: sortedBatches.slice(-10).reverse().map(toPublicPayoutBatch),
     warnings: events.length ? (filteredEvents.length ? [] : ["No payout events match the current filters."]) : ["No provider payout events yet. Successful selected-provider jobs create accrued payout events."]
   };
+}
+
+export async function summarizePublicPayouts(): Promise<PublicPayoutSummary> {
+  const { events, batches, lastUpdated, totals } = await collectPayoutSummaryData({ limit: 1 });
+
+  return {
+    dataState: sourceStateSummary([...events.map((event) => event.sourceState), ...batches.map((batch) => batch.sourceState)]),
+    lastUpdated: lastUpdated ?? new Date().toISOString(),
+    filters: {},
+    providerCount: null,
+    eventCount: null,
+    batchCount: null,
+    totals,
+    providerSummaries: [],
+    events: [],
+    batches: [],
+    warnings: [
+      events.length ? "Public payout proof is limited to aggregate totals. Detailed payout ledgers require admin access." : "No provider payout events yet. Successful selected-provider jobs create accrued payout events."
+    ]
+  };
+}
+
+async function collectPayoutSummaryData(query: PayoutQuery) {
+  const [events, batches] = await Promise.all([readPayoutEvents(), readPayoutBatches()]);
+  const filteredEvents = filterPayoutEvents(events, query);
+  const sortedEvents = filteredEvents.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  const sortedBatches = filterPayoutBatches(batches, filteredEvents, query).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  const lastUpdated = [sortedEvents.at(-1)?.createdAt, sortedBatches.at(-1)?.createdAt].filter(Boolean).sort().at(-1);
+  const totals = buildPayoutTotals(filteredEvents);
+
+  return { events, batches, filteredEvents, sortedEvents, sortedBatches, lastUpdated, totals };
 }
 
 function sourceStateSummary(states: DataState[]): DataState {

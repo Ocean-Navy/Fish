@@ -1000,7 +1000,9 @@ paths:
           description: Provider not found
   /api/proof/payouts:
     get:
-      summary: Public-safe provider payout accounting summary
+      summary: Admin-only provider payout accounting summary
+      security:
+        - adminToken: []
       parameters:
         - in: query
           name: provider
@@ -1049,6 +1051,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PayoutSummary'
+        '401':
+          description: Admin token required
     post:
       summary: Admin-only manual provider payout event
       security:
@@ -3891,6 +3895,65 @@ components:
               type: number
             excludedUsd:
               type: number
+    PublicPayoutSummary:
+      type: object
+      description: Public-safe payout proof exposes aggregate totals only. Per-provider events, batches, provider counts, receipt ids, timestamps, and payment status require the admin payout endpoints.
+      properties:
+        dataState:
+          type: string
+          enum: [live, snapshot, sample, unavailable]
+        lastUpdated:
+          type: string
+        filters:
+          type: object
+          additionalProperties: false
+        providerCount:
+          type: integer
+          nullable: true
+        eventCount:
+          type: integer
+          nullable: true
+        batchCount:
+          type: integer
+          nullable: true
+        totals:
+          type: object
+          properties:
+            accrued:
+              type: number
+            review:
+              type: number
+            approved:
+              type: number
+            paid:
+              type: number
+            disputed:
+              type: number
+            voided:
+              type: number
+            outstandingUsd:
+              type: number
+            excludedUsd:
+              type: number
+        providerSummaries:
+          type: array
+          maxItems: 0
+          items:
+            $ref: '#/components/schemas/PayoutProviderSummary'
+        events:
+          type: array
+          maxItems: 0
+          items:
+            $ref: '#/components/schemas/PayoutEvent'
+        batches:
+          type: array
+          maxItems: 0
+          items:
+            $ref: '#/components/schemas/PublicPayoutBatch'
+        warnings:
+          type: array
+          items:
+            type: string
     PayoutSummary:
       type: object
       properties:
@@ -4500,7 +4563,7 @@ components:
         receiptVerificationFailures:
           type: integer
         payouts:
-          $ref: '#/components/schemas/PayoutSummary'
+          $ref: '#/components/schemas/PublicPayoutSummary'
         capacitySettlements:
           $ref: '#/components/schemas/CapacitySettlementSummary'
         receipts:
