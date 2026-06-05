@@ -64,7 +64,7 @@ The private adapter scaffold lives at:
 deploy/ocean-workload-adapter/
 ```
 
-It defaults to dry-run mode, which returns a failed adapter result and cannot create a successful proof receipt. Live mode requires a proof wallet, Base RPC, selected `NODE_URL`, selected compute environment id, and an algorithm DID.
+It defaults to dry-run mode, which returns a failed adapter result and cannot create a successful proof receipt. Live mode requires a strong `OCEAN_WORKLOAD_ADAPTER_API_KEY`, a proof wallet, Base RPC, selected `NODE_URL`, selected compute environment id, and an algorithm DID. The private adapter rejects `/jobs` and `/config` requests unless they include `Authorization: Bearer <OCEAN_WORKLOAD_ADAPTER_API_KEY>`.
 
 The first prepared algorithm bundle is:
 

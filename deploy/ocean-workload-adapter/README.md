@@ -30,7 +30,9 @@ Fish API
 
 Dry-run mode never returns `status: "succeeded"`. Live mode only returns
 success after the Ocean CLI starts a job and `downloadJobResults` writes a
-non-empty result directory that can be hashed.
+non-empty result directory that can be hashed. `/jobs` and `/config` require
+`Authorization: Bearer <OCEAN_WORKLOAD_ADAPTER_API_KEY>`; live readiness fails
+unless that key is a non-placeholder secret with at least 32 characters.
 
 ## Setup
 
@@ -43,6 +45,7 @@ cp deploy/ocean-workload-adapter/env.example .env.ocean-proof.local
 Fill in:
 
 ```text
+OCEAN_WORKLOAD_ADAPTER_API_KEY (unique secret, at least 32 characters)
 PRIVATE_KEY or MNEMONIC
 RPC
 NODE_URL
@@ -112,11 +115,14 @@ The script prints the `FISH_OCEAN_ALGO_DID` value for `.env.ocean-proof.local`.
 
 ## Run Locally
 
-Dry-run, no secrets:
+Dry-run, no wallet secrets:
 
 ```bash
-node deploy/ocean-workload-adapter/server.mjs
+export OCEAN_WORKLOAD_ADAPTER_API_KEY="$(openssl rand -hex 32)"
+node deploy/ocean-workload-adapter/server.mjs &
+adapter_pid=$!
 scripts/smoke-ocean-workload-adapter.sh
+kill "$adapter_pid"
 ```
 
 Live:

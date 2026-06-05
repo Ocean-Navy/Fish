@@ -55,6 +55,7 @@ The readiness response checks whether the private adapter is configured, reachab
 To run an actual Ocean compute job through the official Ocean CLI path, the operator needs:
 
 ```text
+OCEAN_WORKLOAD_ADAPTER_API_KEY (unique secret, at least 32 characters)
 PRIVATE_KEY or MNEMONIC
 RPC
 NODE_URL
@@ -69,6 +70,7 @@ optional output storage JSON
 For free compute, the operator still needs:
 
 ```text
+OCEAN_WORKLOAD_ADAPTER_API_KEY (unique secret, at least 32 characters)
 PRIVATE_KEY or MNEMONIC
 RPC
 NODE_URL
@@ -110,6 +112,8 @@ GET /healthz
 GET /config
 POST /jobs
 ```
+
+`GET /config` and `POST /jobs` require `Authorization: Bearer <OCEAN_WORKLOAD_ADAPTER_API_KEY>`. The adapter rejects those requests when the key is missing or left at a known placeholder, and live readiness requires a unique API key with at least 32 characters.
 
 Dry-run mode is the default and never returns a successful proof. Live mode shells out to the official Ocean CLI checkout, starts the selected compute job, downloads job results, hashes the result directory, and returns the hash as `outputRef`.
 
