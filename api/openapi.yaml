@@ -528,6 +528,7 @@ paths:
   /api/providers/pilot:
     get:
       summary: Public-safe provider pilot registry and selected allowlist
+      description: Returns redacted public provider labels, readiness booleans, counts, and routing constraints without source application ids, endpoint hashes, endpoint URLs, operator owners, or operator decision reasons.
       parameters:
         - in: query
           name: providerId
@@ -2695,14 +2696,6 @@ components:
           type: string
         displayName:
           type: string
-        sourceApplicationId:
-          type: string
-          nullable: true
-        nodeEndpointHash:
-          type: string
-          nullable: true
-        healthEndpointReady:
-          type: boolean
         region:
           type: string
         gpuTypes:
@@ -2770,8 +2763,6 @@ components:
           type: number
         benchmarkRequired:
           type: boolean
-        healthEndpointReady:
-          type: boolean
         priceShared:
           type: boolean
         payoutReady:
@@ -2782,10 +2773,6 @@ components:
           type: integer
         supportReady:
           type: boolean
-        operatorOwner:
-          type: string
-        decisionReason:
-          type: string
         startsAt:
           type: string
         expiresAt:

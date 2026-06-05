@@ -523,7 +523,7 @@ Public-safe registry data is available at:
 /api/providers/pilot
 ```
 
-The endpoint hides contacts, exact endpoints, private payout preferences, and operator notes. It exposes only public labels, status, capacity summary, allowlist constraints, and a Fish-ready checklist. Provider applications can include optional health endpoint, price hint, payout readiness, ops contact, approved runner/container, and no prompt/output logging policy fields. Public responses keep exact values private and use booleans, counts, and non-sensitive identifiers instead; private health endpoints are represented only as readiness status, never as endpoint URLs or endpoint hashes.
+The endpoint hides contacts, exact endpoints, private payout preferences, and operator notes. It exposes only public labels, status, capacity summary, allowlist constraints, and a Fish-ready checklist. Provider applications can include optional health endpoint, price hint, payout readiness, ops contact, approved runner/container, and no prompt/output logging policy fields. Public responses keep exact values private and use generic labels, booleans, or counts instead; endpoint hashes, source application ids, operator owners, and operator decision reasons stay in admin-only/operator paths.
 
 Admin-only operator export is available at:
 
