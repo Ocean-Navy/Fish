@@ -49,7 +49,8 @@
             "url": "__FISH_ALGORITHM_FILE_URL__",
             "contentType": "text/x-python",
             "encoding": "UTF-8",
-            "method": "GET"
+            "method": "GET",
+            "checksum": "__FISH_ALGORITHM_FILE_SHA256__"
           }
         ]
       },
