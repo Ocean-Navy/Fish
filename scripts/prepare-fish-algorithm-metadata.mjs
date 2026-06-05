@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import process from "node:process";
 
-const repoRoot = process.cwd();
+const scriptDir = path.dirname(fileURLToPath(import.meta.url));
+const repoRoot = path.resolve(scriptDir, "..");
 const defaultTemplate = path.join(
   repoRoot,
   "deploy/ocean-workload-adapter/algorithms/fish-document-summary/ocean-algorithm-metadata.template.json"
