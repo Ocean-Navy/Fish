@@ -33,7 +33,7 @@ Request shape:
 
 Fish checks `maxCostUsd` against the remaining `FISH_OCEAN_BATCH_DAILY_BUDGET_USD` before calling a private adapter. The default daily cap is `$30`.
 
-`/v1/chat/completions` and `/api/dishes/:dishId/run` generate a hash-only `inputRef`, use this batch contract, and return an OpenAI-style response with batch receipt metadata for Ocean batch dishes.
+`/v1/chat/completions` and `/api/dishes/:dishId/run` generate a hash-only `inputRef`, use this batch contract, and return an OpenAI-style response with batch receipt metadata for Ocean batch dishes. These chat and dish entry points must require an authenticated Fish API key on an Ocean-provider-allowed plan before dispatching to sample or private Ocean batch adapters; guest meal-counter credits are not allowed to start batch jobs.
 
 Current dish mapping:
 

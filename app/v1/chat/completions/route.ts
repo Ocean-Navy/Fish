@@ -33,7 +33,8 @@ export async function POST(request: Request) {
     account: auth.account,
     principalId: `key:${auth.account.id}`,
     dailyQuotaLimit: routerConfig.guardrails.dailyKeyedQuota,
-    allowExternalFallback: true
+    allowExternalFallback: true,
+    authenticatedApiKey: true
   });
 
   if (wantsStream && result.ok) {

@@ -42,6 +42,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ dis
     );
   }
 
+  if (dish.oceanBatch && !hasBearerToken(request)) {
+    return NextResponse.json(
+      {
+        error: {
+          message: "missing_bearer_token",
+          type: "authentication_error",
+          dishId: dish.id,
+          route: "ocean-batch"
+        }
+      },
+      { status: 401 }
+    );
+  }
+
   const routerConfig = getFishRouterConfig();
   const routeLabel = routerConfig.routes[routerConfig.activeRouteId].publicLabel;
   const chatInput = buildFishDishChatInput(
@@ -68,7 +82,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ dis
     account: context.account,
     principalId: context.principalId,
     dailyQuotaLimit: context.dailyQuotaLimit,
-    allowExternalFallback: context.allowExternalFallback
+    allowExternalFallback: context.allowExternalFallback,
+    authenticatedApiKey: context.authenticatedApiKey
   });
 
   if (wantsStream && result.ok) {
@@ -91,6 +106,7 @@ async function resolveGatewayContext(request: Request, routerConfig: ReturnType<
       principalId: `key:${auth.account.id}`,
       dailyQuotaLimit: routerConfig.guardrails.dailyKeyedQuota,
       allowExternalFallback: true,
+      authenticatedApiKey: true,
       accessMode: "key" as const
     };
   }
@@ -104,6 +120,7 @@ async function resolveGatewayContext(request: Request, routerConfig: ReturnType<
     principalId: guestIdentity.principalId,
     dailyQuotaLimit: routerConfig.guardrails.dailyAnonymousQuota,
     allowExternalFallback: false,
+    authenticatedApiKey: false,
     accessMode: "guest" as const
   };
 }

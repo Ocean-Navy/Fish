@@ -29,7 +29,8 @@ export async function POST(request: Request) {
     account: guest.account,
     principalId: guestIdentity.principalId,
     dailyQuotaLimit: routerConfig.guardrails.dailyAnonymousQuota,
-    allowExternalFallback: false
+    allowExternalFallback: false,
+    authenticatedApiKey: false
   });
 
   return NextResponse.json(result.body, { status: result.ok ? 200 : result.status });

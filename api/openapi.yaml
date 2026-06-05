@@ -234,7 +234,7 @@ paths:
   /api/dishes/{dishId}/run:
     post:
       summary: Run a Fish AI menu dish
-      description: Runs a menu dish such as ask, code, docs, repo, eval, data, proposal, or ocean with server-side prompts. Batch dishes return public-safe ticket metadata. Uses a shared anonymous guest credit/quota bucket when no bearer key is provided and Fish API-key credits when authorization is present.
+      description: Runs a menu dish such as ask, code, docs, repo, eval, data, proposal, or ocean with server-side prompts. Non-batch dishes use a shared anonymous guest credit/quota bucket when no bearer key is provided and Fish API-key credits when authorization is present. Ocean batch dishes return public-safe ticket metadata and require a bearer Fish API key on an Ocean-provider-allowed plan.
       parameters:
         - in: path
           name: dishId
@@ -258,7 +258,7 @@ paths:
         '400':
           description: Invalid dish request
         '401':
-          description: Invalid bearer key when one is supplied
+          description: Missing or invalid bearer key for authenticated-only dish runs
         '402':
           description: Insufficient Fish Credits
         '404':

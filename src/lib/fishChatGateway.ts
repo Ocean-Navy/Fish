@@ -34,6 +34,7 @@ export type FishChatGatewayContext = {
   principalId: string;
   dailyQuotaLimit: number;
   allowExternalFallback: boolean;
+  authenticatedApiKey: boolean;
 };
 
 export type FishChatGatewayResult =
@@ -134,6 +135,20 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
       feature: featurePolicy.id,
       limit: featurePolicy.maxOutputTokens,
       requested: requestedMaxOutputTokens
+    });
+  }
+
+  if (batchFeature && !context.authenticatedApiKey) {
+    return jsonError(401, "missing_bearer_token", "authentication_error", {
+      feature: featurePolicy.id,
+      route: "ocean-batch"
+    });
+  }
+
+  if (batchFeature && !canUseOceanProviderRoute(context)) {
+    return jsonError(403, "ocean_provider_not_allowed_for_plan", "routing_policy_error", {
+      feature: featurePolicy.id,
+      route: "ocean-batch"
     });
   }
 
