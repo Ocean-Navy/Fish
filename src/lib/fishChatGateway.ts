@@ -176,18 +176,34 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
     if (!batchPrivacy?.ok) {
       return jsonError(500, "batch_privacy_state_missing", "privacy_error");
     }
-    return runBatchChatGateway({
-      input,
-      context,
-      promptText,
-      promptTokens,
-      maxOutputTokens: requestedMaxOutputTokens,
-      featureLabel: featurePolicy.label,
-      batchFeature,
-      monthlyRequests,
-      rateLimit,
-      privacy: batchPrivacy.privacy
-    });
+
+    const batchRoute: FishChatRouteId = "ocean-provider";
+    const concurrencySlot = tryAcquireFishConcurrencySlot(batchRoute, routerConfig.guardrails.maxConcurrentRequests);
+    if (!concurrencySlot.ok) {
+      return jsonError(429, "max_concurrent_requests_exceeded", "concurrency_error", {
+        route: batchRoute,
+        activeRequests: concurrencySlot.activeRequests,
+        activeForRoute: concurrencySlot.activeForRoute,
+        limit: concurrencySlot.limit
+      });
+    }
+
+    try {
+      return await runBatchChatGateway({
+        input,
+        context,
+        promptText,
+        promptTokens,
+        maxOutputTokens: requestedMaxOutputTokens,
+        featureLabel: featurePolicy.label,
+        batchFeature,
+        monthlyRequests,
+        rateLimit,
+        privacy: batchPrivacy.privacy
+      });
+    } finally {
+      concurrencySlot.release();
+    }
   }
 
   if (activeRoute.id === "ocean-provider" && !canUseOceanProviderRoute(context)) {
