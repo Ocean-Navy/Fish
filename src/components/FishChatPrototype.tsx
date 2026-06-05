@@ -3,14 +3,22 @@
 import { Fish, KeyRound, Loader2, MessageSquareText, Send, Trash2, Waves } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
-const THREAD_STORAGE_KEY = "fish-chat-thread-v1";
+const LEGACY_THREAD_STORAGE_KEY = "fish-chat-thread-v1";
+const LEGACY_REMEMBER_STORAGE_KEY = "fish-chat-remember-v1";
+const THREAD_STORAGE_KEY = "fish-chat-thread-v2";
 const MODEL_STORAGE_KEY = "fish-chat-model-v1";
-const REMEMBER_STORAGE_KEY = "fish-chat-remember-v1";
+const REMEMBER_STORAGE_KEY = "fish-chat-remember-v2";
+const THREAD_STORAGE_TTL_MS = 24 * 60 * 60 * 1000;
 
 type FishModel = {
   id: string;
   owned_by?: string;
   description?: string;
+};
+
+type StoredThread = {
+  expiresAt: number;
+  messages: ChatBubble[];
 };
 
 type ChatBubble = {
@@ -40,13 +48,13 @@ function getErrorMessage(payload: unknown) {
 
 function readStoredRememberThread() {
   if (typeof window === "undefined") {
-    return true;
+    return false;
   }
   try {
     const storedRemember = window.localStorage.getItem(REMEMBER_STORAGE_KEY);
-    return storedRemember === null ? true : storedRemember === "true";
+    return storedRemember === "true";
   } catch {
-    return true;
+    return false;
   }
 }
 
@@ -61,6 +69,16 @@ function readStoredModel() {
   }
 }
 
+function removeStoredThread() {
+  try {
+    window.localStorage.removeItem(THREAD_STORAGE_KEY);
+    window.localStorage.removeItem(LEGACY_THREAD_STORAGE_KEY);
+    window.localStorage.removeItem(LEGACY_REMEMBER_STORAGE_KEY);
+  } catch {
+    // Local storage can be unavailable in strict browser modes.
+  }
+}
+
 function readStoredThread() {
   if (typeof window === "undefined" || !readStoredRememberThread()) {
     return [];
@@ -70,9 +88,14 @@ function readStoredThread() {
     if (!storedThread) {
       return [];
     }
-    const parsed = JSON.parse(storedThread);
-    return Array.isArray(parsed) ? parsed.slice(-20) : [];
+    const parsed = JSON.parse(storedThread) as Partial<StoredThread>;
+    if (!Array.isArray(parsed.messages) || typeof parsed.expiresAt !== "number" || parsed.expiresAt <= Date.now()) {
+      removeStoredThread();
+      return [];
+    }
+    return parsed.messages.slice(-20);
   } catch {
+    removeStoredThread();
     return [];
   }
 }
@@ -102,12 +125,18 @@ export function FishChatPrototype() {
 
   useEffect(() => {
     try {
+      window.localStorage.removeItem(LEGACY_THREAD_STORAGE_KEY);
+      window.localStorage.removeItem(LEGACY_REMEMBER_STORAGE_KEY);
       window.localStorage.setItem(REMEMBER_STORAGE_KEY, String(rememberThread));
       window.localStorage.setItem(MODEL_STORAGE_KEY, selectedModel);
       if (rememberThread) {
-        window.localStorage.setItem(THREAD_STORAGE_KEY, JSON.stringify(thread.slice(-20)));
+        const storedThread: StoredThread = {
+          expiresAt: Date.now() + THREAD_STORAGE_TTL_MS,
+          messages: thread.slice(-20)
+        };
+        window.localStorage.setItem(THREAD_STORAGE_KEY, JSON.stringify(storedThread));
       } else {
-        window.localStorage.removeItem(THREAD_STORAGE_KEY);
+        removeStoredThread();
       }
     } catch {
       // Local storage can be unavailable in strict browser modes.
@@ -181,7 +210,7 @@ export function FishChatPrototype() {
     setThread([]);
     setError(null);
     try {
-      window.localStorage.removeItem(THREAD_STORAGE_KEY);
+      removeStoredThread();
     } catch {
       // Ignore storage cleanup failures.
     }
@@ -242,8 +271,11 @@ export function FishChatPrototype() {
             onChange={(event) => setRememberThread(event.target.checked)}
             className="h-5 w-5 accent-fish-accent"
           />
-          Remember this chat here
+          Remember this chat on this browser for 24 hours
         </label>
+        <p className="mt-2 text-xs font-bold leading-5 text-fish-secondary">
+          Off by default. If enabled, this browser stores the visible thread temporarily; never use it on a shared device.
+        </p>
 
         <label className="mt-5 block text-sm font-black text-fish-primary" htmlFor="fish-chat-prompt">
           Ask Fish
