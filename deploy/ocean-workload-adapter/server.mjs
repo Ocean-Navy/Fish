@@ -406,6 +406,7 @@ function readAdapterConfig() {
     if (!computeEnvId) missing.push("FISH_OCEAN_COMPUTE_ENV_ID");
     if (!cliBin && !oceanCliDir) missing.push("OCEAN_CLI_DIR or FISH_OCEAN_CLI_BIN");
     if (!cliBin && oceanCliDir && !existsSync(oceanCliDir)) missing.push("existing OCEAN_CLI_DIR");
+    if (!cliBin && oceanCliDir && existsSync(oceanCliDir) && !existsSync(path.join(oceanCliDir, "package.json"))) missing.push("valid OCEAN_CLI_DIR with package.json");
     if (!freeCompute && (!paymentToken || !resources)) missing.push("FISH_OCEAN_PAYMENT_TOKEN and FISH_OCEAN_RESOURCES");
   }
   if (freeCompute && paymentToken) {

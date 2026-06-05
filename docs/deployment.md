@@ -359,6 +359,60 @@ The deploy script creates test OCEAN/test USDC when token addresses are not supp
 
 Warm inference operations are covered in `docs/warm-inference-runbook.md`. The MVP path is a private vLLM endpoint, ideally behind Fish Runner, on a GPU host that may also run Ocean Node for provider identity and anchoring. Keep the warm route on mock until the private endpoint is ready, then switch `FISH_CHAT_ROUTE=ocean-demo-vllm` for the demo lane or `FISH_CHAT_ROUTE=ocean-provider` for selected provider testing. Check `/routing`, `/api/routing/policy`, and `/api/warm/status` after changing routes.
 
+## GPU Ocean Demo Stack
+
+For public testnet demos, keep the web VM small and run the GPU/Ocean side on a separate dedicated VM:
+
+```bash
+cp deploy/ocean-demo-stack/env.example .env.ocean-demo-stack
+node scripts/generate-ocean-node-compute-env.mjs --env
+make ocean-demo-config FISH_OCEAN_DEMO_ENV=.env.ocean-demo-stack
+make ocean-demo-up FISH_OCEAN_DEMO_ENV=.env.ocean-demo-stack
+```
+
+Use the warm profile when the same GPU VM should run vLLM and Fish Runner:
+
+```bash
+make ocean-demo-up-warm FISH_OCEAN_DEMO_ENV=.env.ocean-demo-stack
+```
+
+The stack includes Ocean Node, Typesense, the private Ocean workload adapter, optional vLLM, and optional Fish Runner. It is intended to prove that test dishes can run through an Ocean Node operated by Ocean Navy without paying third-party Oncompute providers during early testing. It should not be described as proof of paid third-party Oncompute demand.
+
+Keep these private by default:
+
+```text
+OCEAN_NODE_HTTP_BIND=127.0.0.1
+OCEAN_WORKLOAD_ADAPTER_BIND=127.0.0.1
+FISH_VLLM_BIND=127.0.0.1
+FISH_RUNNER_BIND=127.0.0.1
+```
+
+Expose Fish Runner and the adapter only through a private network, WireGuard, SSH tunnel, cloud private IP, or nginx allowlist. Never expose raw vLLM publicly. Ocean Node mounts the Docker socket for compute execution, so this stack belongs on a dedicated VM with conservative free-job caps.
+
+After the stack is running:
+
+```bash
+scripts/smoke-ocean-demo-stack.sh .env.ocean-demo-stack
+```
+
+Then point the public web VM at the private GPU stack:
+
+```text
+FISH_OCEAN_BATCH_ENDPOINT=http://<private-gpu-vm-host>:8787/jobs
+FISH_OCEAN_BATCH_API_KEY=<OCEAN_WORKLOAD_ADAPTER_API_KEY>
+FISH_OCEAN_BATCH_PROVIDER_ID=ocean-navy-demo-node
+FISH_OCEAN_BATCH_DAILY_BUDGET_USD=5
+
+FISH_CHAT_ROUTE=ocean-first
+FISH_OCEAN_DEMO_VLLM_BASE_URL=http://<private-gpu-vm-host>:8088/v1
+FISH_OCEAN_DEMO_VLLM_API_KEY=<FISH_RUNNER_API_KEY>
+FISH_OCEAN_DEMO_VLLM_MODEL=fish-warm-chat
+FISH_OCEAN_DEMO_PROVIDER_ID=ocean-navy-demo-node
+FISH_OCEAN_DEMO_DAILY_BUDGET_USD=<small cap>
+```
+
+See `deploy/ocean-demo-stack/README.md` for the full runbook.
+
 ## Contract Testnet Operations
 
 Use Node 22 for the deploy helper. Deploy the prototype contracts to Base Sepolia only:

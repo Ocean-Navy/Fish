@@ -186,6 +186,23 @@ Use `make preview-down` to stop it.
 
 For tiny VMs, use the no-Docker systemd/nginx path in `docs/deployment.md`.
 
+### GPU Ocean Demo Stack
+
+The public web VM can stay small. Run Ocean Node, the Ocean workload adapter, vLLM, and Fish Runner on a separate GPU VM:
+
+```bash
+cp deploy/ocean-demo-stack/env.example .env.ocean-demo-stack
+node scripts/generate-ocean-node-compute-env.mjs --env
+make ocean-demo-config FISH_OCEAN_DEMO_ENV=.env.ocean-demo-stack
+make ocean-demo-up FISH_OCEAN_DEMO_ENV=.env.ocean-demo-stack
+```
+
+Add `--profile warm` through `make ocean-demo-up-warm` when the GPU host should also run vLLM and Fish Runner.
+
+This stack is for a testnet/free-compute demo using our own Ocean Node. It can prove that Fish dishes run through an Ocean Node we operate; it does not prove paid third-party Oncompute demand. Keep raw vLLM and the workload adapter private, and point the web VM only at the Fish Runner `/v1` surface plus the adapter `/jobs` endpoint over a private network.
+
+See `deploy/ocean-demo-stack/README.md`.
+
 ### Signup Access
 
 The homepage form writes one JSON file per signup to the persistent Docker volume mounted at:
@@ -353,7 +370,7 @@ curl -sS http://127.0.0.1:3000/api/warm/status
 
 Use `/routing` for the human-friendly route view and `/dashboard` for warm demo readiness. Both must label mock, external fallback, selected warm demo work, and later selected Ocean provider work differently.
 
-For the warm inference MVP, see `docs/warm-inference-runbook.md` and `docs/vllm-oncompute-runner-profiles.md`. The practical first deployment is a GPU host with vLLM kept warm behind Fish Gateway or Fish Runner, optionally next to Ocean Node for provider identity and anchoring. Keep the vLLM endpoint private, cap usage, and do not claim Ocean-native live chat until selected-provider routing and proof labels support that claim.
+For the warm inference MVP, see `docs/warm-inference-runbook.md`, `docs/vllm-oncompute-runner-profiles.md`, and `deploy/ocean-demo-stack/README.md`. The practical first deployment is a GPU host with vLLM kept warm behind Fish Gateway or Fish Runner, next to an Ocean Node and private Ocean workload adapter for test dishes. Keep the vLLM endpoint private, cap usage, and do not claim paid third-party Oncompute demand until selected-provider routing and proof labels support that claim.
 
 Create a pilot key:
 
@@ -712,7 +729,7 @@ Batch dishes sent through `/v1/chat/completions` or `/api/dishes/:dishId/run` us
 
 Per-dish runtime and cost caps can be set with `FISH_DOCS_BATCH_MAX_RUNTIME_SECONDS`, `FISH_DOCS_BATCH_MAX_COST_USD`, `FISH_REPO_BATCH_MAX_RUNTIME_SECONDS`, `FISH_REPO_BATCH_MAX_COST_USD`, `FISH_EVAL_BATCH_MAX_RUNTIME_SECONDS`, `FISH_EVAL_BATCH_MAX_COST_USD`, `FISH_DATA_BATCH_MAX_RUNTIME_SECONDS`, and `FISH_DATA_BATCH_MAX_COST_USD`.
 
-Batch receipts are written under `data/ocean-batch/`, and successful jobs also write Fish usage receipts so the public dashboard can count them as Ocean-native usage. See `docs/ocean-batch-jobs-plan.md` for the adapter contract.
+Batch receipts are written under `data/ocean-batch/`, and successful jobs also write Fish usage receipts so the public dashboard can count them as Ocean-backed usage. For public testing without external Oncompute payments, run the GPU-side Ocean demo stack and use free compute on our own Ocean Node. See `docs/ocean-batch-jobs-plan.md` for the adapter contract.
 
 `/api/ocean/batch/readiness` and `/proof` show whether the private adapter is configured, reachable, live-ready, and backed by at least one successful non-sample Ocean batch receipt. The readiness response exposes booleans and blockers only; it does not expose adapter URLs, wallet secrets, API keys, prompt text, or output text.
 
@@ -730,6 +747,7 @@ data/node_endpoints.txt      Optional direct provider endpoints
 data/provider_allowlist.example.json Provider allowlist template
 docs/                        Implementation and visual identity notes
 deploy/warm-inference/       Private vLLM and Fish Runner deployment examples
+deploy/ocean-demo-stack/     GPU VM Ocean Node, workload adapter, vLLM, and runner stack
 legacy/static-prototype/     Original static prototype
 Dockerfile                   Production standalone Next.js image
 docker-compose.yml           Production-like local service

@@ -106,6 +106,15 @@ deploy/warm-inference/env.qwen3-14b-l40s.example
 deploy/warm-inference/env.qwen3-8b-fp8-16gb.example
 ```
 
+For the combined Ocean Node + workload adapter + warm runner stack, prefer:
+
+```text
+deploy/ocean-demo-stack/docker-compose.yml
+deploy/ocean-demo-stack/env.example
+```
+
+That stack is the current public-testnet target because it runs the Ocean Node and Fish workload adapter beside vLLM on the same GPU VM.
+
 Do not commit this file.
 
 To create an Ed25519 runner signing key for the env file, generate it on the operator machine and store the escaped private key as `FISH_RUNNER_SIGNING_PRIVATE_KEY_PEM`:
@@ -193,19 +202,27 @@ Set `FISH_RUNNER_SMOKE_CHAT=1` on the smoke command only after vLLM is warm. Wit
 
 When Runner is not deployed, treat a direct Gateway-to-vLLM route as a controlled demo backend, not the final provider contract.
 
-## Optional Ocean Node Sidecar
+## Ocean Node Demo Stack
 
-Run Ocean Node on the same machine only for provider identity, anchoring, and operational alignment unless a low-latency warm endpoint pattern is proven for Ocean / Oncompute.
+For the public testnet path, run Ocean Node on the same GPU VM as Fish Runner and the workload adapter:
 
-For the MVP:
+```bash
+cp deploy/ocean-demo-stack/env.example .env.ocean-demo-stack
+node scripts/generate-ocean-node-compute-env.mjs --env
+make ocean-demo-up-warm FISH_OCEAN_DEMO_ENV=.env.ocean-demo-stack
+scripts/smoke-ocean-demo-stack.sh .env.ocean-demo-stack
+```
 
-- Ocean Node may identify the provider host and support future provider discovery.
-- vLLM remains the low-latency model server.
-- Fish Runner or Fish Gateway remains the only caller of vLLM.
-- Do not route every interactive message through a fresh compute-to-data job.
-- Do not advertise "Ocean-native live chat" until a selected Ocean provider route actually serves traffic and proof labels reflect that.
+For this MVP:
 
-Keep Ocean Node ports and admin surfaces private or explicitly documented by the Ocean operator guide in use. The Fish repo does not currently carry an authoritative Ocean Node deployment template.
+- Ocean Node handles free test compute dishes through the private workload adapter.
+- vLLM remains the low-latency warm chat server.
+- Fish Runner is the only OpenAI-compatible surface the public web VM should call.
+- The workload adapter is the only Fish service that should call Ocean CLI / Ocean Node for dishes.
+- Do not route every interactive chat message through a fresh compute-to-data job.
+- Do not advertise paid third-party Oncompute demand until selected external providers actually serve traffic.
+
+Keep Ocean Node HTTP, adapter, vLLM, and Fish Runner bound to localhost or a private interface unless an operator intentionally opens them through a private network, WireGuard, SSH tunnel, or nginx allowlist. Ocean Node mounts the Docker socket for compute execution, so use a dedicated host with conservative free-job caps.
 
 ## Fish Gateway Configuration
 

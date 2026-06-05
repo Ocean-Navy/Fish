@@ -110,3 +110,28 @@ Fish rejects successful adapter responses that exceed `maxCostUsd`, exceed token
 ## Current Limit
 
 This is not live Ocean execution by itself. It is the product/API contract needed before connecting a real Oncompute/Ocean batch job runner.
+
+## Public Testnet Demo Stack
+
+For the first public testnet demo, Fish can avoid paid third-party Oncompute jobs by running its own Ocean Node on the GPU VM:
+
+```text
+Fish web VM
+  -> FISH_OCEAN_BATCH_ENDPOINT
+  -> private Ocean workload adapter
+  -> Ocean CLI
+  -> Ocean Node on the GPU VM
+  -> free test compute environment
+  -> outputRef / outputHash
+```
+
+Use:
+
+```text
+deploy/ocean-demo-stack/docker-compose.yml
+deploy/ocean-demo-stack/env.example
+scripts/generate-ocean-node-compute-env.mjs
+scripts/smoke-ocean-demo-stack.sh
+```
+
+This can prove that Fish dishes run through an Ocean Node operated by Ocean Navy. It should not be described as paid third-party Oncompute demand. Keep `sourceState` labels conservative until receipt verification and proof evidence are strong enough to upgrade the label.

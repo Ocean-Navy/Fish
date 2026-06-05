@@ -113,7 +113,19 @@ POST /jobs
 
 Dry-run mode is the default and never returns a successful proof. Live mode shells out to the official Ocean CLI checkout, starts the selected compute job, downloads job results, hashes the result directory, and returns the hash as `outputRef`.
 
-Use the public Oncompute environment discovery helper to select the node URL and compute environment id:
+For the public testnet route, run our own Ocean Node on the GPU VM first:
+
+```text
+deploy/ocean-demo-stack/
+```
+
+This avoids paid third-party Oncompute jobs while still proving that Fish can submit a dish through an Ocean Node path. After the Ocean Node is running, use its local compute environments endpoint to copy the environment id:
+
+```bash
+curl -fsS http://127.0.0.1:8000/api/services/computeEnvironments | jq
+```
+
+For external Oncompute nodes later, use the public Oncompute environment discovery helper to select the node URL and compute environment id:
 
 ```bash
 node scripts/discover-oncompute-envs.mjs --chain 8453 --free --limit 10
