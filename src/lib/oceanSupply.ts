@@ -38,6 +38,10 @@ type NodeMetadata = {
 
 const nowIso = () => new Date().toISOString();
 
+function shortHash(value: string): string {
+  return createHash("sha256").update(value).digest("hex").slice(0, 12);
+}
+
 function isRecord(value: unknown): value is JsonRecord {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -77,10 +81,6 @@ function pickString(row: JsonRecord, keys: string[], fallback = ""): string {
 
 function toSourceResult(name: string, state: DataState, message: string, url?: string): SourceResult {
   return { name, state, message, url };
-}
-
-function shortHash(value: string): string {
-  return createHash("sha256").update(value).digest("hex").slice(0, 12);
 }
 
 function directNodePublicId(endpoint: string): string {
