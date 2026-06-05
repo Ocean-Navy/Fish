@@ -205,7 +205,8 @@ export async function resolveProviderJobEndpoint(providerId: string) {
   }
 
   const [submissions, allowlistCandidates] = await Promise.all([readProviderSubmissions(), readAllowlistCandidates()]);
-  const providers = submissions.map((submission) => buildProviderProfile(submission));
+  const submissionProviders = submissions.map((submission) => buildProviderProfile(submission));
+  const providers = [...submissionProviders, ...buildAllowlistOnlyProfiles(submissionProviders, allowlistCandidates)];
   for (const candidate of allowlistCandidates) {
     const provider = findCandidateProvider(providers, candidate);
     if (provider?.providerId === providerId && candidate.jobEndpoint?.trim()) {
