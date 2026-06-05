@@ -51,6 +51,10 @@ type FishRoutePolicySummary = {
   guardrails?: {
     maxOutputTokens: number;
   };
+  features?: Array<{
+    id: string;
+    maxOutputTokens: number;
+  }>;
 };
 
 type DishResult = {
@@ -154,8 +158,9 @@ export function FishMealCounter() {
 
   const activeDish = useMemo(() => dishes.find((dish) => dish.id === activeDishId) ?? dishes[0], [activeDishId]);
   const ActiveIcon = activeDish.icon;
-  const maxOutputTokens = routePolicy?.guardrails?.maxOutputTokens ?? 512;
-  const orderMaxTokens = Math.min(activeDish.maxTokens, maxOutputTokens);
+  const globalMaxOutputTokens = routePolicy?.guardrails?.maxOutputTokens ?? 512;
+  const featureMaxOutputTokens = routePolicy?.features?.find((feature) => feature.id === activeDish.id)?.maxOutputTokens ?? globalMaxOutputTokens;
+  const orderMaxTokens = Math.min(activeDish.maxTokens, globalMaxOutputTokens, featureMaxOutputTokens);
   const currentRouteLabel = routePolicy?.activeRoute?.label ? formatRouteLabel(routePolicy.activeRoute.label) : activeDish.routeLabel;
 
   useEffect(() => {

@@ -5,6 +5,7 @@ import { streamChatCompletion } from "@/lib/chatCompletionStream";
 import { buildFishDishChatInput, getFishDish } from "@/lib/fishDishes";
 import { authenticateRequest, getOrCreateGuestAccount } from "@/lib/fishLedger";
 import { runFishChatGateway } from "@/lib/fishChatGateway";
+import { getFishFeaturePolicy } from "@/lib/fishFeaturePolicy";
 import { getFishRouterConfig } from "@/lib/fishRouter";
 
 export const dynamic = "force-dynamic";
@@ -44,6 +45,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ dis
 
   const routerConfig = getFishRouterConfig();
   const routeLabel = routerConfig.routes[routerConfig.activeRouteId].publicLabel;
+  const featurePolicy = getFishFeaturePolicy({ fish_feature: dish.id }, routerConfig, dish.modelAlias);
   const chatInput = buildFishDishChatInput(
     dish,
     {
@@ -55,7 +57,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ dis
       metadata: parsed.data.metadata
     },
     routeLabel,
-    routerConfig.guardrails.maxOutputTokens
+    featurePolicy.maxOutputTokens
   );
   const context = await resolveGatewayContext(request, routerConfig);
   if (!context.ok) {
