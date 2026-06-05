@@ -1,6 +1,7 @@
 import type { ChatCompletionInput } from "@/lib/fishLedger";
 
 const DEFAULT_EXTERNAL_PROVIDER_ID = "external-compatible";
+export const DEFAULT_EXTERNAL_CHAT_MAX_TOKENS = 1024;
 
 type ExternalChatConfig = {
   backend: "mock" | "external";
@@ -53,6 +54,7 @@ export async function runExternalChat(input: ChatCompletionInput, fallbackTokenE
   }
 
   const endpoint = `${config.baseUrl!.replace(/\/+$/, "")}/chat/completions`;
+  const maxTokens = input.max_tokens ?? DEFAULT_EXTERNAL_CHAT_MAX_TOKENS;
   const upstream = await fetch(endpoint, {
     method: "POST",
     headers: {
@@ -63,8 +65,8 @@ export async function runExternalChat(input: ChatCompletionInput, fallbackTokenE
       model: config.model ?? input.model,
       messages: input.messages,
       stream: false,
-      ...(input.temperature === undefined ? {} : { temperature: input.temperature }),
-      ...(input.max_tokens === undefined ? {} : { max_tokens: input.max_tokens })
+      max_tokens: maxTokens,
+      ...(input.temperature === undefined ? {} : { temperature: input.temperature })
     })
   });
 
