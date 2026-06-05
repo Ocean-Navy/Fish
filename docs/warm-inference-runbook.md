@@ -132,7 +132,7 @@ For more than one selected runner, use either `FISH_RUNNER_PUBLIC_KEYS_JSON`:
 ]
 ```
 
-or point `FISH_RUNNER_PUBLIC_KEYS_PATH` at a JSON file with that shape. Keep the private key out of git. Without a trusted public key, Fish can record that a runner signature was present, but it will not mark the receipt as verified.
+or point `FISH_RUNNER_PUBLIC_KEYS_PATH` at a JSON file with that shape. Keep the private key out of git. Without a trusted public key, Fish records the receipt with `signatureState: "invalid"` and `signatureError: "trusted_runner_public_key_not_configured"`; public proof counters only include receipts that verify against a configured trusted Ed25519 public key.
 
 ## vLLM Launch
 

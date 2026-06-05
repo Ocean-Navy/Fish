@@ -1253,6 +1253,15 @@ paths:
                     type: integer
                   oceanNativeJobs:
                     type: integer
+                  runnerProofJobs:
+                    type: integer
+                    description: Public proof count; only receipts with a verified canonical hash and trusted Ed25519 signature are included.
+                  runnerSignedJobs:
+                    type: integer
+                    description: Backward-compatible signed counter; public summaries count only trusted verified signatures, not unverified upstream signature strings.
+                  runnerVerifiedJobs:
+                    type: integer
+                    description: Count of runner receipts whose canonical hash and Ed25519 signature verify against a configured trusted runner public key.
                   providerPayoutUsd:
                     type: number
                   creditsSpent:
@@ -5078,8 +5087,10 @@ components:
               type: number
             runnerProofJobs:
               type: integer
+              description: Count of runner receipts whose canonical hash and Ed25519 signature verify against a configured trusted runner public key.
             runnerVerifiedJobs:
               type: integer
+              description: Count of runner receipts whose canonical hash and Ed25519 signature verify against a configured trusted runner public key.
             failedRequests:
               type: integer
             averageLatencyMs:
@@ -5186,10 +5197,13 @@ components:
           properties:
             runnerProofJobs:
               type: integer
+              description: Public proof count; only receipts with a verified canonical hash and trusted Ed25519 signature are included.
             runnerSignedJobs:
               type: integer
+              description: Backward-compatible signed counter; public summaries count only trusted verified signatures, not unverified upstream signature strings.
             runnerVerifiedJobs:
               type: integer
+              description: Count of runner receipts whose canonical hash and Ed25519 signature verify against a configured trusted runner public key.
             storesPromptOutputText:
               type: boolean
               enum: [false]

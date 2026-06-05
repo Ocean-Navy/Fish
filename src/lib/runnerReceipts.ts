@@ -70,7 +70,7 @@ function verifyRunnerSignature(input: {
 
   const publicKeyPem = trustedRunnerPublicKey(input.signerKeyId);
   if (!publicKeyPem) {
-    return { state: "signed", error: "trusted_runner_public_key_not_configured" };
+    return { state: "invalid", error: "trusted_runner_public_key_not_configured" };
   }
 
   try {
