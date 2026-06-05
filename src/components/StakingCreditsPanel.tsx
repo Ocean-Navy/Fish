@@ -19,7 +19,7 @@ export function StakingCreditsPanel({ summary }: { summary: StakingCreditSummary
             <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">Credit vault</p>
             <h2 className="mt-2 text-3xl font-black text-white sm:text-5xl">Stake. Catch credits.</h2>
             <p className="mt-3 max-w-2xl text-base font-bold leading-7 text-fish-secondary">
-              Pilot records can lock OCEAN intent, issue a Fish API key, and track whether earned credits are actually spent.
+              Pilot records can lock OCEAN intent, issue a Fish API key, and track aggregate credit usage without exposing holder balances or wallet links.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
@@ -55,17 +55,15 @@ export function StakingCreditsPanel({ summary }: { summary: StakingCreditSummary
               <article key={position.positionId} className="rounded-3xl border border-fish-accent/15 bg-fish-navy950/55 p-5">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <h3 className="text-xl font-black text-white">{position.holderLabel}</h3>
+                    <h3 className="text-xl font-black text-white">Private stake record</h3>
                     <p className="mt-1 text-xs font-black uppercase tracking-[0.08em] text-fish-secondary">{position.creditState}</p>
                   </div>
-                  <span className="rounded-full border border-fish-gold/25 bg-fish-gold/10 px-3 py-1 text-xs font-black text-fish-gold">{formatNumber(position.lockDays)}d</span>
+                  <span className="rounded-full border border-fish-gold/25 bg-fish-gold/10 px-3 py-1 text-xs font-black text-fish-gold">{position.sourceState}</span>
                 </div>
-                <div className="mt-4 grid grid-cols-3 gap-2">
-                  <Small label="OCEAN" value={formatNumber(position.oceanAmount)} />
-                  <Small label="Issued" value={formatNumber(position.creditsIssued)} />
-                  <Small label="Spent" value={formatNumber(position.creditsSpent)} />
-                </div>
-                <p className="mt-4 text-xs font-bold text-fish-secondary">Unlocks {formatDateTime(position.unlocksAt)}</p>
+                <p className="mt-4 text-sm font-bold leading-6 text-fish-secondary">
+                  Public proof keeps holder labels, wallet hashes, lock details, and per-account credit balances private unless an explicit disclosure flow is added.
+                </p>
+                <p className="mt-4 text-xs font-bold text-fish-secondary">Recorded {formatDateTime(position.createdAt)}</p>
               </article>
             ))}
           </div>
