@@ -76,7 +76,7 @@ const endpoints = [
   { method: "GET", path: "/api/proof/market-making", state: "Pilot" },
   { method: "GET", path: "/api/proof/provider-bonds", state: "Pilot" },
   { method: "POST", path: "/api/proof/provider-bonds", state: "Crew" },
-  { method: "GET", path: "/api/proof/payouts", state: "Pilot" },
+  { method: "GET", path: "/api/proof/payouts", state: "Crew" },
   { method: "POST", path: "/api/proof/payouts", state: "Pilot" },
   { method: "GET", path: "/api/proof/payouts/batches", state: "Pilot" },
   { method: "GET", path: "/api/proof/payouts/batches/:batchId/export", state: "Pilot" },

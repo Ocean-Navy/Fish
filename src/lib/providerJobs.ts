@@ -5,8 +5,8 @@ import { isIP } from "node:net";
 import path from "node:path";
 import { z } from "zod";
 import { collectProviderPilotRegistry, isProviderAllowed, resolveProviderJobEndpoint } from "@/lib/providerPilot";
-import { recordPayoutEventForReceipt, summarizePayouts } from "@/lib/providerPayouts";
-import type { PayoutSummary } from "@/lib/providerPayouts";
+import { recordPayoutEventForReceipt, summarizePublicPayouts } from "@/lib/providerPayouts";
+import type { PublicPayoutSummary } from "@/lib/providerPayouts";
 import type { DataState } from "@/lib/types";
 
 const PROOF_DIR = path.join(process.cwd(), "data", "proof");
@@ -229,7 +229,7 @@ export type ProofSummary = {
   failedJobs: number;
   timedOutJobs: number;
   receiptVerificationFailures: number;
-  payouts: PayoutSummary;
+  payouts: PublicPayoutSummary;
   receipts: ProviderJobReceipt[];
   warnings: string[];
 };
@@ -347,7 +347,7 @@ export async function runProviderJob(input: ProviderJobRequestInput) {
 }
 
 export async function summarizeProof(): Promise<ProofSummary> {
-  const [registry, receipts, payouts] = await Promise.all([collectProviderPilotRegistry(), readReceipts(), summarizePayouts()]);
+  const [registry, receipts, payouts] = await Promise.all([collectProviderPilotRegistry(), readReceipts(), summarizePublicPayouts()]);
   const sorted = receipts.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   const selectedReceipts = sorted.slice(-20).reverse();
   const proofReceipts = receipts.filter(isProofEvidenceReceipt);

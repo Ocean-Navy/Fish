@@ -95,7 +95,6 @@ Useful local routes:
 /api/proof/providers
 /api/proof/benchmarks
 /api/proof/market-making
-/api/proof/payouts
 /api/proof/capacity-settlements
 /api/contracts/status
 /api/staking/summary
@@ -500,18 +499,22 @@ Public proof endpoints are:
 /api/proof/providers
 /api/proof/benchmarks
 /api/proof/market-making
-/api/proof/payouts
 ```
+
+`/api/proof/summary` includes aggregate payout totals for the public dashboard, but it does not include per-provider payout rollups, event rows, batch rows, receipt references, payment timestamps, or payout filters. The detailed payout ledger is operator-only.
 
 The receipt ledger supports `provider`, `providerId`, `status`, `backend`, `receiptType`, `signatureStatus`, `from`, `to`, and `limit` filters. Public receipt detail is available through each row's `detailUrl` and shows hashes, signature state, usage, cost, and timestamps without prompt or output text.
 
-The payout summary supports `provider`, `providerId`, `state`, `eventType`, `sourceReceiptId`, `from`, `to`, and `limit` filters. It includes provider-level rollups, payable totals, excluded disputed/voided totals, and public-safe event rows that identify receipt-linked versus manual-adjustment sources.
+The operator payout summary at `GET /api/proof/payouts` requires `FISH_ADMIN_TOKEN` and supports `provider`, `providerId`, `state`, `eventType`, `sourceReceiptId`, `from`, `to`, and `limit` filters. It includes provider-level rollups, payable totals, excluded disputed/voided totals, and event rows that identify receipt-linked versus manual-adjustment sources.
 
-Successful non-sample provider job receipts automatically create `job_accrued` payout events. Public payout summaries omit operator owners, operator reasons, and transaction references; the admin CSV exports keep those details for settlement review.
+Successful non-sample provider job receipts automatically create `job_accrued` payout events. Operator payout APIs redact the operator owner, operator reason, and transaction reference from the JSON summary; the admin CSV exports keep those details for settlement review.
 
-Operators can add manual payout events, create review batches, and export CSVs:
+Operators can inspect payout summaries, add manual payout events, create review batches, and export CSVs:
 
 ```bash
+curl -sS 'http://127.0.0.1:3000/api/proof/payouts?state=accrued&limit=50' \
+  -H "x-fish-admin-token: $FISH_ADMIN_TOKEN"
+
 curl -sS http://127.0.0.1:3000/api/proof/payouts \
   -H 'content-type: application/json' \
   -H "x-fish-admin-token: $FISH_ADMIN_TOKEN" \

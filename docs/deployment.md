@@ -444,8 +444,8 @@ Then browser-check:
 - `/api/proof/providers`
 - `/api/proof/benchmarks`
 - `/api/proof/market-making`
-- `/api/proof/payouts`
-- `/api/proof/payouts?state=accrued&limit=10`
+- `/api/proof/payouts` with `x-fish-admin-token`
+- `/api/proof/payouts?state=accrued&limit=10` with `x-fish-admin-token`
 - `/api/proof/capacity-settlements`
 - `/api/contracts/status`
 - `/api/billing/plans`
