@@ -28,12 +28,12 @@ afterEach(() => {
   clearContractEnv();
 });
 
-test("visible OCEAN staking totals subtract only the fixed bootstrap sOCEAN supply", () => {
+test("visible OCEAN staking totals match the onchain sOCEAN supply", () => {
   const oneOcean = 1_000_000_000_000_000_000n;
 
-  assert.equal(visibleSOceanSupplyFromTotalSupply(101n * oneOcean), 100n * oneOcean);
-  assert.equal(visibleSOceanSupplyFromTotalSupply(126n * oneOcean), 125n * oneOcean);
-  assert.equal(visibleSOceanSupplyFromTotalSupply(oneOcean), 0n);
+  assert.equal(visibleSOceanSupplyFromTotalSupply(0n), 0n);
+  assert.equal(visibleSOceanSupplyFromTotalSupply(oneOcean), oneOcean);
+  assert.equal(visibleSOceanSupplyFromTotalSupply(101n * oneOcean), 101n * oneOcean);
 });
 
 test("contract status is unavailable when required addresses are missing", async () => {
