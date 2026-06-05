@@ -129,7 +129,7 @@ Provider job request:
 }
 ```
 
-Fish sends this body to the private `jobEndpoint` configured for a selected provider through `FISH_PROVIDER_JOB_ENDPOINTS` or `data/provider_allowlist.json`. The adapter sends `inputRef` only, not raw prompt text.
+Fish sends this body to the private `jobEndpoint` configured for a selected provider through `FISH_PROVIDER_JOB_ENDPOINTS` or `data/provider_allowlist.json`. The adapter sends `inputRef` only, not raw prompt text. Provider endpoints must be public-routable `http` or `https` URLs; Fish rejects localhost, link-local, private-network, and credentialed URLs, validates DNS results before dispatch, and fails redirects rather than following them.
 
 Provider job result:
 

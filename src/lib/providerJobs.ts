@@ -1,5 +1,7 @@
 import { createHash, createPrivateKey, createPublicKey, generateKeyPairSync, randomUUID, sign, verify } from "node:crypto";
+import { lookup } from "node:dns/promises";
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { isIP } from "node:net";
 import path from "node:path";
 import { z } from "zod";
 import { collectProviderPilotRegistry, isProviderAllowed, resolveProviderJobEndpoint } from "@/lib/providerPilot";
@@ -596,8 +598,13 @@ async function runProviderHttpAdapter(input: ProviderJobRequestInput, jobId: str
     return providerAdapterFailure(input, "provider_job_endpoint_not_configured");
   }
 
+  const safeEndpoint = await validateProviderJobEndpoint(endpoint);
+  if (!safeEndpoint.ok) {
+    return providerAdapterFailure(input, safeEndpoint.errorCode);
+  }
+
   try {
-    const response = await fetch(endpoint, {
+    const response = await fetch(safeEndpoint.url, {
       method: "POST",
       headers: providerJobHeaders(),
       body: JSON.stringify({
@@ -611,6 +618,7 @@ async function runProviderHttpAdapter(input: ProviderJobRequestInput, jobId: str
         maxRuntimeSeconds: input.maxRuntimeSeconds,
         maxCostUsd: input.maxCostUsd
       }),
+      redirect: "error",
       signal: AbortSignal.timeout(Math.min(input.maxRuntimeSeconds * 1000, Number(process.env.FISH_PROVIDER_JOB_TIMEOUT_MS ?? "600000")))
     });
     const payload = await response.json().catch(() => null);
@@ -622,6 +630,146 @@ async function runProviderHttpAdapter(input: ProviderJobRequestInput, jobId: str
     const timeout = error instanceof Error && error.name === "TimeoutError";
     return providerAdapterFailure(input, timeout ? "provider_job_timeout" : "provider_job_http_error", timeout ? "timed_out" : "failed");
   }
+}
+
+export async function validateProviderJobEndpoint(endpoint: string): Promise<{ ok: true; url: string } | { ok: false; errorCode: string }> {
+  let url: URL;
+  try {
+    url = new URL(endpoint);
+  } catch {
+    return { ok: false, errorCode: "provider_job_endpoint_invalid" };
+  }
+
+  if (url.protocol !== "https:" && url.protocol !== "http:") {
+    return { ok: false, errorCode: "provider_job_endpoint_invalid_scheme" };
+  }
+  if (url.username || url.password) {
+    return { ok: false, errorCode: "provider_job_endpoint_invalid_auth" };
+  }
+
+  const hostname = normalizeEndpointHostname(url.hostname);
+  if (!hostname || isUnsafeEndpointHostname(hostname)) {
+    return { ok: false, errorCode: "provider_job_endpoint_private" };
+  }
+
+  const directIpVersion = isIP(hostname);
+  const addresses = directIpVersion
+    ? [hostname]
+    : await lookup(hostname, { all: true, verbatim: true })
+        .then((records) => records.map((record) => record.address))
+        .catch(() => []);
+
+  if (addresses.length === 0) {
+    return { ok: false, errorCode: "provider_job_endpoint_dns_failed" };
+  }
+  if (addresses.some(isUnsafeEndpointAddress)) {
+    return { ok: false, errorCode: "provider_job_endpoint_private" };
+  }
+
+  url.hostname = hostname;
+  return { ok: true, url: url.toString() };
+}
+
+function normalizeEndpointHostname(hostname: string) {
+  return hostname.trim().toLowerCase().replace(/^\[(.*)]$/, "$1").replace(/\.$/, "");
+}
+
+function isUnsafeEndpointHostname(hostname: string) {
+  return hostname === "localhost" || hostname.endsWith(".localhost") || hostname.endsWith(".local");
+}
+
+function isUnsafeEndpointAddress(address: string) {
+  const normalized = normalizeEndpointHostname(address);
+  const ipVersion = isIP(normalized);
+  if (ipVersion === 4) {
+    return isUnsafeIPv4Address(normalized);
+  }
+  if (ipVersion === 6) {
+    return isUnsafeIPv6Address(normalized);
+  }
+  return true;
+}
+
+function isUnsafeIPv4Address(address: string) {
+  const octets = address.split(".").map((part) => Number(part));
+  if (octets.length !== 4 || octets.some((octet) => !Number.isInteger(octet) || octet < 0 || octet > 255)) {
+    return true;
+  }
+  const [a, b] = octets;
+  return (
+    a === 0 ||
+    a === 10 ||
+    a === 127 ||
+    (a === 100 && b >= 64 && b <= 127) ||
+    (a === 169 && b === 254) ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 168) ||
+    (a === 198 && (b === 18 || b === 19)) ||
+    a >= 224
+  );
+}
+
+function isUnsafeIPv6Address(address: string) {
+  const groups = expandIPv6Address(address);
+  if (!groups) {
+    return true;
+  }
+  const embeddedIPv4 = readEmbeddedIPv4Address(groups);
+  if (embeddedIPv4) {
+    return isUnsafeIPv4Address(embeddedIPv4);
+  }
+  const allZero = groups.every((group) => group === 0);
+  const loopback = groups.slice(0, 7).every((group) => group === 0) && groups[7] === 1;
+  return allZero || loopback || (groups[0] & 0xfe00) === 0xfc00 || (groups[0] & 0xffc0) === 0xfe80 || (groups[0] & 0xff00) === 0xff00 || (groups[0] & 0xffc0) === 0xfec0;
+}
+
+function expandIPv6Address(address: string) {
+  const [leftRaw, rightRaw, extra] = address.split("::");
+  if (extra !== undefined) {
+    return null;
+  }
+  const left = parseIPv6Groups(leftRaw);
+  const right = rightRaw === undefined ? [] : parseIPv6Groups(rightRaw);
+  if (!left || !right) {
+    return null;
+  }
+  const missing = rightRaw === undefined ? 0 : 8 - left.length - right.length;
+  if (missing < 0 || (rightRaw === undefined && left.length !== 8)) {
+    return null;
+  }
+  return [...left, ...Array(missing).fill(0), ...right];
+}
+
+function parseIPv6Groups(raw: string) {
+  if (!raw) {
+    return [] as number[];
+  }
+  const parts = raw.split(":");
+  const groups: number[] = [];
+  for (const part of parts) {
+    if (part.includes(".")) {
+      const octets = part.split(".").map((value) => Number(value));
+      if (octets.length !== 4 || octets.some((octet) => !Number.isInteger(octet) || octet < 0 || octet > 255)) {
+        return null;
+      }
+      groups.push((octets[0] << 8) + octets[1], (octets[2] << 8) + octets[3]);
+      continue;
+    }
+    if (!/^[0-9a-f]{1,4}$/i.test(part)) {
+      return null;
+    }
+    groups.push(Number.parseInt(part, 16));
+  }
+  return groups;
+}
+
+function readEmbeddedIPv4Address(groups: number[]) {
+  const mappedPrefix = groups.slice(0, 5).every((group) => group === 0) && groups[5] === 0xffff;
+  const compatiblePrefix = groups.slice(0, 6).every((group) => group === 0);
+  if (mappedPrefix || compatiblePrefix) {
+    return [groups[6] >> 8, groups[6] & 0xff, groups[7] >> 8, groups[7] & 0xff].join(".");
+  }
+  return null;
 }
 
 function providerAdapterOutcome(input: ProviderJobRequestInput, payload: Record<string, unknown>): ProviderAdapterOutcome {
