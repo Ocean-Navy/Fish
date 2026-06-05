@@ -273,6 +273,7 @@ async function runLocalOceanNodeJob(config, job) {
   const outputHash = createHash("sha256").update(output.bytes).digest("hex");
   const elapsedSeconds = Math.max(1, Math.ceil((Date.now() - startedAt) / 1000));
   const outputTokens = Math.min(job.maxOutputTokens, Math.max(1, Math.ceil(output.bytes.length / 4)));
+  const artifact = buildLocalBatchArtifact(job);
 
   return {
     jobId: job.jobId,
@@ -288,7 +289,8 @@ async function runLocalOceanNodeJob(config, job) {
       amount: 0,
       currency: "USDC"
     },
-    outputRef: `sha256:${outputHash}`
+    outputRef: `sha256:${outputHash}`,
+    artifact
   };
 }
 
@@ -579,13 +581,17 @@ function buildLocalOceanNodeAlgorithm(job) {
     envs: {
       FISH_TASK_TYPE: job.taskType,
       FISH_INPUT_REF: job.inputRef,
-      FISH_JOB_ID: job.jobId
+      FISH_JOB_ID: job.jobId,
+      FISH_ARTIFACT_KIND: job.artifactKind || "",
+      ...(job.inputPayload ? { FISH_INPUT_PAYLOAD_B64: Buffer.from(job.inputPayload, "utf8").toString("base64") } : {})
     }
   };
 }
 
 function localOceanNodeRawCode() {
   return `#!/usr/bin/env python3
+import base64
+import html
 import hashlib
 import json
 import os
@@ -594,6 +600,43 @@ from pathlib import Path
 
 out = Path("/data/outputs")
 out.mkdir(parents=True, exist_ok=True)
+payload_text = ""
+try:
+    payload_text = base64.b64decode(os.getenv("FISH_INPUT_PAYLOAD_B64", "").encode()).decode("utf-8", "replace").strip()
+except Exception:
+    payload_text = ""
+artifact_kind = os.getenv("FISH_ARTIFACT_KIND", "")
+task_type = os.getenv("FISH_TASK_TYPE", "document_summary")
+title = {
+    "repo_map": "Repo Roll Map",
+    "eval_scorecard": "Eval Platter Scorecard",
+    "data_card": "Data Sushi Card",
+    "summary_card": "Docs Bento Brief",
+}.get(artifact_kind, "Fish Batch Artifact")
+lines = [line.strip() for line in payload_text.splitlines() if line.strip()]
+compact = " ".join(lines) if lines else os.getenv("FISH_INPUT_REF", "")
+compact = compact[:1200]
+takeaways = []
+for part in compact.replace(";", ".").split("."):
+    item = part.strip()
+    if item and len(takeaways) < 4:
+        takeaways.append(item[:180])
+if not takeaways:
+    takeaways = ["Ocean Node ran the private batch job.", "Fish kept public proof to hashes and tickets."]
+markdown = "\\n".join([
+    f"# {title}",
+    "",
+    "## Catch",
+    *(f"- {item}" for item in takeaways),
+    "",
+    "## Next step",
+    "Turn this into a pilot-ready artifact, share the ticket, and keep raw order text off public proof.",
+    "",
+    "## Proof",
+    f"- Job: {os.getenv('FISH_JOB_ID', '')}",
+    f"- Input reference: {os.getenv('FISH_INPUT_REF', '')}",
+])
+html_doc = "<!doctype html><html><head><meta charset='utf-8'><title>" + html.escape(title) + "</title></head><body><main><pre>" + html.escape(markdown) + "</pre></main></body></html>"
 payload = {
     "schemaVersion": 1,
     "algorithm": "fish-local-ocean-node-proof",
@@ -602,14 +645,71 @@ payload = {
     "jobId": os.getenv("FISH_JOB_ID", ""),
     "createdAtEpoch": int(time.time()),
     "inputRef": os.getenv("FISH_INPUT_REF", ""),
+    "artifactKind": artifact_kind,
+    "artifactTitle": title,
     "message": "Fish local Ocean Node free compute proof ran inside an Ocean C2D container.",
     "storesPromptOutputText": False,
 }
 payload["outputHash"] = hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
 (out / "fish-proof-receipt.json").write_text(json.dumps(payload, indent=2) + "\\n")
-(out / "summary.txt").write_text(payload["message"] + "\\n")
+(out / "fish-artifact.md").write_text(markdown + "\\n")
+(out / "fish-artifact.html").write_text(html_doc + "\\n")
+(out / "summary.txt").write_text(title + "\\n")
 print(json.dumps({"ok": True, "outputHash": payload["outputHash"]}))
 `;
+}
+
+function buildLocalBatchArtifact(job) {
+  if (!job.inputPayload) {
+    return null;
+  }
+  const title = artifactTitle(job.artifactKind, job.taskType);
+  const takeaways = artifactTakeaways(job.inputPayload);
+  const markdown = [
+    `# ${title}`,
+    "",
+    "## Catch",
+    ...takeaways.map((item) => `- ${item}`),
+    "",
+    "## Next step",
+    "Turn this into a pilot-ready artifact, share the ticket, and keep raw order text off public proof.",
+    "",
+    "## Proof",
+    `- Job: ${job.jobId}`,
+    `- Input reference: ${job.inputRef}`
+  ].join("\n");
+  return {
+    title,
+    markdown,
+    mimeType: "text/markdown"
+  };
+}
+
+function artifactTitle(kind, taskType) {
+  if (kind === "repo_map") {
+    return "Repo Roll Map";
+  }
+  if (kind === "eval_scorecard") {
+    return "Eval Platter Scorecard";
+  }
+  if (kind === "data_card") {
+    return "Data Sushi Card";
+  }
+  if (kind === "summary_card" || taskType === "document_summary") {
+    return "Docs Bento Brief";
+  }
+  return "Fish Batch Artifact";
+}
+
+function artifactTakeaways(inputPayload) {
+  const compact = String(inputPayload).replace(/\r\n/g, "\n").split(/\n+/).map((line) => line.trim()).filter(Boolean).join(" ").slice(0, 1200);
+  const chunks = compact
+    .split(/[.;]/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .slice(0, 4)
+    .map((part) => (part.length > 180 ? `${part.slice(0, 176).trimEnd()}...` : part));
+  return chunks.length ? chunks : ["Ocean Node ran the private batch job.", "Fish kept public proof to hashes and tickets."];
 }
 
 function readLocalOceanResources() {
@@ -719,6 +819,8 @@ function parseJobRequest(body) {
   const jobId = readNonEmptyString(body.jobId) || readNonEmptyString(body.idempotencyKey);
   const taskType = readNonEmptyString(body.taskType) || "document_summary";
   const inputRef = readNonEmptyString(body.inputRef);
+  const inputPayload = readOptionalString(body.inputPayload, 20000);
+  const artifactKind = readArtifactKind(body.artifactKind);
   const estimatedInputTokens = readInt(body.estimatedInputTokens, 1, 200000);
   const maxOutputTokens = readInt(body.maxOutputTokens, 1, 8192, 512);
   const maxRuntimeSeconds = readInt(body.maxRuntimeSeconds, 1, 3600, 600);
@@ -738,6 +840,8 @@ function parseJobRequest(body) {
       jobId,
       taskType,
       inputRef,
+      inputPayload,
+      artifactKind,
       estimatedInputTokens,
       maxOutputTokens,
       maxRuntimeSeconds,
@@ -773,6 +877,20 @@ function sendJson(response, status, payload) {
 
 function readNonEmptyString(value) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function readOptionalString(value, maxLength) {
+  if (typeof value !== "string" || !value.trim()) {
+    return undefined;
+  }
+  return value.trim().slice(0, maxLength);
+}
+
+function readArtifactKind(value) {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  return ["summary_card", "repo_map", "eval_scorecard", "data_card"].includes(value) ? value : undefined;
 }
 
 function readInt(value, min, max, fallback = null) {

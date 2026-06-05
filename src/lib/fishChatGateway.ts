@@ -73,9 +73,11 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
   const routerConfig = getFishRouterConfig();
   const featurePolicy = getFishFeaturePolicy(input.metadata, routerConfig, input.model);
   const batchFeature = getFishBatchFeatureConfig(featurePolicy.id);
+  const sendBatchPrivatePayload = Boolean(batchFeature && shouldSendBatchPrivatePayload(featurePolicy.id));
   const privacyPreference = readFishPrivacyPreference(input.metadata);
   const modelAccess = checkFishModelAccess(input.model, context.account.planId);
   const originalPromptText = messagesToText(input);
+  const originalUserPromptText = messagesToUserText(input);
   const knowledge = featurePolicy.id === "ocean" ? buildFishKnowledgeContext(originalPromptText) : null;
   const effectiveInput = knowledge ? withFishKnowledgeContext(input, knowledge.context) : input;
   const promptText = messagesToText(effectiveInput);
@@ -140,7 +142,7 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
   const batchPrivacy =
     batchFeature
       ? resolveFishPrivacy({
-          route: "ocean-batch",
+          route: sendBatchPrivatePayload ? "ocean-batch-private" : "ocean-batch",
           requestedPrivacyMode: privacyPreference.requestedPrivacyMode,
           allowPrivacyDowngrade: privacyPreference.allowPrivacyDowngrade
         })
@@ -180,9 +182,11 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
       input,
       context,
       promptText,
+      privatePayloadText: originalUserPromptText,
       promptTokens,
       maxOutputTokens: requestedMaxOutputTokens,
       featureLabel: featurePolicy.label,
+      sendPrivatePayload: sendBatchPrivatePayload,
       batchFeature,
       monthlyRequests,
       rateLimit,
@@ -631,6 +635,13 @@ function messagesToText(input: ChatCompletionInput) {
   return input.messages.map((message) => (typeof message.content === "string" ? message.content : JSON.stringify(message.content))).join("\n");
 }
 
+function messagesToUserText(input: ChatCompletionInput) {
+  return input.messages
+    .filter((message) => message.role === "user")
+    .map((message) => (typeof message.content === "string" ? message.content : JSON.stringify(message.content)))
+    .join("\n");
+}
+
 function withFishKnowledgeContext(input: ChatCompletionInput, context: string): ChatCompletionInput {
   return {
     ...input,
@@ -674,9 +685,11 @@ async function runBatchChatGateway(params: {
   input: ChatCompletionInput;
   context: FishChatGatewayContext;
   promptText: string;
+  privatePayloadText: string;
   promptTokens: number;
   maxOutputTokens: number;
   featureLabel: string;
+  sendPrivatePayload: boolean;
   batchFeature: {
     featureId: FishFeatureId;
     label: string;
@@ -689,10 +702,13 @@ async function runBatchChatGateway(params: {
   privacy: FishUsagePrivacy;
 }): Promise<FishChatGatewayResult> {
   const inputRef = hashInputRef(params.promptText);
+  const privatePayload = params.sendPrivatePayload ? trimBatchPrivatePayload(params.privatePayloadText) : undefined;
   const result = await runOceanBatchJob(
     {
       taskType: params.batchFeature.taskType,
       inputRef,
+      inputPayload: privatePayload,
+      artifactKind: artifactKindForBatchFeature(params.batchFeature.featureId),
       estimatedInputTokens: params.promptTokens,
       maxOutputTokens: params.maxOutputTokens,
       maxRuntimeSeconds: readBatchMaxRuntimeSeconds(params.batchFeature.featureId, params.batchFeature.defaultMaxRuntimeSeconds),
@@ -734,7 +750,7 @@ async function runBatchChatGateway(params: {
           index: 0,
           message: {
             role: "assistant",
-            content: batchCompletionText(params.featureLabel, result.receipt)
+            content: batchCompletionText(params.featureLabel, result.receipt, result.artifact)
           },
           finish_reason: "stop"
         }
@@ -796,12 +812,59 @@ function privacyModeError(decision: Extract<ReturnType<typeof resolveFishPrivacy
   });
 }
 
-function batchCompletionText(featureLabel: string, receipt: { sourceState: string; receiptId: string; jobId: string; hashes: { outputHash: string | null } }) {
+function batchCompletionText(
+  featureLabel: string,
+  receipt: { sourceState: string; receiptId: string; jobId: string; hashes: { outputHash: string | null } },
+  artifact: { title: string; markdown: string } | null
+) {
+  if (artifact?.markdown) {
+    return [
+      artifact.markdown,
+      "",
+      "---------",
+      `Ticket: ${receipt.receiptId}`,
+      `Job: ${receipt.jobId}`,
+      `Output reference: ${receipt.hashes.outputHash ?? "not available"}`
+    ].join("\n");
+  }
   const path =
     receipt.sourceState === "snapshot"
       ? `Fish sent the ${featureLabel} job reference to the private Ocean batch kitchen.`
       : `Fish prepared a sample ${featureLabel} receipt because the private Ocean batch kitchen is not configured yet.`;
   return `${path}\n\nTicket: ${receipt.receiptId}\nJob: ${receipt.jobId}\nOutput reference: ${receipt.hashes.outputHash ?? "not available"}`;
+}
+
+function shouldSendBatchPrivatePayload(featureId: FishFeatureId) {
+  if (!["docs", "repo", "eval", "data"].includes(featureId)) {
+    return false;
+  }
+  return readBooleanEnv("FISH_OCEAN_BATCH_PRIVATE_PAYLOAD", false);
+}
+
+function artifactKindForBatchFeature(featureId: FishFeatureId) {
+  if (featureId === "repo") {
+    return "repo_map" as const;
+  }
+  if (featureId === "eval") {
+    return "eval_scorecard" as const;
+  }
+  if (featureId === "data") {
+    return "data_card" as const;
+  }
+  return "summary_card" as const;
+}
+
+function trimBatchPrivatePayload(value: string) {
+  const normalized = value.replace(/\r\n/g, "\n").trim();
+  return normalized.length > 12000 ? normalized.slice(0, 12000) : normalized;
+}
+
+function readBooleanEnv(key: string, fallback: boolean) {
+  const raw = process.env[key]?.trim().toLowerCase();
+  if (!raw) {
+    return fallback;
+  }
+  return ["1", "true", "yes", "on"].includes(raw) ? true : ["0", "false", "no", "off"].includes(raw) ? false : fallback;
 }
 
 function hashInputRef(value: string) {

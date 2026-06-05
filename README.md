@@ -242,6 +242,7 @@ FISH_OCEAN_BATCH_ENDPOINT=
 FISH_OCEAN_BATCH_API_KEY=
 FISH_OCEAN_BATCH_PROVIDER_ID=ocean-batch-provider
 FISH_OCEAN_BATCH_DAILY_BUDGET_USD=30
+FISH_OCEAN_BATCH_PRIVATE_PAYLOAD=false
 FISH_DOCS_BATCH_MAX_RUNTIME_SECONDS=600
 FISH_DOCS_BATCH_MAX_COST_USD=1
 FISH_CHAT_ROUTE=mock
@@ -718,9 +719,9 @@ POST /api/ocean/batch/jobs
 GET /api/ocean/batch/readiness
 ```
 
-`POST` requires a Fish API key and accepts only hash/reference input through `inputRef`; it does not accept or store raw input text. `adapterMode: "sample_success"` is the default local proof mode. Set `adapterMode: "ocean_http"` only when `FISH_OCEAN_BATCH_ENDPOINT` points to a private Oncompute/Ocean batch adapter. Fish checks `maxCostUsd` against `FISH_OCEAN_BATCH_DAILY_BUDGET_USD` before calling the batch adapter. Public proof must show tickets and hashes, not raw order data.
+`POST` requires a Fish API key and uses hash/reference input through `inputRef`. `adapterMode: "sample_success"` is the default local proof mode. Set `adapterMode: "ocean_http"` only when `FISH_OCEAN_BATCH_ENDPOINT` points to a private Oncompute/Ocean batch adapter. Fish checks `maxCostUsd` against `FISH_OCEAN_BATCH_DAILY_BUDGET_USD` before calling the batch adapter. Public proof must show tickets and hashes, not raw order data.
 
-Batch dishes sent through `/v1/chat/completions` or `/api/dishes/:dishId/run` use the same hash-only batch path:
+Batch dishes sent through `/v1/chat/completions` or `/api/dishes/:dishId/run` use the same hash-only batch path by default. Set `FISH_OCEAN_BATCH_PRIVATE_PAYLOAD=true` only for a private Ocean batch adapter we operate; then short raw dish text is sent to the adapter so the Ocean job can create a returned Markdown/HTML artifact. The returned artifact is shown to the user but not stored in public receipts.
 
 | Dish | Model alias | Batch task |
 | --- | --- | --- |

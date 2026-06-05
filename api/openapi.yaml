@@ -139,7 +139,7 @@ paths:
                 $ref: '#/components/schemas/OceanBatchSummary'
     post:
       summary: Submit a capped Ocean batch job
-      description: Fish API-key route for batch dish jobs. The request accepts input references only; raw dish input and full output text are not accepted or stored by this contract.
+      description: Fish API-key route for batch dish jobs. By default the request uses input references only. Private artifact mode may include short raw input in inputPayload for the private adapter; public receipts still store hashes and route labels, not raw input or full output text.
       security:
         - bearerAuth: []
       requestBody:
@@ -160,6 +160,10 @@ paths:
                     type: boolean
                   receipt:
                     $ref: '#/components/schemas/OceanBatchReceipt'
+                  artifact:
+                    nullable: true
+                    allOf:
+                      - $ref: '#/components/schemas/OceanBatchArtifact'
                   usageReceipt:
                     $ref: '#/components/schemas/FishUsageReceipt'
                   creditsRemaining:
@@ -1935,7 +1939,14 @@ components:
           default: document_summary
         inputRef:
           type: string
-          description: Hash or storage reference for the batch input. Raw document text must not be submitted.
+          description: Hash or storage reference for the batch input.
+        inputPayload:
+          type: string
+          maxLength: 20000
+          description: Optional private payload for artifact-capable batch adapters. Do not expose in public proof or receipts.
+        artifactKind:
+          type: string
+          enum: [summary_card, repo_map, eval_scorecard, data_card]
         estimatedInputTokens:
           type: integer
           minimum: 1
@@ -1959,6 +1970,17 @@ components:
           type: string
           enum: [sample_success, sample_failure, ocean_http]
           default: sample_success
+    OceanBatchArtifact:
+      type: object
+      properties:
+        title:
+          type: string
+        markdown:
+          type: string
+          description: Returned artifact text for the caller. Must not be copied into public proof or receipts.
+        mimeType:
+          type: string
+          enum: [text/markdown]
     ProviderSmokeRequest:
       type: object
       additionalProperties: false

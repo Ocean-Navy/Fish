@@ -38,6 +38,7 @@ export type FishRoutePolicy = {
     externalModel: string | null;
     externalProviderId: string;
     oceanBatchConfigured: boolean;
+    oceanBatchPrivatePayload: boolean;
     oceanBatchProviderId: string;
     concurrencyActiveRequests: number;
     concurrencyActiveByRoute: Partial<Record<FishChatRouteId, number>>;
@@ -83,6 +84,7 @@ export function getFishRoutePolicy(): FishRoutePolicy {
   const configuredRoute = router.routes[router.activeRouteId];
   const activeRoute = activeRoutePolicy(configuredRoute.id, configuredRoute.status);
   const oceanBatchConfigured = Boolean(process.env.FISH_OCEAN_BATCH_ENDPOINT?.trim());
+  const oceanBatchPrivatePayload = readBooleanEnv("FISH_OCEAN_BATCH_PRIVATE_PAYLOAD", false);
   const oceanBatchProviderId = process.env.FISH_OCEAN_BATCH_PROVIDER_ID?.trim() || "ocean-batch-provider";
   const oceanBatchDailyBudgetUsd = readOceanBatchDailyBudgetUsd();
   const concurrency = getFishConcurrencySnapshot();
@@ -111,6 +113,7 @@ export function getFishRoutePolicy(): FishRoutePolicy {
       externalModel: router.external.model,
       externalProviderId: router.external.providerId,
       oceanBatchConfigured,
+      oceanBatchPrivatePayload,
       oceanBatchProviderId,
       concurrencyActiveRequests: concurrency.activeRequests,
       concurrencyActiveByRoute: concurrency.activeByRoute
@@ -161,8 +164,10 @@ export function getFishRoutePolicy(): FishRoutePolicy {
         id: "ocean-batch",
         title: "Batch kitchen",
         state: oceanBatchConfigured ? "ready" : "pilot",
-        short: "Hash-only dish jobs for batch work.",
-        privacy: "Fish sends input references, not raw order text.",
+        short: oceanBatchPrivatePayload ? "Private artifact jobs for batch work." : "Hash-only dish jobs for batch work.",
+        privacy: oceanBatchPrivatePayload
+          ? "Private batch dishes send short order text to our Ocean batch adapter. Public proof stores hashes, not raw text."
+          : "Fish sends input references, not raw order text.",
         proof: "Ocean batch receipt plus normal Fish usage record."
       },
       {
@@ -234,6 +239,14 @@ export function getFishRoutePolicy(): FishRoutePolicy {
 
 function formatDailyBudget(value: number) {
   return `$${value.toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
+}
+
+function readBooleanEnv(key: string, fallback: boolean) {
+  const raw = process.env[key]?.trim().toLowerCase();
+  if (!raw) {
+    return fallback;
+  }
+  return ["1", "true", "yes", "on"].includes(raw) ? true : ["0", "false", "no", "off"].includes(raw) ? false : fallback;
 }
 
 function activeRoutePolicy(id: FishChatRouteId, status: RouteModeState): FishRoutePolicy["activeRoute"] {

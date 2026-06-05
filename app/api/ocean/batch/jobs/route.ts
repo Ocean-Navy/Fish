@@ -97,6 +97,7 @@ export async function POST(request: Request) {
   return NextResponse.json({
     ok: true,
     receipt: result.receipt,
+    artifact: result.artifact,
     usageReceipt: result.usageReceipt,
     creditsRemaining: result.creditsRemaining,
     budget: result.budget,

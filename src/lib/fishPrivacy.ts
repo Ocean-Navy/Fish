@@ -1,11 +1,21 @@
 import type { FishChatRouteId } from "@/lib/fishRouter";
 
-const PRIVACY_MODES = ["local_demo", "external_policy", "ocean_demo_policy", "selected_ocean_policy", "hash_only_batch", "ocean_hardened", "ocean_tee", "e2ee_to_tee"] as const;
-const RAW_PROMPT_DESTINATIONS = ["local_process", "external_provider", "ocean_demo_provider", "selected_ocean_provider", "hash_only_batch_adapter"] as const;
+const PRIVACY_MODES = [
+  "local_demo",
+  "external_policy",
+  "ocean_demo_policy",
+  "selected_ocean_policy",
+  "hash_only_batch",
+  "ocean_batch_private",
+  "ocean_hardened",
+  "ocean_tee",
+  "e2ee_to_tee"
+] as const;
+const RAW_PROMPT_DESTINATIONS = ["local_process", "external_provider", "ocean_demo_provider", "selected_ocean_provider", "hash_only_batch_adapter", "ocean_batch_adapter"] as const;
 
 export type FishPrivacyMode = (typeof PRIVACY_MODES)[number];
 export type FishRawPromptDestination = (typeof RAW_PROMPT_DESTINATIONS)[number];
-export type FishPrivacyRoute = FishChatRouteId | "ocean-batch";
+export type FishPrivacyRoute = FishChatRouteId | "ocean-batch" | "ocean-batch-private";
 
 export type FishPrivacyPreference =
   | {
@@ -125,6 +135,9 @@ function acceptedPrivacyModeForRoute(route: FishPrivacyRoute): FishPrivacyMode {
   if (route === "ocean-batch") {
     return "hash_only_batch";
   }
+  if (route === "ocean-batch-private") {
+    return "ocean_batch_private";
+  }
   return "selected_ocean_policy";
 }
 
@@ -141,6 +154,9 @@ function rawPromptDestinationForRoute(route: FishPrivacyRoute): FishRawPromptDes
   if (route === "ocean-batch") {
     return "hash_only_batch_adapter";
   }
+  if (route === "ocean-batch-private") {
+    return "ocean_batch_adapter";
+  }
   return "selected_ocean_provider";
 }
 
@@ -152,13 +168,23 @@ function privacyModeSatisfies(accepted: FishPrivacyMode, requested: FishPrivacyM
     return true;
   }
   if (requested === "ocean_demo_policy") {
-    return accepted === "selected_ocean_policy" || accepted === "hash_only_batch" || accepted === "ocean_hardened" || accepted === "ocean_tee" || accepted === "e2ee_to_tee";
+    return (
+      accepted === "selected_ocean_policy" ||
+      accepted === "hash_only_batch" ||
+      accepted === "ocean_batch_private" ||
+      accepted === "ocean_hardened" ||
+      accepted === "ocean_tee" ||
+      accepted === "e2ee_to_tee"
+    );
   }
   if (requested === "selected_ocean_policy") {
-    return accepted === "hash_only_batch" || accepted === "ocean_hardened" || accepted === "ocean_tee" || accepted === "e2ee_to_tee";
+    return accepted === "hash_only_batch" || accepted === "ocean_batch_private" || accepted === "ocean_hardened" || accepted === "ocean_tee" || accepted === "e2ee_to_tee";
   }
   if (requested === "hash_only_batch") {
     return false;
+  }
+  if (requested === "ocean_batch_private") {
+    return accepted === "hash_only_batch" || accepted === "ocean_batch_private" || accepted === "ocean_hardened" || accepted === "ocean_tee" || accepted === "e2ee_to_tee";
   }
   if (requested === "ocean_hardened") {
     return accepted === "ocean_tee" || accepted === "e2ee_to_tee";
@@ -188,6 +214,9 @@ function normalizePrivacyMode(value: string): FishPrivacyMode | null {
     hash_only: "hash_only_batch",
     hash_only_batch: "hash_only_batch",
     ocean_batch: "hash_only_batch",
+    ocean_batch_private: "ocean_batch_private",
+    private_ocean_batch: "ocean_batch_private",
+    batch_private: "ocean_batch_private",
     hardened: "ocean_hardened",
     ocean_hardened: "ocean_hardened",
     tee: "ocean_tee",

@@ -91,7 +91,7 @@ const modes = [
     label: "Batch",
     state: "Pilot",
     title: "Batch kitchen",
-    body: "Fish proof uses hash-only tickets. A private adapter may still need the input reference to run the job."
+    body: "Hash-only batch sends only a reference. Artifact batch sends short order text to our private Ocean batch adapter. Public proof still uses tickets and hashes."
   },
   {
     label: "Ocean",

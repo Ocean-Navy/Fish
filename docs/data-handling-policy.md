@@ -117,7 +117,7 @@ Every order should show the active route:
 | Local demo | The app generated a local demo response. |
 | Outside AI | An outside provider may receive the raw order. Their policy applies. |
 | Ocean demo | A configured Ocean Navy demo runner may receive the raw order. |
-| Batch kitchen | Public proof is hash-only. The private adapter may process the input reference. |
+| Batch kitchen | Hash-only mode processes an input reference. Private artifact mode may send short order text to our private adapter. Public proof stays ticket/hash-only. |
 | Selected Ocean provider | A reviewed provider may receive the raw order or input reference. |
 | Hardened / TEE / E2EE | Future stronger routes only. Do not claim until implemented and verified. |
 
@@ -160,4 +160,3 @@ Before a real upload feature ships:
 - admin exports do not include raw prompt, raw output, or file content;
 - sample, snapshot, and live source states remain distinct;
 - UI copy does not overclaim privacy.
-

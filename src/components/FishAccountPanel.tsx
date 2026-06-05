@@ -867,6 +867,9 @@ function formatPrivacy(mode: string | undefined) {
   if (mode === "hash_only_batch") {
     return "hash-only docs";
   }
+  if (mode === "ocean_batch_private") {
+    return "private batch";
+  }
   if (mode === "ocean_hardened") {
     return "hardened runner";
   }

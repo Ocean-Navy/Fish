@@ -155,7 +155,7 @@ export function PublicProofPage({
           </div>
         ) : (
           <div className="mt-3">
-            <EmptyHarbor text="No batch dish receipts yet. The first hash-only batch job will appear here." />
+            <EmptyHarbor text="No batch dish receipts yet. The first batch receipt will appear here." />
           </div>
         )}
       </MetricGroup>

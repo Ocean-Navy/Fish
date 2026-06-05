@@ -277,6 +277,7 @@ FISH_OCEAN_BATCH_ENDPOINT=http://<private-gpu-vm-host>:8787/jobs
 FISH_OCEAN_BATCH_API_KEY=<OCEAN_WORKLOAD_ADAPTER_API_KEY>
 FISH_OCEAN_BATCH_PROVIDER_ID=ocean-navy-demo-node
 FISH_OCEAN_BATCH_DAILY_BUDGET_USD=5
+FISH_OCEAN_BATCH_PRIVATE_PAYLOAD=true
 
 FISH_CHAT_ROUTE=ocean-first
 FISH_OCEAN_DEMO_VLLM_BASE_URL=http://<private-gpu-vm-host>:8088/v1
@@ -286,6 +287,8 @@ FISH_OCEAN_DEMO_PROVIDER_ID=ocean-navy-demo-node
 FISH_OCEAN_DEMO_COST_USD_PER_1K_TOKENS=<operator estimate>
 FISH_OCEAN_DEMO_DAILY_BUDGET_USD=<small cap>
 ```
+
+`FISH_OCEAN_BATCH_PRIVATE_PAYLOAD=true` makes batch dishes useful by sending short order text to the private adapter so the Ocean job can write a returned Markdown/HTML artifact. Use it only when the adapter and Ocean Node are private and operated by us. Public proof still stores tickets and hashes, not raw order text.
 
 Do not expose raw vLLM or raw MLX publicly. Fish Gateway should call Fish Runner, not the model server.
 

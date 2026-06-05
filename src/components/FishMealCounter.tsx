@@ -47,6 +47,7 @@ type FishRoutePolicySummary = {
   };
   backend?: {
     oceanBatchConfigured?: boolean;
+    oceanBatchPrivatePayload?: boolean;
   };
   guardrails?: {
     maxOutputTokens: number;
@@ -157,6 +158,7 @@ export function FishMealCounter() {
   const maxOutputTokens = routePolicy?.guardrails?.maxOutputTokens ?? 512;
   const orderMaxTokens = Math.min(activeDish.maxTokens, maxOutputTokens);
   const currentRouteLabel = routePolicy?.activeRoute?.label ? formatRouteLabel(routePolicy.activeRoute.label) : activeDish.routeLabel;
+  const oceanBatchPrivatePayload = routePolicy?.backend?.oceanBatchPrivatePayload === true;
 
   useEffect(() => {
     Promise.resolve().then(() => {
@@ -430,7 +432,9 @@ export function FishMealCounter() {
         <div className="mt-5 rounded-[1.5rem] border border-fish-accent/15 bg-white/[0.035] p-4 text-sm font-bold leading-6 text-fish-secondary">
           <span>
             {activeDish.oceanBatch
-              ? `${activeDish.oceanBatch.inputLabel} becomes a hash-only kitchen ticket. Public proof does not show the raw order.`
+              ? oceanBatchPrivatePayload
+                ? `${activeDish.oceanBatch.inputLabel} goes to the private Ocean batch kitchen. Public proof shows tickets and hashes, not raw text.`
+                : `${activeDish.oceanBatch.inputLabel} becomes a hash-only kitchen ticket. Public proof does not show the raw order.`
               : "No key needed for a small daily demo. API keys unlock balances, usage history, and higher caps."}
           </span>{" "}
           <Link className="font-black text-fish-accent hover:text-white" href={"/privacy" as Route}>

@@ -17,17 +17,21 @@ import type { DataState } from "@/lib/types";
 const OCEAN_BATCH_DIR = path.join(process.cwd(), "data", "ocean-batch");
 const OCEAN_BATCH_RECEIPTS_DIR = path.join(OCEAN_BATCH_DIR, "receipts");
 const OCEAN_BATCH_MODEL = "ocean-batch-placeholder";
+const OCEAN_BATCH_ARTIFACT_MAX_CHARS = 6000;
 
 const batchTaskTypeSchema = z.enum(["document_summary", "structured_extraction", "embeddings", "batch_chat"]);
 const batchAdapterModeSchema = z.enum(["sample_success", "sample_failure", "ocean_http"]);
 const batchStatusSchema = z.enum(["succeeded", "failed", "timed_out"]);
 const pricingStateSchema = z.enum(["prototype_estimate", "provider_verified", "not_applicable"]);
 const dataStateSchema = z.enum(["live", "snapshot", "sample", "unavailable"]);
+const artifactKindSchema = z.enum(["summary_card", "repo_map", "eval_scorecard", "data_card"]);
 
 const oceanBatchJobRequestSchema = z
   .object({
     taskType: batchTaskTypeSchema.default("document_summary"),
     inputRef: z.string().trim().min(8).max(200),
+    inputPayload: z.string().trim().min(1).max(20000).optional(),
+    artifactKind: artifactKindSchema.optional(),
     estimatedInputTokens: z.number().int().min(1).max(200000).optional(),
     maxOutputTokens: z.number().int().min(1).max(8192).optional().default(512),
     maxRuntimeSeconds: z.number().int().min(1).max(3600).optional().default(600),
@@ -54,9 +58,16 @@ type OceanBatchAdapterOutcome = {
   status: "succeeded" | "failed" | "timed_out";
   providerJobId: string | null;
   outputRef: string | null;
+  artifact: OceanBatchArtifact | null;
   usage: OceanBatchReceipt["usage"];
   cost: OceanBatchReceipt["cost"];
   errorCode: string | null;
+};
+
+export type OceanBatchArtifact = {
+  title: string;
+  markdown: string;
+  mimeType: "text/markdown";
 };
 
 export type OceanBatchReceipt = {
@@ -313,6 +324,7 @@ export async function runOceanBatchJob(request: OceanBatchJobRequestInput, conte
     ok: true as const,
     status: 200,
     receipt,
+    artifact: outcome.artifact,
     usageReceipt: usage.receipt,
     creditsRemaining: usage.creditsRemaining,
     budget: await oceanBatchBudgetState(0),
@@ -393,6 +405,7 @@ function runSampleBatchAdapter(input: OceanBatchJobInput): OceanBatchAdapterOutc
     status: "succeeded",
     providerJobId: `sample_batch_${randomUUID()}`,
     outputRef: normalizeHash(`sample-ocean-batch-output:${input.taskType}:${input.inputRef}`),
+    artifact: input.inputPayload ? buildSampleArtifact(input) : null,
     usage: {
       inputTokens,
       outputTokens,
@@ -424,6 +437,8 @@ async function runOceanHttpBatchAdapter(input: OceanBatchJobInput, jobId: string
         idempotencyKey: jobId,
         taskType: input.taskType,
         inputRef: input.inputRef,
+        inputPayload: input.inputPayload,
+        artifactKind: input.artifactKind,
         estimatedInputTokens: input.estimatedInputTokens,
         maxOutputTokens: input.maxOutputTokens,
         maxRuntimeSeconds: input.maxRuntimeSeconds,
@@ -469,6 +484,7 @@ function batchOutcome(input: OceanBatchJobInput, payload: Record<string, unknown
     status,
     providerJobId: readString(payload, ["providerJobId"]) ?? readString(payload, ["jobId"]),
     outputRef,
+    artifact: readBatchArtifact(payload),
     usage,
     cost: {
       userChargeUsd: Number((Math.ceil(usage.totalTokens / 1000) * 0.001).toFixed(6)),
@@ -484,6 +500,7 @@ function batchFailure(input: OceanBatchJobInput, errorCode: string, status: "fai
     status,
     providerJobId: null,
     outputRef: null,
+    artifact: null,
     usage: status === "timed_out" ? { ...emptyUsage(input), gpuSeconds: input.maxRuntimeSeconds } : emptyUsage(input),
     cost: { userChargeUsd: 0, providerCostUsd: 0, pricingState: "not_applicable" },
     errorCode
@@ -579,6 +596,70 @@ function readProviderCostUsd(payload: Record<string, unknown>) {
   const currency = readString(payload, ["cost", "currency"])?.toUpperCase();
   const amount = readNumber(payload, ["cost", "providerCostUsd"]) ?? readNumber(payload, ["cost", "amount"]) ?? 0;
   return currency && !["USD", "USDC"].includes(currency) ? 0 : Number(Math.max(0, amount).toFixed(6));
+}
+
+function readBatchArtifact(payload: Record<string, unknown>): OceanBatchArtifact | null {
+  const value = readPath(payload, ["artifact"]);
+  if (!isRecord(value)) {
+    return null;
+  }
+  const title = readString(value, ["title"]);
+  const markdown = readString(value, ["markdown"]);
+  if (!title || !markdown) {
+    return null;
+  }
+  return {
+    title: limitArtifactText(title, 140),
+    markdown: limitArtifactText(markdown, OCEAN_BATCH_ARTIFACT_MAX_CHARS),
+    mimeType: "text/markdown"
+  };
+}
+
+function buildSampleArtifact(input: OceanBatchJobInput): OceanBatchArtifact {
+  const title = artifactTitle(input.artifactKind, input.taskType);
+  const payload = limitArtifactText(input.inputPayload ?? "", 1200);
+  return {
+    title,
+    markdown: [
+      `# ${title}`,
+      "",
+      "Fish prepared a sample artifact because the private Ocean batch adapter is not configured.",
+      "",
+      "## Input",
+      payload || "No private payload was included.",
+      "",
+      "## Ticket",
+      `Input reference: ${input.inputRef}`
+    ].join("\n"),
+    mimeType: "text/markdown"
+  };
+}
+
+function artifactTitle(kind: OceanBatchJobInput["artifactKind"], taskType: OceanBatchJobInput["taskType"]) {
+  if (kind === "repo_map") {
+    return "Repo Roll Map";
+  }
+  if (kind === "eval_scorecard") {
+    return "Eval Platter Scorecard";
+  }
+  if (kind === "data_card") {
+    return "Data Sushi Card";
+  }
+  if (taskType === "structured_extraction") {
+    return "Structured Catch";
+  }
+  if (taskType === "batch_chat") {
+    return "Batch Scorecard";
+  }
+  if (taskType === "embeddings") {
+    return "Data Prep Card";
+  }
+  return "Docs Bento Brief";
+}
+
+function limitArtifactText(value: string, maxChars: number) {
+  const normalized = value.replace(/\r\n/g, "\n").trim();
+  return normalized.length > maxChars ? `${normalized.slice(0, maxChars - 16).trimEnd()}\n\n[truncated]` : normalized;
 }
 
 function readBatchProviderId() {

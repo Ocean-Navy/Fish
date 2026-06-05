@@ -25,15 +25,19 @@ Request shape:
   "maxOutputTokens": 512,
   "maxRuntimeSeconds": 600,
   "maxCostUsd": 1,
+  "inputPayload": "optional private text for artifact mode",
+  "artifactKind": "summary_card",
   "adapterMode": "sample_success"
 }
 ```
 
-`inputRef` is a hash or storage reference. Do not send raw document text, repo text, datasets, or output text to this endpoint.
+`inputRef` is a hash or storage reference. By default, do not send raw document text, repo text, datasets, or output text to this endpoint.
+
+For private artifact demos, Fish may include `inputPayload` and `artifactKind` when `FISH_OCEAN_BATCH_PRIVATE_PAYLOAD=true`. Use this only with a private adapter and Ocean Node we operate. Public Fish receipts still store only hashes, ids, route labels, cost, usage, and source state; returned artifact text is not written into public proof.
 
 Fish checks `maxCostUsd` against the remaining `FISH_OCEAN_BATCH_DAILY_BUDGET_USD` before calling a private adapter. The default daily cap is `$30`.
 
-`/v1/chat/completions` and `/api/dishes/:dishId/run` generate a hash-only `inputRef`, use this batch contract, and return an OpenAI-style response with batch receipt metadata for Ocean batch dishes.
+`/v1/chat/completions` and `/api/dishes/:dishId/run` generate an `inputRef`, use this batch contract, and return an OpenAI-style response with batch receipt metadata for Ocean batch dishes. With private payload mode disabled, they send only the reference. With private payload mode enabled, they also send a short private payload for artifact generation.
 
 Current dish mapping:
 
@@ -97,7 +101,12 @@ The private adapter should return:
     "amount": 0.04,
     "currency": "USDC"
   },
-  "outputRef": "sha256:result-ref"
+  "outputRef": "sha256:result-ref",
+  "artifact": {
+    "title": "Docs Bento Brief",
+    "markdown": "# Docs Bento Brief\n\nReturned to the user only.",
+    "mimeType": "text/markdown"
+  }
 }
 ```
 
@@ -106,7 +115,8 @@ Fish rejects successful adapter responses that exceed `maxCostUsd`, exceed token
 ## Privacy Rules
 
 - No raw prompt text.
-- No raw dish input text.
+- No raw dish input text in public receipts or proof.
+- Private artifact mode may send short dish text to the private adapter; label that route as `ocean_batch_private`.
 - No full output text in public receipts.
 - No provider endpoint URLs or API keys in public responses.
 - Batch receipts live under ignored `data/ocean-batch/`.
