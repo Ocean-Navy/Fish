@@ -41,6 +41,7 @@ type FishRoutePolicySummary = {
     id: string;
     label: string;
     isRealAi: boolean;
+    status?: string;
   };
   backend?: {
     oceanBatchConfigured?: boolean;
@@ -149,6 +150,20 @@ const dishVisuals: Record<string, { image: string; alt: string }> = {
     alt: "Ocean routing platter with blue rolls, a glowing wave bowl, compass, and small boats"
   }
 };
+
+function routeBadgeLabel(routePolicy: FishRoutePolicySummary | null) {
+  const active = routePolicy?.activeRoute;
+  if (!active) {
+    return "Free taste";
+  }
+  if (active.status === "paused") {
+    return "Paused";
+  }
+  if (active.status === "needs-config") {
+    return "Setup needed";
+  }
+  return active.isRealAi ? "Live AI" : "Demo mode";
+}
 
 function readStoredModel() {
   if (typeof window === "undefined") {
@@ -330,7 +345,7 @@ export function FishMealCounter() {
             <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">Menu</p>
             <h2 className="text-3xl font-black text-white">Pick a dish.</h2>
           </div>
-          <span className="rounded-full border border-fish-accent/25 bg-fish-accent/10 px-3 py-1 text-xs font-black text-fish-accent">Free taste</span>
+          <span className="rounded-full border border-fish-accent/25 bg-fish-accent/10 px-3 py-1 text-xs font-black text-fish-accent">{routeBadgeLabel(routePolicy)}</span>
         </div>
 
         <div className="mt-5 grid gap-3 sm:grid-cols-2">

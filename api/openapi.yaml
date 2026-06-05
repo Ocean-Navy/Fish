@@ -78,7 +78,7 @@ paths:
       summary: Admin-only selected Ocean provider readiness check
       description: Checks selected-provider route config, provider proof allowlist state, `/models`, and optionally one tiny chat probe without returning endpoint URLs, API keys, prompt text, or output text.
       security:
-        - bearerAuth: []
+        - adminToken: []
       requestBody:
         required: false
         content:
@@ -1231,7 +1231,10 @@ paths:
                 type: string
   /api/ocean/refresh:
     post:
-      summary: Trigger a refresh of Ocean Network supply snapshots
+      summary: Admin-only refresh of Ocean Network supply snapshots
+      description: Forces a fresh Ocean / Oncompute supply fetch. Protected to avoid unauthenticated refresh hammering.
+      security:
+        - adminToken: []
       responses:
         '200':
           description: Refresh result
@@ -1239,6 +1242,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/OceanSummary'
+        '401':
+          description: Admin token required
   /api/usage/summary:
     get:
       summary: Fish usage proof summary

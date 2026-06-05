@@ -149,10 +149,13 @@ curl -fsS http://127.0.0.1:3000/api/health
 ## Run With Docker Compose
 
 ```bash
+cp .env.production.example .env.production
 docker compose up --build -d
 docker compose ps
 docker compose logs -f fish-web
 ```
+
+The root Compose file reads `${FISH_ENV_FILE:-.env.production}` when present, so payment, contract, faucet, warm-route, and Ocean batch settings can all be configured from the same production env file. Without that file the app uses conservative defaults: mock chat, disabled faucet, disabled contract writes, and disabled paid checkout.
 
 Stop:
 
@@ -545,6 +548,7 @@ Then browser-check:
 - `/api/billing/subscriptions` with `x-fish-admin-token`
 - `/api/billing/topups` with `x-fish-admin-token`
 - `/api/billing/usage-analytics`
+- `/api/ocean/refresh` with `x-fish-admin-token`
 - `/api/routing/policy`
 - `/api/warm/status`
 - `/api/ocean/batch/readiness`

@@ -60,7 +60,7 @@ function toCsv(rows: StoredSubmission[]) {
     row.kind,
     row.id,
     row.body.contact,
-    row.body.subscriberRoles.join(";"),
+    Array.isArray(row.body.subscriberRoles) ? row.body.subscriberRoles.join(";") : "",
     row.body.useCase,
     row.body.expectedUsage,
     row.body.nodeEndpoint,
@@ -78,6 +78,7 @@ function toCsv(rows: StoredSubmission[]) {
   return [headers, ...values].map((line) => line.map(csvCell).join(",")).join("\n");
 }
 
-function csvCell(value: string) {
-  return `"${value.replaceAll('"', '""')}"`;
+function csvCell(value: unknown) {
+  const cell = value === null || value === undefined ? "" : String(value);
+  return `"${cell.replaceAll('"', '""')}"`;
 }

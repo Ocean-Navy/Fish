@@ -55,6 +55,7 @@ AGENTIC_DEVELOPMENT_PLAN.md  Current work lanes and task routing guide
 api/openapi.yaml             API contract for public and prototype routes
 docs/                        Feature plans, runbooks, and implementation contracts
 docs/codex-security-setup.md Codex Security cloud environment and scan setup
+docs/non-gpu-publish-readiness.md What can ship before a GPU VM
 contracts/                   Prototype Solidity contracts for OCEAN/FISH and capacity-pool research
 ```
 
@@ -81,6 +82,7 @@ Useful local routes:
 /api/health
 /api/ocean/summary
 /api/ocean/resources
+/api/ocean/refresh
 /api/ocean/batch/jobs
 /api/ocean/batch/readiness
 /api/billing/plans
@@ -146,6 +148,7 @@ docker run --rm -p 3000:3000 \
 Or use Compose:
 
 ```bash
+cp .env.production.example .env.production
 docker compose up --build
 ```
 
@@ -165,6 +168,8 @@ The container runs the Next.js standalone server as a non-root user. Form submis
 ```
 
 Compose mounts those paths as named volumes named `fish-submissions`, `fish-ledger`, `fish-proof`, and `fish-staking`.
+
+The root Compose file reads `${FISH_ENV_FILE:-.env.production}` when present. Keep `FISH_ADMIN_TOKEN` set before exposing admin routes. For a public site before Fish Runner is configured, leave `FISH_CHAT_ROUTE=mock` so the meal counter labels itself as demo mode, or set `FISH_CHAT_PAUSED=true` to stop orders entirely.
 
 ### Protected VM Preview
 
