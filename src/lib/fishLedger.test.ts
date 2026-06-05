@@ -121,19 +121,22 @@ test("stale authenticated ledger writes do not undo API key revocation", async (
   assert.equal(authAfterStaleWrite.error, "api_key_revoked");
 });
 
-test("requireAdmin rejects the public placeholder admin token in production", () => {
+test("requireAdmin rejects public placeholder admin tokens in production", () => {
   mutableEnv.NODE_ENV = "production";
-  mutableEnv.FISH_ADMIN_TOKEN = "change-me-for-production";
 
-  const request = new Request("http://127.0.0.1:3000/v1/api_keys", {
-    headers: { "x-fish-admin-token": "change-me-for-production" }
-  });
+  for (const placeholder of ["change-me-for-production", "replace-with-a-long-random-secret"]) {
+    mutableEnv.FISH_ADMIN_TOKEN = placeholder;
 
-  assert.deepEqual(requireAdmin(request), {
-    ok: false,
-    status: 401,
-    error: "admin_token_required"
-  });
+    const request = new Request("http://127.0.0.1:3000/v1/api_keys", {
+      headers: { "x-fish-admin-token": placeholder }
+    });
+
+    assert.deepEqual(requireAdmin(request), {
+      ok: false,
+      status: 401,
+      error: "admin_token_required"
+    });
+  }
 });
 
 test("requireAdmin accepts a configured non-placeholder admin token in production", () => {

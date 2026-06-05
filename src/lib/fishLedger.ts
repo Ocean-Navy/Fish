@@ -418,7 +418,7 @@ export function parseChatCompletion(body: unknown) {
   return chatCompletionSchema.safeParse(body);
 }
 
-const UNSAFE_ADMIN_TOKENS = new Set(["change-me-for-production"]);
+const UNSAFE_ADMIN_TOKENS = new Set(["change-me-for-production", "replace-with-a-long-random-secret"]);
 
 function isUnsafeAdminToken(token: string) {
   return UNSAFE_ADMIN_TOKENS.has(token.trim().toLowerCase());
