@@ -260,13 +260,14 @@ OCEAN_CLI_DIR=/Users/robin/Projects/opfish/.deps/ocean-cli
 Publish the first Fish algorithm after `PRIVATE_KEY`, `RPC`, and `NODE_URL` are exported:
 
 ```bash
-export FISH_ALGORITHM_FILE_URL="https://public-url.example/fish-document-summary/algorithm.py"
+commit="$(git rev-parse HEAD)"
+export FISH_ALGORITHM_FILE_URL="https://raw.githubusercontent.com/Ocean-Navy/Fish/${commit}/deploy/ocean-workload-adapter/algorithms/fish-document-summary/algorithm.py"
 scripts/publish-fish-document-summary-algorithm.sh --env-file .env.ocean-proof.local
 ```
 
 Then copy the printed `FISH_OCEAN_ALGO_DID=did:op:...` into `.env.ocean-proof.local`.
 
-`FISH_ALGORITHM_FILE_URL` must be public. The current Fish GitHub repository is private, and Ocean nodes cannot fetch private GitHub raw URLs without credentials.
+`FISH_ALGORITHM_FILE_URL` must be public and immutable. Raw GitHub URLs must use a 40-character commit hash, not `main`, another branch, or a tag. The current Fish GitHub repository may be private, and Ocean nodes cannot fetch private GitHub raw URLs without credentials.
 
 For the current Oncompute route, use:
 

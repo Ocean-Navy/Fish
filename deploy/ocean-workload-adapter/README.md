@@ -105,13 +105,14 @@ deploy/ocean-workload-adapter/algorithms/fish-document-summary/
 After the proof wallet, RPC, and `NODE_URL` are set, publish it with:
 
 ```bash
-export FISH_ALGORITHM_FILE_URL="https://public-url.example/fish-document-summary/algorithm.py"
+commit="$(git rev-parse HEAD)"
+export FISH_ALGORITHM_FILE_URL="https://raw.githubusercontent.com/Ocean-Navy/Fish/${commit}/deploy/ocean-workload-adapter/algorithms/fish-document-summary/algorithm.py"
 scripts/publish-fish-document-summary-algorithm.sh --env-file .env.ocean-proof.local
 ```
 
 The script prints the `FISH_OCEAN_ALGO_DID` value for `.env.ocean-proof.local`.
 
-`FISH_ALGORITHM_FILE_URL` must be public. The current GitHub repository is private, so an unauthenticated Ocean node cannot fetch a private `raw.githubusercontent.com` URL.
+`FISH_ALGORITHM_FILE_URL` must be public and immutable. Raw GitHub URLs must use a 40-character commit hash, not `main`, another branch, or a tag. The current GitHub repository may be private, so an unauthenticated Ocean node cannot fetch a private `raw.githubusercontent.com` URL.
 
 ## Run Locally
 
