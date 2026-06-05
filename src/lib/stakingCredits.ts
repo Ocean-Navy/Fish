@@ -43,11 +43,10 @@ const stakingPositionSchema = z.object({
 export type StakingPositionRequestInput = z.infer<typeof stakingPositionRequestSchema>;
 type StakingPosition = z.infer<typeof stakingPositionSchema>;
 
-export type PublicStakingPosition = Omit<StakingPosition, "walletHash" | "linkedFishAccountId"> & {
-  walletHashPrefix: string;
-  creditsSpent: number;
-  creditsRemaining: number;
-};
+export type PublicStakingPosition = Pick<
+  StakingPosition,
+  "positionVersion" | "positionId" | "creditState" | "sourceState" | "visibility" | "createdAt"
+>;
 
 export type StakingCreditSummary = {
   dataState: DataState;
@@ -108,7 +107,7 @@ export async function createStakingPosition(input: StakingPositionRequestInput) 
 
   await writePosition(position);
   return {
-    position: await toPublicPosition(position),
+    position: toPublicPosition(position),
     apiKey: accountResult?.key ?? null,
     keyNotice: accountResult ? "Store this key now. Fish only stores a hash." : null
   };
@@ -116,7 +115,8 @@ export async function createStakingPosition(input: StakingPositionRequestInput) 
 
 export async function summarizeStakingCredits(): Promise<StakingCreditSummary> {
   const positions = await readPositions();
-  const publicPositions = await Promise.all(positions.map(toPublicPosition));
+  const publicPositions = positions.map(toPublicPosition);
+  const creditTotals = await summarizePositionCreditTotals(positions);
   const lastUpdated = positions.map((position) => position.createdAt).sort().at(-1) ?? new Date().toISOString();
   const creditsIssued = sum(positions.map((position) => position.creditsIssued));
   const budgetRemaining = Math.max(0, DEFAULT_CREDIT_BUDGET - creditsIssued);
@@ -139,8 +139,8 @@ export async function summarizeStakingCredits(): Promise<StakingCreditSummary> {
       oceanStaked: sum(positions.map((position) => position.oceanAmount)),
       creditsEarned: sum(positions.map((position) => position.creditsEarned)),
       creditsIssued,
-      creditsSpent: sum(publicPositions.map((position) => position.creditsSpent)),
-      creditsRemaining: sum(publicPositions.map((position) => position.creditsRemaining)),
+      creditsSpent: creditTotals.creditsSpent,
+      creditsRemaining: creditTotals.creditsRemaining,
       budgetRemaining,
       averageLockDays: positions.length ? Number((sum(positions.map((position) => position.lockDays)) / positions.length).toFixed(2)) : null
     },
@@ -153,14 +153,31 @@ export async function summarizeStakingCredits(): Promise<StakingCreditSummary> {
   };
 }
 
-async function toPublicPosition(position: StakingPosition): Promise<PublicStakingPosition> {
-  const account = position.linkedFishAccountId ? await summarizeAccountById(position.linkedFishAccountId) : null;
-  const { walletHash, linkedFishAccountId: _linkedFishAccountId, ...publicPosition } = position;
+function toPublicPosition(position: StakingPosition): PublicStakingPosition {
   return {
-    ...publicPosition,
-    walletHashPrefix: hashPrefix(walletHash),
-    creditsSpent: account?.totals.creditsSpent ?? 0,
-    creditsRemaining: account?.totals.creditsRemaining ?? position.creditsIssued
+    positionVersion: position.positionVersion,
+    positionId: position.positionId,
+    creditState: position.creditState,
+    sourceState: position.sourceState,
+    visibility: position.visibility,
+    createdAt: position.createdAt
+  };
+}
+
+async function summarizePositionCreditTotals(positions: StakingPosition[]) {
+  const accountTotals = await Promise.all(
+    positions.map(async (position) => {
+      const account = position.linkedFishAccountId ? await summarizeAccountById(position.linkedFishAccountId) : null;
+      return {
+        creditsSpent: account?.totals.creditsSpent ?? 0,
+        creditsRemaining: account?.totals.creditsRemaining ?? position.creditsIssued
+      };
+    })
+  );
+
+  return {
+    creditsSpent: sum(accountTotals.map((account) => account.creditsSpent)),
+    creditsRemaining: sum(accountTotals.map((account) => account.creditsRemaining))
   };
 }
 
@@ -195,9 +212,6 @@ function hashWallet(value: string) {
   return `sha256:${createHash("sha256").update(value.trim().toLowerCase()).digest("hex")}`;
 }
 
-function hashPrefix(hash: string) {
-  return `${hash.slice(0, 18)}...`;
-}
 
 function sum(values: number[]) {
   return Number(values.reduce((total, value) => total + value, 0).toFixed(6));

@@ -1293,10 +1293,10 @@ paths:
                 $ref: '#/components/schemas/StakingCreditSummary'
   /api/staking/positions:
     get:
-      summary: Public offchain OCEAN staking positions
+      summary: Public-safe opaque offchain OCEAN staking position records
       responses:
         '200':
-          description: Public staking positions
+          description: Opaque staking position records without holder labels, wallet links, lock details, or per-account credit balances
           content:
             application/json:
               schema:
@@ -3944,26 +3944,13 @@ components:
             type: string
     PublicStakingPosition:
       type: object
+      description: Opaque public stake record. Holder labels, wallet hashes, stake amounts, lock details, and per-account credit balances stay private unless an explicit disclosure flow is added.
       properties:
         positionVersion:
           type: integer
           enum: [1]
         positionId:
           type: string
-        holderLabel:
-          type: string
-        budgetId:
-          type: string
-        oceanAmount:
-          type: number
-        lockDays:
-          type: integer
-        creditsPerOceanMonth:
-          type: number
-        creditsEarned:
-          type: number
-        creditsIssued:
-          type: number
         creditState:
           type: string
           enum: [issued, partial, queued]
@@ -3975,14 +3962,6 @@ components:
           enum: [public]
         createdAt:
           type: string
-        unlocksAt:
-          type: string
-        walletHashPrefix:
-          type: string
-        creditsSpent:
-          type: number
-        creditsRemaining:
-          type: number
     StakingCreditSummary:
       type: object
       properties:

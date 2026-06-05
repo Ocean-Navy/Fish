@@ -13,8 +13,8 @@ operator verifies OCEAN lock intent
 
 ## Public-Safe Contract
 
-- Public summaries show holder labels, OCEAN amount, lock duration, credit state, issued/spent credits, and unlock time.
-- Public summaries expose only a wallet hash prefix, not the raw wallet reference.
+- Public summaries show aggregate OCEAN amount, issued/spent credits, budget remaining, and opaque position records for state tracking.
+- Public summaries must not expose holder labels, wallet hash prefixes, exact per-position stake metadata, or per-account credit balances unless a future holder opt-in disclosure flow is added.
 - API keys are returned once on creation and only a hash is stored in the Fish credit ledger.
 - This is not an onchain staking contract and must be labeled `offchain_prototype`.
 - Provider bonds are a separate supply-side utility lane. See `docs/provider-bonds-plan.md`; staking credits must not be mixed with provider bond custody or routing eligibility.
@@ -65,7 +65,7 @@ Credits are capped by the remaining funded budget. If the budget is exhausted, p
 
 - Staking positions persist under `data/staking/positions/`.
 - Creating a funded position can issue a spendable Fish API key.
-- Public dashboard shows OCEAN staked, credits issued, credits spent, and budget remaining.
-- Public responses do not expose raw wallet references or API key hashes.
+- Public dashboard shows aggregate OCEAN staked, credits issued, credits spent, and budget remaining.
+- Public responses do not expose raw wallet references, wallet hash prefixes, holder labels, per-position stake metadata, per-account credit balances, or API key hashes.
 - Wallet intent responses do not expose raw signatures or full wallet addresses.
 - Docker and Compose persist `/app/data/staking`.

@@ -551,6 +551,8 @@ The response returns a one-time Fish API key when credits are issued. Public sta
 /api/staking/summary
 ```
 
+Public staking responses expose aggregate credit and OCEAN totals plus opaque position records only. They do not publish holder labels, wallet hash prefixes, exact per-position stake metadata, or per-account credit balances unless a future explicit disclosure flow is added.
+
 The `/credits` page also has a browser-wallet intent flow. It asks a holder to connect an EVM wallet, sign a plain-language OCEAN credit intent, and records only public-safe hashes plus an estimated credit amount:
 
 ```text
