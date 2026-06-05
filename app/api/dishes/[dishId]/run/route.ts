@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { streamChatCompletion } from "@/lib/chatCompletionStream";
@@ -6,6 +5,7 @@ import { buildFishDishChatInput, getFishDish } from "@/lib/fishDishes";
 import { authenticateRequest, getOrCreateGuestAccount } from "@/lib/fishLedger";
 import { runFishChatGateway } from "@/lib/fishChatGateway";
 import { getFishRouterConfig } from "@/lib/fishRouter";
+import { anonymousGuestId } from "@/lib/guestIdentity";
 
 export const dynamic = "force-dynamic";
 
@@ -95,7 +95,7 @@ async function resolveGatewayContext(request: Request, routerConfig: ReturnType<
     };
   }
 
-  const guestId = guestFingerprint(request);
+  const guestId = anonymousGuestId();
   const guest = await getOrCreateGuestAccount(guestId, Number(process.env.FISH_GUEST_CREDIT_GRANT ?? "25"));
   return {
     ok: true as const,
@@ -124,10 +124,3 @@ function hasBearerToken(request: Request) {
   return /^Bearer\s+\S+/i.test(request.headers.get("authorization") ?? "");
 }
 
-function guestFingerprint(request: Request) {
-  const forwardedFor = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
-  const realIp = request.headers.get("x-real-ip")?.trim();
-  const userAgent = request.headers.get("user-agent")?.trim() || "unknown-agent";
-  const ip = forwardedFor || realIp || "local";
-  return createHash("sha256").update(`${ip}|${userAgent}`).digest("hex").slice(0, 32);
-}

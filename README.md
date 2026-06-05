@@ -231,6 +231,7 @@ FISH_MAX_OUTPUT_TOKENS=512
 FISH_DAILY_KEYED_QUOTA=20
 FISH_DAILY_ANONYMOUS_QUOTA=5
 FISH_GUEST_CREDIT_GRANT=25
+FISH_GUEST_ID_SALT=
 FISH_CHAT_PAUSED=false
 FISH_ROUTER_KILL_SWITCH=false
 FISH_MOCK_DAILY_BUDGET_USD=0
@@ -324,6 +325,8 @@ FISH_EXTERNAL_FALLBACK_FREE_ALLOWED=false
 Fish stores usage numbers, route metadata, latency, cost estimates, and request hashes in local receipts. It does not store raw prompts or outputs in receipts, public proof, dashboards, billing rows, or exports. The raw prompt is still sent to the configured backend when that route needs it to answer, so that backend's privacy policy applies. The public data-handling page is available at `/privacy`.
 
 Feature caps are layered under the global token limits. For example, Code can have a larger cap than Ask when `FISH_MAX_OUTPUT_TOKENS` is raised, while Images remain disabled until a paid image route exists.
+
+Unauthenticated meal and dish routes use one deployment-scoped anonymous guest identity for quota and demo credit accounting. `FISH_GUEST_ID_SALT` can separate that bucket between deployments, but Fish does not trust client-supplied proxy headers such as `X-Forwarded-For` or `X-Real-IP` for guest credit grants.
 
 The public route compass shows what is active without exposing secrets:
 

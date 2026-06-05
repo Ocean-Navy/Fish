@@ -380,7 +380,7 @@ No public warm route should run without:
 - max output tokens;
 - plan-based per-minute request limit;
 - plan-based monthly request limit;
-- max requests per anonymous user per day;
+- max requests per deployment-scoped anonymous guest bucket per day;
 - max concurrent requests;
 - model-level daily request limit;
 - model-level daily cost limit;
@@ -388,7 +388,7 @@ No public warm route should run without:
 - timeout and cancellation handling;
 - fallback disabled by default for anonymous users.
 
-For first public testing, keep anonymous users to a very small allowance such as 3 to 5 short messages per day and 512 output tokens per response.
+For first public testing, keep the shared anonymous guest bucket to a very small allowance such as 3 to 5 short messages per day and 512 output tokens per response. Do not trust client-supplied proxy headers for guest identity; set `FISH_GUEST_ID_SALT` only to separate one deployment bucket from another.
 
 ## Smoke Test From Fish Gateway
 
