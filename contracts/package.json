@@ -6,7 +6,13 @@
   "scripts": {
     "compile": "hardhat compile",
     "deploy:testnet": "hardhat run scripts/deploy-testnet.js --network baseSepolia",
-    "test": "hardhat test"
+    "security": "npm run compile && npm run test && npm run security:static",
+    "security:strict": "npm run compile && npm run test && npm run security:static:strict",
+    "security:static": "node scripts/run-static-analysis.js",
+    "security:static:strict": "node scripts/run-static-analysis.js --strict",
+    "test": "hardhat test",
+    "test:invariants": "hardhat test test/fish-contract-invariants.test.js",
+    "test:unit": "hardhat test test/fish-contracts.test.js"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^5.0.0",

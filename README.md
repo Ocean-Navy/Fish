@@ -118,6 +118,7 @@ npm run smoke      # Typecheck + build
 npm run verify     # Lint + typecheck + build
 npm run contracts:compile
 npm run contracts:test
+npm run contracts:security
 npm run contracts:deploy:testnet
 ```
 

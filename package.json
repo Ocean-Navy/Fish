@@ -14,6 +14,8 @@
     "verify": "npm run lint && npm run test:app && npm run smoke",
     "contracts:compile": "npm --prefix contracts run compile",
     "contracts:deploy:testnet": "npm --prefix contracts run deploy:testnet",
+    "contracts:security": "npm --prefix contracts run security",
+    "contracts:security:strict": "npm --prefix contracts run security:strict",
     "contracts:test": "npm --prefix contracts test"
   },
   "dependencies": {
