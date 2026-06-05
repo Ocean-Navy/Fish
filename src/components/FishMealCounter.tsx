@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  ChefHat,
   ClipboardCheck,
   Code2,
   Database,
@@ -9,13 +8,11 @@ import {
   Fish,
   GitBranch,
   ImageIcon,
-  KeyRound,
   Lightbulb,
   Loader2,
   MessageSquareText,
   PenTool,
   Send,
-  Utensils,
   Waves
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -107,6 +104,51 @@ const dishes: FishDish[] = FISH_DISHES.map((dish) => ({
 const oceanBatchDishes = dishes.filter((dish) => dish.lane === "batch");
 const quickDishes = dishes.filter((dish) => dish.lane === "warm");
 const futureDishes = dishes.filter((dish) => dish.lane === "future");
+const featuredDishes = [...oceanBatchDishes, ...quickDishes.filter((dish) => dish.id === "ask")];
+const moreDishes = [...quickDishes.filter((dish) => dish.id !== "ask"), ...futureDishes];
+
+const dishVisuals: Record<string, { image: string; alt: string }> = {
+  ask: {
+    image: "/assets/generated/fish-flow-use.png",
+    alt: "Dolphin chef handing a glowing Fish dish to a user in a Venice night market"
+  },
+  code: {
+    image: "/assets/generated/fish-role-builder.png",
+    alt: "Builder holding glowing Fish credits at a Venice dock counter"
+  },
+  explain: {
+    image: "/assets/visual-identity/fish-venice-market-dolphin.png",
+    alt: "Friendly Fish dolphin in a Venice market"
+  },
+  docs: {
+    image: "/assets/generated/fish-flow-use.png",
+    alt: "Dolphin chef preparing a glowing Fish dish"
+  },
+  repo: {
+    image: "/assets/generated/fish-role-builder.png",
+    alt: "Builder at a glowing Ocean Navy workbench"
+  },
+  eval: {
+    image: "/assets/generated/fish-flow-catch.png",
+    alt: "Fisher lifting a net of glowing Fish in Venice"
+  },
+  data: {
+    image: "/assets/generated/fish-flow-grow.png",
+    alt: "Marine life and glowing Fish below a Venice harbor"
+  },
+  images: {
+    image: "/assets/generated/fish-market-hero.png",
+    alt: "Fish market at night in Venice"
+  },
+  proposal: {
+    image: "/assets/generated/fish-flow-paid.png",
+    alt: "Ocean Navy market provider with glowing Fish and coins"
+  },
+  ocean: {
+    image: "/assets/fish-hero-story-textfree.png",
+    alt: "Ocean Navy Fish harbor scene"
+  }
+};
 
 function readStoredModel() {
   if (typeof window === "undefined") {
@@ -154,7 +196,7 @@ export function FishMealCounter() {
   const [isLoading, setIsLoading] = useState(false);
 
   const activeDish = useMemo(() => dishes.find((dish) => dish.id === activeDishId) ?? dishes[0], [activeDishId]);
-  const ActiveIcon = activeDish.icon;
+  const activeVisual = dishVisuals[activeDish.id] ?? dishVisuals.ask;
   const maxOutputTokens = routePolicy?.guardrails?.maxOutputTokens ?? 512;
   const orderMaxTokens = Math.min(activeDish.maxTokens, maxOutputTokens);
   const oceanBatchPrivatePayload = routePolicy?.backend?.oceanBatchPrivatePayload === true;
@@ -281,82 +323,55 @@ export function FishMealCounter() {
   }
 
   return (
-    <div className="grid gap-5 lg:grid-cols-[0.9fr_1.1fr]">
-      <section className="space-y-4">
-        <div className="rounded-[2rem] border border-fish-accent/25 bg-fish-surface/80 p-5 shadow-harbor sm:p-7">
-          <div className="flex items-center gap-3">
-            <span className="grid h-12 w-12 place-items-center rounded-2xl bg-fish-accent/15 text-fish-accent">
-              <Utensils className="h-6 w-6" aria-hidden="true" />
-            </span>
-            <div>
-              <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">Fish market</p>
-              <h2 className="text-3xl font-black text-white">Choose what you need.</h2>
-            </div>
+    <div className="grid gap-5 lg:grid-cols-[0.95fr_1.05fr]">
+      <section className="rounded-[2rem] border border-fish-accent/25 bg-fish-surface/80 p-4 shadow-harbor sm:p-5">
+        <div className="flex items-end justify-between gap-3">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">Menu</p>
+            <h2 className="text-3xl font-black text-white">Pick a dish.</h2>
           </div>
-
-          <div className="relative mt-5 aspect-[16/9] overflow-hidden rounded-[1.5rem] border border-fish-accent/20 bg-fish-navy950">
-            <Image
-              src="/assets/generated/fish-dish-menu-market.webp"
-              alt=""
-              fill
-              sizes="(min-width: 1024px) 38vw, 100vw"
-              className="object-cover"
-              priority={false}
-            />
-          </div>
-
-          <DishSection title="Ocean batch dishes" dishes={oceanBatchDishes} activeDishId={activeDish.id} onSelect={selectDish} />
-          <DishSection title="Quick tastes" dishes={quickDishes} activeDishId={activeDish.id} onSelect={selectDish} compact />
-          <DishSection title="Later" dishes={futureDishes} activeDishId={activeDish.id} onSelect={selectDish} compact />
-
-          <div className="mt-5 grid gap-3 sm:grid-cols-2">
-            <a className="rounded-[1.25rem] border border-fish-accent/18 bg-fish-navy950/45 p-4 transition hover:border-fish-accent/55" href="/api">
-              <span className="text-xs font-black uppercase tracking-[0.12em] text-fish-gold">API</span>
-              <span className="mt-2 block text-xl font-black text-white">One key</span>
-              <span className="mt-1 block text-sm font-bold leading-6 text-fish-secondary">Use Fish from your app.</span>
-            </a>
-            <a className="rounded-[1.25rem] border border-fish-accent/18 bg-fish-navy950/45 p-4 transition hover:border-fish-accent/55" href="/dashboard">
-              <span className="text-xs font-black uppercase tracking-[0.12em] text-fish-gold">Dashboard</span>
-              <span className="mt-2 block text-xl font-black text-white">See supply</span>
-              <span className="mt-1 block text-sm font-bold leading-6 text-fish-secondary">Receipts, credits, and supply.</span>
-            </a>
-          </div>
+          <span className="rounded-full border border-fish-accent/25 bg-fish-accent/10 px-3 py-1 text-xs font-black text-fish-accent">Free taste</span>
         </div>
 
-        <div className="rounded-[2rem] border border-fish-accent/25 bg-fish-surface/80 p-5 shadow-harbor sm:p-7">
-          <div className="mb-5 flex items-center gap-3">
-            <span className="grid h-11 w-11 place-items-center rounded-2xl bg-fish-accent/15 text-fish-accent">
-              <KeyRound className="h-5 w-5" aria-hidden="true" />
-            </span>
-            <div>
-              <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">Pilot access</p>
-              <h2 className="text-2xl font-black text-white">Try it or use your key</h2>
-            </div>
+        <div className="mt-5 grid gap-3 sm:grid-cols-2">
+          {featuredDishes.map((dish) => (
+            <DishCard key={dish.id} dish={dish} activeDishId={activeDish.id} onSelect={selectDish} />
+          ))}
+        </div>
+
+        <details className="mt-4 rounded-[1.5rem] border border-fish-accent/15 bg-white/[0.035] p-4">
+          <summary className="cursor-pointer text-sm font-black text-fish-primary">More dishes</summary>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            {moreDishes.map((dish) => (
+              <DishCard key={dish.id} dish={dish} activeDishId={activeDish.id} onSelect={selectDish} compact />
+            ))}
           </div>
+        </details>
 
-          <label className="block text-sm font-black text-fish-primary" htmlFor="fish-meal-api-key">
-            Fish API key <span className="text-fish-secondary">(optional)</span>
-          </label>
-          <input
-            id="fish-meal-api-key"
-            value={apiKey}
-            onChange={(event) => setApiKey(event.target.value)}
-            type="password"
-            autoComplete="off"
-            placeholder="Leave empty for a small daily demo"
-            className="mt-2 h-12 w-full rounded-2xl border border-fish-accent/25 bg-fish-navy950/70 px-4 text-sm font-bold text-white outline-none transition placeholder:text-fish-muted focus:border-fish-accent"
-          />
+        <details className="mt-4 rounded-[1.5rem] border border-fish-accent/15 bg-fish-navy950/45 p-4">
+          <summary className="cursor-pointer text-sm font-black text-fish-primary">Details</summary>
+          <div className="mt-4 space-y-4">
+            <label className="block text-sm font-black text-fish-primary" htmlFor="fish-meal-api-key">
+              Fish API key <span className="text-fish-secondary">(optional)</span>
+            </label>
+            <input
+              id="fish-meal-api-key"
+              value={apiKey}
+              onChange={(event) => setApiKey(event.target.value)}
+              type="password"
+              autoComplete="off"
+              placeholder="Leave empty for a small demo"
+              className="h-12 w-full rounded-2xl border border-fish-accent/25 bg-fish-navy950/70 px-4 text-sm font-bold text-white outline-none transition placeholder:text-fish-muted focus:border-fish-accent"
+            />
 
-          <details className="mt-5 rounded-2xl border border-fish-accent/15 bg-white/[0.035] p-4">
-            <summary className="cursor-pointer text-sm font-black text-fish-primary">Advanced</summary>
-            <label className="mt-4 block text-sm font-black text-fish-primary" htmlFor="fish-meal-model">
+            <label className="block text-sm font-black text-fish-primary" htmlFor="fish-meal-model">
               Model
             </label>
             <select
               id="fish-meal-model"
               value={selectedModel}
               onChange={(event) => setSelectedModel(event.target.value)}
-              className="mt-2 h-12 w-full rounded-2xl border border-fish-accent/25 bg-fish-navy950/70 px-4 text-sm font-black text-white outline-none transition focus:border-fish-accent"
+              className="h-12 w-full rounded-2xl border border-fish-accent/25 bg-fish-navy950/70 px-4 text-sm font-black text-white outline-none transition focus:border-fish-accent"
             >
               {models.map((model) => (
                 <option key={model.id} value={model.id}>
@@ -364,29 +379,30 @@ export function FishMealCounter() {
                 </option>
               ))}
             </select>
-          </details>
 
-          <div className="mt-5 grid gap-3 sm:grid-cols-3">
-            <StatusTile label="Dish" value={activeDish.title} />
-            <StatusTile label="Result" value={activeDish.subtitle} />
-            <StatusTile label="Access" value={apiKey.trim() ? "API key" : "Free taste"} />
-          </div>
-        </div>
-      </section>
-
-      <section className="rounded-[2rem] border border-fish-accent/25 bg-fish-surface/80 p-5 shadow-harbor sm:p-7">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="flex items-center gap-3">
-            <span className="grid h-12 w-12 place-items-center rounded-2xl bg-fish-accent text-fish-navy950">
-              <ActiveIcon className="h-6 w-6" aria-hidden="true" />
-            </span>
-            <div>
-              <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">Your order</p>
-              <h2 className="text-3xl font-black text-white">{activeDish.title}</h2>
-              <p className="mt-1 text-sm font-black text-fish-accent">{activeDish.subtitle}</p>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <Link className="rounded-2xl border border-fish-accent/15 bg-white/[0.035] p-4 text-sm font-black text-fish-primary hover:border-fish-accent hover:text-white" href={"/privacy" as Route}>
+                Data policy
+              </Link>
+              <Link className="rounded-2xl border border-fish-accent/15 bg-white/[0.035] p-4 text-sm font-black text-fish-primary hover:border-fish-accent hover:text-white" href={"/api" as Route}>
+                API docs
+              </Link>
+              <Link className="rounded-2xl border border-fish-accent/15 bg-white/[0.035] p-4 text-sm font-black text-fish-primary hover:border-fish-accent hover:text-white" href={"/proof" as Route}>
+                Proof
+              </Link>
             </div>
           </div>
-          <span className="inline-flex h-9 items-center rounded-full border border-fish-accent/25 bg-fish-accent/10 px-3 text-xs font-black uppercase tracking-[0.08em] text-fish-accent">Ready</span>
+        </details>
+      </section>
+
+      <section className="rounded-[2rem] border border-fish-accent/25 bg-fish-surface/80 p-4 shadow-harbor sm:p-5">
+        <div className="relative aspect-[16/9] overflow-hidden rounded-[1.5rem] border border-fish-accent/20 bg-fish-navy950">
+          <Image src={activeVisual.image} alt={activeVisual.alt} fill sizes="(min-width: 1024px) 48vw, 100vw" className="object-cover transition duration-300" />
+          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-fish-navy950/92 via-fish-navy950/35 to-transparent p-5">
+            <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">Your order</p>
+            <h2 className="mt-1 text-4xl font-black text-white">{activeDish.title}</h2>
+            <p className="mt-1 text-base font-black text-fish-accent">{activeDish.subtitle}</p>
+          </div>
         </div>
 
         <label className="mt-6 block text-sm font-black text-fish-primary" htmlFor="fish-meal-prompt">
@@ -429,18 +445,16 @@ export function FishMealCounter() {
           </button>
         </div>
 
-        <div className="mt-5 rounded-[1.5rem] border border-fish-accent/15 bg-white/[0.035] p-4 text-sm font-bold leading-6 text-fish-secondary">
-          <span>
+        <details className="mt-5 rounded-[1.5rem] border border-fish-accent/15 bg-white/[0.035] p-4 text-sm font-bold leading-6 text-fish-secondary">
+          <summary className="cursor-pointer font-black text-fish-primary">How this order is handled</summary>
+          <p className="mt-3">
             {activeDish.oceanBatch
               ? oceanBatchPrivatePayload
                 ? "Fish uses your order to make the result. Receipts never show the raw order or answer."
                 : "Fish can make a receipt without showing the raw order."
               : "No key needed for a small daily demo. API keys unlock more usage."}
-          </span>{" "}
-          <Link className="font-black text-fish-accent hover:text-white" href={"/privacy" as Route}>
-            Data policy
-          </Link>
-        </div>
+          </p>
+        </details>
 
         <div className="mt-5 min-h-80 rounded-[1.5rem] border border-fish-accent/18 bg-fish-navy950/45 p-5">
           {isLoading ? (
@@ -458,10 +472,6 @@ export function FishMealCounter() {
                 <span className="inline-flex h-9 w-fit items-center rounded-full bg-fish-accent/15 px-3 text-xs font-black uppercase tracking-[0.08em] text-fish-accent">{result.dishTitle}</span>
               </div>
               <ResultContent content={result.content} />
-              <div className="mt-6 grid gap-3 sm:grid-cols-2">
-                <Metric label="Credits left" value={String(result.creditsRemaining ?? 0)} />
-                <Metric label={result.accessMode === "guest" ? "Free tastes left" : "Price"} value={result.accessMode === "guest" ? String(result.quotaRemaining ?? 0) : `$${(result.userChargeUsd ?? 0).toFixed(4)}`} />
-              </div>
               {result.privacyDowngradeReason ? (
                 <p className="mt-3 rounded-2xl border border-fish-gold/25 bg-fish-gold/10 p-4 text-sm font-black leading-6 text-fish-primary">
                   Privacy mode changed: {formatBadge(result.privacyDowngradeReason)}.
@@ -476,6 +486,13 @@ export function FishMealCounter() {
               <details className="mt-4 rounded-2xl border border-fish-accent/15 bg-white/[0.035] p-4 text-xs font-bold leading-6 text-fish-secondary">
                 <summary className="cursor-pointer text-sm font-black text-fish-primary">Receipt</summary>
                 <div className="mt-3 grid gap-2">
+                  <p>
+                    Credits left: <span className="text-fish-primary">{result.creditsRemaining ?? 0}</span>
+                  </p>
+                  <p>
+                    {result.accessMode === "guest" ? "Free tastes left" : "Price"}:{" "}
+                    <span className="text-fish-primary">{result.accessMode === "guest" ? String(result.quotaRemaining ?? 0) : `$${(result.userChargeUsd ?? 0).toFixed(4)}`}</span>
+                  </p>
                   <p>
                     Credits used: <span className="text-fish-primary">{result.creditsSpent ?? 0}</span>
                   </p>
@@ -547,83 +564,33 @@ export function FishMealCounter() {
   );
 }
 
-function DishSection({
-  title,
-  dishes: sectionDishes,
-  activeDishId,
-  onSelect,
-  compact = false
-}: {
-  title: string;
-  dishes: FishDish[];
-  activeDishId: string;
-  onSelect: (dishId: string) => void;
-  compact?: boolean;
-}) {
-  if (!sectionDishes.length) {
-    return null;
-  }
+function DishCard({ dish, activeDishId, onSelect, compact = false }: { dish: FishDish; activeDishId: string; onSelect: (dishId: string) => void; compact?: boolean }) {
+  const isActive = dish.id === activeDishId;
+  const visual = dishVisuals[dish.id] ?? dishVisuals.ask;
   return (
-    <div className="mt-5">
-      <div className="mb-3 flex items-center gap-2">
-        <ChefHat className="h-4 w-4 text-fish-gold" aria-hidden="true" />
-        <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">{title}</p>
+    <button
+      type="button"
+      onClick={() => onSelect(dish.id)}
+      aria-pressed={isActive}
+      disabled={Boolean(dish.disabled)}
+      className={`group relative overflow-hidden rounded-[1.35rem] border text-left shadow-harbor transition ${
+        compact ? "min-h-32" : "min-h-48"
+      } ${
+        isActive
+          ? "border-fish-accent ring-2 ring-fish-accent/35"
+          : dish.disabled
+            ? "cursor-not-allowed border-white/10 opacity-65"
+            : "border-fish-accent/18 hover:border-fish-accent/55"
+      }`}
+    >
+      <Image src={visual.image} alt="" fill sizes="(min-width: 1024px) 22vw, 50vw" className="object-cover transition duration-300 group-hover:scale-105" />
+      <div className="absolute inset-0 bg-gradient-to-t from-fish-navy950 via-fish-navy950/45 to-transparent" aria-hidden="true" />
+      <div className="absolute inset-x-0 bottom-0 p-4">
+        {dish.disabled ? <span className="mb-2 inline-flex rounded-full border border-fish-gold/25 bg-fish-gold/10 px-3 py-1 text-[0.68rem] font-black uppercase tracking-[0.08em] text-fish-gold">Later</span> : null}
+        <span className={`${compact ? "text-xl" : "text-2xl"} block font-black leading-tight text-white`}>{dish.title}</span>
+        <span className="mt-1 block text-sm font-black text-fish-accent">{dish.subtitle}</span>
       </div>
-      <div className={`grid gap-3 ${compact ? "sm:grid-cols-2" : "sm:grid-cols-2"}`}>
-        {sectionDishes.map((dish) => {
-          const Icon = dish.icon;
-          const isActive = dish.id === activeDishId;
-          return (
-            <button
-              key={dish.id}
-              type="button"
-              onClick={() => onSelect(dish.id)}
-              aria-pressed={isActive}
-              disabled={Boolean(dish.disabled)}
-              className={`group rounded-[1.5rem] border p-4 text-left transition ${compact ? "min-h-32" : "min-h-40"} ${
-                isActive
-                  ? "border-fish-accent bg-fish-accent/10 ring-2 ring-fish-accent/25"
-                  : dish.disabled
-                    ? "cursor-not-allowed border-white/10 bg-white/[0.02] opacity-65"
-                    : "border-fish-accent/18 bg-white/[0.035] hover:border-fish-accent/55"
-              }`}
-            >
-              <span className="flex items-start justify-between gap-3">
-                <span className="grid h-11 w-11 place-items-center rounded-2xl bg-fish-navy950/70 text-fish-accent ring-1 ring-fish-accent/25">
-                  <Icon className="h-5 w-5" aria-hidden="true" />
-                </span>
-                {dish.disabled ? (
-                  <span className="rounded-full border border-fish-gold/25 bg-fish-gold/10 px-3 py-1 text-[0.68rem] font-black uppercase tracking-[0.08em] text-fish-gold">
-                    Later
-                  </span>
-                ) : null}
-              </span>
-              <span className="mt-4 block text-2xl font-black text-white">{dish.title}</span>
-              <span className="mt-1 block text-sm font-black text-fish-accent">{dish.subtitle}</span>
-              <span className="mt-2 block text-sm font-bold leading-6 text-fish-secondary">{dish.short}</span>
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function StatusTile({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl border border-fish-accent/15 bg-white/[0.035] p-4">
-      <p className="text-xs font-black uppercase tracking-[0.1em] text-fish-secondary">{label}</p>
-      <p className="mt-2 text-sm font-black text-white">{value}</p>
-    </div>
-  );
-}
-
-function Metric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl border border-fish-accent/15 bg-white/[0.035] p-4">
-      <p className="text-xs font-black uppercase tracking-[0.1em] text-fish-secondary">{label}</p>
-      <p className="mt-2 text-2xl font-black text-white">{value}</p>
-    </div>
+    </button>
   );
 }
 
