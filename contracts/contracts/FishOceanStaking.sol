@@ -99,8 +99,6 @@ contract FishOceanStaking is Initializable, ERC20Upgradeable, OwnableUpgradeable
         cooldownDuration = 7 days;
         protocolEmissionsPercentageWhenLocked = 2e17;
         lastRewardTimestamp = block.timestamp;
-
-        _mint(address(this), 1e18);
     }
 
     function setTreasury(address newTreasury) external onlyOwner {
@@ -272,12 +270,12 @@ contract FishOceanStaking is Initializable, ERC20Upgradeable, OwnableUpgradeable
             uint256 emitted = timeElapsed * emissionRatePerSecond;
             uint256 protocolPortion = (emitted * protocolEmissionsPercentage) / PERCENT_SCALE;
             uint256 rawStakerPortion = emitted - protocolPortion;
-            uint256 totalSupply_ = totalSupply();
+            uint256 rewardSupply = _rewardEligibleSupply();
 
-            if (totalSupply_ > 0 && rawStakerPortion > 0) {
-                uint256 stakerPortionLocked = (rawStakerPortion * totalLockedStakedOcean) / totalSupply_;
+            if (rewardSupply > 0 && rawStakerPortion > 0) {
+                uint256 stakerPortionLocked = (rawStakerPortion * totalLockedStakedOcean) / rewardSupply;
                 uint256 stakerPortionUnlocked = rawStakerPortion - stakerPortionLocked;
-                uint256 totalUnlockedSupply = totalSupply_ - totalLockedStakedOcean;
+                uint256 totalUnlockedSupply = rewardSupply - totalLockedStakedOcean;
 
                 if (stakerPortionUnlocked > 0 && totalUnlockedSupply > 0) {
                     localAccRewardPerShare += (stakerPortionUnlocked * ACC_REWARD_SCALE) / totalUnlockedSupply;
@@ -327,9 +325,11 @@ contract FishOceanStaking is Initializable, ERC20Upgradeable, OwnableUpgradeable
 
         uint256 protocolPortion = (emitted * protocolEmissionsPercentage) / PERCENT_SCALE;
         uint256 rawStakerPortion = emitted - protocolPortion;
-        uint256 totalSupply_ = totalSupply();
-        uint256 totalUnlockedSupply = totalSupply_ - totalLockedStakedOcean;
-        uint256 stakerPortionLocked = (rawStakerPortion * totalLockedStakedOcean) / totalSupply_;
+        uint256 rewardSupply = _rewardEligibleSupply();
+        if (rewardSupply == 0) return;
+
+        uint256 totalUnlockedSupply = rewardSupply - totalLockedStakedOcean;
+        uint256 stakerPortionLocked = (rawStakerPortion * totalLockedStakedOcean) / rewardSupply;
         uint256 stakerPortionUnlocked = rawStakerPortion - stakerPortionLocked;
         uint256 oceanToStakers;
 
@@ -358,6 +358,10 @@ contract FishOceanStaking is Initializable, ERC20Upgradeable, OwnableUpgradeable
 
         if (protocolPortion > 0) ocean.safeTransferFrom(source, treasury, protocolPortion);
         if (oceanToStakers > 0) ocean.safeTransferFrom(source, address(this), oceanToStakers);
+    }
+
+    function _rewardEligibleSupply() internal view returns (uint256) {
+        return totalSupply() - balanceOf(address(this));
     }
 
     function _getRewardDebt(address user) internal view returns (uint256) {
