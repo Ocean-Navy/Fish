@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import path from "node:path";
 import { z } from "zod";
@@ -1083,11 +1083,7 @@ export async function checkFishMonthlyRequestLimit(account: Account, limit = get
   const safeLimit = Math.max(0, Math.floor(limit));
   const periodStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
   const nextPeriodStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
-  const receipts = await readReceipts(account.id);
-  const used = receipts.filter((receipt) => {
-    const createdAt = new Date(receipt.createdAt).getTime();
-    return receipt.status === "succeeded" && createdAt >= periodStart.getTime() && createdAt < nextPeriodStart.getTime();
-  }).length;
+  const used = await countMonthlySucceededReceipts(account.id, periodStart, nextPeriodStart, safeLimit);
   const remaining = Math.max(0, safeLimit - used);
   if (used >= safeLimit) {
     return {
@@ -1273,7 +1269,6 @@ async function readReceipts(accountId: string): Promise<UsageReceipt[]> {
 
 async function readAllReceipts(): Promise<UsageReceipt[]> {
   try {
-    const { readdir } = await import("node:fs/promises");
     const files = await readdir(RECEIPTS_DIR);
     const receipts = await Promise.all(
       files
@@ -1286,6 +1281,52 @@ async function readAllReceipts(): Promise<UsageReceipt[]> {
     return receipts.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   } catch {
     return [];
+  }
+}
+
+async function countMonthlySucceededReceipts(accountId: string, periodStart: Date, nextPeriodStart: Date, stopAt = Number.POSITIVE_INFINITY): Promise<number> {
+  if (stopAt <= 0) {
+    return 0;
+  }
+
+  const periodStartMs = periodStart.getTime();
+  const nextPeriodStartMs = nextPeriodStart.getTime();
+  const periodFilePrefix = periodStart.toISOString().slice(0, 7);
+  let used = 0;
+
+  try {
+    const files = await readdir(RECEIPTS_DIR);
+    for (const file of files) {
+      if (!file.endsWith(".json") || !file.startsWith(periodFilePrefix)) {
+        continue;
+      }
+
+      const receipt = await readReceiptFile(file);
+      if (!receipt || receipt.accountId !== accountId || receipt.status !== "succeeded") {
+        continue;
+      }
+
+      const createdAt = new Date(receipt.createdAt).getTime();
+      if (createdAt >= periodStartMs && createdAt < nextPeriodStartMs) {
+        used += 1;
+        if (used >= stopAt) {
+          return used;
+        }
+      }
+    }
+  } catch {
+    return used;
+  }
+
+  return used;
+}
+
+async function readReceiptFile(file: string): Promise<UsageReceipt | null> {
+  try {
+    const raw = await readFile(path.join(RECEIPTS_DIR, file), "utf8");
+    return JSON.parse(raw) as UsageReceipt;
+  } catch {
+    return null;
   }
 }
 
