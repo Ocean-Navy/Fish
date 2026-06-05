@@ -119,6 +119,7 @@ npm run verify     # Lint + typecheck + build
 npm run contracts:compile
 npm run contracts:test
 npm run contracts:security
+npm run contracts:security:docker
 npm run contracts:deploy:testnet
 ```
 
