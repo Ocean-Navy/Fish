@@ -1559,6 +1559,9 @@ function calculateSpendableCreditLaneBalances(entries: CreditLedgerEntry[], now:
       if (debitRemaining <= 0) {
         break;
       }
+      if (!isCreditLotSpendable(lot, entry.createdAt)) {
+        continue;
+      }
       const debit = Math.min(lot.amount, debitRemaining);
       lot.amount -= debit;
       debitRemaining -= debit;
