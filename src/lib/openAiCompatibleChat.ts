@@ -1,5 +1,5 @@
 import type { ChatCompletionInput, RunnerReceiptSummary } from "@/lib/fishLedger";
-import { readAndVerifyRunnerReceipt } from "@/lib/runnerReceipts";
+import { readAndVerifyRunnerReceipt, runnerReceiptSha256 } from "@/lib/runnerReceipts";
 
 export type OpenAiCompatibleRouteConfig = {
   baseUrl: string | null;
@@ -102,14 +102,33 @@ export async function runOpenAiCompatibleChat(
   const totalTokens = (promptTokens ?? fallbackTokenEstimate.promptTokens) + (completionTokens ?? fallbackTokenEstimate.completionTokens);
   const providerCostUsd = Number(((totalTokens / 1000) * Math.max(0, config.costUsdPer1kTokens)).toFixed(6));
 
+  const responseModel = readString(payload, ["model"]) ?? config.model ?? input.model;
+  const runnerReceipt = readAndVerifyRunnerReceipt(payload,
+    routeContext
+      ? {
+          routeId: routeContext.routeId,
+          providerId: config.providerId,
+          idempotencyKey: routeContext.idempotencyKey,
+          requestHash: runnerReceiptSha256(JSON.stringify(input.messages ?? [])),
+          outputHash: runnerReceiptSha256(content),
+          model: responseModel,
+          status: "succeeded",
+          promptTokens,
+          completionTokens,
+          providerCostUsd,
+          maxBudgetUsd: routeContext.maxBudgetUsd
+        }
+      : undefined
+  );
+
   return {
     content,
-    model: readString(payload, ["model"]) ?? config.model ?? input.model,
+    model: responseModel,
     promptTokens,
     completionTokens,
     providerCostUsd,
     providerId: config.providerId,
-    runnerReceipt: readAndVerifyRunnerReceipt(payload)
+    runnerReceipt
   };
 }
 
