@@ -76,9 +76,10 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
   const privacyPreference = readFishPrivacyPreference(input.metadata);
   const modelAccess = checkFishModelAccess(input.model, context.account.planId);
   const originalPromptText = messagesToText(input);
-  const knowledge = featurePolicy.id === "ocean" ? buildFishKnowledgeContext(originalPromptText) : null;
-  const effectiveInput = knowledge ? withFishKnowledgeContext(input, knowledge.context) : input;
-  const promptText = messagesToText(effectiveInput);
+  let knowledge: ReturnType<typeof buildFishKnowledgeContext> | null = null;
+  let effectiveInput = input;
+  let promptText = originalPromptText;
+  let promptTokens = estimateTokens(promptText);
   const activeRoute = getActiveFishRoute(routerConfig);
   if (routerConfig.killSwitch || routerConfig.paused) {
     return jsonError(503, routerConfig.killSwitch ? "fish_router_disabled" : "fish_router_paused", "router_unavailable", {
@@ -102,7 +103,6 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
 
   let content = "";
   let responseModel = input.model;
-  let promptTokens = estimateTokens(promptText);
   let completionTokens = 0;
   let providerCostUsd = 0;
   let route: FishChatRouteId = activeRoute.id;
@@ -122,11 +122,17 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
   }
 
   if (promptTokens > featurePolicy.maxInputTokens) {
-    return jsonError(400, "max_input_tokens_exceeded", "guardrail_error", {
-      feature: featurePolicy.id,
-      limit: featurePolicy.maxInputTokens,
-      estimated: promptTokens
-    });
+    return maxInputTokensExceededError(featurePolicy.id, featurePolicy.maxInputTokens, promptTokens);
+  }
+
+  if (featurePolicy.id === "ocean") {
+    knowledge = buildFishKnowledgeContext(originalPromptText);
+    effectiveInput = withFishKnowledgeContext(input, knowledge.context);
+    promptText = messagesToText(effectiveInput);
+    promptTokens = estimateTokens(promptText);
+    if (promptTokens > featurePolicy.maxInputTokens) {
+      return maxInputTokensExceededError(featurePolicy.id, featurePolicy.maxInputTokens, promptTokens);
+    }
   }
 
   if (requestedMaxOutputTokens > featurePolicy.maxOutputTokens) {
@@ -625,6 +631,14 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
   } finally {
     concurrencySlot.release();
   }
+}
+
+function maxInputTokensExceededError(feature: FishFeatureId, limit: number, estimated: number) {
+  return jsonError(400, "max_input_tokens_exceeded", "guardrail_error", {
+    feature,
+    limit,
+    estimated
+  });
 }
 
 function messagesToText(input: ChatCompletionInput) {
