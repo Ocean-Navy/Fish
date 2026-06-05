@@ -78,6 +78,72 @@ test("expired top-up credits are not spendable", async () => {
   assert.equal(usage.available, 0);
 });
 
+test("expired credits do not absorb debits when active credits exist", async () => {
+  const ledger = await useTempFishLedger();
+  const { addFishCredits, authenticateRequest, createApiKey, recordChatUsage, reserveFishCredits } = await importFishLedger(ledger);
+  const { key, account } = await createApiKey("Mixed expiry credit test", 0);
+
+  const expiredTopup = await addFishCredits({
+    accountId: account.id,
+    amount: 10,
+    lane: "prepaid",
+    reason: "mixed_expiry_expired_credit_test",
+    expiresAt: "2000-01-01T00:00:00.000Z"
+  });
+  assert.equal(expiredTopup.ok, true);
+
+  const activeTopup = await addFishCredits({
+    accountId: account.id,
+    amount: 1,
+    lane: "prepaid",
+    reason: "mixed_expiry_active_credit_test",
+    expiresAt: "2999-01-01T00:00:00.000Z"
+  });
+  assert.equal(activeTopup.ok, true);
+
+  const auth = await authenticateRequest(authorizedRequest(key));
+  assert.equal(auth.ok, true);
+  if (!auth.ok) {
+    throw new Error("test account authentication failed");
+  }
+
+  const firstReservation = await reserveFishCredits({
+    ledger: auth.ledger,
+    account: auth.account,
+    credits: 1,
+    reason: "mixed_expiry_first_reserve"
+  });
+  assert.equal(firstReservation.ok, true);
+  if (!firstReservation.ok) {
+    throw new Error("expected active credit reservation to succeed");
+  }
+
+  const usage = await recordChatUsage({
+    ledger: auth.ledger,
+    account: auth.account,
+    input: {
+      model: "fish-demo-chat",
+      messages: [{ role: "user", content: "hello" }],
+      stream: false
+    },
+    promptTokens: 1,
+    completionTokens: 1,
+    content: "hello",
+    reservation: firstReservation.reservation
+  });
+  assert.equal(usage.ok, true);
+
+  const secondReservation = await reserveFishCredits({
+    ledger: auth.ledger,
+    account: auth.account,
+    credits: 1,
+    reason: "mixed_expiry_second_reserve"
+  });
+  assert.equal(secondReservation.ok, false);
+  assert.equal(secondReservation.status, 402);
+  assert.equal(secondReservation.available, 0);
+});
+
 test("reserved usage charges are capped to the request reservation", async () => {
   const ledger = await useTempFishLedger();
   const { authenticateRequest, createApiKey, recordChatUsage, reserveFishCredits, summarizeAccount } = await importFishLedger(ledger);
