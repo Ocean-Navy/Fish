@@ -7,7 +7,7 @@ import { defaultFishPrivacyForRoute, type FishUsagePrivacy } from "@/lib/fishPri
 import type { DataState } from "@/lib/types";
 
 const ROOT = process.cwd();
-const LEDGER_DIR = path.join(ROOT, "data", "fish");
+const LEDGER_DIR = process.env.FISH_LEDGER_DIR ? path.resolve(process.env.FISH_LEDGER_DIR) : path.join(ROOT, "data", "fish");
 const ACCOUNTS_PATH = path.join(LEDGER_DIR, "accounts.json");
 const CREDIT_ENTRIES_PATH = path.join(LEDGER_DIR, "credit_entries.json");
 const RECEIPTS_DIR = path.join(LEDGER_DIR, "receipts");
@@ -1169,9 +1169,34 @@ async function readLedger(): Promise<Ledger> {
   }
 }
 
+let ledgerWriteQueue = Promise.resolve();
+
 async function writeLedger(ledger: Ledger) {
-  await mkdir(LEDGER_DIR, { recursive: true });
-  await writeFile(ACCOUNTS_PATH, JSON.stringify(ledger, null, 2));
+  const write = ledgerWriteQueue.then(async () => {
+    const currentLedger = await readLedger();
+    const currentAccountsById = new Map(currentLedger.accounts.map((account) => [account.id, account]));
+    const mergedLedger: Ledger = {
+      accounts: ledger.accounts.map((account) => preserveCurrentRevocation(account, currentAccountsById.get(account.id)))
+    };
+
+    await mkdir(LEDGER_DIR, { recursive: true });
+    await writeFile(ACCOUNTS_PATH, JSON.stringify(mergedLedger, null, 2));
+  });
+  ledgerWriteQueue = write.catch(() => undefined);
+  await write;
+}
+
+function preserveCurrentRevocation(account: Account, currentAccount?: Account): Account {
+  if (!currentAccount?.revokedAt) {
+    return account;
+  }
+
+  if (account.revokedAt && Date.parse(account.revokedAt) >= Date.parse(currentAccount.revokedAt)) {
+    return account;
+  }
+
+  account.revokedAt = currentAccount.revokedAt;
+  return account;
 }
 
 async function readCreditLedger(): Promise<CreditLedger> {
