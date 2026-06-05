@@ -315,40 +315,35 @@ usageReceipt.route is ocean-provider
 
 ## Current Blocking Inputs
 
-The scaffold can be tested without secrets, but the real proof still needs:
+The scaffold can be tested without secrets, but the operator-owned private adapter environment still needs:
 
 ```text
-fresh proof wallet private key or mnemonic
-Base mainnet RPC
+fresh proof wallet private key or mnemonic stored only in the private adapter environment
+Base mainnet RPC stored only in the private adapter environment
 selected NODE_URL and FISH_OCEAN_COMPUTE_ENV_ID from the discovery script
 published FISH_OCEAN_ALGO_DID from scripts/publish-fish-document-summary-algorithm.sh
 ```
 
-If free compute works, no paid token is needed for the first proof. If free compute fails due to provider/payment rules, fund the proof wallet with a small amount of Base ETH for gas and Base USDC for the selected paid environment.
+If free compute works, no paid token is needed for the first proof. If free compute fails due to provider/payment rules, fund a fresh, dedicated proof wallet with only a small amount of Base ETH for gas and Base USDC for the selected paid environment. Treat that wallet as disposable, cap approvals/resources to the test budget, revoke allowances where practical, and rotate the wallet after the proof.
 
 ## What To Give Codex
 
-Minimum needed to run the first proof:
+Do not give Codex, chat tools, issue trackers, pull requests, or public logs any wallet private key, mnemonic, paid-resource credential, RPC credential, storage credential, provider secret, or signing material. Codex should only interact with Fish through the already-running private adapter URL and public-safe identifiers.
+
+Minimum needed for Codex to verify the first proof through Fish:
 
 ```text
-dedicated proof wallet private key or mnemonic
-RPC URL
-Ocean node URL
+private adapter URL that already runs the Ocean job
+FISH_OCEAN_BATCH_ENDPOINT
+FISH_OCEAN_BATCH_PROVIDER_ID
+public-safe provider id or label
 algorithm DID
 dataset DID(s), or confirmation to use []
 compute environment id
-payment token/resources if paid
-output storage JSON if required
+non-secret budget cap to send in the Fish request
 ```
 
-Safer option:
-
-```text
-provide a private adapter URL that already runs the Ocean job
-provide FISH_OCEAN_BATCH_ENDPOINT and provider id
-```
-
-The adapter URL option is safer because Codex does not need custody of a wallet private key.
+The adapter URL option is the required path for agent-assisted proof verification because Codex does not need custody of a wallet private key, mnemonic, payment resources, RPC credentials, or output storage credentials.
 
 ## Completion Definition
 
