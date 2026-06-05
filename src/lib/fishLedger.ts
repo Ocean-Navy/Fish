@@ -414,14 +414,21 @@ export function parseChatCompletion(body: unknown) {
   return chatCompletionSchema.safeParse(body);
 }
 
+const UNSAFE_ADMIN_TOKENS = new Set(["change-me-for-production"]);
+
+function isUnsafeAdminToken(token: string) {
+  return UNSAFE_ADMIN_TOKENS.has(token.trim().toLowerCase());
+}
+
 export function requireAdmin(request: Request): { ok: true } | { ok: false; status: number; error: string } {
-  const adminToken = process.env.FISH_ADMIN_TOKEN;
+  const adminToken = process.env.FISH_ADMIN_TOKEN?.trim();
   if (!adminToken && process.env.NODE_ENV !== "production") {
     return { ok: true };
   }
 
+  const configuredAdminToken = adminToken && !isUnsafeAdminToken(adminToken) ? adminToken : null;
   const provided = request.headers.get("x-fish-admin-token") || bearerToken(request);
-  if (adminToken && provided === adminToken) {
+  if (configuredAdminToken && provided === configuredAdminToken) {
     return { ok: true };
   }
 

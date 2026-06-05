@@ -325,7 +325,7 @@ FISH_CONTRACT_EMISSION_SOURCE_ADDRESS=
 FISH_CONTRACT_OPERATOR_ADDRESS=
 ```
 
-Set `FISH_ADMIN_TOKEN` in production-like environments before issuing prototype API keys.
+Set `FISH_ADMIN_TOKEN` to a unique long random secret in production-like environments before issuing prototype API keys. Public placeholder values such as `change-me-for-production` are rejected by the admin guard.
 Set `FISH_PROVIDER_ALLOWLIST` or mount `data/provider_allowlist.json` when the first selected providers are approved.
 Set `FISH_PROVIDER_JOB_ENDPOINTS=prov_abc=https://provider.example.com/fish/jobs` and optionally `FISH_PROVIDER_JOB_API_KEY` only when a selected provider has a private HTTP job adapter ready. Use only `http` or `https` endpoints on public-routable provider hosts; Fish rejects localhost, link-local, private-network, and credentialed URLs, validates DNS results before dispatch, and fails provider redirects instead of following them. Until then, keep provider proof on mock/sample data.
 Set `FISH_OCEAN_BATCH_ENDPOINT` and optionally `FISH_OCEAN_BATCH_API_KEY` only when a private Oncompute/Ocean batch adapter is ready. Until then, `/api/ocean/batch/jobs` should stay in sample mode. Use `/api/ocean/batch/readiness` and `/proof` to verify that the adapter is reachable, live-ready, and backed by a successful non-sample receipt before claiming real Ocean workload proof.
