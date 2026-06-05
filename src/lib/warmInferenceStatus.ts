@@ -33,7 +33,7 @@ export type WarmInferenceStatus = {
   warnings: string[];
 };
 
-export async function getWarmInferenceStatus({ probe = true, timeoutMs = 1500 }: { probe?: boolean; timeoutMs?: number } = {}): Promise<WarmInferenceStatus> {
+export async function getWarmInferenceStatus({ probe = false, timeoutMs = 1500 }: { probe?: boolean; timeoutMs?: number } = {}): Promise<WarmInferenceStatus> {
   const router = getFishRouterConfig();
   const activeWarmRouteId: WarmRouteId = router.activeRouteId === "ocean-provider" ? "ocean-provider" : "ocean-demo-vllm";
   const warmRoute = router.routes[activeWarmRouteId];
@@ -56,7 +56,7 @@ export async function getWarmInferenceStatus({ probe = true, timeoutMs = 1500 }:
         latencyMs: null,
         statusCode: null,
         modelVisible: null,
-        message: warmRoute.configured ? "Probe skipped." : "Warm route is not configured."
+        message: warmRoute.configured ? "Live probe skipped for public status." : "Warm route is not configured."
       }
     };
   }

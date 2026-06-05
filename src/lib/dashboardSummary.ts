@@ -12,7 +12,7 @@ export async function getFishDashboardSummary() {
     collectOceanData(),
     summarizeFishUsage(),
     Promise.resolve(getFishRoutePolicy()),
-    getWarmInferenceStatus({ timeoutMs: 1200 }),
+    getWarmInferenceStatus(),
     summarizeFishContracts(),
     summarizeCapacitySettlements()
   ]);

@@ -212,7 +212,15 @@ paths:
   /api/warm/status:
     get:
       summary: Public-safe warm inference status
-      description: Shows whether the configured warm demo route is ready without exposing endpoint URLs, API keys, prompts, or outputs.
+      description: Shows the configured warm demo route snapshot without exposing endpoint URLs, API keys, prompts, outputs, or running a live backend probe. Add `probe=live` with the admin token for an operator-only `/models` probe.
+      parameters:
+        - in: query
+          name: probe
+          required: false
+          schema:
+            type: string
+            enum: [live, true, '1']
+          description: Operator-only live `/models` probe when paired with `x-fish-admin-token` or an admin bearer token. Omit for the public snapshot path.
       responses:
         '200':
           description: Warm route status
@@ -220,6 +228,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/WarmInferenceStatus'
+        '401':
+          description: Admin token required for `probe=live`
   /api/features:
     get:
       summary: Public Fish AI menu

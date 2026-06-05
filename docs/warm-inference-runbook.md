@@ -321,6 +321,8 @@ Minimum checks before sending user traffic:
 ```bash
 curl -fsS http://127.0.0.1:3000/api/health
 curl -fsS http://127.0.0.1:3000/api/warm/status
+# Operator-only live probe; requires FISH_ADMIN_TOKEN outside local development.
+curl -fsS -H "x-fish-admin-token: $FISH_ADMIN_TOKEN" "http://127.0.0.1:3000/api/warm/status?probe=live"
 curl -fsS -H "authorization: Bearer $FISH_VLLM_API_KEY" http://127.0.0.1:8000/v1/models
 curl -fsS http://127.0.0.1:8088/healthz
 FISH_VLLM_BASE_URL=http://127.0.0.1:8000/v1 \
@@ -343,7 +345,7 @@ Operator readiness checks:
 - feature caps distinguish Ask, Code, Docs, Ocean help, API, and disabled Images behind one endpoint;
 - Fish Gateway reserves credits before backend calls and releases that reserve if the warm backend fails before usage is recorded;
 - `/v1/chat/completions` supports SSE compatibility when clients send `stream: true`; first-token streaming from Runner is still a later hardening step;
-- `/dashboard` shows warm demo readiness without endpoint URLs, API keys, prompts, or outputs;
+- `/dashboard` shows a public warm demo snapshot without endpoint URLs, API keys, prompts, outputs, or live backend probes;
 - public proof does not expose prompt or output text.
 
 ## Monitoring
@@ -368,7 +370,7 @@ nvidia-smi
 watch -n 2 nvidia-smi
 ```
 
-`/api/warm/status` reports the active warm lane. With `FISH_CHAT_ROUTE=ocean-demo-vllm` it checks the demo vLLM config; with `FISH_CHAT_ROUTE=ocean-provider` it checks the selected-provider config.
+`/api/warm/status` reports the active warm lane from Fish configuration without live backend probing by default. With `FISH_CHAT_ROUTE=ocean-demo-vllm` it summarizes the demo vLLM config; with `FISH_CHAT_ROUTE=ocean-provider` it summarizes the selected-provider config. Add `?probe=live` with the admin token for an operator-only `/models` probe. Public dashboard and summary rendering must use the default snapshot path so unauthenticated visitors cannot trigger authenticated runner requests.
 
 Do not publish operator-only endpoint URLs, API keys, raw prompts, raw outputs, exact private IPs, or unreviewed provider contact details.
 

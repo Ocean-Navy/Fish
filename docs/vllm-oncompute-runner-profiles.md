@@ -168,4 +168,4 @@ FISH_RUNNER_PUBLIC_KEY_ID=<runner key id>
 FISH_RUNNER_PUBLIC_KEY_PEM=<runner public key>
 ```
 
-10. Run `/api/warm/status` and `/api/ocean/provider-readiness` before exposing public traffic.
+10. Run `/api/warm/status` for the public snapshot, `/api/warm/status?probe=live` with `x-fish-admin-token` for the operator live probe, and `/api/ocean/provider-readiness` before exposing public traffic.

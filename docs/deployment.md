@@ -337,7 +337,7 @@ npm run contracts:deploy:testnet
 
 The deploy script creates test OCEAN/test USDC when token addresses are not supplied, deploys FISH, the OCEAN staking proxy, and the Capacity Pool, grants the staking proxy the FISH minter/burner role, sets a simple mint curve, prints the web-app env block, and writes a local ignored deployment artifact.
 
-Warm inference operations are covered in `docs/warm-inference-runbook.md`. The MVP path is a private vLLM endpoint, ideally behind Fish Runner, on a GPU host that may also run Ocean Node for provider identity and anchoring. Keep the warm route on mock until the private endpoint is ready, then switch `FISH_CHAT_ROUTE=ocean-demo-vllm` for the demo lane or `FISH_CHAT_ROUTE=ocean-provider` for selected provider testing. Check `/routing`, `/api/routing/policy`, and `/api/warm/status` after changing routes.
+Warm inference operations are covered in `docs/warm-inference-runbook.md`. The MVP path is a private vLLM endpoint, ideally behind Fish Runner, on a GPU host that may also run Ocean Node for provider identity and anchoring. Keep the warm route on mock until the private endpoint is ready, then switch `FISH_CHAT_ROUTE=ocean-demo-vllm` for the demo lane or `FISH_CHAT_ROUTE=ocean-provider` for selected provider testing. Check `/routing`, `/api/routing/policy`, and the public `/api/warm/status` snapshot after changing routes. Use `/api/warm/status?probe=live` with `x-fish-admin-token` only for operator live probes.
 
 ## Contract Testnet Operations
 
@@ -449,7 +449,7 @@ Then browser-check:
 - `/api/billing/topups` with `x-fish-admin-token`
 - `/api/billing/usage-analytics`
 - `/api/routing/policy`
-- `/api/warm/status`
+- `/api/warm/status` snapshot and `/api/warm/status?probe=live` with `x-fish-admin-token` for operator live probes
 - `/api/ocean/batch/readiness`
 - `/api/staking/summary`
 - `/api/staking/wallet-intents`

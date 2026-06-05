@@ -22,7 +22,7 @@ const cards = [
   { label: "Pilot", title: "/api/ocean/batch/jobs", body: "Hash-only batch dish receipt path, sample until a private Ocean batch adapter is connected." },
   { label: "Pilot", title: "/api/ocean/batch/readiness", body: "Milestone 3 proof gate for adapter readiness and non-sample Ocean batch receipts." },
   { label: "Live now", title: "/api/waitlist", body: "Demand intake for users, builders, holders, and ecosystem partners." },
-  { label: "Live now", title: "/api/warm/status", body: "Public-safe readiness for the active warm Ocean route." },
+  { label: "Live now", title: "/api/warm/status", body: "Public-safe warm route snapshot; live probes are crew-only." },
   { label: "Crew only", title: "/api/ocean/provider-readiness", body: "Admin check for selected-provider config, proof endpoint, models, and optional chat probe." },
   { label: "Live now", title: "/api/features", body: "Public AI menu with simple dishes, model aliases, route labels, and caps." },
   { label: "Pilot", title: "/api/dishes/:dishId/run", body: "Run a Fish dish with server-side prompts, credits, route labels, and receipts." },
