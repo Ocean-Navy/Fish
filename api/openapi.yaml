@@ -268,7 +268,7 @@ paths:
   /api/meal/order:
     post:
       summary: Guest Fish meal-counter order
-      description: Capped guest route for the public meal counter. Uses the same chat request shape without exposing a Fish API key.
+      description: Capped guest route for the public meal counter. Uses the same chat request shape without exposing a Fish API key. Guest batch dishes remain in sample mode and cannot spend private Ocean batch adapter budget.
       requestBody:
         required: true
         content:

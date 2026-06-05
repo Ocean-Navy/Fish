@@ -33,7 +33,7 @@ Request shape:
 
 Fish checks `maxCostUsd` against the remaining `FISH_OCEAN_BATCH_DAILY_BUDGET_USD` before calling a private adapter. The default daily cap is `$30`.
 
-`/v1/chat/completions` and `/api/dishes/:dishId/run` generate a hash-only `inputRef`, use this batch contract, and return an OpenAI-style response with batch receipt metadata for Ocean batch dishes.
+`/v1/chat/completions`, `/api/dishes/:dishId/run`, and the guest `/api/meal/order` route generate a hash-only `inputRef`, use this batch contract, and return an OpenAI-style response with batch receipt metadata for Ocean batch dishes. Live `ocean_http` routing is reserved for plans with `oceanProviderAllowed`; guest/free demo calls remain `sample_success` even when the private adapter endpoint is configured.
 
 Current dish mapping:
 

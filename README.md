@@ -671,7 +671,7 @@ GET /api/ocean/batch/readiness
 
 `POST` requires a Fish API key and accepts only hash/reference input through `inputRef`; it does not accept or store raw input text. `adapterMode: "sample_success"` is the default local proof mode. Set `adapterMode: "ocean_http"` only when `FISH_OCEAN_BATCH_ENDPOINT` points to a private Oncompute/Ocean batch adapter. Fish checks `maxCostUsd` against `FISH_OCEAN_BATCH_DAILY_BUDGET_USD` before calling the batch adapter. Public proof must show tickets and hashes, not raw order data.
 
-Batch dishes sent through `/v1/chat/completions` or `/api/dishes/:dishId/run` use the same hash-only batch path:
+Batch dishes sent through `/v1/chat/completions`, `/api/dishes/:dishId/run`, or the guest `/api/meal/order` route use the same hash-only batch path. A configured `FISH_OCEAN_BATCH_ENDPOINT` is used only for plans with `oceanProviderAllowed`; guest/free plans stay in `sample_success` mode so public demos cannot consume private Ocean batch budget:
 
 | Dish | Model alias | Batch task |
 | --- | --- | --- |
