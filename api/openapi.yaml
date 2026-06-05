@@ -4358,8 +4358,6 @@ components:
               type: boolean
             reason:
               type: string
-            hasOperatorPrivateKey:
-              type: boolean
             confirmations:
               type: integer
         addresses:

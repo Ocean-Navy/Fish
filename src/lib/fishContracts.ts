@@ -125,7 +125,6 @@ export type FishContractStatus = {
     submitEnabled: boolean;
     submitAllowed: boolean;
     reason: string;
-    hasOperatorPrivateKey: boolean;
     confirmations: number;
   };
   addresses: FishContractAddress[];
@@ -215,7 +214,6 @@ export async function summarizeFishContracts(): Promise<FishContractStatus> {
         submitEnabled: config.settlementSubmitEnabled,
         hasOperatorPrivateKey: Boolean(config.operatorPrivateKey)
       }),
-      hasOperatorPrivateKey: Boolean(config.operatorPrivateKey),
       confirmations: config.confirmations
     },
     addresses: config.addresses,
@@ -668,7 +666,7 @@ function resolveSettlementGateReason({
   if (!requiredConfigured) return "Required contract addresses are missing.";
   if (!rpcConfigured) return "FISH_CONTRACT_RPC_URL is not configured.";
   if (!submitEnabled) return "Automatic settlement submission is disabled by environment.";
-  if (!hasOperatorPrivateKey) return "FISH_CONTRACT_OPERATOR_PRIVATE_KEY is not configured.";
+  if (!hasOperatorPrivateKey) return "Operator settlement signer is not configured.";
   if (mainnet) return "Base mainnet settlement submission is blocked by default.";
   return "Automatic settlement submission is not enabled.";
 }
