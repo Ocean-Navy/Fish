@@ -5514,7 +5514,7 @@ components:
             runnerSignatureState:
               type: string
               nullable: true
-              enum: [unsigned, signed, verified, invalid, missing]
+              enum: [unsigned, verified, invalid, missing]
             runnerId:
               type: string
               nullable: true
@@ -5650,7 +5650,7 @@ components:
           nullable: true
         signatureState:
           type: string
-          enum: [unsigned, signed, verified, invalid, missing]
+          enum: [unsigned, verified, invalid, missing]
         signatureError:
           type: string
           nullable: true

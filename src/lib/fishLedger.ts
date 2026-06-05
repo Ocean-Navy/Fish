@@ -192,7 +192,7 @@ export type RunnerReceiptSummary = {
   computedCanonicalReceiptHash?: string | null;
   signerKeyId: string | null;
   signerAlgorithm?: string | null;
-  signatureState: "unsigned" | "signed" | "verified" | "invalid" | "missing";
+  signatureState: "unsigned" | "verified" | "invalid" | "missing";
   signatureError?: string | null;
 };
 

@@ -37,6 +37,9 @@ export function readAndVerifyRunnerReceipt(payload: unknown, expected?: RunnerRe
   const signerKeyId = readString(receipt, ["signer", "keyId"]);
   const signerAlgorithm = readString(receipt, ["signer", "algorithm"]);
   const signature = readString(receipt, ["signature"]);
+  const routeId = readString(receipt, ["routeId"]);
+  const providerId = readString(receipt, ["providerId"]);
+  const status = readString(receipt, ["status"]);
   const verification = verifyRunnerSignature({
     canonicalPayload,
     canonicalReceiptHash,
@@ -52,10 +55,10 @@ export function readAndVerifyRunnerReceipt(payload: unknown, expected?: RunnerRe
   return {
     runnerReceiptVersion: readNumber(receipt, ["runnerReceiptVersion"]),
     jobId: readString(receipt, ["jobId"]),
-    routeId: readString(receipt, ["routeId"]),
-    providerId: readString(receipt, ["providerId"]),
+    routeId,
+    providerId,
     runnerId: readString(receipt, ["runnerId"]),
-    status: readString(receipt, ["status"]),
+    status,
     canonicalReceiptHash,
     computedCanonicalReceiptHash,
     signerKeyId,

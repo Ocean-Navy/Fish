@@ -4,6 +4,8 @@ import { afterEach, test } from "node:test";
 import { readAndVerifyRunnerReceipt, runnerReceiptSha256 } from "./runnerReceipts";
 
 const RUNNER_KEY_ENV = ["FISH_RUNNER_PUBLIC_KEYS_JSON", "FISH_RUNNER_PUBLIC_KEYS_PATH", "FISH_RUNNER_PUBLIC_KEY_ID", "FISH_RUNNER_PUBLIC_KEY_PEM"] as const;
+const TEST_MESSAGES = [{ role: "user", content: "hello fish" }];
+const TEST_OUTPUT = "hello ocean";
 
 afterEach(() => {
   clearRunnerKeyEnv();
@@ -46,16 +48,14 @@ test("runner receipt validation marks stale receipts invalid when route context 
 });
 
 test("runner receipt validation keeps a context-bound unsigned receipt unsigned", () => {
-  const messages = [{ role: "user", content: "hello fish" }];
-  const output = "hello ocean";
   const receipt = buildUnsignedReceipt({
     routeId: "ocean-provider",
     providerId: "selected-ocean-provider",
     idempotencyKey: "current-request",
     status: "succeeded",
     model: "current-model",
-    requestHash: runnerReceiptSha256(JSON.stringify(messages)),
-    outputHash: runnerReceiptSha256(output),
+    requestHash: runnerReceiptSha256(JSON.stringify(TEST_MESSAGES)),
+    outputHash: runnerReceiptSha256(TEST_OUTPUT),
     inputTokens: 9,
     outputTokens: 4
   });
@@ -68,8 +68,8 @@ test("runner receipt validation keeps a context-bound unsigned receipt unsigned"
       idempotencyKey: "current-request",
       status: "succeeded",
       model: "current-model",
-      requestHash: runnerReceiptSha256(JSON.stringify(messages)),
-      outputHash: runnerReceiptSha256(output),
+      requestHash: runnerReceiptSha256(JSON.stringify(TEST_MESSAGES)),
+      outputHash: runnerReceiptSha256(TEST_OUTPUT),
       promptTokens: 9,
       completionTokens: 4
     }
@@ -81,27 +81,37 @@ test("runner receipt validation keeps a context-bound unsigned receipt unsigned"
 
 test("runner receipts with an untrusted signer are not treated as signed proof", () => {
   clearRunnerKeyEnv();
-  const receipt = buildSignedReceipt({ keyId: "unknown-runner-key", signature: "definitely-not-valid" });
+  const receipt = buildSignedReceipt({ keyId: "unknown-runner-key", trustKey: false });
 
-  const summary = readAndVerifyRunnerReceipt({ fish_runner: receipt });
+  const summary = readAndVerifyRunnerReceipt({ fish_runner: receipt }, expectedSignedContext());
 
   assert.equal(summary?.signatureState, "invalid");
   assert.equal(summary?.signatureError, "trusted_runner_public_key_not_configured");
   assert.equal(summary?.canonicalReceiptHash, summary?.computedCanonicalReceiptHash);
 });
 
+test("runner receipts must match the Fish route and provider before they are verified", () => {
+  clearRunnerKeyEnv();
+  const receipt = buildSignedReceipt({ keyId: "trusted-runner-key" });
+
+  const summary = readAndVerifyRunnerReceipt(
+    { fish_runner: receipt },
+    {
+      ...expectedSignedContext(),
+      routeId: "different-route"
+    }
+  );
+
+  assert.equal(summary?.signatureState, "invalid");
+  assert.equal(summary?.signatureError, "receipt_context_mismatch:routeId");
+});
+
 test("runner receipts are verified only with a trusted Ed25519 signer key", () => {
   clearRunnerKeyEnv();
   const keyId = "trusted-runner-key";
-  const { publicKey, privateKey } = generateKeyPairSync("ed25519");
-  process.env.FISH_RUNNER_PUBLIC_KEY_ID = keyId;
-  process.env.FISH_RUNNER_PUBLIC_KEY_PEM = publicKey.export({ type: "spki", format: "pem" }).toString();
+  const receipt = buildSignedReceipt({ keyId });
 
-  const unsignedReceipt = buildSignedReceipt({ keyId });
-  const signature = sign(null, Buffer.from(canonicalRunnerReceiptPayload(unsignedReceipt)), privateKey).toString("base64");
-  const signedReceipt = { ...unsignedReceipt, signature };
-
-  const summary = readAndVerifyRunnerReceipt({ fish_runner: signedReceipt });
+  const summary = readAndVerifyRunnerReceipt({ fish_runner: receipt }, expectedSignedContext());
 
   assert.equal(summary?.signatureState, "verified");
   assert.equal(summary?.signatureError, null);
@@ -159,35 +169,63 @@ function buildUnsignedReceipt(input: {
   };
 }
 
-function buildSignedReceipt({ keyId, signature }: { keyId: string; signature?: string }) {
+function buildSignedReceipt({ keyId, trustKey = true }: { keyId: string; trustKey?: boolean }) {
+  const { publicKey, privateKey } = generateKeyPairSync("ed25519");
+  if (trustKey) {
+    process.env.FISH_RUNNER_PUBLIC_KEY_ID = keyId;
+    process.env.FISH_RUNNER_PUBLIC_KEY_PEM = publicKey.export({ type: "spki", format: "pem" }).toString();
+  }
+
   const receipt = {
     runnerReceiptVersion: 1,
     jobId: "job-test",
     routeId: "ocean-demo-vllm",
-    providerId: "provider-test",
+    idempotencyKey: "current-request",
+    providerId: "selected-provider",
     runnerId: "runner-test",
+    model: "small-chat",
+    engine: "vllm",
     status: "succeeded",
     usage: {
-      promptTokens: 4,
-      completionTokens: 8,
-      totalTokens: 12
+      inputTokens: 4,
+      outputTokens: 8,
+      totalTokens: 12,
+      costUsd: 0.012
     },
     hashes: {
-      inputHash: "sha256:input",
-      outputHash: "sha256:output"
+      requestHash: runnerReceiptSha256(JSON.stringify(TEST_MESSAGES)),
+      outputHash: runnerReceiptSha256(TEST_OUTPUT)
     },
     signer: {
       keyId,
       algorithm: "ed25519"
-    },
-    ...(signature ? { signature } : {})
+    }
   };
+  const canonicalPayload = canonicalRunnerReceiptPayload(receipt);
+  const signature = sign(null, Buffer.from(canonicalPayload), privateKey).toString("base64");
   return {
     ...receipt,
     hashes: {
       ...receipt.hashes,
-      canonicalReceiptHash: `sha256:${sha256(canonicalRunnerReceiptPayload(receipt))}`
-    }
+      canonicalReceiptHash: `sha256:${sha256(canonicalPayload)}`
+    },
+    signature
+  };
+}
+
+function expectedSignedContext() {
+  return {
+    routeId: "ocean-demo-vllm",
+    providerId: "selected-provider",
+    idempotencyKey: "current-request",
+    requestHash: runnerReceiptSha256(JSON.stringify(TEST_MESSAGES)),
+    outputHash: runnerReceiptSha256(TEST_OUTPUT),
+    model: "small-chat",
+    status: "succeeded",
+    promptTokens: 4,
+    completionTokens: 8,
+    providerCostUsd: 0.012,
+    maxBudgetUsd: 0.02
   };
 }
 
