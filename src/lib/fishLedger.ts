@@ -557,50 +557,74 @@ export async function authenticateRequest(request: Request) {
   return {
     ok: true as const,
     ledger,
-    account
+    account,
+    keyHash
   };
 }
 
-export async function revokeApiKey(ledger: Ledger, account: Account) {
-  if (account.revokedAt) {
+export async function revokeApiKey(_ledger: Ledger, account: Account, authenticatedKeyHash = account.keyHash) {
+  return withLedgerLock(async () => {
+    const ledger = await readLedger();
+    const currentAccount = findAccountWithAuthenticatedKey(ledger, account, authenticatedKeyHash);
+    if (!currentAccount) {
+      return {
+        ok: false as const,
+        status: 401,
+        error: "stale_api_key"
+      };
+    }
+    if (currentAccount.revokedAt) {
+      return {
+        ok: true as const,
+        alreadyRevoked: true,
+        account: publicAccount(currentAccount)
+      };
+    }
+
+    currentAccount.revokedAt = new Date().toISOString();
+    await writeLedger(ledger);
     return {
       ok: true as const,
-      alreadyRevoked: true,
-      account: publicAccount(account)
+      alreadyRevoked: false,
+      account: publicAccount(currentAccount)
     };
-  }
-
-  account.revokedAt = new Date().toISOString();
-  await writeLedger(ledger);
-  return {
-    ok: true as const,
-    alreadyRevoked: false,
-    account: publicAccount(account)
-  };
+  });
 }
 
-export async function updateApiKey(ledger: Ledger, account: Account, input: z.infer<typeof keyUpdateSchema>) {
-  const now = new Date().toISOString();
-  let key: string | null = null;
+export async function updateApiKey(_ledger: Ledger, account: Account, input: z.infer<typeof keyUpdateSchema>, authenticatedKeyHash = account.keyHash) {
+  return withLedgerLock(async () => {
+    const ledger = await readLedger();
+    const currentAccount = findCurrentAuthenticatedAccount(ledger, account, authenticatedKeyHash);
+    if (!currentAccount) {
+      return {
+        ok: false as const,
+        status: 401,
+        error: "stale_api_key"
+      };
+    }
 
-  if (input.label !== undefined) {
-    account.label = input.label;
-  }
+    const now = new Date().toISOString();
+    let key: string | null = null;
 
-  if (input.rotate) {
-    key = `fish_sk_${randomBytes(24).toString("base64url")}`;
-    account.keyHash = hashSecret(key);
-    account.rotatedAt = now;
-    account.revokedAt = null;
-  }
+    if (input.label !== undefined) {
+      currentAccount.label = input.label;
+    }
 
-  await writeLedger(ledger);
-  return {
-    ok: true as const,
-    rotated: Boolean(input.rotate),
-    key,
-    account: publicAccount(account)
-  };
+    if (input.rotate) {
+      key = `fish_sk_${randomBytes(24).toString("base64url")}`;
+      currentAccount.keyHash = hashSecret(key);
+      currentAccount.rotatedAt = now;
+      currentAccount.revokedAt = null;
+    }
+
+    await writeLedger(ledger);
+    return {
+      ok: true as const,
+      rotated: Boolean(input.rotate),
+      key,
+      account: publicAccount(currentAccount)
+    };
+  });
 }
 
 export async function addFishCredits(params: z.infer<typeof creditTopupSchema>) {
@@ -1155,6 +1179,39 @@ function addMonths(value: string, months: number) {
 export async function sumProviderCostForRouteSince(route: UsageReceipt["route"], sinceIso: string) {
   const receipts = await readAllReceipts();
   return Number(receipts.filter((receipt) => receipt.route === route && receipt.createdAt >= sinceIso).reduce((sum, receipt) => sum + receipt.providerCostUsd, 0).toFixed(6));
+}
+
+let ledgerLock = Promise.resolve();
+
+async function withLedgerLock<T>(operation: () => Promise<T>): Promise<T> {
+  const previous = ledgerLock;
+  let releaseCurrent!: () => void;
+  ledgerLock = new Promise<void>((resolve) => {
+    releaseCurrent = resolve;
+  });
+
+  await previous.catch(() => undefined);
+  try {
+    return await operation();
+  } finally {
+    releaseCurrent();
+  }
+}
+
+function findAccountWithAuthenticatedKey(ledger: Ledger, authenticatedAccount: Account, authenticatedKeyHash: string) {
+  const currentAccount = ledger.accounts.find((candidate) => candidate.id === authenticatedAccount.id);
+  if (!currentAccount || currentAccount.keyHash !== authenticatedKeyHash) {
+    return null;
+  }
+  return currentAccount;
+}
+
+function findCurrentAuthenticatedAccount(ledger: Ledger, authenticatedAccount: Account, authenticatedKeyHash: string) {
+  const currentAccount = findAccountWithAuthenticatedKey(ledger, authenticatedAccount, authenticatedKeyHash);
+  if (!currentAccount || currentAccount.revokedAt) {
+    return null;
+  }
+  return currentAccount;
 }
 
 async function readLedger(): Promise<Ledger> {

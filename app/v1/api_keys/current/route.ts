@@ -9,7 +9,11 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ error: { message: auth.error, type: "authentication_error" } }, { status: auth.status });
   }
 
-  const result = await revokeApiKey(auth.ledger, auth.account);
+  const result = await revokeApiKey(auth.ledger, auth.account, auth.keyHash);
+  if (!result.ok) {
+    return NextResponse.json({ error: { message: result.error, type: "authentication_error" } }, { status: result.status });
+  }
+
   return NextResponse.json({
     object: "api_key",
     revoked: true,
@@ -38,7 +42,11 @@ export async function PATCH(request: Request) {
     );
   }
 
-  const result = await updateApiKey(auth.ledger, auth.account, parsed.data);
+  const result = await updateApiKey(auth.ledger, auth.account, parsed.data, auth.keyHash);
+  if (!result.ok) {
+    return NextResponse.json({ error: { message: result.error, type: "authentication_error" } }, { status: result.status });
+  }
+
   return NextResponse.json({
     object: "api_key",
     rotated: result.rotated,
