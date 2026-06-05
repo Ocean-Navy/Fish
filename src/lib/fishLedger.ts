@@ -794,25 +794,25 @@ export async function summarizeAccountById(accountId: string) {
 
 export async function reserveFishCredits(params: { ledger: Ledger; account: Account; credits: number; reason: string }) {
   const credits = Math.max(0, Math.ceil(params.credits));
+  const now = new Date().toISOString();
+  await ensureAccountCreditSeed(params.account, now);
+  const spendableBalance = await readSpendableCreditBalance(params.account, now);
   if (credits === 0) {
     return {
       ok: false as const,
       status: 400,
       error: "invalid_credit_reserve",
       needed: 0,
-      available: params.account.creditBalance
+      available: spendableBalance
     };
   }
-  const now = new Date().toISOString();
-  await ensureAccountCreditSeed(params.account, now);
-  const spendableCredits = await getSpendableCreditBalance(params.account, now);
-  if (spendableCredits < credits) {
+  if (spendableBalance < credits) {
     return {
       ok: false as const,
       status: 402,
       error: "insufficient_fish_credits",
       needed: credits,
-      available: spendableCredits
+      available: spendableBalance
     };
   }
 
@@ -985,14 +985,14 @@ export async function recordChatUsage(params: {
       ? Math.max(1, params.account.creditBalance)
       : estimatedCreditsSpent;
   if (!params.reservation) {
-    const spendableCredits = await getSpendableCreditBalance(params.account, now);
-    if (spendableCredits < creditsSpent) {
+    const spendableBalance = await readSpendableCreditBalance(params.account, now);
+    if (spendableBalance < creditsSpent) {
       return {
         ok: false as const,
         status: 402,
         error: "insufficient_fish_credits",
         needed: creditsSpent,
-        available: spendableCredits
+        available: spendableBalance
       };
     }
   } else if (params.account.creditBalance < creditsSpent) {
@@ -1322,9 +1322,14 @@ async function ensureAccountCreditSeed(account: Account, createdAt: string) {
   await writeCreditLedger(ledger);
 }
 
-async function selectSpendLane(account: Account, credits: number, nowIso = new Date().toISOString()): Promise<CreditLane> {
+async function readSpendableCreditBalance(account: Account, now: string) {
   const entries = await readCreditEntries(account.id);
-  const laneBalances = summarizeSpendableCreditLaneBalances(entries, nowIso);
+  return sumCreditLaneBalances(calculateSpendableCreditLaneBalances(entries, now));
+}
+
+async function selectSpendLane(account: Account, credits: number, now = new Date().toISOString()): Promise<CreditLane> {
+  const entries = await readCreditEntries(account.id);
+  const laneBalances = calculateSpendableCreditLaneBalances(entries, now);
 
   const spendPriority: CreditLane[] = ["grant", "subscription", "prepaid", "staking", "adjustment", "refund"];
   for (const lane of spendPriority) {
@@ -1336,12 +1341,6 @@ async function selectSpendLane(account: Account, credits: number, nowIso = new D
   return spendPriority.find((lane) => (laneBalances.get(lane) ?? 0) > 0) ?? "grant";
 }
 
-async function getSpendableCreditBalance(account: Account, nowIso = new Date().toISOString()) {
-  const entries = await readCreditEntries(account.id);
-  const laneBalances = summarizeSpendableCreditLaneBalances(entries, nowIso);
-  return CREDIT_LANES.reduce((total, lane) => total + Math.max(0, laneBalances.get(lane) ?? 0), 0);
-}
-
 export function summarizeSpendableCreditLaneBalances(entries: CreditLedgerEntry[], nowIso = new Date().toISOString()) {
   const laneBalances = new Map<CreditLane, number>();
   for (const entry of entries) {
@@ -1351,6 +1350,61 @@ export function summarizeSpendableCreditLaneBalances(entries: CreditLedgerEntry[
     laneBalances.set(entry.lane, (laneBalances.get(entry.lane) ?? 0) + entry.amount);
   }
   return laneBalances;
+}
+
+type CreditLot = {
+  amount: number;
+  expiresAt: string | null;
+};
+
+function calculateSpendableCreditLaneBalances(entries: CreditLedgerEntry[], now: string) {
+  const lotsByLane = new Map<CreditLane, CreditLot[]>();
+  for (const entry of entries) {
+    const lots = lotsByLane.get(entry.lane) ?? [];
+    if (entry.amount > 0) {
+      lots.push({ amount: entry.amount, expiresAt: entry.expiresAt });
+      lotsByLane.set(entry.lane, lots);
+      continue;
+    }
+
+    let debitRemaining = Math.abs(entry.amount);
+    for (const lot of lots.sort(compareCreditLotsForSpend)) {
+      if (debitRemaining <= 0) {
+        break;
+      }
+      const debit = Math.min(lot.amount, debitRemaining);
+      lot.amount -= debit;
+      debitRemaining -= debit;
+    }
+  }
+
+  const balances = new Map<CreditLane, number>();
+  for (const [lane, lots] of lotsByLane) {
+    const balance = lots.reduce((sum, lot) => sum + (isCreditLotSpendable(lot, now) ? lot.amount : 0), 0);
+    balances.set(lane, Math.max(0, Math.round(balance)));
+  }
+  return balances;
+}
+
+function compareCreditLotsForSpend(left: CreditLot, right: CreditLot) {
+  if (left.expiresAt && right.expiresAt && left.expiresAt !== right.expiresAt) {
+    return left.expiresAt.localeCompare(right.expiresAt);
+  }
+  if (left.expiresAt && !right.expiresAt) {
+    return -1;
+  }
+  if (!left.expiresAt && right.expiresAt) {
+    return 1;
+  }
+  return 0;
+}
+
+function isCreditLotSpendable(lot: CreditLot, now: string) {
+  return lot.amount > 0 && (!lot.expiresAt || lot.expiresAt > now);
+}
+
+function sumCreditLaneBalances(laneBalances: Map<CreditLane, number>) {
+  return [...laneBalances.values()].reduce((sum, balance) => sum + Math.max(0, balance), 0);
 }
 
 async function writeReceipt(receipt: UsageReceipt) {

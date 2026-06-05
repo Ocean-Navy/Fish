@@ -35,7 +35,7 @@ Rules:
 
 Current prototype behavior: `/v1/chat/completions` reserves the maximum estimated request credits before the backend call, releases unused reserve on success, and releases the full reserve on backend failure before a usage receipt is written.
 
-Current spend behavior: one request consumes one lane. Fish spends grant credits first, then unexpired subscription, prepaid, staking, adjustment, and refund credits. Expired positive credit grants are excluded from spendable balances. Mixed-lane debits are a future accounting upgrade.
+Current spend behavior: one request consumes one lane. Fish spends grant credits first, then unexpired subscription, prepaid, staking, adjustment, and refund credits. Expired positive credit entries are excluded from reservation and debit availability. Mixed-lane debits are a future accounting upgrade.
 
 ## Milestone BIL1 - Credit Ledger Split
 
