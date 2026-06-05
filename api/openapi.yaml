@@ -2446,6 +2446,10 @@ components:
                 type: string
               fallback:
                 type: string
+              maxInputTokens:
+                type: integer
+              maxOutputTokens:
+                type: integer
               cap:
                 type: string
         rules:
