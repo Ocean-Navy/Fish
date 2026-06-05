@@ -232,7 +232,7 @@ FISH_RUNNER_PUBLIC_KEY_ID=runner-ocean-navy-demo-ed25519
 FISH_RUNNER_PUBLIC_KEY_PEM=<runner public key with newlines escaped as \n>
 ```
 
-`FISH_CHAT_ROUTE=ocean-first`, `hybrid`, and `ocean-demo-vllm` all choose the same warm demo lane. Use `ocean-first` in deployment files because it matches the product story; Fish still records the exact route that served each request.
+`FISH_CHAT_ROUTE=ocean-first`, `hybrid`, and `ocean-demo-vllm` all choose the same warm demo lane. Use `ocean-first` in deployment files because it matches the product story; Fish still records the exact route that served each request. Fish reserves estimated provider spend against the route daily budget before each backend call and counts those in-flight reservations with completed receipts, so concurrent requests are rejected once the configured daily budget is fully reserved.
 
 Selected Ocean providers use their own route id, provider id, daily budget, and model entry:
 
@@ -476,7 +476,7 @@ Pause traffic when any of these happen:
 - error or timeout rate spikes;
 - first-token latency is consistently unacceptable;
 - GPU memory pressure causes restarts or degraded generations;
-- daily budget is close to exhausted;
+- daily budget is close to exhausted or in-flight reservations are causing legitimate traffic to receive `daily_route_budget_exceeded`;
 - endpoint auth is suspected to be exposed;
 - route labels would misrepresent the backend;
 - receipts or usage accounting look inconsistent.
