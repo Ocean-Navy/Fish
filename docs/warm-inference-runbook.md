@@ -290,7 +290,7 @@ FISH_EXTERNAL_FALLBACK_DAILY_BUDGET_USD=<daily fallback budget>
 FISH_EXTERNAL_FALLBACK_FREE_ALLOWED=false
 ```
 
-Use this only in private preview or controlled beta. Keep public route labels clear: demo vLLM, selected Ocean provider, and outside fallback are different routes with different evidence.
+Use this only in private preview or controlled beta. External credentials alone do not enable fallback from an Ocean route; set `FISH_CHAT_BACKEND=external` as an explicit operator opt-in if an Ocean route may retry against this outside backend. Keep public route labels clear: demo vLLM, selected Ocean provider, and outside fallback are different routes with different evidence.
 
 ## Network And Security
 

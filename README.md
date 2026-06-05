@@ -309,9 +309,9 @@ FISH_OCEAN_DEMO_COST_USD_PER_1K_TOKENS=0
 FISH_OCEAN_DEMO_DAILY_BUDGET_USD=50
 ```
 
-`FISH_CHAT_ROUTE=ocean-first`, `hybrid`, and `ocean-demo-vllm` all select the same warm demo route. If the warm route is selected but cannot serve a request, Fish may use the external fallback only when the account plan and fallback budget allow it. The response and receipt keep the final route plus `requestedRoute`, `fallbackFrom`, and `fallbackReason` so external use is visible.
+`FISH_CHAT_ROUTE=ocean-first`, `hybrid`, and `ocean-demo-vllm` all select the same warm demo route. Fish fails closed when that route is unconfigured or errors unless external fallback has also been explicitly selected with `FISH_CHAT_BACKEND=external`. When that operator opt-in, the account plan, and fallback budget all allow fallback, the response and receipt keep the final route plus `requestedRoute`, `fallbackFrom`, and `fallbackReason` so external use is visible before any deployment claims it.
 
-External fallback is separate and should stay capped:
+External fallback is separate, must be explicitly selected, and should stay capped:
 
 ```text
 FISH_CHAT_ROUTE=external-fallback
