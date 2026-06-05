@@ -220,6 +220,7 @@ FISH_MAX_OUTPUT_TOKENS=512
 FISH_DAILY_KEYED_QUOTA=20
 # Shared across unauthenticated meal-counter guests; API-key users get keyed quota above.
 FISH_DAILY_ANONYMOUS_QUOTA=5
+FISH_RATE_LIMIT_MAX_BUCKETS=10000
 # Granted once to the shared unauthenticated guest account, not once per browser.
 FISH_GUEST_CREDIT_GRANT=25
 FISH_MAX_CONCURRENT_REQUESTS=8
