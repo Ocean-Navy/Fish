@@ -31,7 +31,7 @@ Request shape:
 
 `inputRef` is a hash or storage reference. Do not send raw document text, repo text, datasets, or output text to this endpoint.
 
-For `adapterMode: "ocean_http"`, Fish atomically reserves `maxCostUsd` against the remaining `FISH_OCEAN_BATCH_DAILY_BUDGET_USD` before calling a private adapter. Only provider-verified `ocean_http` receipts and in-flight Ocean reservations count against the real daily cap; sample/prototype receipts remain local proof only. The default daily cap is `$30`.
+For `adapterMode: "ocean_http"`, Fish atomically reserves `maxCostUsd` against the remaining `FISH_OCEAN_BATCH_DAILY_BUDGET_USD` before calling a private adapter. Only provider-verified `ocean_http` receipts and in-flight Ocean reservations count against the real daily cap; sample/prototype receipts remain local proof only. The default daily cap is `$30`. Live `ocean_http` jobs also require an Ocean-provider-eligible Fish plan, reserve enough Fish Credits to cover the requested `maxCostUsd` cap before execution, and debit successful provider-verified jobs by at least the accepted provider cost.
 
 `/v1/chat/completions` and `/api/dishes/:dishId/run` generate a hash-only `inputRef`, use this batch contract, and return an OpenAI-style response with batch receipt metadata for Ocean batch dishes. These chat and dish entry points must require an authenticated Fish API key on an Ocean-provider-allowed plan before dispatching to sample or private Ocean batch adapters; guest meal-counter credits are not allowed to start batch jobs.
 

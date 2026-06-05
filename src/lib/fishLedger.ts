@@ -936,9 +936,12 @@ export async function recordChatUsage(params: {
   runnerReceipt?: RunnerReceiptSummary | null;
   reservation?: CreditReservation | null;
   privacy?: FishUsagePrivacy;
+  minimumCreditsSpent?: number;
 }) {
   const totalTokens = params.promptTokens + params.completionTokens;
-  const creditsSpent = Math.max(1, Math.ceil(totalTokens / 1000));
+  const tokenCreditsSpent = Math.max(1, Math.ceil(totalTokens / 1000));
+  const minimumCreditsSpent = Math.max(0, Math.ceil(params.minimumCreditsSpent ?? 0));
+  const creditsSpent = Math.max(tokenCreditsSpent, minimumCreditsSpent);
   if (params.reservation) {
     await releaseFishCreditReservation({
       ledger: params.ledger,

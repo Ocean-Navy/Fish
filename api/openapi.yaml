@@ -180,7 +180,9 @@ paths:
         '401':
           description: Fish API key required
         '402':
-          description: Insufficient Fish Credits
+          description: Insufficient Fish Credits; live Ocean batch checks include the caller-selected provider cost cap converted to Fish Credits before adapter execution
+        '403':
+          description: Live Ocean batch adapter is not allowed for the caller's Fish plan
         '429':
           description: Ocean batch daily budget, monthly request limit, daily quota, or minute rate limit exceeded
         '502':
@@ -1922,10 +1924,12 @@ components:
           minimum: 0
           maximum: 100
           default: 1
+          description: Provider cost cap. For live ocean_http jobs Fish requires enough credits to cover this cap before adapter execution.
         adapterMode:
           type: string
           enum: [sample_success, sample_failure, ocean_http]
           default: sample_success
+          description: ocean_http requires an Ocean-provider-eligible Fish plan; sample modes are local proof only.
     ProviderSmokeRequest:
       type: object
       additionalProperties: false

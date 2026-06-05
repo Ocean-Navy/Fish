@@ -3,7 +3,9 @@ import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises"
 import path from "node:path";
 import { z } from "zod";
 import {
+  FISH_CREDIT_USD,
   estimateTokens,
+  getFishPlan,
   recordChatUsage,
   releaseFishCreditReservation,
   reserveFishCredits,
@@ -180,7 +182,15 @@ export function parseOceanBatchJobRequest(body: unknown) {
 
 export async function runOceanBatchJob(request: OceanBatchJobRequestInput, context: OceanBatchJobContext) {
   const input = normalizeBatchInput(request);
-  const estimatedMaxCredits = Math.max(1, Math.ceil((input.estimatedInputTokens + input.maxOutputTokens) / 1000));
+  if (input.adapterMode === "ocean_http" && !getFishPlan(context.account.planId).oceanProviderAllowed) {
+    return {
+      ok: false as const,
+      status: 403,
+      error: "ocean_batch_live_adapter_not_allowed_for_plan"
+    };
+  }
+
+  const estimatedMaxCredits = estimateOceanBatchMaxCredits(input);
   if (context.account.creditBalance < estimatedMaxCredits) {
     return {
       ok: false as const,
@@ -325,6 +335,7 @@ export async function runOceanBatchJob(request: OceanBatchJobRequestInput, conte
     latencyMs: Date.parse(receipt.completedAt) - Date.parse(receipt.startedAt),
     providerCostUsd: outcome.cost.providerCostUsd,
     providerId: receipt.providerId,
+    minimumCreditsSpent: minimumOceanBatchUsageCredits(input, outcome.cost.providerCostUsd),
     runnerReceipt: null,
     reservation: reservationResult.reservation,
     privacy: context.privacy ?? defaultFishPrivacyForRoute("ocean-batch")
@@ -373,6 +384,30 @@ export async function summarizeOceanBatchJobs(): Promise<OceanBatchSummary> {
       ...(receipts.length && receipts.every((receipt) => receipt.sourceState === "sample") ? ["Only sample Ocean batch jobs exist. Configure an Ocean batch endpoint before treating this as live Ocean execution."] : [])
     ]
   };
+}
+
+function estimateOceanBatchMaxCredits(input: OceanBatchJobInput) {
+  const tokenCredits = Math.max(1, Math.ceil((input.estimatedInputTokens + input.maxOutputTokens) / 1000));
+  if (input.adapterMode !== "ocean_http") {
+    return tokenCredits;
+  }
+  return Math.max(tokenCredits, usdToFishCredits(input.maxCostUsd));
+}
+
+function minimumOceanBatchUsageCredits(input: OceanBatchJobInput, providerCostUsd: number) {
+  const tokenCredits = Math.max(1, Math.ceil((input.estimatedInputTokens + input.maxOutputTokens) / 1000));
+  if (input.adapterMode !== "ocean_http") {
+    return tokenCredits;
+  }
+  return Math.max(tokenCredits, usdToFishCredits(providerCostUsd));
+}
+
+function oceanBatchUserChargeUsd(credits: number) {
+  return Number((Math.max(1, Math.ceil(credits)) * FISH_CREDIT_USD).toFixed(6));
+}
+
+function usdToFishCredits(amountUsd: number) {
+  return Math.max(1, Math.ceil(Math.max(0, amountUsd) / FISH_CREDIT_USD));
 }
 
 async function reserveOceanBatchDailyBudget(estimatedCostUsd: number) {
@@ -466,7 +501,7 @@ function runSampleBatchAdapter(input: OceanBatchJobInput): OceanBatchAdapterOutc
       items: 1
     },
     cost: {
-      userChargeUsd: Number((Math.ceil(totalTokens / 1000) * 0.001).toFixed(6)),
+      userChargeUsd: oceanBatchUserChargeUsd(Math.ceil(totalTokens / 1000)),
       providerCostUsd,
       pricingState: "prototype_estimate"
     },
@@ -536,7 +571,7 @@ function batchOutcome(input: OceanBatchJobInput, payload: Record<string, unknown
     outputRef,
     usage,
     cost: {
-      userChargeUsd: Number((Math.ceil(usage.totalTokens / 1000) * 0.001).toFixed(6)),
+      userChargeUsd: oceanBatchUserChargeUsd(minimumOceanBatchUsageCredits(input, providerCostUsd)),
       providerCostUsd,
       pricingState: "provider_verified"
     },
