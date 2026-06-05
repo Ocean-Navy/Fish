@@ -19,7 +19,7 @@ The public V0 is intentionally simple: a visual Venice fish-market homepage, rol
 - Prototype `/v1` AI API with local API keys, Fish Credits debits, and usage receipts.
 - `/ask` with a Fish meal counter: Ocean batch dishes (Docs Bento, Repo Roll, Eval Platter, Data Sushi) plus quick warm dishes.
 - `/api/meal/order` for a globally capped guest meal-counter demo without exposing a Fish API key.
-- `/api/warm/status` for public-safe warm Ocean demo readiness without endpoint URLs or secrets.
+- `/api/warm/status` for public-safe warm Ocean demo configuration snapshots without endpoint URLs, secrets, or live backend probes.
 - `/api/ocean/batch/jobs` for hash-only Ocean batch dish receipts, sample by default until a private batch adapter is configured.
 - `/api/ocean/batch/readiness` for a public-safe Milestone 3 gate before claiming real Ocean workload proof.
 - `/credits` with an EVM wallet intent flow for future OCEAN lock credits; this records interest but does not stake tokens or issue credits.
@@ -336,9 +336,11 @@ The public route compass shows what is active without exposing secrets:
 ```bash
 curl -sS http://127.0.0.1:3000/api/routing/policy
 curl -sS http://127.0.0.1:3000/api/warm/status
+# Operator-only live probe; requires FISH_ADMIN_TOKEN outside local development.
+curl -sS -H "x-fish-admin-token: $FISH_ADMIN_TOKEN" "http://127.0.0.1:3000/api/warm/status?probe=live"
 ```
 
-Use `/routing` for the human-friendly route view and `/dashboard` for warm demo readiness. Both must label mock, external fallback, selected warm demo work, and later selected Ocean provider work differently.
+Use `/routing` for the human-friendly route view and `/dashboard` for public warm demo snapshots. Both must label mock, external fallback, selected warm demo work, and later selected Ocean provider work differently.
 
 For the warm inference MVP, see `docs/warm-inference-runbook.md` and `docs/vllm-oncompute-runner-profiles.md`. The practical first deployment is a GPU host with vLLM kept warm behind Fish Gateway or Fish Runner, optionally next to Ocean Node for provider identity and anchoring. Keep the vLLM endpoint private, set `FISH_RUNNER_API_KEY` for Runner protected endpoints, cap usage, and do not claim Ocean-native live chat until selected-provider routing and proof labels support that claim.
 
