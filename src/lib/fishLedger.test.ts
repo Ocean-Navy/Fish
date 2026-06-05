@@ -78,6 +78,57 @@ test("expired top-up credits are not spendable", async () => {
   assert.equal(usage.available, 0);
 });
 
+test("reserved usage charges are capped to the request reservation", async () => {
+  const ledger = await useTempFishLedger();
+  const { authenticateRequest, createApiKey, recordChatUsage, reserveFishCredits, summarizeAccount } = await importFishLedger(ledger);
+  const { key } = await createApiKey("Reservation cap test", 10_000);
+
+  const auth = await authenticateRequest(authorizedRequest(key));
+  assert.equal(auth.ok, true);
+  if (!auth.ok) {
+    throw new Error("test account authentication failed");
+  }
+
+  const reservation = await reserveFishCredits({
+    ledger: auth.ledger,
+    account: auth.account,
+    credits: 1,
+    reason: "reservation_cap_test"
+  });
+  assert.equal(reservation.ok, true);
+  if (!reservation.ok) {
+    throw new Error("test reservation failed");
+  }
+
+  const usage = await recordChatUsage({
+    ledger: auth.ledger,
+    account: auth.account,
+    input: {
+      model: "fish-demo-chat",
+      messages: [{ role: "user", content: "hello" }],
+      stream: false,
+      max_tokens: 1
+    },
+    promptTokens: 10_000_000,
+    completionTokens: 1_000,
+    content: "hello",
+    route: "external-fallback",
+    costState: "fallback_verified",
+    reservation: reservation.reservation
+  });
+
+  assert.equal(usage.ok, true);
+  if (!usage.ok) {
+    throw new Error("usage recording failed");
+  }
+  assert.equal(usage.receipt.creditsSpent, 1);
+  assert.equal(usage.creditsRemaining, 9_999);
+
+  const summary = await summarizeAccount(auth.account);
+  assert.equal(summary.account.creditBalance, 9_999);
+  assert.equal(summary.account.totalCreditsSpent, 1);
+});
+
 test("stale authenticated ledger writes do not undo API key revocation", async () => {
   const ledger = await useTempFishLedger();
   const { authenticateRequest, createApiKey, reserveFishCredits, revokeApiKey } = await importFishLedger(ledger);
