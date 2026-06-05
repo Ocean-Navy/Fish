@@ -35,7 +35,7 @@ Rules:
 
 Current prototype behavior: `/v1/chat/completions` reserves the maximum estimated request credits before the backend call, releases unused reserve on success, and releases the full reserve on backend failure before a usage receipt is written.
 
-Current spend behavior: one request consumes one lane. Fish spends grant credits first, then subscription, prepaid, staking, adjustment, and refund credits. Mixed-lane debits are a future accounting upgrade.
+Current spend behavior: one request consumes one lane. Fish spends grant credits first, then unexpired subscription, prepaid, staking, adjustment, and refund credits. Expired positive credit entries are excluded from reservation and debit availability. Mixed-lane debits are a future accounting upgrade.
 
 ## Milestone BIL1 - Credit Ledger Split
 
@@ -86,7 +86,7 @@ operatorReason
 
 Fish has a simple pricing/limits model without over-promising token mechanics.
 
-Current prototype status: `/api/billing/plans` exposes Free, Pro, Team/API, and Provider-test plan metadata. `/api/billing/subscriptions` lets an operator activate a pilot plan, set expiry metadata, and grant subscription credits with idempotency protection. `/v1/balance` and `/account` show the account plan, source, start time, and expiry. Public subscription checkout is still future-gated; prepaid top-ups now have Stripe and USDC checkout paths when configured.
+Current prototype status: `/api/billing/plans` exposes Free, Pro, Team/API, and Provider-test plan metadata. `/api/billing/subscriptions` lets an operator activate a pilot plan, set expiry metadata, and grant subscription credits with idempotency protection. Runtime entitlement checks resolve expired operator subscriptions back to the Free plan for model access, quota, rate limits, fallback/provider routing, and Ocean batch access. `/v1/balance` and `/account` show the account plan, source, start time, and expiry. Public subscription checkout is still future-gated; prepaid top-ups now have Stripe and USDC checkout paths when configured.
 
 ### Initial Plan Shape
 
@@ -167,7 +167,7 @@ POST /v1/admin/grants
 
 Users and operators can understand where credits went.
 
-Current prototype status: `/api/billing/usage-analytics` exposes aggregate requests by day, credits by lane/model, route mix, and margin fields without API keys, raw prompts, outputs, or account rows.
+Current prototype status: `/api/billing/usage-analytics` is admin-only and exposes aggregate requests by day, credits by lane/model, route mix, and margin fields without API keys, raw prompts, outputs, or account rows.
 
 ### Metrics
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { createHash } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
 import { existsSync } from "node:fs";
 import { createServer } from "node:http";
 import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
@@ -29,6 +29,9 @@ const server = createServer(async (request, response) => {
       return sendJson(response, 200, healthPayload());
     }
     if (request.method === "GET" && url.pathname === "/config") {
+      if (!isAuthorized(request)) {
+        return sendJson(response, 401, { error: "unauthorized" });
+      }
       return sendJson(response, 200, configPayload());
     }
     if (request.method === "POST" && url.pathname === "/jobs") {
@@ -110,8 +113,7 @@ function healthPayload() {
     liveReady: isExecutableMode(config.mode) && config.missing.length === 0,
     configuredForFreeCompute: config.freeCompute,
     missing: config.missing,
-    warnings: config.warnings,
-    selected: publicSelection(config)
+    warnings: config.warnings
   };
 }
 
@@ -485,6 +487,8 @@ function readAdapterConfig() {
   const cliBin = process.env.FISH_OCEAN_CLI_BIN?.trim() || "";
   const oceanCliDir = process.env.OCEAN_CLI_DIR?.trim() || "";
   const freeCompute = !paymentToken && !resources;
+  const adapterApiKey = process.env.OCEAN_WORKLOAD_ADAPTER_API_KEY?.trim() || "";
+  const adapterApiKeySafe = isSafeAdapterApiKey(adapterApiKey);
   const missing = [];
   const warnings = [];
 
@@ -499,6 +503,7 @@ function readAdapterConfig() {
     if (oceanCliDir && !existsSync(path.join(oceanCliDir, "node_modules", "ethers"))) missing.push("OCEAN_CLI_DIR with ethers dependency");
   }
   if (mode === "live") {
+    if (!adapterApiKeySafe) missing.push("strong OCEAN_WORKLOAD_ADAPTER_API_KEY");
     if (!walletConfigured) missing.push("PRIVATE_KEY or MNEMONIC");
     if (!rpc) missing.push("RPC");
     if (!nodeUrl) missing.push("NODE_URL");
@@ -509,6 +514,9 @@ function readAdapterConfig() {
     if (!cliBin && oceanCliDir && !existsSync(oceanCliDir)) missing.push("existing OCEAN_CLI_DIR");
     if (!cliBin && oceanCliDir && existsSync(oceanCliDir) && !existsSync(path.join(oceanCliDir, "package.json"))) missing.push("valid OCEAN_CLI_DIR with package.json");
     if (!freeCompute && (!paymentToken || !resources)) missing.push("FISH_OCEAN_PAYMENT_TOKEN and FISH_OCEAN_RESOURCES");
+  }
+  if (!adapterApiKeySafe) {
+    warnings.push("Set OCEAN_WORKLOAD_ADAPTER_API_KEY to a unique secret with at least 32 characters before exposing /jobs or /config.");
   }
   if (freeCompute && paymentToken) {
     warnings.push("FISH_OCEAN_PAYMENT_TOKEN is set without resources; adapter will not use paid startCompute.");
@@ -522,6 +530,7 @@ function readAdapterConfig() {
     nodeUrl,
     rpc,
     walletConfigured,
+    adapterApiKeyConfigured: adapterApiKeySafe,
     datasetDids,
     algoDid,
     computeEnvId,
@@ -854,12 +863,26 @@ async function readJsonBody(request) {
 }
 
 function isAuthorized(request) {
-  const apiKey = process.env.OCEAN_WORKLOAD_ADAPTER_API_KEY?.trim();
-  if (!apiKey) {
-    return true;
+  const apiKey = process.env.OCEAN_WORKLOAD_ADAPTER_API_KEY?.trim() || "";
+  if (!isSafeAdapterApiKey(apiKey)) {
+    return false;
   }
   const authorization = request.headers.authorization || "";
-  return authorization === `Bearer ${apiKey}`;
+  const expected = `Bearer ${apiKey}`;
+  return timingSafeStringEqual(authorization, expected);
+}
+
+function isSafeAdapterApiKey(apiKey) {
+  return apiKey.length >= 32 && apiKey !== "change-me";
+}
+
+function timingSafeStringEqual(actual, expected) {
+  const actualBuffer = Buffer.from(actual);
+  const expectedBuffer = Buffer.from(expected);
+  if (actualBuffer.length !== expectedBuffer.length) {
+    return false;
+  }
+  return timingSafeEqual(actualBuffer, expectedBuffer);
 }
 
 function sendJson(response, status, payload) {

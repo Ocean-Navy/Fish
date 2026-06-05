@@ -35,9 +35,9 @@ Request shape:
 
 For private artifact demos, Fish may include `inputPayload` and `artifactKind` when `FISH_OCEAN_BATCH_PRIVATE_PAYLOAD=true`. Use this only with a private adapter and Ocean Node we operate. Public Fish receipts still store only hashes, ids, route labels, cost, usage, and source state; returned artifact text is not written into public proof.
 
-Fish checks `maxCostUsd` against the remaining `FISH_OCEAN_BATCH_DAILY_BUDGET_USD` before calling a private adapter. The default daily cap is `$30`.
+For `adapterMode: "ocean_http"`, Fish atomically reserves `maxCostUsd` against the remaining `FISH_OCEAN_BATCH_DAILY_BUDGET_USD` before calling a private adapter. Only provider-verified `ocean_http` receipts and in-flight Ocean reservations count against the real daily cap; sample/prototype receipts remain local proof only. The default daily cap is `$30`. Live `ocean_http` jobs also require an Ocean-provider-eligible Fish plan, reserve enough Fish Credits to cover the requested `maxCostUsd` cap before execution, and debit successful provider-verified jobs by at least the accepted provider cost.
 
-`/v1/chat/completions` and `/api/dishes/:dishId/run` generate an `inputRef`, use this batch contract, and return an OpenAI-style response with batch receipt metadata for Ocean batch dishes. With private payload mode disabled, they send only the reference. With private payload mode enabled, they also send a short private payload for artifact generation.
+`/v1/chat/completions` and `/api/dishes/:dishId/run` generate a hash-only `inputRef`, use this batch contract, and return an OpenAI-style response with batch receipt metadata for Ocean batch dishes. These chat and dish entry points must require an authenticated Fish API key on an Ocean-provider-allowed plan before dispatching to sample or private Ocean batch adapters; guest meal-counter credits are not allowed to start batch jobs. With private payload mode enabled for a Fish-operated private adapter, they may also send a short private payload for artifact generation.
 
 Current dish mapping:
 
@@ -68,7 +68,7 @@ The private adapter scaffold lives at:
 deploy/ocean-workload-adapter/
 ```
 
-It defaults to dry-run mode, which returns a failed adapter result and cannot create a successful proof receipt. Live mode requires a proof wallet, Base RPC, selected `NODE_URL`, selected compute environment id, and an algorithm DID.
+It defaults to dry-run mode, which returns a failed adapter result and cannot create a successful proof receipt. Live mode requires a strong `OCEAN_WORKLOAD_ADAPTER_API_KEY`, a proof wallet, Base RPC, selected `NODE_URL`, selected compute environment id, and an algorithm DID. The private adapter rejects `/jobs` and `/config` requests unless they include `Authorization: Bearer <OCEAN_WORKLOAD_ADAPTER_API_KEY>`.
 
 For testnet demos, the Ocean CLI chain must have Ocean contract addresses. The bundled Ocean CLI 2.0.0 address file includes Base mainnet (`8453`) but not Base Sepolia (`84532`); Base Sepolia needs a custom `ADDRESS_FILE` before the Fish algorithm can be published there.
 

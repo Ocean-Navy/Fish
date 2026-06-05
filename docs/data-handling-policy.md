@@ -24,6 +24,7 @@ Current storage rules:
 - Ocean batch receipts store job ids, task type, provider id, source state, adapter mode, usage, cost, input hash, output hash, and canonical receipt hash.
 - Public proof, dashboards, exports, and receipts do not store raw prompts, raw dish input, raw files, or raw output text.
 - The raw order may still be sent to the configured backend route when that route needs it to process the job.
+- The prototype chat UI does not remember raw thread text by default. A browser-local chat memory control, when explicitly enabled by the user, stores the visible thread only in that browser for 24 hours and should not be used on shared devices.
 - If outside AI is used, the outside provider policy applies.
 - If a selected Ocean provider is used, that provider must be reviewed before it handles user workloads.
 

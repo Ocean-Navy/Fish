@@ -64,18 +64,18 @@ export NODE_URL="/ip4/.../tcp/9000"
 
 Use `FISH_ALGORITHM_CHAIN_ID=84532` for Base Sepolia testnet, or `8453` for Base mainnet.
 
-Set a public URL for `algorithm.py`.
+Set an immutable public URL for `algorithm.py`, or let the publish script derive the current Git commit URL.
 
-The Ocean node must be able to fetch this URL. The current GitHub repository is private, so a private `raw.githubusercontent.com` URL will not work. Use one of these:
+The Ocean node must be able to fetch this URL. The current GitHub repository may be private, so an unauthenticated Ocean node cannot fetch private `raw.githubusercontent.com` URLs. Use one of these immutable options:
 
-- make the Fish repo public and use the raw `main` URL;
-- publish `algorithm.py` as a public release asset;
-- upload `algorithm.py` to IPFS or another public file URL.
+- push the reviewed commit to a public Fish repo and use the raw URL with the 40-character commit hash;
+- upload `algorithm.py` to IPFS and use a public gateway URL containing `/ipfs/<cid>`.
 
-Example after a public `main` merge:
+Example after pushing a reviewed commit:
 
 ```bash
-export FISH_ALGORITHM_FILE_URL="https://raw.githubusercontent.com/Ocean-Navy/Fish/main/deploy/ocean-workload-adapter/algorithms/fish-document-summary/algorithm.py"
+commit="$(git rev-parse HEAD)"
+export FISH_ALGORITHM_FILE_URL="https://raw.githubusercontent.com/Ocean-Navy/Fish/${commit}/deploy/ocean-workload-adapter/algorithms/fish-document-summary/algorithm.py"
 export FISH_ALGORITHM_CHAIN_ID=84532
 ```
 
@@ -85,7 +85,7 @@ Publish:
 scripts/publish-fish-document-summary-algorithm.sh --env-file .env.ocean-proof.local
 ```
 
-The script prepares a metadata JSON under `data/ocean-workload-adapter/` and checks that `FISH_ALGORITHM_FILE_URL` is publicly fetchable before it calls Ocean CLI.
+The script prepares a metadata JSON under `data/ocean-workload-adapter/`, rejects branch or tag raw GitHub URLs, embeds the reviewed local `algorithm.py` SHA-256, and checks that `FISH_ALGORITHM_FILE_URL` is publicly fetchable with matching bytes before it calls Ocean CLI.
 
 The script prints:
 

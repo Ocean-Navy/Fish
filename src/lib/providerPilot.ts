@@ -62,7 +62,7 @@ export type ProviderProfile = {
   displayName: string;
   sourceApplicationId: string | null;
   nodeEndpointHash: string | null;
-  healthEndpointHash: string | null;
+  healthEndpointReady: boolean;
   region: string;
   gpuTypes: string[];
   capacitySummary: string;
@@ -98,7 +98,7 @@ export type ProviderAllowlistEntry = {
   maxConcurrentJobs: number;
   maxDailySpendUsd: number;
   benchmarkRequired: boolean;
-  healthEndpointHash: string | null;
+  healthEndpointReady: boolean;
   priceShared: boolean;
   payoutReady: boolean;
   noPromptOutputLogging: boolean;
@@ -338,7 +338,7 @@ function buildProviderProfile(submission: z.infer<typeof submissionSchema>): Pro
     displayName: displayNameForSubmission(submission, providerId),
     sourceApplicationId: submission.id,
     nodeEndpointHash: submission.body.nodeEndpoint ? shortHash(submission.body.nodeEndpoint) : null,
-    healthEndpointHash: submission.body.healthEndpoint ? shortHash(submission.body.healthEndpoint) : null,
+    healthEndpointReady: Boolean(submission.body.healthEndpoint.trim()),
     region,
     gpuTypes,
     capacitySummary: gpuTypes.length ? gpuTypes.join(", ") : "GPU details pending",
@@ -370,7 +370,7 @@ function buildAllowlist(providers: ProviderProfile[], candidates: AllowlistCandi
         maxConcurrentJobs: candidate.maxConcurrentJobs,
         maxDailySpendUsd: candidate.maxDailySpendUsd,
         benchmarkRequired: candidate.benchmarkRequired,
-        healthEndpointHash: candidate.healthEndpoint?.trim() ? shortHash(candidate.healthEndpoint) : provider.healthEndpointHash,
+        healthEndpointReady: Boolean(candidate.healthEndpoint?.trim()) || provider.healthEndpointReady,
         priceShared: Boolean(candidate.priceHint?.trim()) || provider.priceShared,
         payoutReady: candidate.payoutReady || provider.payoutReady,
         noPromptOutputLogging: candidate.noPromptOutputLogging || provider.noLoggingPolicy,
@@ -413,7 +413,7 @@ function buildAllowlistOnlyProfiles(providers: ProviderProfile[], candidates: Al
         displayName: displayNameForAllowlistCandidate(candidate, providerId),
         sourceApplicationId: null,
         nodeEndpointHash,
-        healthEndpointHash: candidate.healthEndpoint?.trim() ? shortHash(candidate.healthEndpoint.trim()) : null,
+        healthEndpointReady: Boolean(candidate.healthEndpoint?.trim()),
         region,
         gpuTypes: [],
         capacitySummary: "GPU details pending",
@@ -437,7 +437,7 @@ function withReadiness(provider: ProviderProfile, allowlist?: ProviderAllowlistE
     { id: "node", label: "Ocean Node", ready: Boolean(provider.nodeEndpointHash) },
     { id: "gpu", label: "GPU", ready: provider.gpuTypes.length > 0 },
     { id: "region", label: "Region", ready: provider.region !== "Review needed" },
-    { id: "health", label: "Health", ready: Boolean(provider.healthEndpointHash || allowlist?.healthEndpointHash) },
+    { id: "health", label: "Health", ready: provider.healthEndpointReady || Boolean(allowlist?.healthEndpointReady) },
     { id: "price", label: "Price", ready: provider.priceShared || Boolean(allowlist?.priceShared) },
     { id: "privacy", label: "No logs", ready: provider.noLoggingPolicy || Boolean(allowlist?.noPromptOutputLogging) },
     { id: "payout", label: "Payout", ready: provider.payoutReady || Boolean(allowlist?.payoutReady) },
@@ -448,7 +448,7 @@ function withReadiness(provider: ProviderProfile, allowlist?: ProviderAllowlistE
   const readyCount = checks.filter((check) => check.ready).length;
   return {
     ...provider,
-    healthEndpointHash: allowlist?.healthEndpointHash ?? provider.healthEndpointHash,
+    healthEndpointReady: provider.healthEndpointReady || Boolean(allowlist?.healthEndpointReady),
     priceShared: provider.priceShared || Boolean(allowlist?.priceShared),
     payoutReady: provider.payoutReady || Boolean(allowlist?.payoutReady),
     supportReady: provider.supportReady || Boolean(allowlist?.supportReady),

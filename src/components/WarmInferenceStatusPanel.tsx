@@ -5,7 +5,7 @@ import type { WarmInferenceStatus } from "@/lib/warmInferenceStatus";
 import { StatusBadge } from "@/components/StatusBadge";
 
 export function WarmInferenceStatusPanel({ status }: { status: WarmInferenceStatus }) {
-  const probeLabel = status.probe.state === "ok" ? "Ready" : status.probe.state === "failed" ? "Needs attention" : "Not ready";
+  const probeLabel = status.probe.state === "ok" ? "Ready" : status.probe.state === "failed" ? "Needs attention" : status.configured ? "Snapshot" : "Not ready";
 
   return (
     <section className="mx-auto max-w-7xl px-4 pb-20 sm:px-6 lg:px-8">
@@ -15,7 +15,7 @@ export function WarmInferenceStatusPanel({ status }: { status: WarmInferenceStat
             <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">Warm route</p>
             <h2 className="mt-2 text-3xl font-black text-white sm:text-5xl">{status.publicLabel} readiness</h2>
             <p className="mt-3 max-w-2xl text-base font-bold leading-7 text-fish-secondary">
-              Public-safe status for the active warm AI route. It never exposes endpoint URLs, API keys, prompts, or outputs.
+              Public-safe snapshot for the active warm AI route. Live backend probes are operator-only, and this panel never exposes endpoint URLs, API keys, prompts, or outputs.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">

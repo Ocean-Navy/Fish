@@ -4,7 +4,7 @@ import {
   checkFishMonthlyRequestLimit,
   checkFishModelAccess,
   estimateTokens,
-  getFishPlan,
+  getActiveFishPlan,
   recordChatUsage,
   recordFailedChatUsage,
   releaseFishCreditReservation,
@@ -19,7 +19,7 @@ import { ExternalChatError, runExternalChat } from "@/lib/externalChat";
 import { tryAcquireFishConcurrencySlot } from "@/lib/fishConcurrency";
 import { getFishBatchFeatureConfig, getFishFeaturePolicy, type FishBatchTaskType, type FishFeatureId } from "@/lib/fishFeaturePolicy";
 import { buildFishKnowledgeContext } from "@/lib/fishKnowledge";
-import { checkRouteDailyBudget, type RouteBudgetCheck } from "@/lib/fishBudget";
+import { releaseRouteDailyBudgetReservation, reserveRouteDailyBudget, type RouteBudgetCheck, type RouteBudgetReservation } from "@/lib/fishBudget";
 import { spendDailyQuota } from "@/lib/fishQuota";
 import { readFishPrivacyPreference, resolveFishPrivacy, type FishUsagePrivacy } from "@/lib/fishPrivacy";
 import { spendFishMinuteRateLimit } from "@/lib/fishRateLimit";
@@ -34,6 +34,7 @@ export type FishChatGatewayContext = {
   principalId: string;
   dailyQuotaLimit: number;
   allowExternalFallback: boolean;
+  authenticatedApiKey: boolean;
 };
 
 export type FishChatGatewayResult =
@@ -75,13 +76,15 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
   const batchFeature = getFishBatchFeatureConfig(featurePolicy.id);
   const sendBatchPrivatePayload = Boolean(batchFeature && shouldSendBatchPrivatePayload(featurePolicy.id));
   const privacyPreference = readFishPrivacyPreference(input.metadata);
-  const modelAccess = checkFishModelAccess(input.model, context.account.planId);
+  const plan = getActiveFishPlan(context.account);
+  const modelAccess = checkFishModelAccess(input.model, context.account);
   const originalPromptText = messagesToText(input);
   const originalUserPromptText = messagesToUserText(input);
   const privateOrderText = readPrivateOrderText(input.metadata) ?? originalUserPromptText;
-  const knowledge = featurePolicy.id === "ocean" ? buildFishKnowledgeContext(originalPromptText) : null;
-  const effectiveInput = knowledge ? withFishKnowledgeContext(input, knowledge.context) : input;
-  const promptText = messagesToText(effectiveInput);
+  let knowledge: ReturnType<typeof buildFishKnowledgeContext> | null = null;
+  let effectiveInput = input;
+  let promptText = originalPromptText;
+  let promptTokens = estimateTokens(promptText);
   const activeRoute = getActiveFishRoute(routerConfig);
   if (routerConfig.killSwitch || routerConfig.paused) {
     return jsonError(503, routerConfig.killSwitch ? "fish_router_disabled" : "fish_router_paused", "router_unavailable", {
@@ -105,7 +108,6 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
 
   let content = "";
   let responseModel = input.model;
-  let promptTokens = estimateTokens(promptText);
   let completionTokens = 0;
   let providerCostUsd = 0;
   let route: FishChatRouteId = activeRoute.id;
@@ -125,11 +127,17 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
   }
 
   if (promptTokens > featurePolicy.maxInputTokens) {
-    return jsonError(400, "max_input_tokens_exceeded", "guardrail_error", {
-      feature: featurePolicy.id,
-      limit: featurePolicy.maxInputTokens,
-      estimated: promptTokens
-    });
+    return maxInputTokensExceededError(featurePolicy.id, featurePolicy.maxInputTokens, promptTokens);
+  }
+
+  if (featurePolicy.id === "ocean") {
+    knowledge = buildFishKnowledgeContext(originalPromptText);
+    effectiveInput = withFishKnowledgeContext(input, knowledge.context);
+    promptText = messagesToText(effectiveInput);
+    promptTokens = estimateTokens(promptText);
+    if (promptTokens > featurePolicy.maxInputTokens) {
+      return maxInputTokensExceededError(featurePolicy.id, featurePolicy.maxInputTokens, promptTokens);
+    }
   }
 
   if (requestedMaxOutputTokens > featurePolicy.maxOutputTokens) {
@@ -137,6 +145,20 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
       feature: featurePolicy.id,
       limit: featurePolicy.maxOutputTokens,
       requested: requestedMaxOutputTokens
+    });
+  }
+
+  if (batchFeature && !context.authenticatedApiKey) {
+    return jsonError(401, "missing_bearer_token", "authentication_error", {
+      feature: featurePolicy.id,
+      route: "ocean-batch"
+    });
+  }
+
+  if (batchFeature && !canUseOceanProviderRoute(context)) {
+    return jsonError(403, "ocean_provider_not_allowed_for_plan", "routing_policy_error", {
+      feature: featurePolicy.id,
+      route: "ocean-batch"
     });
   }
 
@@ -152,18 +174,6 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
     return privacyModeError(batchPrivacy);
   }
 
-  const plan = getFishPlan(context.account.planId);
-  const monthlyRequests = await checkFishMonthlyRequestLimit(context.account, plan.monthlyRequestLimit);
-  if (!monthlyRequests.ok) {
-    return jsonError(monthlyRequests.status, monthlyRequests.error, "quota_error", {
-      planId: plan.planId,
-      limit: monthlyRequests.limit,
-      used: monthlyRequests.used,
-      remaining: monthlyRequests.remaining,
-      resetAt: monthlyRequests.resetAt
-    });
-  }
-
   const rateLimit = spendFishMinuteRateLimit(context.principalId, plan.rateLimitPerMinute);
   if (!rateLimit.ok) {
     return jsonError(429, "rate_limit_exceeded", "rate_limit_error", {
@@ -175,24 +185,51 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
     });
   }
 
+  const monthlyRequests = await checkFishMonthlyRequestLimit(context.account, plan.monthlyRequestLimit);
+  if (!monthlyRequests.ok) {
+    return jsonError(monthlyRequests.status, monthlyRequests.error, "quota_error", {
+      planId: plan.planId,
+      limit: monthlyRequests.limit,
+      used: monthlyRequests.used,
+      remaining: monthlyRequests.remaining,
+      resetAt: monthlyRequests.resetAt
+    });
+  }
+
   if (batchFeature) {
     if (!batchPrivacy?.ok) {
       return jsonError(500, "batch_privacy_state_missing", "privacy_error");
     }
-    return runBatchChatGateway({
-      input,
-      context,
-      promptText,
-      privatePayloadText: privateOrderText,
-      promptTokens,
-      maxOutputTokens: requestedMaxOutputTokens,
-      featureLabel: featurePolicy.label,
-      sendPrivatePayload: sendBatchPrivatePayload,
-      batchFeature,
-      monthlyRequests,
-      rateLimit,
-      privacy: batchPrivacy.privacy
-    });
+
+    const batchRoute: FishChatRouteId = "ocean-provider";
+    const concurrencySlot = tryAcquireFishConcurrencySlot(batchRoute, routerConfig.guardrails.maxConcurrentRequests);
+    if (!concurrencySlot.ok) {
+      return jsonError(429, "max_concurrent_requests_exceeded", "concurrency_error", {
+        route: batchRoute,
+        activeRequests: concurrencySlot.activeRequests,
+        activeForRoute: concurrencySlot.activeForRoute,
+        limit: concurrencySlot.limit
+      });
+    }
+
+    try {
+      return await runBatchChatGateway({
+        input,
+        context,
+        promptText,
+        privatePayloadText: privateOrderText,
+        promptTokens,
+        maxOutputTokens: requestedMaxOutputTokens,
+        featureLabel: featurePolicy.label,
+        sendPrivatePayload: sendBatchPrivatePayload,
+        batchFeature,
+        monthlyRequests,
+        rateLimit,
+        privacy: batchPrivacy.privacy
+      });
+    } finally {
+      concurrencySlot.release();
+    }
   }
 
   if (activeRoute.id === "ocean-provider" && !canUseOceanProviderRoute(context)) {
@@ -233,16 +270,9 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
     });
   }
 
+  let routeBudgetReservation: RouteBudgetReservation | null = null;
+
   try {
-  let budgetCheck = await checkRouteDailyBudget({
-    route,
-    promptTokens,
-    maxOutputTokens: requestedMaxOutputTokens,
-    routerConfig
-  });
-  if (!budgetCheck.ok) {
-    return budgetExceededError(budgetCheck);
-  }
 
   const estimatedMaxCredits = Math.max(1, Math.ceil((promptTokens + requestedMaxOutputTokens) / 1000));
   if (context.account.creditBalance < estimatedMaxCredits) {
@@ -251,6 +281,17 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
       available: context.account.creditBalance
     });
   }
+
+  let budgetCheck = await reserveRouteDailyBudget({
+    route,
+    promptTokens,
+    maxOutputTokens: requestedMaxOutputTokens,
+    routerConfig
+  });
+  if (!budgetCheck.ok) {
+    return budgetExceededError(budgetCheck);
+  }
+  routeBudgetReservation = budgetCheck;
 
   const quota = await spendDailyQuota(context.principalId, route, context.dailyQuotaLimit);
   if (!quota.ok) {
@@ -319,7 +360,10 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
         });
       }
 
-      const fallbackBudgetCheck = await checkRouteDailyBudget({
+      await releaseRouteDailyBudgetReservation(routeBudgetReservation);
+      routeBudgetReservation = null;
+
+      const fallbackBudgetCheck = await reserveRouteDailyBudget({
         route: "external-fallback",
         promptTokens,
         maxOutputTokens: requestedMaxOutputTokens,
@@ -344,6 +388,7 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
         });
       }
       budgetCheck = fallbackBudgetCheck;
+      routeBudgetReservation = fallbackBudgetCheck;
 
       const fallbackPrivacyDecision = resolveFishPrivacy({
         route: "external-fallback",
@@ -435,7 +480,10 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
         });
       }
 
-      const fallbackBudgetCheck = await checkRouteDailyBudget({
+      await releaseRouteDailyBudgetReservation(routeBudgetReservation);
+      routeBudgetReservation = null;
+
+      const fallbackBudgetCheck = await reserveRouteDailyBudget({
         route: "external-fallback",
         promptTokens,
         maxOutputTokens: requestedMaxOutputTokens,
@@ -460,6 +508,7 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
         });
       }
       budgetCheck = fallbackBudgetCheck;
+      routeBudgetReservation = fallbackBudgetCheck;
 
       const fallbackPrivacyDecision = resolveFishPrivacy({
         route: "external-fallback",
@@ -628,8 +677,17 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
     }
   };
   } finally {
+    await releaseRouteDailyBudgetReservation(routeBudgetReservation);
     concurrencySlot.release();
   }
+}
+
+function maxInputTokensExceededError(feature: FishFeatureId, limit: number, estimated: number) {
+  return jsonError(400, "max_input_tokens_exceeded", "guardrail_error", {
+    feature,
+    limit,
+    estimated
+  });
 }
 
 function messagesToText(input: ChatCompletionInput) {
@@ -709,6 +767,7 @@ async function runBatchChatGateway(params: {
 }): Promise<FishChatGatewayResult> {
   const inputRef = hashInputRef(params.promptText);
   const privatePayload = params.sendPrivatePayload ? trimBatchPrivatePayload(params.privatePayloadText) : undefined;
+  const adapterMode = process.env.FISH_OCEAN_BATCH_ENDPOINT?.trim() && canUseOceanProviderRoute(params.context) ? "ocean_http" : "sample_success";
   const result = await runOceanBatchJob(
     {
       taskType: params.batchFeature.taskType,
@@ -719,7 +778,7 @@ async function runBatchChatGateway(params: {
       maxOutputTokens: params.maxOutputTokens,
       maxRuntimeSeconds: readBatchMaxRuntimeSeconds(params.batchFeature.featureId, params.batchFeature.defaultMaxRuntimeSeconds),
       maxCostUsd: readBatchMaxCostUsd(params.batchFeature.featureId, params.batchFeature.defaultMaxCostUsd),
-      adapterMode: process.env.FISH_OCEAN_BATCH_ENDPOINT?.trim() ? "ocean_http" : "sample_success"
+      adapterMode
     },
     {
       ledger: params.context.ledger,
@@ -938,12 +997,12 @@ function canUseExternalFallback(routerConfig: FishRouterConfig, context: FishCha
   if (!context.allowExternalFallback) {
     return false;
   }
-  const plan = getFishPlan(context.account.planId);
+  const plan = getActiveFishPlan(context.account);
   return routerConfig.routes["external-fallback"].configured && (plan.externalFallbackAllowed || routerConfig.guardrails.externalFallbackFreeAllowed);
 }
 
 function canUseOceanProviderRoute(context: FishChatGatewayContext) {
-  const plan = getFishPlan(context.account.planId);
+  const plan = getActiveFishPlan(context.account);
   return plan.oceanProviderAllowed;
 }
 

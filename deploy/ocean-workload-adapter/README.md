@@ -32,7 +32,9 @@ Fish API
 
 Dry-run mode never returns `status: "succeeded"`. Live mode only returns
 success after the Ocean CLI starts a job and `downloadJobResults` writes a
-non-empty result directory that can be hashed.
+non-empty result directory that can be hashed. `/jobs` and `/config` require
+`Authorization: Bearer <OCEAN_WORKLOAD_ADAPTER_API_KEY>`; live readiness fails
+unless that key is a non-placeholder secret with at least 32 characters.
 
 `local_ocean_node` mode returns success only after Ocean Node starts a real C2D
 Docker job, the job finishes, and the adapter downloads the Ocean Node
@@ -49,6 +51,7 @@ cp deploy/ocean-workload-adapter/env.example .env.ocean-proof.local
 Fill in:
 
 ```text
+OCEAN_WORKLOAD_ADAPTER_API_KEY (unique secret, at least 32 characters)
 PRIVATE_KEY or MNEMONIC
 RPC
 NODE_URL
@@ -117,21 +120,25 @@ deploy/ocean-workload-adapter/algorithms/fish-document-summary/
 After the proof wallet, RPC, and `NODE_URL` are set, publish it with:
 
 ```bash
-export FISH_ALGORITHM_FILE_URL="https://public-url.example/fish-document-summary/algorithm.py"
+commit="$(git rev-parse HEAD)"
+export FISH_ALGORITHM_FILE_URL="https://raw.githubusercontent.com/Ocean-Navy/Fish/${commit}/deploy/ocean-workload-adapter/algorithms/fish-document-summary/algorithm.py"
 scripts/publish-fish-document-summary-algorithm.sh --env-file .env.ocean-proof.local
 ```
 
 The script prints the `FISH_OCEAN_ALGO_DID` value for `.env.ocean-proof.local`.
 
-`FISH_ALGORITHM_FILE_URL` must be public. The current GitHub repository is private, so an unauthenticated Ocean node cannot fetch a private `raw.githubusercontent.com` URL.
+`FISH_ALGORITHM_FILE_URL` must be public and immutable. Raw GitHub URLs must use a 40-character commit hash, not `main`, another branch, or a tag. The current GitHub repository may be private, so an unauthenticated Ocean node cannot fetch a private `raw.githubusercontent.com` URL.
 
 ## Run Locally
 
-Dry-run, no secrets:
+Dry-run, no wallet secrets:
 
 ```bash
-node deploy/ocean-workload-adapter/server.mjs
+export OCEAN_WORKLOAD_ADAPTER_API_KEY="$(openssl rand -hex 32)"
+node deploy/ocean-workload-adapter/server.mjs &
+adapter_pid=$!
 scripts/smoke-ocean-workload-adapter.sh
+kill "$adapter_pid"
 ```
 
 Local Ocean Node mode:

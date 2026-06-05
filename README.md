@@ -18,8 +18,8 @@ The public V0 is intentionally simple: a visual Venice fish-market homepage, rol
 - Admin-only signup export for launch lead follow-up.
 - Prototype `/v1` AI API with local API keys, Fish Credits debits, and usage receipts.
 - `/ask` with a Fish meal counter: Ocean batch dishes (Docs Bento, Repo Roll, Eval Platter, Data Sushi) plus quick warm dishes.
-- `/api/meal/order` for a capped guest meal-counter demo without exposing a Fish API key.
-- `/api/warm/status` for public-safe warm Ocean demo readiness without endpoint URLs or secrets.
+- `/api/meal/order` for a globally capped guest meal-counter demo without exposing a Fish API key.
+- `/api/warm/status` for public-safe warm Ocean demo configuration snapshots without endpoint URLs, secrets, or live backend probes.
 - `/api/ocean/batch/jobs` for hash-only Ocean batch dish receipts, sample by default until a private batch adapter is configured.
 - `/api/ocean/batch/readiness` for a public-safe Milestone 3 gate before claiming real Ocean workload proof.
 - `/credits` with an EVM wallet intent flow for future OCEAN lock credits; this records interest but does not stake tokens or issue credits.
@@ -97,7 +97,6 @@ Useful local routes:
 /api/proof/providers
 /api/proof/benchmarks
 /api/proof/market-making
-/api/proof/payouts
 /api/proof/capacity-settlements
 /api/contracts/status
 /api/testnet/faucet
@@ -255,8 +254,12 @@ FISH_CHAT_BACKEND=mock
 FISH_MAX_INPUT_TOKENS=1000
 FISH_MAX_OUTPUT_TOKENS=512
 FISH_DAILY_KEYED_QUOTA=20
+# Shared across unauthenticated meal-counter guests; API-key users get keyed quota above.
 FISH_DAILY_ANONYMOUS_QUOTA=5
+FISH_RATE_LIMIT_MAX_BUCKETS=10000
+# Granted once to the shared unauthenticated guest account, not once per browser.
 FISH_GUEST_CREDIT_GRANT=25
+FISH_GUEST_ID_SALT=
 FISH_CHAT_PAUSED=false
 FISH_ROUTER_KILL_SWITCH=false
 FISH_MOCK_DAILY_BUDGET_USD=0
@@ -333,6 +336,8 @@ Direct provider endpoints can be listed in:
 data/node_endpoints.txt
 ```
 
+Treat these as private operator configuration. Public Ocean dashboard API responses redact exact endpoint URLs, raw payloads, and direct-node endpoint-derived labels while preserving source-state labels and normalized capacity metrics.
+
 ## Prototype Fish API
 
 The Phase 1 API prototype is local-first. It proves API keys, credit debits, and usage receipts before selected Ocean provider routing is live.
@@ -349,9 +354,9 @@ FISH_OCEAN_DEMO_COST_USD_PER_1K_TOKENS=0
 FISH_OCEAN_DEMO_DAILY_BUDGET_USD=50
 ```
 
-`FISH_CHAT_ROUTE=ocean-first`, `hybrid`, and `ocean-demo-vllm` all select the same warm demo route. If the warm route is selected but cannot serve a request, Fish may use the external fallback only when the account plan and fallback budget allow it. The response and receipt keep the final route plus `requestedRoute`, `fallbackFrom`, and `fallbackReason` so external use is visible.
+`FISH_CHAT_ROUTE=ocean-first`, `hybrid`, and `ocean-demo-vllm` all select the same warm demo route. Fish fails closed when that route is unconfigured or errors unless external fallback has also been explicitly selected with `FISH_CHAT_BACKEND=external`. When that operator opt-in, the account plan, and fallback budget all allow fallback, the response and receipt keep the final route plus `requestedRoute`, `fallbackFrom`, and `fallbackReason` so external use is visible before any deployment claims it.
 
-External fallback is separate and should stay capped:
+External fallback is separate, must be explicitly selected, and should stay capped:
 
 ```text
 FISH_CHAT_ROUTE=external-fallback
@@ -369,16 +374,20 @@ Fish stores usage numbers, route metadata, latency, cost estimates, and request 
 
 Feature caps are layered under the global token limits. For example, Code can have a larger cap than Ask when `FISH_MAX_OUTPUT_TOKENS` is raised, while Images remain disabled until a paid image route exists.
 
+Unauthenticated meal and dish routes use one deployment-scoped anonymous guest identity for quota and demo credit accounting. `FISH_GUEST_ID_SALT` can separate that bucket between deployments, but Fish does not trust client-supplied proxy headers such as `X-Forwarded-For` or `X-Real-IP` for guest credit grants.
+
 The public route compass shows what is active without exposing secrets:
 
 ```bash
 curl -sS http://127.0.0.1:3000/api/routing/policy
 curl -sS http://127.0.0.1:3000/api/warm/status
+# Operator-only live probe; requires FISH_ADMIN_TOKEN outside local development.
+curl -sS -H "x-fish-admin-token: $FISH_ADMIN_TOKEN" "http://127.0.0.1:3000/api/warm/status?probe=live"
 ```
 
-Use `/routing` for the human-friendly route view and `/dashboard` for warm demo readiness. Both must label mock, external fallback, selected warm demo work, and later selected Ocean provider work differently.
+Use `/routing` for the human-friendly route view and `/dashboard` for public warm demo snapshots. Both must label mock, external fallback, selected warm demo work, and later selected Ocean provider work differently.
 
-For the warm inference MVP, see `docs/warm-inference-runbook.md`, `docs/vllm-oncompute-runner-profiles.md`, and `deploy/ocean-demo-stack/README.md`. The practical first deployment is a GPU host with vLLM kept warm behind Fish Gateway or Fish Runner, next to an Ocean Node and private Ocean workload adapter for test dishes. Keep the vLLM endpoint private, cap usage, and do not claim paid third-party Oncompute demand until selected-provider routing and proof labels support that claim.
+For the warm inference MVP, see `docs/warm-inference-runbook.md`, `docs/vllm-oncompute-runner-profiles.md`, and `deploy/ocean-demo-stack/README.md`. The practical first deployment is a GPU host with vLLM kept warm behind Fish Gateway or Fish Runner, next to an Ocean Node and private Ocean workload adapter for test dishes. Keep the vLLM endpoint private, set `FISH_RUNNER_API_KEY` for Runner protected endpoints, cap usage, and do not claim paid third-party Oncompute demand or Ocean-native live chat until selected-provider routing and proof labels support that claim.
 
 Create a pilot key:
 
@@ -389,7 +398,7 @@ curl -sS http://127.0.0.1:3000/v1/api_keys \
   -d '{"label":"Local pilot","creditGrant":1000,"planId":"free"}'
 ```
 
-In local development, `FISH_ADMIN_TOKEN` may be empty. Set it in production before issuing keys.
+In local development, `FISH_ADMIN_TOKEN` may be empty. Set it to a unique long random secret in production before issuing keys; public placeholder values such as `change-me-for-production` are rejected by the admin guard.
 
 List models:
 
@@ -412,7 +421,7 @@ curl -sS http://127.0.0.1:3000/v1/chat/completions \
 
 Set `"stream": true` for OpenAI-style server-sent events. V0 streaming is compatibility streaming after Gateway has settled the request; true first-token streaming from Fish Runner is a later hardening step.
 
-Before Fish calls a configured backend, Gateway reserves the maximum estimated credits for the request. Successful requests release the unused reserve and debit the measured usage. Backend failures release the reserve without recording a usage charge.
+Before Fish calls a configured backend, Gateway reserves the maximum estimated credits for the request and reserves the route's estimated provider spend against the daily route budget. In-flight route budget reservations are counted with completed receipts so concurrent calls cannot all pass the same daily budget preflight. Successful requests release unused credit reserve, debit measured usage, write the receipt, and then release the in-flight route budget reservation; backend failures release the credit and route budget reservations without recording a usage charge.
 
 Check balance, credit lanes, and receipts:
 
@@ -464,10 +473,10 @@ Plan metadata is visible in balances and in the public catalog:
 curl -sS http://127.0.0.1:3000/api/billing/plans
 ```
 
-Aggregate billing analytics are available without API keys or prompt/output text:
+Aggregate billing analytics are admin-only and do not include API keys or prompt/output text:
 
 ```bash
-curl -sS http://127.0.0.1:3000/api/billing/usage-analytics
+curl -sS -H "x-fish-admin-token: $FISH_ADMIN_TOKEN" http://127.0.0.1:3000/api/billing/usage-analytics
 ```
 
 Runtime API keys, lane-based credit entries, and receipts are written under `data/fish/`, which is ignored by git. The prototype stores hashed API keys and receipt hashes, but it is not a production ledger yet.
@@ -496,7 +505,7 @@ Public-safe registry data is available at:
 /api/providers/pilot
 ```
 
-The endpoint hides contacts, exact endpoints, private payout preferences, and operator notes. It exposes only public labels, status, capacity summary, allowlist constraints, and a Fish-ready checklist. Provider applications can include optional health endpoint, price hint, payout readiness, ops contact, approved runner/container, and no prompt/output logging policy fields. Public responses keep exact values private and use hashes, booleans, or counts instead.
+The endpoint hides contacts, exact endpoints, private payout preferences, and operator notes. It exposes only public labels, status, capacity summary, allowlist constraints, and a Fish-ready checklist. Provider applications can include optional health endpoint, price hint, payout readiness, ops contact, approved runner/container, and no prompt/output logging policy fields. Public responses keep exact values private and use booleans, counts, and non-sensitive identifiers instead; private health endpoints are represented only as readiness status, never as endpoint URLs or endpoint hashes.
 
 Admin-only operator export is available at:
 
@@ -524,7 +533,7 @@ curl -sS http://127.0.0.1:3000/api/providers/jobs \
 
 The adapter checks the selected-provider allowlist before writing a receipt. `adapterMode` defaults to `mock_success`, which is marked `sample` and is useful for testing the proof UI only. Set `adapterMode: "provider_http"` after a selected provider has a private job endpoint in `FISH_PROVIDER_JOB_ENDPOINTS` or `data/provider_allowlist.json`.
 
-The HTTP adapter posts only `jobId`, `providerId`, `workloadType`, `model`, `inputRef`, `parameters`, `maxRuntimeSeconds`, and `maxCostUsd`; it does not send raw prompt or output text. Provider HTTP receipts are marked `snapshot` until a stronger Ocean-native job proof path exists. Successful non-sample selected-provider receipts get a canonical hash and an Ed25519 signature. The first run creates a local prototype signing key at `data/proof/signing-key.json`; keep that proof volume backed up if you want stable signing identity across deploys.
+The HTTP adapter posts only `jobId`, `providerId`, `workloadType`, `model`, `inputRef`, `parameters`, `maxRuntimeSeconds`, and `maxCostUsd`; it does not send raw prompt or output text. Configure provider job endpoints as `http` or `https` URLs on public-routable hosts only: Fish rejects localhost, link-local, private-network, and credentialed URLs, resolves hostnames before dispatch, and does not follow provider redirects. Provider HTTP receipts are marked `snapshot` until a stronger Ocean-native job proof path exists. Successful non-sample selected-provider receipts get a canonical hash and an Ed25519 signature. The first run creates a local prototype signing key at `data/proof/signing-key.json`; keep that proof volume backed up if you want stable signing identity across deploys.
 
 Public proof endpoints are:
 
@@ -534,18 +543,22 @@ Public proof endpoints are:
 /api/proof/providers
 /api/proof/benchmarks
 /api/proof/market-making
-/api/proof/payouts
 ```
+
+`/api/proof/summary` includes aggregate payout totals for the public dashboard, but it does not include per-provider payout rollups, event rows, batch rows, receipt references, payment timestamps, or payout filters. The detailed payout ledger is operator-only.
 
 The receipt ledger supports `provider`, `providerId`, `status`, `backend`, `receiptType`, `signatureStatus`, `from`, `to`, and `limit` filters. Public receipt detail is available through each row's `detailUrl` and shows hashes, signature state, usage, cost, and timestamps without prompt or output text.
 
-The payout summary supports `provider`, `providerId`, `state`, `eventType`, `sourceReceiptId`, `from`, `to`, and `limit` filters. It includes provider-level rollups, payable totals, excluded disputed/voided totals, and public-safe event rows that identify receipt-linked versus manual-adjustment sources.
+The operator payout summary at `GET /api/proof/payouts` requires `FISH_ADMIN_TOKEN` and supports `provider`, `providerId`, `state`, `eventType`, `sourceReceiptId`, `from`, `to`, and `limit` filters. It includes provider-level rollups, payable totals, excluded disputed/voided totals, and event rows that identify receipt-linked versus manual-adjustment sources.
 
-Successful non-sample provider job receipts automatically create `job_accrued` payout events. Public payout summaries omit operator owners, operator reasons, and transaction references; the admin CSV exports keep those details for settlement review.
+Successful non-sample provider job receipts automatically create `job_accrued` payout events. Operator payout APIs redact the operator owner, operator reason, and transaction reference from the JSON summary; the admin CSV exports keep those details for settlement review.
 
-Operators can add manual payout events, create review batches, and export CSVs:
+Operators can inspect payout summaries, add manual payout events, create review batches, and export CSVs:
 
 ```bash
+curl -sS 'http://127.0.0.1:3000/api/proof/payouts?state=accrued&limit=50' \
+  -H "x-fish-admin-token: $FISH_ADMIN_TOKEN"
+
 curl -sS http://127.0.0.1:3000/api/proof/payouts \
   -H 'content-type: application/json' \
   -H "x-fish-admin-token: $FISH_ADMIN_TOKEN" \
@@ -571,7 +584,7 @@ curl -sS 'http://127.0.0.1:3000/api/proof/receipts/export?format=json&limit=50' 
   -H "x-fish-admin-token: $FISH_ADMIN_TOKEN"
 ```
 
-Provider job receipts, payout events, payout batches, capacity-pool settlement records, and the local prototype signing key are written under `data/proof/`, which is ignored by git and should be backed up or moved to a database/secret manager before public scale-up.
+Provider job receipts, payout events, payout batches, capacity-pool settlement records, and the local prototype signing key are written under `data/proof/`, which is ignored by git and should be backed up or moved to a database/secret manager before public scale-up. Receipt verification trusts the local proof signing key when present, or a pinned provider proof key configured with `FISH_PROVIDER_PROOF_PUBLIC_KEY_ID`/`FISH_PROVIDER_PROOF_PUBLIC_KEY_PEM`, `FISH_PROVIDER_PROOF_PUBLIC_KEYS_JSON`, or `FISH_PROVIDER_PROOF_PUBLIC_KEYS_PATH`; it does not trust public keys embedded in receipt files.
 
 ## OCEAN Staking Credits
 
@@ -594,6 +607,8 @@ The response returns a one-time Fish API key when credits are issued. Public sta
 ```text
 /api/staking/summary
 ```
+
+Public staking responses expose aggregate credit and OCEAN totals plus opaque position records only. They do not publish holder labels, wallet hash prefixes, exact per-position stake metadata, or per-account credit balances unless a future explicit disclosure flow is added.
 
 The `/credits` page also has a browser-wallet intent flow. It asks a holder to connect an EVM wallet, sign a plain-language OCEAN credit intent, and records only public-safe hashes plus an estimated credit amount:
 
@@ -724,9 +739,9 @@ POST /api/ocean/batch/jobs
 GET /api/ocean/batch/readiness
 ```
 
-`POST` requires a Fish API key and uses hash/reference input through `inputRef`. `adapterMode: "sample_success"` is the default local proof mode. Set `adapterMode: "ocean_http"` only when `FISH_OCEAN_BATCH_ENDPOINT` points to a private Oncompute/Ocean batch adapter. Fish checks `maxCostUsd` against `FISH_OCEAN_BATCH_DAILY_BUDGET_USD` before calling the batch adapter. Public proof must show tickets and hashes, not raw order data.
+`POST` requires a Fish API key and accepts hash/reference input through `inputRef`. `adapterMode: "sample_success"` is the default local proof mode. Set `adapterMode: "ocean_http"` only when `FISH_OCEAN_BATCH_ENDPOINT` points to a private Oncompute/Ocean batch adapter, and only Ocean-provider-eligible plans can use that live adapter. For `adapterMode: "ocean_http"`, Fish atomically reserves `maxCostUsd` against `FISH_OCEAN_BATCH_DAILY_BUDGET_USD`, requires enough Fish Credits to cover the selected live cost cap before execution, and debits successful live jobs by at least verified provider cost. Sample/prototype receipts do not count against the real Ocean daily spend cap. Public proof must show tickets and hashes, not raw order data.
 
-Batch dishes sent through `/v1/chat/completions` or `/api/dishes/:dishId/run` use the same hash-only batch path by default. Set `FISH_OCEAN_BATCH_PRIVATE_PAYLOAD=true` only for a private Ocean batch adapter we operate; then short raw dish text is sent to the adapter so the Ocean job can create a returned Markdown/HTML artifact. The returned artifact is shown to the user but not stored in public receipts.
+Batch dishes sent through `/v1/chat/completions` or `/api/dishes/:dishId/run` use the same hash-only batch path by default and require an authenticated Fish API key on a plan allowed to use Ocean provider capacity. Guest meal-counter credits cannot start Ocean batch adapter work. Set `FISH_OCEAN_BATCH_PRIVATE_PAYLOAD=true` only for a private Ocean batch adapter we operate; then short raw dish text is sent to the adapter so the Ocean job can create a returned Markdown/HTML artifact. The returned artifact is shown to the user but not stored in public receipts.
 
 | Dish | Model alias | Batch task |
 | --- | --- | --- |

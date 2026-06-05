@@ -26,13 +26,15 @@ Server assumptions:
 - Ubuntu 22.04/24.04 or another Docker-friendly Linux image.
 - Ports `22` and `80` open.
 - Docker Engine with the Compose plugin installed.
-- Repository checked out from the deploy branch at `https://github.com/Ocean-Navy/Fish.git`.
+- Repository checked out from `https://github.com/Ocean-Navy/Fish.git` at a reviewed release tag, a protected release branch, or a pinned commit SHA. Do not deploy from mutable feature or Codex branches.
 
-On the VM:
+On the VM, set `FISH_RELEASE_REF` to the reviewed release tag or pinned commit SHA that maintainers approved for this deployment:
 
 ```bash
-git clone --branch codex/finish-fish-v0-website https://github.com/Ocean-Navy/Fish.git Fish
+FISH_RELEASE_REF=<reviewed-release-tag-or-pinned-commit-sha>
+git clone https://github.com/Ocean-Navy/Fish.git Fish
 cd Fish
+git checkout --detach "$FISH_RELEASE_REF"
 cp .env.production.example .env.production
 ```
 
@@ -197,7 +199,7 @@ The V0 form sink, prototype API ledger, Ocean batch receipts, provider proof rec
 /app/data/staking
 ```
 
-Back up these volumes or replace the sinks with a database/email/CRM integration and secret-managed signing key before running a public campaign.
+Back up these volumes or replace the sinks with a database/email/CRM integration and secret-managed signing key before running a public campaign. Provider proof receipt verification trusts the local `data/proof/signing-key.json` public key when present; external verifiers or rotated deployments should pin provider proof public keys with `FISH_PROVIDER_PROOF_PUBLIC_KEY_ID`/`FISH_PROVIDER_PROOF_PUBLIC_KEY_PEM`, `FISH_PROVIDER_PROOF_PUBLIC_KEYS_JSON`, or `FISH_PROVIDER_PROOF_PUBLIC_KEYS_PATH` instead of trusting key material embedded in receipt JSON.
 
 ## Signup Exports
 
@@ -254,9 +256,13 @@ FISH_CHAT_BACKEND=mock
 FISH_MAX_INPUT_TOKENS=1000
 FISH_MAX_OUTPUT_TOKENS=512
 FISH_DAILY_KEYED_QUOTA=20
+# Shared across unauthenticated meal-counter guests; API-key users get keyed quota above.
 FISH_DAILY_ANONYMOUS_QUOTA=5
 FISH_MAX_CONCURRENT_REQUESTS=8
+FISH_RATE_LIMIT_MAX_BUCKETS=10000
+# Granted once to the shared unauthenticated guest account, not once per browser.
 FISH_GUEST_CREDIT_GRANT=25
+FISH_GUEST_ID_SALT=
 FISH_CHAT_PAUSED=false
 FISH_ROUTER_KILL_SWITCH=false
 FISH_MOCK_DAILY_BUDGET_USD=0
@@ -276,6 +282,10 @@ FISH_RUNNER_PUBLIC_KEY_ID=
 FISH_RUNNER_PUBLIC_KEY_PEM=
 FISH_RUNNER_PUBLIC_KEYS_JSON=
 FISH_RUNNER_PUBLIC_KEYS_PATH=
+FISH_PROVIDER_PROOF_PUBLIC_KEY_ID=
+FISH_PROVIDER_PROOF_PUBLIC_KEY_PEM=
+FISH_PROVIDER_PROOF_PUBLIC_KEYS_JSON=
+FISH_PROVIDER_PROOF_PUBLIC_KEYS_PATH=
 FISH_EXTERNAL_CHAT_BASE_URL=
 FISH_EXTERNAL_CHAT_API_KEY=
 FISH_EXTERNAL_CHAT_MODEL=
@@ -337,13 +347,13 @@ FISH_TESTNET_FAUCET_MAX_DAILY_CLAIMS=50
 FISH_TESTNET_FAUCET_CONFIRMATIONS=1
 ```
 
-Set `FISH_ADMIN_TOKEN` in production-like environments before issuing prototype API keys.
+Set `FISH_ADMIN_TOKEN` to a unique long random secret in production-like environments before issuing prototype API keys. Public placeholder values such as `change-me-for-production` are rejected by the admin guard.
 Set `FISH_PROVIDER_ALLOWLIST` or mount `data/provider_allowlist.json` when the first selected providers are approved.
-Set `FISH_PROVIDER_JOB_ENDPOINTS=prov_abc=https://provider.example.com/fish/jobs` and optionally `FISH_PROVIDER_JOB_API_KEY` only when a selected provider has a private HTTP job adapter ready. Until then, keep provider proof on mock/sample data.
+Set `FISH_PROVIDER_JOB_ENDPOINTS=prov_abc=https://provider.example.com/fish/jobs` and optionally `FISH_PROVIDER_JOB_API_KEY` only when a selected provider has a private HTTP job adapter ready. Use only `http` or `https` endpoints on public-routable provider hosts; Fish rejects localhost, link-local, private-network, and credentialed URLs, validates DNS results before dispatch, and fails provider redirects instead of following them. Until then, keep provider proof on mock/sample data.
 Set `FISH_OCEAN_BATCH_ENDPOINT` and optionally `FISH_OCEAN_BATCH_API_KEY` only when a private Oncompute/Ocean batch adapter is ready. Until then, `/api/ocean/batch/jobs` should stay in sample mode. Use `/api/ocean/batch/readiness` and `/proof` to verify that the adapter is reachable, live-ready, and backed by a successful non-sample receipt before claiming real Ocean workload proof.
 Set `FISH_DOCS_BATCH_MAX_RUNTIME_SECONDS` and `FISH_DOCS_BATCH_MAX_COST_USD` to cap Docs dish batch requests generated through `/v1/chat/completions`.
 Plan-based per-minute and monthly request limits come from the Fish plan table. Minute limits and concurrent request caps are in-memory MVP guards, while monthly limits and daily quotas are backed by local usage/quota JSON.
-Keep `FISH_CHAT_BACKEND=mock` for a no-secret local deployment. Set `FISH_CHAT_ROUTE=ocean-provider`, `FISH_OCEAN_PROVIDER_BASE_URL`, `FISH_OCEAN_PROVIDER_API_KEY`, and `FISH_OCEAN_PROVIDER_MODEL` only when a selected Ocean provider or Fish Runner `/v1` endpoint is ready. Set `FISH_CHAT_BACKEND=external`, `FISH_EXTERNAL_CHAT_BASE_URL`, `FISH_EXTERNAL_CHAT_API_KEY`, and `FISH_EXTERNAL_CHAT_MODEL` only when you want `/v1/chat/completions` to call an outside OpenAI-compatible backend.
+Keep `FISH_CHAT_BACKEND=mock` for a no-secret local deployment. Set `FISH_CHAT_ROUTE=ocean-provider`, `FISH_OCEAN_PROVIDER_BASE_URL`, `FISH_OCEAN_PROVIDER_API_KEY`, and `FISH_OCEAN_PROVIDER_MODEL` only when a selected Ocean provider or Fish Runner `/v1` endpoint is ready. Set `FISH_CHAT_BACKEND=external`, `FISH_EXTERNAL_CHAT_BASE_URL`, `FISH_EXTERNAL_CHAT_API_KEY`, and `FISH_EXTERNAL_CHAT_MODEL` only when you explicitly want `/v1/chat/completions` to call an outside OpenAI-compatible backend, including as fallback from an Ocean route. External credentials alone are ignored while the backend selector stays mock.
 
 Paid credit checkout is disabled until secrets are set and `FISH_MAX_OUTSTANDING_PREPAID_CREDITS` is configured. For card checkout, set `FISH_STRIPE_SECRET_KEY`, `FISH_STRIPE_WEBHOOK_SECRET`, and `FISH_PUBLIC_APP_URL`, then configure Stripe webhooks for `/api/billing/webhooks/stripe`. For USDC checkout, set `FISH_USDC_RECEIVE_ADDRESS` and `FISH_USDC_RPC_URL`; Fish verifies Base USDC transfer logs before issuing prepaid credits. Keep `FISH_MIN_CHECKOUT_USD`, `FISH_MAX_CHECKOUT_USD`, and the prepaid liability cap conservative until support/refund handling is ready. Set `FISH_PAID_TOPUPS_PAUSED=true` to stop new paid checkout requests without disabling existing balances.
 
@@ -361,7 +371,7 @@ npm run contracts:deploy:testnet
 
 The deploy script creates test OCEAN/test USDC when token addresses are not supplied, deploys FISH, the OCEAN staking proxy, and the Capacity Pool, grants the staking proxy the FISH minter/burner role, sets a simple mint curve, prints the web-app env block, and writes a local ignored deployment artifact.
 
-Warm inference operations are covered in `docs/warm-inference-runbook.md`. The MVP path is a private vLLM endpoint, ideally behind Fish Runner, on a GPU host that may also run Ocean Node for provider identity and anchoring. Keep the warm route on mock until the private endpoint is ready, then switch `FISH_CHAT_ROUTE=ocean-demo-vllm` for the demo lane or `FISH_CHAT_ROUTE=ocean-provider` for selected provider testing. Check `/routing`, `/api/routing/policy`, and `/api/warm/status` after changing routes.
+Warm inference operations are covered in `docs/warm-inference-runbook.md`. The MVP path is a private vLLM endpoint, ideally behind Fish Runner, on a GPU host that may also run Ocean Node for provider identity and anchoring. Keep the warm route on mock until the private endpoint is ready, then switch `FISH_CHAT_ROUTE=ocean-demo-vllm` for the demo lane or `FISH_CHAT_ROUTE=ocean-provider` for selected provider testing. Check `/routing`, `/api/routing/policy`, and the public `/api/warm/status` snapshot after changing routes. Use `/api/warm/status?probe=live` with `x-fish-admin-token` only for operator live probes.
 
 ## GPU Ocean Demo Stack
 
@@ -538,8 +548,8 @@ Then browser-check:
 - `/api/proof/providers`
 - `/api/proof/benchmarks`
 - `/api/proof/market-making`
-- `/api/proof/payouts`
-- `/api/proof/payouts?state=accrued&limit=10`
+- `/api/proof/payouts` with `x-fish-admin-token`
+- `/api/proof/payouts?state=accrued&limit=10` with `x-fish-admin-token`
 - `/api/proof/capacity-settlements`
 - `/api/contracts/status`
 - `/api/billing/plans`
@@ -547,10 +557,10 @@ Then browser-check:
 - `/api/billing/checkout/usdc` with a Fish API key when USDC env is configured
 - `/api/billing/subscriptions` with `x-fish-admin-token`
 - `/api/billing/topups` with `x-fish-admin-token`
-- `/api/billing/usage-analytics`
+- `/api/billing/usage-analytics` with `x-fish-admin-token`
 - `/api/ocean/refresh` with `x-fish-admin-token`
 - `/api/routing/policy`
-- `/api/warm/status`
+- `/api/warm/status` snapshot and `/api/warm/status?probe=live` with `x-fish-admin-token` for operator live probes
 - `/api/ocean/batch/readiness`
 - `/api/staking/summary`
 - `/api/staking/wallet-intents`

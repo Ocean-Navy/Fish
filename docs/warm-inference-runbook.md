@@ -143,7 +143,7 @@ For more than one selected runner, use either `FISH_RUNNER_PUBLIC_KEYS_JSON`:
 ]
 ```
 
-or point `FISH_RUNNER_PUBLIC_KEYS_PATH` at a JSON file with that shape. Keep the private key out of git. Without a trusted public key, Fish can record that a runner signature was present, but it will not mark the receipt as verified.
+or point `FISH_RUNNER_PUBLIC_KEYS_PATH` at a JSON file with that shape. Keep the private key out of git. Without a trusted public key, Fish records the receipt with `signatureState: "invalid"` and `signatureError: "trusted_runner_public_key_not_configured"`; public proof counters only include receipts that verify against a configured trusted Ed25519 public key.
 
 ## vLLM Launch
 
@@ -185,10 +185,10 @@ Runner responsibilities:
 - enforce per-request token caps and concurrent request limits;
 - rely on Fish Gateway for plan-based per-minute request limits;
 - call vLLM over loopback or a private Docker network;
-- expose `/healthz`, `/models`, and `/v1/chat/completions`;
+- expose `/healthz`, `/models`, `/v1/chat/completions`, and a constrained `/receipts/sign` lookup for receipts already issued by this runner;
 - record first-token latency, duration, token usage, status, and route id;
 - sign public-safe receipts without storing raw prompt or output text in public proof;
-- reject traffic when the model is cold, degraded, over budget, or queue depth is too high.
+- reject unauthenticated chat and receipt-signing traffic when `FISH_RUNNER_API_KEY` is not configured, or when the model is cold, degraded, over budget, or queue depth is too high.
 
 Check runner health:
 
@@ -200,7 +200,7 @@ FISH_RUNNER_API_KEY="$FISH_RUNNER_API_KEY" \
 ./smoke-fish-runner.sh
 ```
 
-Set `FISH_RUNNER_SMOKE_CHAT=1` on the smoke command only after vLLM is warm. Without that flag, the runner smoke checks health, model inventory, and receipt signing only.
+Set `FISH_RUNNER_SMOKE_CHAT=1` on the smoke command only after vLLM is warm. Without that flag, the runner smoke checks health and model inventory only. With chat enabled, it also asks `/receipts/sign` to re-sign the receipt identified by the job id that `/v1/chat/completions` just produced; the runner does not sign caller-supplied receipt bodies.
 
 When Runner is not deployed, treat a direct Gateway-to-vLLM route as a controlled demo backend, not the final provider contract.
 
@@ -248,7 +248,10 @@ FISH_ROUTER_KILL_SWITCH=false
 FISH_MAX_INPUT_TOKENS=1000
 FISH_MAX_OUTPUT_TOKENS=512
 FISH_DAILY_KEYED_QUOTA=20
+# Shared across unauthenticated meal-counter guests; API-key users get keyed quota above.
 FISH_DAILY_ANONYMOUS_QUOTA=5
+FISH_RATE_LIMIT_MAX_BUCKETS=10000
+# Granted once to the shared unauthenticated guest account, not once per browser.
 FISH_GUEST_CREDIT_GRANT=25
 FISH_MAX_CONCURRENT_REQUESTS=8
 FISH_MOCK_DAILY_BUDGET_USD=0
@@ -262,7 +265,7 @@ FISH_RUNNER_PUBLIC_KEY_ID=runner-ocean-navy-demo-ed25519
 FISH_RUNNER_PUBLIC_KEY_PEM=<runner public key with newlines escaped as \n>
 ```
 
-`FISH_CHAT_ROUTE=ocean-first`, `hybrid`, and `ocean-demo-vllm` all choose the same warm demo lane. Use `ocean-first` in deployment files because it matches the product story; Fish still records the exact route that served each request.
+`FISH_CHAT_ROUTE=ocean-first`, `hybrid`, and `ocean-demo-vllm` all choose the same warm demo lane. Use `ocean-first` in deployment files because it matches the product story; Fish still records the exact route that served each request. Fish reserves estimated provider spend against the route daily budget before each backend call and counts those in-flight reservations with completed receipts, so concurrent requests are rejected once the configured daily budget is fully reserved.
 
 Selected Ocean providers use their own route id, provider id, daily budget, and model entry:
 
@@ -317,14 +320,14 @@ FISH_EXTERNAL_FALLBACK_DAILY_BUDGET_USD=<daily fallback budget>
 FISH_EXTERNAL_FALLBACK_FREE_ALLOWED=false
 ```
 
-Use this only in private preview or controlled beta. Keep public route labels clear: demo vLLM, selected Ocean provider, and outside fallback are different routes with different evidence.
+Use this only in private preview or controlled beta. External credentials alone do not enable fallback from an Ocean route; set `FISH_CHAT_BACKEND=external` as an explicit operator opt-in if an Ocean route may retry against this outside backend. Keep public route labels clear: demo vLLM, selected Ocean provider, and outside fallback are different routes with different evidence.
 
 ## Network And Security
 
 Required controls:
 
 - vLLM binds to `127.0.0.1` or a private interface, never public `0.0.0.0` without a firewall and gateway auth.
-- Fish Gateway or Fish Runner authenticates with a long random API key or stronger service identity.
+- Fish Gateway or Fish Runner authenticates with a long random API key or stronger service identity; Runner rejects protected endpoints when `FISH_RUNNER_API_KEY` is unset.
 - Public users never receive the vLLM base URL or API key.
 - Admin endpoints require `FISH_ADMIN_TOKEN`.
 - SSH is key-only and restricted to operators.
@@ -351,6 +354,8 @@ Minimum checks before sending user traffic:
 ```bash
 curl -fsS http://127.0.0.1:3000/api/health
 curl -fsS http://127.0.0.1:3000/api/warm/status
+# Operator-only live probe; requires FISH_ADMIN_TOKEN outside local development.
+curl -fsS -H "x-fish-admin-token: $FISH_ADMIN_TOKEN" "http://127.0.0.1:3000/api/warm/status?probe=live"
 curl -fsS -H "authorization: Bearer $FISH_VLLM_API_KEY" http://127.0.0.1:8000/v1/models
 curl -fsS http://127.0.0.1:8088/healthz
 FISH_VLLM_BASE_URL=http://127.0.0.1:8000/v1 \
@@ -373,7 +378,7 @@ Operator readiness checks:
 - feature caps distinguish Ask, Code, Docs, Ocean help, API, and disabled Images behind one endpoint;
 - Fish Gateway reserves credits before backend calls and releases that reserve if the warm backend fails before usage is recorded;
 - `/v1/chat/completions` supports SSE compatibility when clients send `stream: true`; first-token streaming from Runner is still a later hardening step;
-- `/dashboard` shows warm demo readiness without endpoint URLs, API keys, prompts, or outputs;
+- `/dashboard` shows a public warm demo snapshot without endpoint URLs, API keys, prompts, outputs, or live backend probes;
 - public proof does not expose prompt or output text.
 
 ## Monitoring
@@ -398,7 +403,7 @@ nvidia-smi
 watch -n 2 nvidia-smi
 ```
 
-`/api/warm/status` reports the active warm lane. With `FISH_CHAT_ROUTE=ocean-demo-vllm` it checks the demo vLLM config; with `FISH_CHAT_ROUTE=ocean-provider` it checks the selected-provider config.
+`/api/warm/status` reports the active warm lane from Fish configuration without live backend probing by default. With `FISH_CHAT_ROUTE=ocean-demo-vllm` it summarizes the demo vLLM config; with `FISH_CHAT_ROUTE=ocean-provider` it summarizes the selected-provider config. Add `?probe=live` with the admin token for an operator-only `/models` probe. Public dashboard and summary rendering must use the default snapshot path so unauthenticated visitors cannot trigger authenticated runner requests.
 
 Do not publish operator-only endpoint URLs, API keys, raw prompts, raw outputs, exact private IPs, or unreviewed provider contact details.
 
@@ -410,7 +415,7 @@ No public warm route should run without:
 - max output tokens;
 - plan-based per-minute request limit;
 - plan-based monthly request limit;
-- max requests per anonymous user per day;
+- max requests per deployment-scoped anonymous guest bucket per day;
 - max concurrent requests;
 - model-level daily request limit;
 - model-level daily cost limit;
@@ -418,7 +423,7 @@ No public warm route should run without:
 - timeout and cancellation handling;
 - fallback disabled by default for anonymous users.
 
-For first public testing, keep anonymous users to a very small allowance such as 3 to 5 short messages per day and 512 output tokens per response.
+For first public testing, keep the deployment-scoped anonymous guest bucket to a very small allowance such as 3 to 5 short messages per day and 512 output tokens per response. API-key users should use keyed quota instead of the guest bucket. Do not trust client-supplied proxy headers for guest identity; set `FISH_GUEST_ID_SALT` only to separate one deployment bucket from another.
 
 ## Smoke Test From Fish Gateway
 
@@ -506,7 +511,7 @@ Pause traffic when any of these happen:
 - error or timeout rate spikes;
 - first-token latency is consistently unacceptable;
 - GPU memory pressure causes restarts or degraded generations;
-- daily budget is close to exhausted;
+- daily budget is close to exhausted or in-flight reservations are causing legitimate traffic to receive `daily_route_budget_exceeded`;
 - endpoint auth is suspected to be exposed;
 - route labels would misrepresent the backend;
 - receipts or usage accounting look inconsistent.

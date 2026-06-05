@@ -310,13 +310,13 @@ transaction references
 Prototype route coverage:
 
 ```text
-GET /api/proof/payouts
-GET /api/proof/payouts/export
-GET /api/proof/payouts/batches
-GET /api/proof/payouts/batches/{batchId}/export
+GET /api/proof/payouts (operator-authenticated)
+GET /api/proof/payouts/export (operator-authenticated)
+GET /api/proof/payouts/batches (operator-authenticated)
+GET /api/proof/payouts/batches/{batchId}/export (operator-authenticated)
 ```
 
-Provider-owned history still needs the provider authentication lane. The public-safe payout summary now has provider filters and provider-level rollups, but it is not a replacement for provider auth.
+Provider-owned history still needs the provider authentication lane. Public proof summary exposes aggregate payout totals only; payout filters, provider-level rollups, event rows, batch rows, receipt references, and payment-status timestamps require operator authentication.
 
 ## Milestone D2.5 - Benchmark Matrix View
 
@@ -408,7 +408,7 @@ These endpoints are proposed for the proof-dashboard milestone. They should not 
 GET /api/proof/summary
 GET /api/proof/providers
 GET /api/proof/receipts
-GET /api/proof/payouts
+GET /api/proof/payouts (operator-authenticated)
 GET /api/proof/benchmarks
 GET /api/proof/jobs
 ```

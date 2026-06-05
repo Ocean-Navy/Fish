@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { authenticateRequest, checkFishMonthlyRequestLimit, getFishPlan } from "@/lib/fishLedger";
+import { authenticateRequest, checkFishModelAccess, checkFishMonthlyRequestLimit, getActiveFishPlan } from "@/lib/fishLedger";
 import { spendFishMinuteRateLimit } from "@/lib/fishRateLimit";
 import { getFishRouterConfig } from "@/lib/fishRouter";
 import { parseOceanBatchJobRequest, runOceanBatchJob, summarizeOceanBatchJobs } from "@/lib/oceanBatch";
@@ -31,22 +31,19 @@ export async function POST(request: Request) {
   }
 
   const routerConfig = getFishRouterConfig();
-  const plan = getFishPlan(auth.account.planId);
-  const monthlyRequests = await checkFishMonthlyRequestLimit(auth.account, plan.monthlyRequestLimit);
-  if (!monthlyRequests.ok) {
+  const plan = getActiveFishPlan(auth.account);
+  const modelAccess = checkFishModelAccess("ocean-batch-placeholder", auth.account);
+  if (!modelAccess.ok) {
     return NextResponse.json(
       {
         error: {
-          message: monthlyRequests.error,
-          type: "quota_error",
-          planId: plan.planId,
-          limit: monthlyRequests.limit,
-          used: monthlyRequests.used,
-          remaining: monthlyRequests.remaining,
-          resetAt: monthlyRequests.resetAt
+          message: modelAccess.error,
+          type: "model_error",
+          planId: modelAccess.plan.planId,
+          allowedModels: modelAccess.status === 403 ? modelAccess.allowedModels : undefined
         }
       },
-      { status: monthlyRequests.status }
+      { status: modelAccess.status }
     );
   }
 
@@ -65,6 +62,24 @@ export async function POST(request: Request) {
         }
       },
       { status: 429 }
+    );
+  }
+
+  const monthlyRequests = await checkFishMonthlyRequestLimit(auth.account, plan.monthlyRequestLimit);
+  if (!monthlyRequests.ok) {
+    return NextResponse.json(
+      {
+        error: {
+          message: monthlyRequests.error,
+          type: "quota_error",
+          planId: plan.planId,
+          limit: monthlyRequests.limit,
+          used: monthlyRequests.used,
+          remaining: monthlyRequests.remaining,
+          resetAt: monthlyRequests.resetAt
+        }
+      },
+      { status: monthlyRequests.status }
     );
   }
 

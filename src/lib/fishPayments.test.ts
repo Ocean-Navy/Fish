@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
-import { createUsdcPayment, normalizeFishPaymentAmount } from "./fishPayments";
+import { createUsdcPayment, normalizeFishPaymentAmount, parseStripeCheckoutRequest, parseUsdcCheckoutRequest } from "./fishPayments";
 import type { Account } from "./fishLedger";
 
 const PAYMENT_ENV_KEYS = [
@@ -39,13 +39,39 @@ test("payment amount normalization derives dollars from credits", () => {
   }
 });
 
-test("payment amount normalization rejects underpriced credit requests", () => {
+test("checkout validation rejects mixed USD and credit amounts", () => {
+  const parsed = parseStripeCheckoutRequest({ amountUsd: 1, credits: 100_000_000 });
+
+  assert.equal(parsed.success, false);
+  if (!parsed.success) {
+    assert.deepEqual(parsed.error.flatten().fieldErrors.credits, ["amountUsd and credits cannot both be supplied"]);
+  }
+});
+
+test("USDC checkout validation rejects mixed USD and credit amounts", () => {
+  const parsed = parseUsdcCheckoutRequest({
+    amountUsd: 1,
+    credits: 100_000_000,
+    payerAddress: "0x1111111111111111111111111111111111111111"
+  });
+
+  assert.equal(parsed.success, false);
+  if (!parsed.success) {
+    assert.deepEqual(parsed.error.flatten().fieldErrors.credits, ["amountUsd and credits cannot both be supplied"]);
+  }
+});
+
+test("checkout validation accepts either USD or credits alone", () => {
+  assert.equal(parseStripeCheckoutRequest({ amountUsd: 10 }).success, true);
+  assert.equal(parseStripeCheckoutRequest({ credits: 1_000 }).success, true);
+});
+
+test("payment amount normalization rejects mixed USD and credit amounts", () => {
   const result = normalizeFishPaymentAmount({ amountUsd: 1, credits: 100000 });
 
   assert.equal(result.ok, false);
   if (!result.ok) {
-    assert.equal(result.error, "checkout_amount_credit_mismatch");
-    assert.equal(result.expectedAmountUsd, 100);
+    assert.equal(result.error, "ambiguous_checkout_amount");
   }
 });
 

@@ -1,10 +1,13 @@
 import { createHash, createPrivateKey, createPublicKey, generateKeyPairSync, randomUUID, sign, verify } from "node:crypto";
+import { lookup } from "node:dns/promises";
+import { readFileSync } from "node:fs";
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { isIP } from "node:net";
 import path from "node:path";
 import { z } from "zod";
 import { collectProviderPilotRegistry, isProviderAllowed, resolveProviderJobEndpoint } from "@/lib/providerPilot";
-import { recordPayoutEventForReceipt, summarizePayouts } from "@/lib/providerPayouts";
-import type { PayoutSummary } from "@/lib/providerPayouts";
+import { recordPayoutEventForReceipt, summarizePublicPayouts } from "@/lib/providerPayouts";
+import type { PublicPayoutSummary } from "@/lib/providerPayouts";
 import type { DataState } from "@/lib/types";
 
 const PROOF_DIR = path.join(process.cwd(), "data", "proof");
@@ -227,7 +230,7 @@ export type ProofSummary = {
   failedJobs: number;
   timedOutJobs: number;
   receiptVerificationFailures: number;
-  payouts: PayoutSummary;
+  payouts: PublicPayoutSummary;
   receipts: ProviderJobReceipt[];
   warnings: string[];
 };
@@ -345,7 +348,7 @@ export async function runProviderJob(input: ProviderJobRequestInput) {
 }
 
 export async function summarizeProof(): Promise<ProofSummary> {
-  const [registry, receipts, payouts] = await Promise.all([collectProviderPilotRegistry(), readReceipts(), summarizePayouts()]);
+  const [registry, receipts, payouts] = await Promise.all([collectProviderPilotRegistry(), readReceipts(), summarizePublicPayouts()]);
   const sorted = receipts.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   const selectedReceipts = sorted.slice(-20).reverse();
   const proofReceipts = receipts.filter(isProofEvidenceReceipt);
@@ -505,15 +508,15 @@ export function verifyProviderJobReceipt(receipt: ProviderJobReceipt): ReceiptVe
 
   if (receipt.signatureStatus === "not_required" || receipt.signer.algorithm === "none") {
     return {
-      ok: true,
+      ok: false,
       status: "not_required",
       receiptId: receipt.receiptId,
       canonicalReceiptHash,
-      error: null
+      error: "signature_not_required_untrusted"
     };
   }
 
-  if (!receipt.signature || !receipt.signer.publicKeyPem) {
+  if (!receipt.signature || !receipt.signer.keyId) {
     return {
       ok: false,
       status: "missing",
@@ -523,8 +526,29 @@ export function verifyProviderJobReceipt(receipt: ProviderJobReceipt): ReceiptVe
     };
   }
 
+  const trustedPublicKeyPem = trustedProviderProofPublicKey(receipt.signer.keyId);
+  if (!trustedPublicKeyPem) {
+    return {
+      ok: false,
+      status: "invalid",
+      receiptId: receipt.receiptId,
+      canonicalReceiptHash,
+      error: "trusted_provider_proof_public_key_not_configured"
+    };
+  }
+
+  if (receipt.signer.publicKeyPem && normalizePem(receipt.signer.publicKeyPem) !== trustedPublicKeyPem) {
+    return {
+      ok: false,
+      status: "invalid",
+      receiptId: receipt.receiptId,
+      canonicalReceiptHash,
+      error: "signer_public_key_mismatch"
+    };
+  }
+
   try {
-    const publicKey = createPublicKey(receipt.signer.publicKeyPem);
+    const publicKey = createPublicKey(trustedPublicKeyPem);
     const valid = verify(null, Buffer.from(canonicalReceiptHash), publicKey, Buffer.from(receipt.signature, "base64"));
     return {
       ok: valid,
@@ -596,8 +620,13 @@ async function runProviderHttpAdapter(input: ProviderJobRequestInput, jobId: str
     return providerAdapterFailure(input, "provider_job_endpoint_not_configured");
   }
 
+  const safeEndpoint = await validateProviderJobEndpoint(endpoint);
+  if (!safeEndpoint.ok) {
+    return providerAdapterFailure(input, safeEndpoint.errorCode);
+  }
+
   try {
-    const response = await fetch(endpoint, {
+    const response = await fetch(safeEndpoint.url, {
       method: "POST",
       headers: providerJobHeaders(),
       body: JSON.stringify({
@@ -611,6 +640,7 @@ async function runProviderHttpAdapter(input: ProviderJobRequestInput, jobId: str
         maxRuntimeSeconds: input.maxRuntimeSeconds,
         maxCostUsd: input.maxCostUsd
       }),
+      redirect: "error",
       signal: AbortSignal.timeout(Math.min(input.maxRuntimeSeconds * 1000, Number(process.env.FISH_PROVIDER_JOB_TIMEOUT_MS ?? "600000")))
     });
     const payload = await response.json().catch(() => null);
@@ -622,6 +652,146 @@ async function runProviderHttpAdapter(input: ProviderJobRequestInput, jobId: str
     const timeout = error instanceof Error && error.name === "TimeoutError";
     return providerAdapterFailure(input, timeout ? "provider_job_timeout" : "provider_job_http_error", timeout ? "timed_out" : "failed");
   }
+}
+
+export async function validateProviderJobEndpoint(endpoint: string): Promise<{ ok: true; url: string } | { ok: false; errorCode: string }> {
+  let url: URL;
+  try {
+    url = new URL(endpoint);
+  } catch {
+    return { ok: false, errorCode: "provider_job_endpoint_invalid" };
+  }
+
+  if (url.protocol !== "https:" && url.protocol !== "http:") {
+    return { ok: false, errorCode: "provider_job_endpoint_invalid_scheme" };
+  }
+  if (url.username || url.password) {
+    return { ok: false, errorCode: "provider_job_endpoint_invalid_auth" };
+  }
+
+  const hostname = normalizeEndpointHostname(url.hostname);
+  if (!hostname || isUnsafeEndpointHostname(hostname)) {
+    return { ok: false, errorCode: "provider_job_endpoint_private" };
+  }
+
+  const directIpVersion = isIP(hostname);
+  const addresses = directIpVersion
+    ? [hostname]
+    : await lookup(hostname, { all: true, verbatim: true })
+        .then((records) => records.map((record) => record.address))
+        .catch(() => []);
+
+  if (addresses.length === 0) {
+    return { ok: false, errorCode: "provider_job_endpoint_dns_failed" };
+  }
+  if (addresses.some(isUnsafeEndpointAddress)) {
+    return { ok: false, errorCode: "provider_job_endpoint_private" };
+  }
+
+  url.hostname = hostname;
+  return { ok: true, url: url.toString() };
+}
+
+function normalizeEndpointHostname(hostname: string) {
+  return hostname.trim().toLowerCase().replace(/^\[(.*)]$/, "$1").replace(/\.$/, "");
+}
+
+function isUnsafeEndpointHostname(hostname: string) {
+  return hostname === "localhost" || hostname.endsWith(".localhost") || hostname.endsWith(".local");
+}
+
+function isUnsafeEndpointAddress(address: string) {
+  const normalized = normalizeEndpointHostname(address);
+  const ipVersion = isIP(normalized);
+  if (ipVersion === 4) {
+    return isUnsafeIPv4Address(normalized);
+  }
+  if (ipVersion === 6) {
+    return isUnsafeIPv6Address(normalized);
+  }
+  return true;
+}
+
+function isUnsafeIPv4Address(address: string) {
+  const octets = address.split(".").map((part) => Number(part));
+  if (octets.length !== 4 || octets.some((octet) => !Number.isInteger(octet) || octet < 0 || octet > 255)) {
+    return true;
+  }
+  const [a, b] = octets;
+  return (
+    a === 0 ||
+    a === 10 ||
+    a === 127 ||
+    (a === 100 && b >= 64 && b <= 127) ||
+    (a === 169 && b === 254) ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 168) ||
+    (a === 198 && (b === 18 || b === 19)) ||
+    a >= 224
+  );
+}
+
+function isUnsafeIPv6Address(address: string) {
+  const groups = expandIPv6Address(address);
+  if (!groups) {
+    return true;
+  }
+  const embeddedIPv4 = readEmbeddedIPv4Address(groups);
+  if (embeddedIPv4) {
+    return isUnsafeIPv4Address(embeddedIPv4);
+  }
+  const allZero = groups.every((group) => group === 0);
+  const loopback = groups.slice(0, 7).every((group) => group === 0) && groups[7] === 1;
+  return allZero || loopback || (groups[0] & 0xfe00) === 0xfc00 || (groups[0] & 0xffc0) === 0xfe80 || (groups[0] & 0xff00) === 0xff00 || (groups[0] & 0xffc0) === 0xfec0;
+}
+
+function expandIPv6Address(address: string) {
+  const [leftRaw, rightRaw, extra] = address.split("::");
+  if (extra !== undefined) {
+    return null;
+  }
+  const left = parseIPv6Groups(leftRaw);
+  const right = rightRaw === undefined ? [] : parseIPv6Groups(rightRaw);
+  if (!left || !right) {
+    return null;
+  }
+  const missing = rightRaw === undefined ? 0 : 8 - left.length - right.length;
+  if (missing < 0 || (rightRaw === undefined && left.length !== 8)) {
+    return null;
+  }
+  return [...left, ...Array(missing).fill(0), ...right];
+}
+
+function parseIPv6Groups(raw: string) {
+  if (!raw) {
+    return [] as number[];
+  }
+  const parts = raw.split(":");
+  const groups: number[] = [];
+  for (const part of parts) {
+    if (part.includes(".")) {
+      const octets = part.split(".").map((value) => Number(value));
+      if (octets.length !== 4 || octets.some((octet) => !Number.isInteger(octet) || octet < 0 || octet > 255)) {
+        return null;
+      }
+      groups.push((octets[0] << 8) + octets[1], (octets[2] << 8) + octets[3]);
+      continue;
+    }
+    if (!/^[0-9a-f]{1,4}$/i.test(part)) {
+      return null;
+    }
+    groups.push(Number.parseInt(part, 16));
+  }
+  return groups;
+}
+
+function readEmbeddedIPv4Address(groups: number[]) {
+  const mappedPrefix = groups.slice(0, 5).every((group) => group === 0) && groups[5] === 0xffff;
+  const compatiblePrefix = groups.slice(0, 6).every((group) => group === 0);
+  if (mappedPrefix || compatiblePrefix) {
+    return [groups[6] >> 8, groups[6] & 0xff, groups[7] >> 8, groups[7] & 0xff].join(".");
+  }
+  return null;
 }
 
 function providerAdapterOutcome(input: ProviderJobRequestInput, payload: Record<string, unknown>): ProviderAdapterOutcome {
@@ -906,6 +1076,91 @@ function hashReceipt(receipt: ProviderJobReceipt | Omit<ProviderJobReceipt, "sig
     }
   };
   return normalizeHash(stableStringify(withoutHash));
+}
+
+function trustedProviderProofPublicKey(keyId: string) {
+  return collectTrustedProviderProofKeys().find((key) => key.keyId === keyId)?.publicKeyPem ?? null;
+}
+
+type TrustedProviderProofKey = {
+  keyId: string;
+  publicKeyPem: string;
+};
+
+function collectTrustedProviderProofKeys(): TrustedProviderProofKey[] {
+  return [
+    ...trustedProviderProofKeyFromLocalSigningKey(),
+    ...trustedProviderProofKeysFromJson(cleanEnv(process.env.FISH_PROVIDER_PROOF_PUBLIC_KEYS_JSON)),
+    ...trustedProviderProofKeysFromPath(cleanEnv(process.env.FISH_PROVIDER_PROOF_PUBLIC_KEYS_PATH)),
+    ...trustedProviderProofKeyFromSingleEnv()
+  ];
+}
+
+function trustedProviderProofKeyFromLocalSigningKey(): TrustedProviderProofKey[] {
+  try {
+    const parsed = signingKeySchema.safeParse(JSON.parse(readFileSync(SIGNING_KEY_PATH, "utf8")));
+    if (parsed.success) {
+      const publicKeyPem = normalizePem(parsed.data.publicKeyPem);
+      return publicKeyPem ? [{ keyId: parsed.data.keyId, publicKeyPem }] : [];
+    }
+  } catch {
+    // A verifier can still use configured public keys when the local prototype signing key is absent.
+  }
+  return [];
+}
+
+function trustedProviderProofKeysFromPath(filePath: string | null): TrustedProviderProofKey[] {
+  if (!filePath) {
+    return [];
+  }
+  try {
+    return trustedProviderProofKeysFromJson(readFileSync(filePath, "utf8"));
+  } catch {
+    return [];
+  }
+}
+
+function trustedProviderProofKeyFromSingleEnv(): TrustedProviderProofKey[] {
+  const keyId = cleanEnv(process.env.FISH_PROVIDER_PROOF_PUBLIC_KEY_ID);
+  const publicKeyPem = normalizePem(cleanEnv(process.env.FISH_PROVIDER_PROOF_PUBLIC_KEY_PEM));
+  return keyId && publicKeyPem ? [{ keyId, publicKeyPem }] : [];
+}
+
+function trustedProviderProofKeysFromJson(value: string | null): TrustedProviderProofKey[] {
+  if (!value) {
+    return [];
+  }
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (Array.isArray(parsed)) {
+      return parsed.flatMap((entry) => {
+        if (!isRecord(entry)) {
+          return [];
+        }
+        const keyId = readString(entry, ["keyId"]);
+        const publicKeyPem = normalizePem(readString(entry, ["publicKeyPem"]));
+        return keyId && publicKeyPem ? [{ keyId, publicKeyPem }] : [];
+      });
+    }
+    if (isRecord(parsed)) {
+      return Object.entries(parsed).flatMap(([keyId, publicKeyValue]) => {
+        const publicKeyPem = normalizePem(typeof publicKeyValue === "string" ? publicKeyValue : null);
+        return keyId && publicKeyPem ? [{ keyId, publicKeyPem }] : [];
+      });
+    }
+  } catch {
+    return [];
+  }
+  return [];
+}
+
+function normalizePem(value: string | null) {
+  return value?.replaceAll("\\n", "\n").trim() ?? null;
+}
+
+function cleanEnv(value: string | undefined) {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
 }
 
 async function readOrCreateSigningKey(): Promise<ProofSigningKey> {

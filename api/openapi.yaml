@@ -184,7 +184,9 @@ paths:
         '401':
           description: Fish API key required
         '402':
-          description: Insufficient Fish Credits
+          description: Insufficient Fish Credits; live Ocean batch checks include the caller-selected provider cost cap converted to Fish Credits before adapter execution
+        '403':
+          description: Live Ocean batch adapter is not allowed for the caller's Fish plan
         '429':
           description: Ocean batch daily budget, monthly request limit, daily quota, or minute rate limit exceeded
         '502':
@@ -216,7 +218,15 @@ paths:
   /api/warm/status:
     get:
       summary: Public-safe warm inference status
-      description: Shows whether the configured warm demo route is ready without exposing endpoint URLs, API keys, prompts, or outputs.
+      description: Shows the configured warm demo route snapshot without exposing endpoint URLs, API keys, prompts, outputs, or running a live backend probe. Add `probe=live` with the admin token for an operator-only `/models` probe.
+      parameters:
+        - in: query
+          name: probe
+          required: false
+          schema:
+            type: string
+            enum: [live, true, '1']
+          description: Operator-only live `/models` probe when paired with `x-fish-admin-token` or an admin bearer token. Omit for the public snapshot path.
       responses:
         '200':
           description: Warm route status
@@ -224,6 +234,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/WarmInferenceStatus'
+        '401':
+          description: Admin token required for `probe=live`
   /api/features:
     get:
       summary: Public Fish AI menu
@@ -238,7 +250,7 @@ paths:
   /api/dishes/{dishId}/run:
     post:
       summary: Run a Fish AI menu dish
-      description: Runs a menu dish such as ask, code, docs, repo, eval, data, proposal, or ocean with server-side prompts. Batch dishes return public-safe ticket metadata. Uses guest credits when no bearer key is provided and Fish API-key credits when authorization is present.
+      description: Runs a menu dish such as ask, code, docs, repo, eval, data, proposal, or ocean with server-side prompts. Non-batch dishes use a shared anonymous guest credit/quota bucket when no bearer key is provided and Fish API-key credits when authorization is present. Ocean batch dishes return public-safe ticket metadata and require a bearer Fish API key on an Ocean-provider-allowed plan.
       parameters:
         - in: path
           name: dishId
@@ -262,7 +274,7 @@ paths:
         '400':
           description: Invalid dish request
         '401':
-          description: Invalid bearer key when one is supplied
+          description: Missing or invalid bearer key for authenticated-only dish runs
         '402':
           description: Insufficient Fish Credits
         '404':
@@ -272,7 +284,7 @@ paths:
   /api/meal/order:
     post:
       summary: Guest Fish meal-counter order
-      description: Capped guest route for the public meal counter. Uses the same chat request shape without exposing a Fish API key.
+      description: Globally capped guest route for the public meal counter. Uses the same chat request shape without exposing a Fish API key, and unauthenticated callers share one anonymous quota principal.
       requestBody:
         required: true
         content:
@@ -503,7 +515,9 @@ paths:
   /api/billing/usage-analytics:
     get:
       summary: Aggregate Fish billing usage analytics
-      description: Public-safe aggregate billing metrics. Excludes API keys, raw prompts, outputs, and account-level rows.
+      description: Admin-only aggregate billing metrics. Excludes API keys, raw prompts, outputs, and account-level rows, but can include billing totals and configured model labels.
+      security:
+        - adminToken: []
       responses:
         '200':
           description: Billing usage analytics
@@ -1004,7 +1018,9 @@ paths:
           description: Provider not found
   /api/proof/payouts:
     get:
-      summary: Public-safe provider payout accounting summary
+      summary: Admin-only provider payout accounting summary
+      security:
+        - adminToken: []
       parameters:
         - in: query
           name: provider
@@ -1053,6 +1069,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PayoutSummary'
+        '401':
+          description: Admin token required
     post:
       summary: Admin-only manual provider payout event
       security:
@@ -1262,6 +1280,15 @@ paths:
                     type: integer
                   oceanNativeJobs:
                     type: integer
+                  runnerProofJobs:
+                    type: integer
+                    description: Public proof count; only receipts with a verified canonical hash and trusted Ed25519 signature are included.
+                  runnerSignedJobs:
+                    type: integer
+                    description: Backward-compatible signed counter; public summaries count only trusted verified signatures, not unverified upstream signature strings.
+                  runnerVerifiedJobs:
+                    type: integer
+                    description: Count of runner receipts whose canonical hash and Ed25519 signature verify against a configured trusted runner public key.
                   providerPayoutUsd:
                     type: number
                   creditsSpent:
@@ -1335,10 +1362,10 @@ paths:
                 $ref: '#/components/schemas/StakingCreditSummary'
   /api/staking/positions:
     get:
-      summary: Public offchain OCEAN staking positions
+      summary: Public-safe opaque offchain OCEAN staking position records
       responses:
         '200':
-          description: Public staking positions
+          description: Opaque staking position records without holder labels, wallet links, lock details, or per-account credit balances
           content:
             application/json:
               schema:
@@ -1773,6 +1800,15 @@ components:
           type: array
           items:
             type: object
+            description: Public source-state metadata; exact endpoint URLs are redacted.
+            properties:
+              name:
+                type: string
+              state:
+                type: string
+                enum: [live, snapshot, sample, unavailable]
+              message:
+                type: string
         sourceCount:
           type: integer
         warnings:
@@ -1850,8 +1886,6 @@ components:
         providerId:
           type: string
         providerLabel:
-          type: string
-        nodeEndpoint:
           type: string
         environmentId:
           type: string
@@ -1971,10 +2005,12 @@ components:
           minimum: 0
           maximum: 100
           default: 1
+          description: Provider cost cap. For live ocean_http jobs Fish requires enough credits to cover this cap before adapter execution.
         adapterMode:
           type: string
           enum: [sample_success, sample_failure, ocean_http]
           default: sample_success
+          description: ocean_http requires an Ocean-provider-eligible Fish plan; sample modes are local proof only.
     OceanBatchArtifact:
       type: object
       properties:
@@ -2089,6 +2125,8 @@ components:
         dailyBudgetUsd:
           type: number
         spentUsd:
+          type: number
+        reservedUsd:
           type: number
         estimatedCostUsd:
           type: number
@@ -2663,9 +2701,8 @@ components:
         nodeEndpointHash:
           type: string
           nullable: true
-        healthEndpointHash:
-          type: string
-          nullable: true
+        healthEndpointReady:
+          type: boolean
         region:
           type: string
         gpuTypes:
@@ -2733,9 +2770,8 @@ components:
           type: number
         benchmarkRequired:
           type: boolean
-        healthEndpointHash:
-          type: string
-          nullable: true
+        healthEndpointReady:
+          type: boolean
         priceShared:
           type: boolean
         payoutReady:
@@ -3951,6 +3987,65 @@ components:
               type: number
             excludedUsd:
               type: number
+    PublicPayoutSummary:
+      type: object
+      description: Public-safe payout proof exposes aggregate totals only. Per-provider events, batches, provider counts, receipt ids, timestamps, and payment status require the admin payout endpoints.
+      properties:
+        dataState:
+          type: string
+          enum: [live, snapshot, sample, unavailable]
+        lastUpdated:
+          type: string
+        filters:
+          type: object
+          additionalProperties: false
+        providerCount:
+          type: integer
+          nullable: true
+        eventCount:
+          type: integer
+          nullable: true
+        batchCount:
+          type: integer
+          nullable: true
+        totals:
+          type: object
+          properties:
+            accrued:
+              type: number
+            review:
+              type: number
+            approved:
+              type: number
+            paid:
+              type: number
+            disputed:
+              type: number
+            voided:
+              type: number
+            outstandingUsd:
+              type: number
+            excludedUsd:
+              type: number
+        providerSummaries:
+          type: array
+          maxItems: 0
+          items:
+            $ref: '#/components/schemas/PayoutProviderSummary'
+        events:
+          type: array
+          maxItems: 0
+          items:
+            $ref: '#/components/schemas/PayoutEvent'
+        batches:
+          type: array
+          maxItems: 0
+          items:
+            $ref: '#/components/schemas/PublicPayoutBatch'
+        warnings:
+          type: array
+          items:
+            type: string
     PayoutSummary:
       type: object
       properties:
@@ -4004,26 +4099,13 @@ components:
             type: string
     PublicStakingPosition:
       type: object
+      description: Opaque public stake record. Holder labels, wallet hashes, stake amounts, lock details, and per-account credit balances stay private unless an explicit disclosure flow is added.
       properties:
         positionVersion:
           type: integer
           enum: [1]
         positionId:
           type: string
-        holderLabel:
-          type: string
-        budgetId:
-          type: string
-        oceanAmount:
-          type: number
-        lockDays:
-          type: integer
-        creditsPerOceanMonth:
-          type: number
-        creditsEarned:
-          type: number
-        creditsIssued:
-          type: number
         creditState:
           type: string
           enum: [issued, partial, queued]
@@ -4035,14 +4117,6 @@ components:
           enum: [public]
         createdAt:
           type: string
-        unlocksAt:
-          type: string
-        walletHashPrefix:
-          type: string
-        creditsSpent:
-          type: number
-        creditsRemaining:
-          type: number
     StakingCreditSummary:
       type: object
       properties:
@@ -4678,7 +4752,7 @@ components:
         receiptVerificationFailures:
           type: integer
         payouts:
-          $ref: '#/components/schemas/PayoutSummary'
+          $ref: '#/components/schemas/PublicPayoutSummary'
         capacitySettlements:
           $ref: '#/components/schemas/CapacitySettlementSummary'
         receipts:
@@ -4890,15 +4964,18 @@ components:
     FishCheckoutRequest:
       type: object
       additionalProperties: false
+      oneOf:
+        - required: [amountUsd]
+        - required: [credits]
       properties:
         amountUsd:
           type: number
           minimum: 0.01
-          description: Dollar amount to convert into Fish Credits. Either amountUsd or credits is required. If both amountUsd and credits are supplied, they must match the configured credit price exactly.
+          description: Dollar amount to convert into Fish Credits. Exactly one of amountUsd or credits is required.
         credits:
           type: integer
           minimum: 1
-          description: Optional exact credit amount; the amount is rounded up to cover the credit liability. If amountUsd is also supplied, the values must match exactly.
+          description: Optional exact credit amount; exactly one of amountUsd or credits is required and the payment amount is rounded up to cover the credit liability.
         idempotencyKey:
           type: string
           maxLength: 120
@@ -5240,6 +5317,9 @@ components:
         fishUsage:
           type: object
           properties:
+            dataState:
+              type: string
+              enum: [live, snapshot, sample, unavailable]
             requests:
               type: integer
             accounts:
@@ -5256,8 +5336,10 @@ components:
               type: number
             runnerProofJobs:
               type: integer
+              description: Count of runner receipts whose canonical hash and Ed25519 signature verify against a configured trusted runner public key.
             runnerVerifiedJobs:
               type: integer
+              description: Count of runner receipts whose canonical hash and Ed25519 signature verify against a configured trusted runner public key.
             failedRequests:
               type: integer
             averageLatencyMs:
@@ -5364,10 +5446,13 @@ components:
           properties:
             runnerProofJobs:
               type: integer
+              description: Public proof count; only receipts with a verified canonical hash and trusted Ed25519 signature are included.
             runnerSignedJobs:
               type: integer
+              description: Backward-compatible signed counter; public summaries count only trusted verified signatures, not unverified upstream signature strings.
             runnerVerifiedJobs:
               type: integer
+              description: Count of runner receipts whose canonical hash and Ed25519 signature verify against a configured trusted runner public key.
             storesPromptOutputText:
               type: boolean
               enum: [false]
@@ -5668,7 +5753,7 @@ components:
             runnerSignatureState:
               type: string
               nullable: true
-              enum: [unsigned, signed, verified, invalid, missing]
+              enum: [unsigned, verified, invalid, missing]
             runnerId:
               type: string
               nullable: true
@@ -5804,7 +5889,7 @@ components:
           nullable: true
         signatureState:
           type: string
-          enum: [unsigned, signed, verified, invalid, missing]
+          enum: [unsigned, verified, invalid, missing]
         signatureError:
           type: string
           nullable: true

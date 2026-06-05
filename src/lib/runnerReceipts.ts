@@ -7,7 +7,25 @@ type TrustedRunnerKey = {
   publicKeyPem: string;
 };
 
-export function readAndVerifyRunnerReceipt(payload: unknown): RunnerReceiptSummary | null {
+export type RunnerReceiptValidationContext = {
+  routeId?: string | null;
+  providerId?: string | null;
+  idempotencyKey?: string | null;
+  requestHash?: string | null;
+  outputHash?: string | null;
+  model?: string | null;
+  status?: string | null;
+  promptTokens?: number | null;
+  completionTokens?: number | null;
+  providerCostUsd?: number | null;
+  maxBudgetUsd?: number | null;
+};
+
+export function runnerReceiptSha256(value: string) {
+  return `sha256:${sha256(value)}`;
+}
+
+export function readAndVerifyRunnerReceipt(payload: unknown, expected?: RunnerReceiptValidationContext): RunnerReceiptSummary | null {
   const receipt = readPath(payload, ["fish_runner"]);
   if (!isRecord(receipt)) {
     return null;
@@ -19,6 +37,9 @@ export function readAndVerifyRunnerReceipt(payload: unknown): RunnerReceiptSumma
   const signerKeyId = readString(receipt, ["signer", "keyId"]);
   const signerAlgorithm = readString(receipt, ["signer", "algorithm"]);
   const signature = readString(receipt, ["signature"]);
+  const routeId = readString(receipt, ["routeId"]);
+  const providerId = readString(receipt, ["providerId"]);
+  const status = readString(receipt, ["status"]);
   const verification = verifyRunnerSignature({
     canonicalPayload,
     canonicalReceiptHash,
@@ -27,21 +48,71 @@ export function readAndVerifyRunnerReceipt(payload: unknown): RunnerReceiptSumma
     signerAlgorithm,
     signature
   });
+  const bindingErrors = validateRunnerReceiptBinding(receipt, expected);
+  const signatureState = bindingErrors.length ? "invalid" : verification.state;
+  const signatureError = [verification.error, ...bindingErrors].filter(Boolean).join("; ") || null;
 
   return {
     runnerReceiptVersion: readNumber(receipt, ["runnerReceiptVersion"]),
     jobId: readString(receipt, ["jobId"]),
-    routeId: readString(receipt, ["routeId"]),
-    providerId: readString(receipt, ["providerId"]),
+    routeId,
+    providerId,
     runnerId: readString(receipt, ["runnerId"]),
-    status: readString(receipt, ["status"]),
+    status,
     canonicalReceiptHash,
     computedCanonicalReceiptHash,
     signerKeyId,
     signerAlgorithm,
-    signatureState: verification.state,
-    signatureError: verification.error
+    signatureState,
+    signatureError
   };
+}
+
+function validateRunnerReceiptBinding(receipt: Record<string, unknown>, expected?: RunnerReceiptValidationContext) {
+  if (!expected) {
+    return [];
+  }
+
+  const errors: string[] = [];
+  compareString(errors, "routeId", readString(receipt, ["routeId"]), expected.routeId);
+  compareString(errors, "providerId", readString(receipt, ["providerId"]), expected.providerId);
+  compareString(errors, "idempotencyKey", readString(receipt, ["idempotencyKey"]), expected.idempotencyKey);
+  compareString(errors, "status", readString(receipt, ["status"]), expected.status);
+  compareString(errors, "model", readString(receipt, ["model"]), expected.model);
+  compareString(errors, "requestHash", readString(receipt, ["hashes", "requestHash"]), expected.requestHash);
+  compareString(errors, "outputHash", readString(receipt, ["hashes", "outputHash"]), expected.outputHash);
+  compareNumber(errors, "usage.inputTokens", readNumber(receipt, ["usage", "inputTokens"]), expected.promptTokens);
+  compareNumber(errors, "usage.outputTokens", readNumber(receipt, ["usage", "outputTokens"]), expected.completionTokens);
+  compareNumber(errors, "costUsd", readFirstNumber(receipt, [["costUsd"], ["usage", "costUsd"], ["billing", "costUsd"]]), expected.providerCostUsd);
+
+  const claimedCostUsd = readFirstNumber(receipt, [["costUsd"], ["usage", "costUsd"], ["billing", "costUsd"]]);
+  if (claimedCostUsd !== null && expected.maxBudgetUsd !== undefined && expected.maxBudgetUsd !== null && claimedCostUsd > expected.maxBudgetUsd) {
+    errors.push("receipt_context_mismatch:maxBudgetUsd");
+  }
+
+  return errors;
+}
+
+function compareString(errors: string[], field: string, actual: string | null, expected: string | null | undefined) {
+  if (expected !== undefined && expected !== null && actual !== expected) {
+    errors.push(`receipt_context_mismatch:${field}`);
+  }
+}
+
+function compareNumber(errors: string[], field: string, actual: number | null, expected: number | null | undefined) {
+  if (expected !== undefined && expected !== null && actual !== null && actual !== expected) {
+    errors.push(`receipt_context_mismatch:${field}`);
+  }
+}
+
+function readFirstNumber(payload: unknown, paths: string[][]) {
+  for (const path of paths) {
+    const value = readNumber(payload, path);
+    if (value !== null) {
+      return value;
+    }
+  }
+  return null;
 }
 
 function verifyRunnerSignature(input: {
@@ -70,7 +141,7 @@ function verifyRunnerSignature(input: {
 
   const publicKeyPem = trustedRunnerPublicKey(input.signerKeyId);
   if (!publicKeyPem) {
-    return { state: "signed", error: "trusted_runner_public_key_not_configured" };
+    return { state: "invalid", error: "trusted_runner_public_key_not_configured" };
   }
 
   try {

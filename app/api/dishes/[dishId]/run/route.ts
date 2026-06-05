@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { streamChatCompletion } from "@/lib/chatCompletionStream";
@@ -6,6 +5,7 @@ import { buildFishDishChatInput, getFishDish } from "@/lib/fishDishes";
 import { authenticateRequest, getOrCreateGuestAccount } from "@/lib/fishLedger";
 import { runFishChatGateway } from "@/lib/fishChatGateway";
 import { getFishRouterConfig } from "@/lib/fishRouter";
+import { anonymousGuestId } from "@/lib/guestIdentity";
 
 export const dynamic = "force-dynamic";
 
@@ -42,6 +42,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ dis
     );
   }
 
+  if (dish.oceanBatch && !hasBearerToken(request)) {
+    return NextResponse.json(
+      {
+        error: {
+          message: "missing_bearer_token",
+          type: "authentication_error",
+          dishId: dish.id,
+          route: "ocean-batch"
+        }
+      },
+      { status: 401 }
+    );
+  }
+
   const routerConfig = getFishRouterConfig();
   const routeLabel = routerConfig.routes[routerConfig.activeRouteId].publicLabel;
   const chatInput = buildFishDishChatInput(
@@ -68,7 +82,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ dis
     account: context.account,
     principalId: context.principalId,
     dailyQuotaLimit: context.dailyQuotaLimit,
-    allowExternalFallback: context.allowExternalFallback
+    allowExternalFallback: context.allowExternalFallback,
+    authenticatedApiKey: context.authenticatedApiKey
   });
 
   if (wantsStream && result.ok) {
@@ -91,11 +106,12 @@ async function resolveGatewayContext(request: Request, routerConfig: ReturnType<
       principalId: `key:${auth.account.id}`,
       dailyQuotaLimit: routerConfig.guardrails.dailyKeyedQuota,
       allowExternalFallback: true,
+      authenticatedApiKey: true,
       accessMode: "key" as const
     };
   }
 
-  const guestId = guestFingerprint(request);
+  const guestId = anonymousGuestId();
   const guest = await getOrCreateGuestAccount(guestId, Number(process.env.FISH_GUEST_CREDIT_GRANT ?? "25"));
   return {
     ok: true as const,
@@ -104,6 +120,7 @@ async function resolveGatewayContext(request: Request, routerConfig: ReturnType<
     principalId: `guest:${guestId}`,
     dailyQuotaLimit: routerConfig.guardrails.dailyAnonymousQuota,
     allowExternalFallback: false,
+    authenticatedApiKey: false,
     accessMode: "guest" as const
   };
 }
@@ -122,12 +139,4 @@ function withDishMetadata(body: Record<string, unknown>, dishId: string, accessM
 
 function hasBearerToken(request: Request) {
   return /^Bearer\s+\S+/i.test(request.headers.get("authorization") ?? "");
-}
-
-function guestFingerprint(request: Request) {
-  const forwardedFor = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
-  const realIp = request.headers.get("x-real-ip")?.trim();
-  const userAgent = request.headers.get("user-agent")?.trim() || "unknown-agent";
-  const ip = forwardedFor || realIp || "local";
-  return createHash("sha256").update(`${ip}|${userAgent}`).digest("hex").slice(0, 32);
 }

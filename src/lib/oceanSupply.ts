@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { collectProviderPilotRegistry, type ProviderPilotRegistry } from "@/lib/providerPilot";
@@ -36,6 +37,10 @@ type NodeMetadata = {
 };
 
 const nowIso = () => new Date().toISOString();
+
+function shortHash(value: string): string {
+  return createHash("sha256").update(value).digest("hex").slice(0, 12);
+}
 
 function isRecord(value: unknown): value is JsonRecord {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -76,6 +81,24 @@ function pickString(row: JsonRecord, keys: string[], fallback = ""): string {
 
 function toSourceResult(name: string, state: DataState, message: string, url?: string): SourceResult {
   return { name, state, message, url };
+}
+
+function directNodePublicId(endpoint: string): string {
+  return `direct-node-${shortHash(endpoint)}`;
+}
+
+export function publicOceanSummary(summary: OceanSummary): OceanSummary {
+  return {
+    ...summary,
+    sources: summary.sources.map(({ url: _url, ...source }) => source)
+  };
+}
+
+export type PublicComputeResource = Omit<ComputeResource, "nodeEndpoint" | "raw">;
+
+export function publicComputeResource(resource: ComputeResource): PublicComputeResource {
+  const { nodeEndpoint: _nodeEndpoint, raw: _raw, ...publicResource } = resource;
+  return publicResource;
 }
 
 async function fetchJson(url: string): Promise<unknown> {
@@ -308,21 +331,22 @@ async function fetchDirectNode(endpoint: string): Promise<{ resources: ComputeRe
   const url = `${endpoint}/api/services/computeEnvironments`;
   try {
     const payload = await fetchJson(url);
+    const publicId = directNodePublicId(endpoint);
     const node = {
-      id: endpoint,
-      friendlyName: endpoint,
-      currentAddrs: [endpoint],
+      id: publicId,
+      friendlyName: `Direct Ocean node ${publicId.slice(-6)}`,
+      currentAddrs: [],
       computeEnvironments: isRecord(payload) && Array.isArray(payload.environments) ? payload : { environments: payload }
     };
     const resources = normalizeNodeResources(node, "direct-node", endpoint);
     return {
       resources,
-      source: toSourceResult("direct-node", "live", `Fetched ${resources.length} normalized GPU resources`, url)
+      source: toSourceResult("direct-node", "live", `Fetched ${resources.length} normalized GPU resources`)
     };
-  } catch (error) {
+  } catch {
     return {
       resources: [],
-      source: toSourceResult("direct-node", "unavailable", error instanceof Error ? error.message : "Fetch failed", url)
+      source: toSourceResult("direct-node", "unavailable", "Direct node fetch failed")
     };
   }
 }

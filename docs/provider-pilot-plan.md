@@ -83,7 +83,7 @@ expiresAt
 - Oncompute `/nodes` and `/envs` data can enrich node identity, region, GPU inventory, HTTP/P2P status, version, and eligibility.
 - `pilotEligible` is a Fish decision. It must not be a direct copy of Ocean node eligibility.
 - Public labels should use a friendly display name or shortened node id. Do not publish contact data, exact IPs, admin addresses, or private payout details.
-- Public readiness should use hashes, booleans, and counts for health endpoints, pricing, payout, support, logging policy, and approved runner/container state.
+- Public readiness should use booleans and counts for health endpoints, pricing, payout, support, logging policy, and approved runner/container state. Do not publish health endpoint URLs or deterministic health endpoint hashes.
 - The allowlist should be checked before every provider-routed job, including benchmark jobs.
 
 ### Definition Of Done
@@ -129,7 +129,7 @@ Provider job request:
 }
 ```
 
-Fish sends this body to the private `jobEndpoint` configured for a selected provider through `FISH_PROVIDER_JOB_ENDPOINTS` or `data/provider_allowlist.json`. The adapter sends `inputRef` only, not raw prompt text.
+Fish sends this body to the private `jobEndpoint` configured for a selected provider through `FISH_PROVIDER_JOB_ENDPOINTS` or `data/provider_allowlist.json`. The adapter sends `inputRef` only, not raw prompt text. Provider endpoints must be public-routable `http` or `https` URLs; Fish rejects localhost, link-local, private-network, and credentialed URLs, validates DNS results before dispatch, and fails redirects rather than following them.
 
 Provider job result:
 

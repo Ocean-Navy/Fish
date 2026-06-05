@@ -55,6 +55,7 @@ The readiness response checks whether the private adapter is configured, reachab
 To run an actual Ocean compute job through the official Ocean CLI path, the operator needs:
 
 ```text
+OCEAN_WORKLOAD_ADAPTER_API_KEY (unique secret, at least 32 characters)
 PRIVATE_KEY or MNEMONIC
 RPC
 NODE_URL
@@ -69,6 +70,7 @@ optional output storage JSON
 For free compute, the operator still needs:
 
 ```text
+OCEAN_WORKLOAD_ADAPTER_API_KEY (unique secret, at least 32 characters)
 PRIVATE_KEY or MNEMONIC
 RPC
 NODE_URL
@@ -110,6 +112,8 @@ GET /healthz
 GET /config
 POST /jobs
 ```
+
+`GET /config` and `POST /jobs` require `Authorization: Bearer <OCEAN_WORKLOAD_ADAPTER_API_KEY>`. The adapter rejects those requests when the key is missing or left at a known placeholder, and live readiness requires a unique API key with at least 32 characters.
 
 Dry-run mode is the default and never returns a successful proof. Live mode shells out to the official Ocean CLI checkout, starts the selected compute job, downloads job results, hashes the result directory, and returns the hash as `outputRef`.
 
@@ -271,13 +275,14 @@ OCEAN_CLI_DIR=/Users/robin/Projects/opfish/.deps/ocean-cli
 Publish the first Fish algorithm after `PRIVATE_KEY`, `RPC`, and `NODE_URL` are exported:
 
 ```bash
-export FISH_ALGORITHM_FILE_URL="https://public-url.example/fish-document-summary/algorithm.py"
+commit="$(git rev-parse HEAD)"
+export FISH_ALGORITHM_FILE_URL="https://raw.githubusercontent.com/Ocean-Navy/Fish/${commit}/deploy/ocean-workload-adapter/algorithms/fish-document-summary/algorithm.py"
 scripts/publish-fish-document-summary-algorithm.sh --env-file .env.ocean-proof.local
 ```
 
 Then copy the printed `FISH_OCEAN_ALGO_DID=did:op:...` into `.env.ocean-proof.local`.
 
-`FISH_ALGORITHM_FILE_URL` must be public. The current Fish GitHub repository is private, and Ocean nodes cannot fetch private GitHub raw URLs without credentials.
+`FISH_ALGORITHM_FILE_URL` must be public and immutable. Raw GitHub URLs must use a 40-character commit hash, not `main`, another branch, or a tag. The current Fish GitHub repository may be private, and Ocean nodes cannot fetch private GitHub raw URLs without credentials.
 
 For the current Oncompute route, use:
 
@@ -332,40 +337,35 @@ usageReceipt.route is ocean-provider
 
 ## Current Blocking Inputs
 
-The scaffold can be tested without secrets, but the real proof still needs:
+The scaffold can be tested without secrets, but the operator-owned private adapter environment still needs:
 
 ```text
-fresh proof wallet private key or mnemonic
-Base mainnet RPC
+fresh proof wallet private key or mnemonic stored only in the private adapter environment
+Base mainnet RPC stored only in the private adapter environment
 selected NODE_URL and FISH_OCEAN_COMPUTE_ENV_ID from the discovery script
 published FISH_OCEAN_ALGO_DID from scripts/publish-fish-document-summary-algorithm.sh
 ```
 
-If free compute works, no paid token is needed for the first proof. If free compute fails due to provider/payment rules, fund the proof wallet with a small amount of Base ETH for gas and Base USDC for the selected paid environment.
+If free compute works, no paid token is needed for the first proof. If free compute fails due to provider/payment rules, fund a fresh, dedicated proof wallet with only a small amount of Base ETH for gas and Base USDC for the selected paid environment. Treat that wallet as disposable, cap approvals/resources to the test budget, revoke allowances where practical, and rotate the wallet after the proof.
 
 ## What To Give Codex
 
-Minimum needed to run the first proof:
+Do not give Codex, chat tools, issue trackers, pull requests, or public logs any wallet private key, mnemonic, paid-resource credential, RPC credential, storage credential, provider secret, or signing material. Codex should only interact with Fish through the already-running private adapter URL and public-safe identifiers.
+
+Minimum needed for Codex to verify the first proof through Fish:
 
 ```text
-dedicated proof wallet private key or mnemonic
-RPC URL
-Ocean node URL
+private adapter URL that already runs the Ocean job
+FISH_OCEAN_BATCH_ENDPOINT
+FISH_OCEAN_BATCH_PROVIDER_ID
+public-safe provider id or label
 algorithm DID
 dataset DID(s), or confirmation to use []
 compute environment id
-payment token/resources if paid
-output storage JSON if required
+non-secret budget cap to send in the Fish request
 ```
 
-Safer option:
-
-```text
-provide a private adapter URL that already runs the Ocean job
-provide FISH_OCEAN_BATCH_ENDPOINT and provider id
-```
-
-The adapter URL option is safer because Codex does not need custody of a wallet private key.
+The adapter URL option is the required path for agent-assisted proof verification because Codex does not need custody of a wallet private key, mnemonic, payment resources, RPC credentials, or output storage credentials.
 
 ## Completion Definition
 

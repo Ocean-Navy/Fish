@@ -1,9 +1,11 @@
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 import {
+  FISH_CREDIT_USD,
   estimateTokens,
+  getFishPlan,
   recordChatUsage,
   releaseFishCreditReservation,
   reserveFishCredits,
@@ -16,6 +18,8 @@ import type { DataState } from "@/lib/types";
 
 const OCEAN_BATCH_DIR = path.join(process.cwd(), "data", "ocean-batch");
 const OCEAN_BATCH_RECEIPTS_DIR = path.join(OCEAN_BATCH_DIR, "receipts");
+const OCEAN_BATCH_BUDGET_RESERVATIONS_DIR = path.join(OCEAN_BATCH_DIR, "budget-reservations");
+const OCEAN_BATCH_BUDGET_LOCK_DIR = path.join(OCEAN_BATCH_DIR, ".budget.lock");
 const OCEAN_BATCH_MODEL = "ocean-batch-placeholder";
 const OCEAN_BATCH_ARTIFACT_MAX_CHARS = 6000;
 
@@ -126,9 +130,24 @@ export type OceanBatchSummary = {
 export type OceanBatchBudgetState = {
   dailyBudgetUsd: number;
   spentUsd: number;
+  reservedUsd: number;
   estimatedCostUsd: number;
   remainingUsd: number;
 };
+
+type OceanBatchBudgetReservation = {
+  reservationVersion: 1;
+  reservationId: string;
+  createdAt: string;
+  amountUsd: number;
+};
+
+const oceanBatchBudgetReservationSchema: z.ZodType<OceanBatchBudgetReservation> = z.object({
+  reservationVersion: z.literal(1),
+  reservationId: z.string(),
+  createdAt: z.string(),
+  amountUsd: z.number().finite().nonnegative()
+});
 
 const oceanBatchReceiptSchema: z.ZodType<OceanBatchReceipt> = z.object({
   receiptVersion: z.literal(1),
@@ -174,17 +193,15 @@ export function parseOceanBatchJobRequest(body: unknown) {
 
 export async function runOceanBatchJob(request: OceanBatchJobRequestInput, context: OceanBatchJobContext) {
   const input = normalizeBatchInput(request);
-  const budget = await checkOceanBatchDailyBudget(input.maxCostUsd);
-  if (!budget.ok) {
+  if (input.adapterMode === "ocean_http" && !getFishPlan(context.account.planId).oceanProviderAllowed) {
     return {
       ok: false as const,
-      status: 429,
-      error: "ocean_batch_daily_budget_exceeded",
-      budget: budget.state
+      status: 403,
+      error: "ocean_batch_live_adapter_not_allowed_for_plan"
     };
   }
 
-  const estimatedMaxCredits = Math.max(1, Math.ceil((input.estimatedInputTokens + input.maxOutputTokens) / 1000));
+  const estimatedMaxCredits = estimateOceanBatchMaxCredits(input);
   if (context.account.creditBalance < estimatedMaxCredits) {
     return {
       ok: false as const,
@@ -221,6 +238,23 @@ export async function runOceanBatchJob(request: OceanBatchJobRequestInput, conte
     };
   }
 
+  const budgetReservation = input.adapterMode === "ocean_http" ? await reserveOceanBatchDailyBudget(input.maxCostUsd) : null;
+  if (budgetReservation && !budgetReservation.ok) {
+    await releaseFishCreditReservation({
+      ledger: context.ledger,
+      account: context.account,
+      reservation: reservationResult.reservation,
+      receiptId: `batch_budget_reject_${randomUUID()}`,
+      reason: "ocean_batch_credit_reserve_release_daily_budget_exceeded"
+    });
+    return {
+      ok: false as const,
+      status: 429,
+      error: "ocean_batch_daily_budget_exceeded",
+      budget: budgetReservation.state
+    };
+  }
+
   const startedAt = new Date().toISOString();
   const receiptBase = {
     receiptVersion: 1 as const,
@@ -248,21 +282,29 @@ export async function runOceanBatchJob(request: OceanBatchJobRequestInput, conte
     errorCode: null as string | null
   };
 
-  const outcome = input.adapterMode === "ocean_http" ? await runOceanHttpBatchAdapter(input, receiptBase.jobId) : runSampleBatchAdapter(input);
-  const receipt = finalizeBatchReceipt({
-    ...receiptBase,
-    providerJobId: outcome.providerJobId,
-    status: outcome.status,
-    completedAt: new Date().toISOString(),
-    usage: outcome.usage,
-    cost: outcome.cost,
-    hashes: {
-      ...receiptBase.hashes,
-      outputHash: outcome.outputRef ? normalizeHash(outcome.outputRef) : null
-    },
-    errorCode: outcome.errorCode
-  });
-  await writeBatchReceipt(receipt);
+  let outcome: OceanBatchAdapterOutcome;
+  let receipt: OceanBatchReceipt;
+  try {
+    outcome = input.adapterMode === "ocean_http" ? await runOceanHttpBatchAdapter(input, receiptBase.jobId) : runSampleBatchAdapter(input);
+    receipt = finalizeBatchReceipt({
+      ...receiptBase,
+      providerJobId: outcome.providerJobId,
+      status: outcome.status,
+      completedAt: new Date().toISOString(),
+      usage: outcome.usage,
+      cost: outcome.cost,
+      hashes: {
+        ...receiptBase.hashes,
+        outputHash: outcome.outputRef ? normalizeHash(outcome.outputRef) : null
+      },
+      errorCode: outcome.errorCode
+    });
+    await writeBatchReceipt(receipt);
+  } finally {
+    if (budgetReservation?.ok) {
+      await releaseOceanBatchBudgetReservation(budgetReservation.reservation);
+    }
+  }
 
   if (outcome.status !== "succeeded") {
     await releaseFishCreditReservation({
@@ -304,6 +346,7 @@ export async function runOceanBatchJob(request: OceanBatchJobRequestInput, conte
     latencyMs: Date.parse(receipt.completedAt) - Date.parse(receipt.startedAt),
     providerCostUsd: outcome.cost.providerCostUsd,
     providerId: receipt.providerId,
+    minimumCreditsSpent: minimumOceanBatchUsageCredits(input, outcome.cost.providerCostUsd),
     runnerReceipt: null,
     reservation: reservationResult.reservation,
     privacy: context.privacy ?? defaultFishPrivacyForRoute("ocean-batch")
@@ -355,23 +398,60 @@ export async function summarizeOceanBatchJobs(): Promise<OceanBatchSummary> {
   };
 }
 
-async function checkOceanBatchDailyBudget(estimatedCostUsd: number) {
-  const state = await oceanBatchBudgetState(estimatedCostUsd);
-  return {
-    ok: state.spentUsd + state.estimatedCostUsd <= state.dailyBudgetUsd,
-    state
-  };
+function estimateOceanBatchMaxCredits(input: OceanBatchJobInput) {
+  const tokenCredits = Math.max(1, Math.ceil((input.estimatedInputTokens + input.maxOutputTokens) / 1000));
+  if (input.adapterMode !== "ocean_http") {
+    return tokenCredits;
+  }
+  return Math.max(tokenCredits, usdToFishCredits(input.maxCostUsd));
+}
+
+function minimumOceanBatchUsageCredits(input: OceanBatchJobInput, providerCostUsd: number) {
+  const tokenCredits = Math.max(1, Math.ceil((input.estimatedInputTokens + input.maxOutputTokens) / 1000));
+  if (input.adapterMode !== "ocean_http") {
+    return tokenCredits;
+  }
+  return Math.max(tokenCredits, usdToFishCredits(providerCostUsd));
+}
+
+function oceanBatchUserChargeUsd(credits: number) {
+  return Number((Math.max(1, Math.ceil(credits)) * FISH_CREDIT_USD).toFixed(6));
+}
+
+function usdToFishCredits(amountUsd: number) {
+  return Math.max(1, Math.ceil(Math.max(0, amountUsd) / FISH_CREDIT_USD));
+}
+
+async function reserveOceanBatchDailyBudget(estimatedCostUsd: number) {
+  return withOceanBatchBudgetLock(async () => {
+    const state = await oceanBatchBudgetState(estimatedCostUsd);
+    if (state.spentUsd + state.reservedUsd + state.estimatedCostUsd > state.dailyBudgetUsd) {
+      return { ok: false as const, state };
+    }
+
+    const reservation: OceanBatchBudgetReservation = {
+      reservationVersion: 1,
+      reservationId: `batch_budget_${randomUUID()}`,
+      createdAt: new Date().toISOString(),
+      amountUsd: state.estimatedCostUsd
+    };
+    await mkdir(OCEAN_BATCH_BUDGET_RESERVATIONS_DIR, { recursive: true });
+    await writeFile(budgetReservationPath(reservation), JSON.stringify(reservation, null, 2), { flag: "wx" });
+    return { ok: true as const, reservation, state: await oceanBatchBudgetState(0) };
+  });
 }
 
 async function oceanBatchBudgetState(estimatedCostUsd: number): Promise<OceanBatchBudgetState> {
   const dailyBudgetUsd = readOceanBatchDailyBudgetUsd();
-  const spentUsd = await sumOceanBatchProviderCostSince(startOfUtcDayIso());
+  const sinceIso = startOfUtcDayIso();
+  const [spentUsd, reservedUsd] = await Promise.all([sumOceanBatchProviderCostSince(sinceIso), sumOceanBatchReservedCostSince(sinceIso)]);
   const normalizedEstimate = Number(Math.max(0, estimatedCostUsd).toFixed(6));
   return {
     dailyBudgetUsd,
     spentUsd,
+    reservedUsd,
     estimatedCostUsd: normalizedEstimate,
-    remainingUsd: Number(Math.max(0, dailyBudgetUsd - spentUsd - normalizedEstimate).toFixed(6))
+    remainingUsd: Number(Math.max(0, dailyBudgetUsd - spentUsd - reservedUsd - normalizedEstimate).toFixed(6))
   };
 }
 
@@ -379,9 +459,29 @@ async function sumOceanBatchProviderCostSince(sinceIso: string) {
   const receipts = await readBatchReceipts();
   return Number(
     receipts
-      .filter((receipt) => receipt.status === "succeeded" && receipt.createdAt >= sinceIso)
+      .filter(isRealOceanBatchBudgetReceipt)
+      .filter((receipt) => receipt.createdAt >= sinceIso)
       .reduce((sum, receipt) => sum + receipt.cost.providerCostUsd, 0)
       .toFixed(6)
+  );
+}
+
+async function sumOceanBatchReservedCostSince(sinceIso: string) {
+  const reservations = await readOceanBatchBudgetReservations();
+  return Number(
+    reservations
+      .filter((reservation) => reservation.createdAt >= sinceIso)
+      .reduce((sum, reservation) => sum + reservation.amountUsd, 0)
+      .toFixed(6)
+  );
+}
+
+function isRealOceanBatchBudgetReceipt(receipt: OceanBatchReceipt) {
+  return (
+    receipt.status === "succeeded" &&
+    receipt.adapterMode === "ocean_http" &&
+    (receipt.sourceState === "snapshot" || receipt.sourceState === "live") &&
+    receipt.cost.pricingState === "provider_verified"
   );
 }
 
@@ -414,7 +514,7 @@ function runSampleBatchAdapter(input: OceanBatchJobInput): OceanBatchAdapterOutc
       items: 1
     },
     cost: {
-      userChargeUsd: Number((Math.ceil(totalTokens / 1000) * 0.001).toFixed(6)),
+      userChargeUsd: oceanBatchUserChargeUsd(Math.ceil(totalTokens / 1000)),
       providerCostUsd,
       pricingState: "prototype_estimate"
     },
@@ -487,7 +587,7 @@ function batchOutcome(input: OceanBatchJobInput, payload: Record<string, unknown
     artifact: readBatchArtifact(payload),
     usage,
     cost: {
-      userChargeUsd: Number((Math.ceil(usage.totalTokens / 1000) * 0.001).toFixed(6)),
+      userChargeUsd: oceanBatchUserChargeUsd(minimumOceanBatchUsageCredits(input, providerCostUsd)),
       providerCostUsd,
       pricingState: "provider_verified"
     },
@@ -537,6 +637,81 @@ function finalizeBatchReceipt(receipt: Omit<OceanBatchReceipt, "hashes"> & { has
 async function writeBatchReceipt(receipt: OceanBatchReceipt) {
   await mkdir(OCEAN_BATCH_RECEIPTS_DIR, { recursive: true });
   await writeFile(path.join(OCEAN_BATCH_RECEIPTS_DIR, `${receipt.createdAt}-${receipt.receiptId}.json`.replaceAll(":", "-")), JSON.stringify(receipt, null, 2));
+}
+
+async function releaseOceanBatchBudgetReservation(reservation: OceanBatchBudgetReservation) {
+  await rm(budgetReservationPath(reservation), { force: true });
+}
+
+function budgetReservationPath(reservation: OceanBatchBudgetReservation) {
+  return path.join(OCEAN_BATCH_BUDGET_RESERVATIONS_DIR, `${reservation.createdAt}-${reservation.reservationId}.json`.replaceAll(":", "-"));
+}
+
+async function readOceanBatchBudgetReservations(): Promise<OceanBatchBudgetReservation[]> {
+  try {
+    const files = await readdir(OCEAN_BATCH_BUDGET_RESERVATIONS_DIR);
+    const reservations = await Promise.all(
+      files
+        .filter((file) => file.endsWith(".json"))
+        .map(async (file) => {
+          try {
+            const raw = await readFile(path.join(OCEAN_BATCH_BUDGET_RESERVATIONS_DIR, file), "utf8");
+            const parsed = oceanBatchBudgetReservationSchema.safeParse(JSON.parse(raw));
+            return parsed.success ? parsed.data : null;
+          } catch {
+            return null;
+          }
+        })
+    );
+    return reservations.filter((reservation): reservation is OceanBatchBudgetReservation => reservation !== null);
+  } catch {
+    return [];
+  }
+}
+
+async function withOceanBatchBudgetLock<T>(operation: () => Promise<T>): Promise<T> {
+  await mkdir(OCEAN_BATCH_DIR, { recursive: true });
+  const deadline = Date.now() + 10000;
+  while (true) {
+    try {
+      await mkdir(OCEAN_BATCH_BUDGET_LOCK_DIR);
+      break;
+    } catch (error) {
+      if (!isNodeError(error) || error.code !== "EEXIST") {
+        throw error;
+      }
+      await removeStaleOceanBatchBudgetLock();
+      if (Date.now() >= deadline) {
+        throw new Error("ocean_batch_budget_lock_timeout");
+      }
+      await sleep(25);
+    }
+  }
+
+  try {
+    return await operation();
+  } finally {
+    await rm(OCEAN_BATCH_BUDGET_LOCK_DIR, { force: true, recursive: true });
+  }
+}
+
+async function removeStaleOceanBatchBudgetLock() {
+  try {
+    const lock = await stat(OCEAN_BATCH_BUDGET_LOCK_DIR);
+    if (Date.now() - lock.mtimeMs > 30000) {
+      await rm(OCEAN_BATCH_BUDGET_LOCK_DIR, { force: true, recursive: true });
+    }
+  } catch {
+    // If another process removed the lock, the next mkdir attempt can proceed.
+  }
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isNodeError(error: unknown): error is NodeJS.ErrnoException {
+  return error instanceof Error && "code" in error;
 }
 
 async function readBatchReceipts(): Promise<OceanBatchReceipt[]> {
