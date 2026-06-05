@@ -53,7 +53,10 @@ https://analytics.oncompute.ai/gpu-popularity
 
 Raw responses must be stored before normalization.
 
-## Common normalized resource schema
+## Common public normalized resource schema
+
+Public resource API responses omit private node endpoint URLs. Operator-configured endpoints remain server-side only; direct-node rows should use a non-secret provider identifier/label.
+
 
 ```json
 {
@@ -62,7 +65,6 @@ Raw responses must be stored before normalization.
   "source": "dashboard-api | analytics-api | direct-node | sample",
   "providerId": "string",
   "providerLabel": "string",
-  "nodeEndpoint": "string",
   "environmentId": "string",
   "region": "string",
   "resourceType": "gpu | cpu | ram | disk | unknown",

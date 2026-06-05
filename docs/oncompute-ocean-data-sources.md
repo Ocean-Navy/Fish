@@ -432,6 +432,8 @@ SourceResult:
 
 ### `ComputeResource`
 
+Public `/api/ocean/resources` rows must not expose `nodeEndpoint` or raw node payloads; keep endpoint details server-side or behind an authenticated operator/admin surface.
+
 Adjust:
 
 - Rename `total` to `capacity`, or add `capacity` and deprecate `total`.

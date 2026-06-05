@@ -1809,8 +1809,6 @@ components:
           type: string
         providerLabel:
           type: string
-        nodeEndpoint:
-          type: string
         environmentId:
           type: string
         region:

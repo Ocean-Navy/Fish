@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { collectOceanData } from "@/lib/oceanSupply";
+import { toPublicComputeResource } from "@/lib/publicOceanResources";
 
 export const dynamic = "force-dynamic";
 
@@ -8,6 +9,6 @@ export async function GET() {
   return NextResponse.json({
     dataState: data.summary.dataState,
     lastUpdated: data.summary.lastUpdated,
-    resources: data.resources.map(({ raw: _raw, ...resource }) => resource)
+    resources: data.resources.map(toPublicComputeResource)
   });
 }
