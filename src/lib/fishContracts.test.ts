@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
-import { summarizeFishContracts } from "./fishContracts";
+import { summarizeFishContracts, visibleSOceanSupplyFromTotalSupply } from "./fishContracts";
 
 const CONTRACT_ENV_KEYS = [
   "FISH_CONTRACT_ACTIONS_ENABLED",
@@ -26,6 +26,14 @@ const ADDRESS_FIVE = "0x5555555555555555555555555555555555555555";
 
 afterEach(() => {
   clearContractEnv();
+});
+
+test("visible OCEAN staking totals subtract only the fixed bootstrap sOCEAN supply", () => {
+  const oneOcean = 1_000_000_000_000_000_000n;
+
+  assert.equal(visibleSOceanSupplyFromTotalSupply(101n * oneOcean), 100n * oneOcean);
+  assert.equal(visibleSOceanSupplyFromTotalSupply(126n * oneOcean), 125n * oneOcean);
+  assert.equal(visibleSOceanSupplyFromTotalSupply(oneOcean), 0n);
 });
 
 test("contract status is unavailable when required addresses are missing", async () => {

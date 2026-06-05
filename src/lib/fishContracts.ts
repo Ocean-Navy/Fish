@@ -10,6 +10,7 @@ const BASE_SEPOLIA_CHAIN_ID = 84532;
 const BASE_USDC_ADDRESS = "0x833589fcD6EDb6E08f4c7C32D4f71b54bdA02913";
 const DEFAULT_RPC_TIMEOUT_MS = 4000;
 const DEFAULT_CONFIRMATIONS = 1;
+const OCEAN_STAKING_BOOTSTRAP_SOCEAN_SUPPLY = 1_000_000_000_000_000_000n;
 
 const ERC20_ABI = [
   { type: "function", name: "allowance", stateMutability: "view", inputs: [{ name: "owner", type: "address" }, { name: "spender", type: "address" }], outputs: [{ name: "", type: "uint256" }] },
@@ -19,7 +20,6 @@ const ERC20_ABI = [
 ] as const;
 
 const OCEAN_STAKING_ABI = [
-  { type: "function", name: "balanceOf", stateMutability: "view", inputs: [{ name: "account", type: "address" }], outputs: [{ name: "", type: "uint256" }] },
   { type: "function", name: "cooldownDuration", stateMutability: "view", inputs: [], outputs: [{ name: "", type: "uint256" }] },
   { type: "function", name: "emissionRatePerSecond", stateMutability: "view", inputs: [], outputs: [{ name: "", type: "uint256" }] },
   { type: "function", name: "totalLockedStakedOcean", stateMutability: "view", inputs: [], outputs: [{ name: "", type: "uint256" }] },
@@ -409,7 +409,6 @@ async function readFishContractOnchainStatusUnsafe(config: FishContractConfig): 
     usdcDecimals,
     sOceanSupply,
     totalLockedStakedOcean,
-    bootstrapSOceanBalance,
     emissionRatePerSecond,
     cooldownDuration,
     fishTotalSupply,
@@ -428,7 +427,6 @@ async function readFishContractOnchainStatusUnsafe(config: FishContractConfig): 
       publicClient.readContract({ address: usdcToken, abi: ERC20_ABI, functionName: "decimals" }),
       publicClient.readContract({ address: oceanStaking, abi: OCEAN_STAKING_ABI, functionName: "totalSupply" }),
       publicClient.readContract({ address: oceanStaking, abi: OCEAN_STAKING_ABI, functionName: "totalLockedStakedOcean" }),
-      publicClient.readContract({ address: oceanStaking, abi: OCEAN_STAKING_ABI, functionName: "balanceOf", args: [oceanStaking] }),
       publicClient.readContract({ address: oceanStaking, abi: OCEAN_STAKING_ABI, functionName: "emissionRatePerSecond" }),
       publicClient.readContract({ address: oceanStaking, abi: OCEAN_STAKING_ABI, functionName: "cooldownDuration" }),
       publicClient.readContract({ address: fishToken, abi: ERC20_ABI, functionName: "totalSupply" }),
@@ -453,7 +451,7 @@ async function readFishContractOnchainStatusUnsafe(config: FishContractConfig): 
   const oceanDecimalsNumber = Number(oceanDecimals);
   const fishDecimalsNumber = Number(fishDecimals);
   const usdcDecimalsNumber = Number(usdcDecimals);
-  const visibleSOceanSupply = subtractFloor(sOceanSupply as bigint, bootstrapSOceanBalance as bigint);
+  const visibleSOceanSupply = visibleSOceanSupplyFromTotalSupply(sOceanSupply as bigint);
 
   return {
     sourceState: "live",
@@ -622,6 +620,10 @@ function defaultExplorerUrl(chainId: number) {
 
 function defaultUsdcAddress(chainId: number) {
   return chainId === BASE_CHAIN_ID ? BASE_USDC_ADDRESS : undefined;
+}
+
+export function visibleSOceanSupplyFromTotalSupply(sOceanSupply: bigint) {
+  return subtractFloor(sOceanSupply, OCEAN_STAKING_BOOTSTRAP_SOCEAN_SUPPLY);
 }
 
 function subtractFloor(value: bigint, delta: bigint) {
