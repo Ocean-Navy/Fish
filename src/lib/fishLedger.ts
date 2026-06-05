@@ -1039,11 +1039,11 @@ export async function recordChatUsage(params: {
     }
 
     // A backend that ignores the reserved max-token cap must not turn a paid provider call into
-    // a post-call 402 with no debit. Spend the available reserved balance instead.
-    const creditsSpent =
-      params.reservation && account.creditBalance < estimatedCreditsSpent
-        ? Math.max(1, account.creditBalance)
-        : estimatedCreditsSpent;
+    // a post-call 402 with no debit, but untrusted provider-reported usage must never spend
+    // more than the amount reserved for this request.
+    const creditsSpent = params.reservation
+      ? Math.min(estimatedCreditsSpent, params.reservation.credits)
+      : estimatedCreditsSpent;
 
     if (!params.reservation) {
       const spendableBalance = await readSpendableCreditBalance(account, now);

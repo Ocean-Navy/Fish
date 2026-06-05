@@ -33,7 +33,7 @@ Rules:
 - Failed or cancelled requests should refund the same lane they consumed.
 - Provider payout accounting remains separate from user billing lanes.
 
-Current prototype behavior: `/v1/chat/completions` reserves the maximum estimated request credits before the backend call, releases unused reserve on success, and releases the full reserve on backend failure before a usage receipt is written.
+Current prototype behavior: `/v1/chat/completions` reserves the maximum estimated request credits before the backend call, caps successful debits to that request reservation, releases unused reserve on success, and releases the full reserve on backend failure before a usage receipt is written.
 
 Current spend behavior: one request consumes one lane. Fish spends grant credits first, then unexpired subscription, prepaid, staking, adjustment, and refund credits. Expired positive credit entries are excluded from reservation and debit availability. Mixed-lane debits are a future accounting upgrade.
 
