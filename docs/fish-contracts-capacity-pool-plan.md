@@ -34,7 +34,10 @@ Validation:
 ```text
 npm run contracts:compile
 npm run contracts:test
+npm run contracts:security
 ```
+
+`npm run contracts:security` adds the contract hardening lane: compile, full Hardhat tests, invariant-style accounting tests, and optional Slither static analysis. Use `npm run contracts:security:strict` on audit-prep or CI machines where Slither must be installed and must pass.
 
 The contracts are prototypes only. They are not audited and must not be used with mainnet funds before security, legal, deployment, and incident-response work is complete.
 

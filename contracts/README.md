@@ -26,6 +26,7 @@ From the repository root:
 ```bash
 npm run contracts:compile
 npm run contracts:test
+npm run contracts:security
 npm run contracts:deploy:testnet
 ```
 
@@ -34,10 +35,43 @@ Or directly:
 ```bash
 npm --prefix contracts run compile
 npm --prefix contracts test
+npm --prefix contracts run security
 npm --prefix contracts run deploy:testnet
 ```
 
 Hardhat warns when run on unsupported Node.js versions. Use Node.js 22 for the most stable local workflow.
+
+## Security Test Harness
+
+Run the full local contract security harness from the repository root:
+
+```bash
+npm run contracts:security
+```
+
+This compiles the Solidity contracts, runs the complete Hardhat test suite, runs the invariant-style Hardhat tests, and then runs optional Slither static analysis when `slither` is available on `PATH`.
+
+For CI or an audit-prep machine where static analysis must not be skipped:
+
+```bash
+npm run contracts:security:strict
+```
+
+Strict mode fails if Slither is not installed. Install it with:
+
+```bash
+python3 -m pip install slither-analyzer
+```
+
+Useful narrower commands:
+
+```bash
+npm --prefix contracts run test:unit
+npm --prefix contracts run test:invariants
+npm --prefix contracts run security:static:strict
+```
+
+The invariant suite focuses on accounting and authorization properties that should remain true across staking, FISH mint/burn, capacity-pool staking, USDC settlement, reward emissions, cooldown exits, and owner/operator controls.
 
 ## Base Sepolia Deployment
 
