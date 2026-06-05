@@ -31,7 +31,7 @@ Request shape:
 
 `inputRef` is a hash or storage reference. Do not send raw document text, repo text, datasets, or output text to this endpoint.
 
-Fish checks `maxCostUsd` against the remaining `FISH_OCEAN_BATCH_DAILY_BUDGET_USD` before calling a private adapter. The default daily cap is `$30`.
+Fish checks `maxCostUsd` against the remaining `FISH_OCEAN_BATCH_DAILY_BUDGET_USD` before calling a private adapter. The default daily cap is `$30`. Live `ocean_http` jobs also require an Ocean-provider-eligible Fish plan, reserve enough Fish Credits to cover the requested `maxCostUsd` cap before execution, and debit successful provider-verified jobs by at least the accepted provider cost.
 
 `/v1/chat/completions` and `/api/dishes/:dishId/run` generate a hash-only `inputRef`, use this batch contract, and return an OpenAI-style response with batch receipt metadata for Ocean batch dishes.
 

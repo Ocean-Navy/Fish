@@ -669,7 +669,7 @@ POST /api/ocean/batch/jobs
 GET /api/ocean/batch/readiness
 ```
 
-`POST` requires a Fish API key and accepts only hash/reference input through `inputRef`; it does not accept or store raw input text. `adapterMode: "sample_success"` is the default local proof mode. Set `adapterMode: "ocean_http"` only when `FISH_OCEAN_BATCH_ENDPOINT` points to a private Oncompute/Ocean batch adapter. Fish checks `maxCostUsd` against `FISH_OCEAN_BATCH_DAILY_BUDGET_USD` before calling the batch adapter. Public proof must show tickets and hashes, not raw order data.
+`POST` requires a Fish API key and accepts only hash/reference input through `inputRef`; it does not accept or store raw input text. `adapterMode: "sample_success"` is the default local proof mode. Set `adapterMode: "ocean_http"` only when `FISH_OCEAN_BATCH_ENDPOINT` points to a private Oncompute/Ocean batch adapter, and only Ocean-provider-eligible plans can use that live adapter. Fish checks `maxCostUsd` against `FISH_OCEAN_BATCH_DAILY_BUDGET_USD` before calling the batch adapter, requires enough Fish Credits to cover the selected live cost cap before execution, and debits successful live jobs by at least verified provider cost. Public proof must show tickets and hashes, not raw order data.
 
 Batch dishes sent through `/v1/chat/completions` or `/api/dishes/:dishId/run` use the same hash-only batch path:
 
