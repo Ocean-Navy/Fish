@@ -779,19 +779,20 @@ export async function reserveFishCredits(params: { ledger: Ledger; account: Acco
       available: params.account.creditBalance
     };
   }
-  if (params.account.creditBalance < credits) {
+  const now = new Date().toISOString();
+  await ensureAccountCreditSeed(params.account, now);
+  const spendableCredits = await getSpendableCreditBalance(params.account, now);
+  if (spendableCredits < credits) {
     return {
       ok: false as const,
       status: 402,
       error: "insufficient_fish_credits",
       needed: credits,
-      available: params.account.creditBalance
+      available: spendableCredits
     };
   }
 
-  const now = new Date().toISOString();
-  await ensureAccountCreditSeed(params.account, now);
-  const lane = await selectSpendLane(params.account, credits);
+  const lane = await selectSpendLane(params.account, credits, now);
   const reservation: CreditReservation = {
     requestId: randomUUID(),
     reserveEntryId: randomUUID(),
@@ -951,13 +952,26 @@ export async function recordChatUsage(params: {
       reason: "credit_reserve_release_before_debit"
     });
   }
+  const now = new Date().toISOString();
+  await ensureAccountCreditSeed(params.account, now);
   // A backend that ignores the reserved max-token cap must not turn a paid provider call into
   // a post-call 402 with no debit. Spend the available reserved balance instead.
   const creditsSpent =
     params.reservation && params.account.creditBalance < estimatedCreditsSpent
       ? Math.max(1, params.account.creditBalance)
       : estimatedCreditsSpent;
-  if (params.account.creditBalance < creditsSpent) {
+  if (!params.reservation) {
+    const spendableCredits = await getSpendableCreditBalance(params.account, now);
+    if (spendableCredits < creditsSpent) {
+      return {
+        ok: false as const,
+        status: 402,
+        error: "insufficient_fish_credits",
+        needed: creditsSpent,
+        available: spendableCredits
+      };
+    }
+  } else if (params.account.creditBalance < creditsSpent) {
     return {
       ok: false as const,
       status: 402,
@@ -967,9 +981,7 @@ export async function recordChatUsage(params: {
     };
   }
 
-  const now = new Date().toISOString();
-  await ensureAccountCreditSeed(params.account, now);
-  const creditLane = params.reservation?.lane ?? (await selectSpendLane(params.account, creditsSpent));
+  const creditLane = params.reservation?.lane ?? (await selectSpendLane(params.account, creditsSpent, now));
   const userChargeUsd = Number((creditsSpent * FISH_CREDIT_USD).toFixed(6));
   const providerCostUsd = Number((params.providerCostUsd ?? 0).toFixed(6));
   const grossMarginUsd = Number((userChargeUsd - providerCostUsd).toFixed(6));
@@ -1088,8 +1100,8 @@ export async function recordFailedChatUsage(params: {
   };
 }
 
-export async function checkFishMonthlyRequestLimit(account: Account, limit = getFishPlan(account.planId).monthlyRequestLimit, now = new Date()): Promise<FishMonthlyRequestLimitResult> {
-  const safeLimit = Math.max(0, Math.floor(limit));
+export async function checkFishMonthlyRequestLimit(account: Account, limit?: number, now = new Date()): Promise<FishMonthlyRequestLimitResult> {
+  const safeLimit = Math.max(0, Math.floor(limit ?? getActiveFishPlan(account, now).monthlyRequestLimit));
   const periodStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
   const nextPeriodStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
   const receipts = await readReceipts(account.id);
@@ -1253,12 +1265,9 @@ async function ensureAccountCreditSeed(account: Account, createdAt: string) {
   await writeCreditLedger(ledger);
 }
 
-async function selectSpendLane(account: Account, credits: number): Promise<CreditLane> {
+async function selectSpendLane(account: Account, credits: number, nowIso = new Date().toISOString()): Promise<CreditLane> {
   const entries = await readCreditEntries(account.id);
-  const laneBalances = new Map<CreditLane, number>();
-  for (const entry of entries) {
-    laneBalances.set(entry.lane, (laneBalances.get(entry.lane) ?? 0) + entry.amount);
-  }
+  const laneBalances = summarizeSpendableCreditLaneBalances(entries, nowIso);
 
   const spendPriority: CreditLane[] = ["grant", "subscription", "prepaid", "staking", "adjustment", "refund"];
   for (const lane of spendPriority) {
@@ -1268,6 +1277,23 @@ async function selectSpendLane(account: Account, credits: number): Promise<Credi
   }
 
   return spendPriority.find((lane) => (laneBalances.get(lane) ?? 0) > 0) ?? "grant";
+}
+
+async function getSpendableCreditBalance(account: Account, nowIso = new Date().toISOString()) {
+  const entries = await readCreditEntries(account.id);
+  const laneBalances = summarizeSpendableCreditLaneBalances(entries, nowIso);
+  return CREDIT_LANES.reduce((total, lane) => total + Math.max(0, laneBalances.get(lane) ?? 0), 0);
+}
+
+export function summarizeSpendableCreditLaneBalances(entries: CreditLedgerEntry[], nowIso = new Date().toISOString()) {
+  const laneBalances = new Map<CreditLane, number>();
+  for (const entry of entries) {
+    if (entry.amount > 0 && isExpiredAt(entry.expiresAt, nowIso)) {
+      continue;
+    }
+    laneBalances.set(entry.lane, (laneBalances.get(entry.lane) ?? 0) + entry.amount);
+  }
+  return laneBalances;
 }
 
 async function writeReceipt(receipt: UsageReceipt) {
@@ -1474,7 +1500,7 @@ function sumReceiptNumber(receipts: UsageReceipt[], key: "userChargeUsd" | "prov
 }
 
 function publicAccount(account: Account) {
-  const plan = getFishPlan(account.planId);
+  const plan = getActiveFishPlan(account);
   return {
     id: account.id,
     label: account.label,
@@ -1499,9 +1525,16 @@ export function getFishPlan(planId: string | undefined | null) {
   return FISH_PLANS.find((plan) => plan.planId === planId) ?? FISH_PLANS[0];
 }
 
-export function checkFishModelAccess(model: string, planId: string | undefined | null) {
+export function getActiveFishPlan(account: Account, now = new Date()) {
+  if (isExpiredOperatorSubscription(account, now.toISOString())) {
+    return getFishPlan("free");
+  }
+  return getFishPlan(account.planId);
+}
+
+export function checkFishModelAccess(model: string, planIdOrAccount: string | Account | undefined | null, now = new Date()) {
   const modelId = model.trim() || FISH_CHAT_MODEL_ID;
-  const plan = getFishPlan(planId);
+  const plan = typeof planIdOrAccount === "object" && planIdOrAccount ? getActiveFishPlan(planIdOrAccount, now) : getFishPlan(planIdOrAccount);
   const availableModels = FISH_MODELS.map((candidate) => candidate.id);
   if (!availableModels.includes(modelId)) {
     return {
@@ -1528,6 +1561,14 @@ export function checkFishModelAccess(model: string, planId: string | undefined |
     model: modelId,
     plan
   };
+}
+
+function isExpiredOperatorSubscription(account: Account, nowIso: string) {
+  return account.planSource === "operator_subscription" && isExpiredAt(account.planExpiresAt, nowIso);
+}
+
+function isExpiredAt(expiresAt: string | null | undefined, nowIso: string) {
+  return Boolean(expiresAt && Date.parse(expiresAt) <= Date.parse(nowIso));
 }
 
 function compactIds(values: Array<string | undefined>) {
