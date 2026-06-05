@@ -19,8 +19,12 @@ const MAX_QUEUE = Number(process.env.FISH_RUNNER_MAX_QUEUE || "2");
 const SIGNING_PRIVATE_KEY_PEM = cleanEnv(process.env.FISH_RUNNER_SIGNING_PRIVATE_KEY_PEM)?.replaceAll("\\n", "\n") || null;
 const SIGNING_KEY_ID = process.env.FISH_RUNNER_SIGNING_KEY_ID || `${RUNNER_ID}-ed25519`;
 
+const RECEIPT_TTL_MS = Number(process.env.FISH_RUNNER_RECEIPT_TTL_MS || "86400000");
+const MAX_RECEIPT_RECORDS = Number(process.env.FISH_RUNNER_MAX_RECEIPT_RECORDS || "256");
+
 let activeRequests = 0;
 let lastSmoke = null;
+const issuedReceipts = new Map();
 
 const server = createServer(async (request, response) => {
   try {
@@ -150,7 +154,11 @@ async function handleReceiptSign(request, response) {
   if (!receipt || typeof receipt !== "object") {
     return sendJson(response, 400, { error: "invalid_receipt" });
   }
-  sendJson(response, 200, signReceipt(receipt));
+  const lookup = findIssuedReceipt(receipt);
+  if (!lookup.ok) {
+    return sendJson(response, lookup.status, { error: lookup.error });
+  }
+  sendJson(response, 200, signReceipt(lookup.receipt));
 }
 
 async function healthPayload() {
@@ -170,6 +178,9 @@ async function healthPayload() {
       active: activeRequests,
       max: MAX_QUEUE,
       accepting: activeRequests < MAX_QUEUE
+    },
+    auth: {
+      configured: Boolean(API_KEY)
     },
     signing: {
       configured: Boolean(SIGNING_PRIVATE_KEY_PEM),
@@ -243,7 +254,7 @@ function buildRunnerReceipt({ jobId, routeId, idempotencyKey, model, status, sta
     }
   };
   const signature = signReceipt(unsignedReceipt);
-  return {
+  const signedReceipt = {
     ...unsignedReceipt,
     hashes: {
       ...unsignedReceipt.hashes,
@@ -252,6 +263,61 @@ function buildRunnerReceipt({ jobId, routeId, idempotencyKey, model, status, sta
     signer: signature.signer,
     signature: signature.signature
   };
+  recordIssuedReceipt(signedReceipt);
+  return signedReceipt;
+}
+
+function recordIssuedReceipt(receipt) {
+  pruneIssuedReceipts();
+  const entry = {
+    receipt,
+    expiresAt: Date.now() + RECEIPT_TTL_MS
+  };
+  issuedReceipts.set(receipt.jobId, entry);
+  issuedReceipts.set(`${receipt.runnerId}:${receipt.idempotencyKey}`, entry);
+  if (issuedReceipts.size > MAX_RECEIPT_RECORDS * 2) {
+    pruneIssuedReceipts(true);
+  }
+}
+
+function findIssuedReceipt(input) {
+  pruneIssuedReceipts();
+  const jobId = readString(input, ["jobId"]);
+  const idempotencyKey = readString(input, ["idempotencyKey"]);
+  const runnerId = readString(input, ["runnerId"]);
+  const providerId = readString(input, ["providerId"]);
+  const entry = jobId ? issuedReceipts.get(jobId) : idempotencyKey ? issuedReceipts.get(`${RUNNER_ID}:${idempotencyKey}`) : null;
+  if (!entry) {
+    return { ok: false, status: 404, error: "receipt_not_found" };
+  }
+  if (providerId && providerId !== PROVIDER_ID) {
+    return { ok: false, status: 400, error: "receipt_provider_mismatch" };
+  }
+  if (runnerId && runnerId !== RUNNER_ID) {
+    return { ok: false, status: 400, error: "receipt_runner_mismatch" };
+  }
+  if (idempotencyKey && entry.receipt.idempotencyKey !== idempotencyKey) {
+    return { ok: false, status: 400, error: "receipt_idempotency_key_mismatch" };
+  }
+  return { ok: true, receipt: entry.receipt };
+}
+
+function pruneIssuedReceipts(forceTrim = false) {
+  const now = Date.now();
+  for (const [key, entry] of issuedReceipts.entries()) {
+    if (entry.expiresAt <= now) {
+      issuedReceipts.delete(key);
+    }
+  }
+  if (!forceTrim || issuedReceipts.size <= MAX_RECEIPT_RECORDS * 2) {
+    return;
+  }
+  for (const key of issuedReceipts.keys()) {
+    issuedReceipts.delete(key);
+    if (issuedReceipts.size <= MAX_RECEIPT_RECORDS * 2) {
+      return;
+    }
+  }
 }
 
 function signReceipt(receipt) {
@@ -295,7 +361,8 @@ function stripSignature(value) {
 
 function authorize(request, response) {
   if (!API_KEY) {
-    return true;
+    sendJson(response, 401, { error: "runner_auth_not_configured" });
+    return false;
   }
   const authorization = request.headers.authorization || "";
   if (authorization === `Bearer ${API_KEY}`) {
