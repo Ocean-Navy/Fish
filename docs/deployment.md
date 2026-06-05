@@ -26,13 +26,15 @@ Server assumptions:
 - Ubuntu 22.04/24.04 or another Docker-friendly Linux image.
 - Ports `22` and `80` open.
 - Docker Engine with the Compose plugin installed.
-- Repository checked out from the deploy branch at `https://github.com/Ocean-Navy/Fish.git`.
+- Repository checked out from `https://github.com/Ocean-Navy/Fish.git` at a reviewed release tag, a protected release branch, or a pinned commit SHA. Do not deploy from mutable feature or Codex branches.
 
-On the VM:
+On the VM, set `FISH_RELEASE_REF` to the reviewed release tag or pinned commit SHA that maintainers approved for this deployment:
 
 ```bash
-git clone --branch codex/finish-fish-v0-website https://github.com/Ocean-Navy/Fish.git Fish
+FISH_RELEASE_REF=<reviewed-release-tag-or-pinned-commit-sha>
+git clone https://github.com/Ocean-Navy/Fish.git Fish
 cd Fish
+git checkout --detach "$FISH_RELEASE_REF"
 cp .env.production.example .env.production
 ```
 
