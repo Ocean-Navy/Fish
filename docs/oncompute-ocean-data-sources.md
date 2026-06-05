@@ -416,10 +416,10 @@ Replace anonymous `sources` objects with a schema:
 ```yaml
 SourceResult:
   type: object
-  required: [name, url, state, checkedAt]
+  required: [name, state, checkedAt]
   properties:
     name: { type: string }
-    url: { type: string }
+    url: { type: string, description: "internal ingestion/debug only; redacted from public dashboard API responses" }
     state:
       type: string
       enum: [live, snapshot, sample, unavailable]

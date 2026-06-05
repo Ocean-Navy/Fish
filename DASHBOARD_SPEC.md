@@ -62,7 +62,7 @@ Raw responses must be stored before normalization.
   "source": "dashboard-api | analytics-api | direct-node | sample",
   "providerId": "string",
   "providerLabel": "string",
-  "nodeEndpoint": "string",
+  "nodeEndpoint": "string (internal only; redacted from public API responses)",
   "environmentId": "string",
   "region": "string",
   "resourceType": "gpu | cpu | ram | disk | unknown",
@@ -77,7 +77,7 @@ Raw responses must be stored before normalization.
   "maxJobDuration": 3600,
   "runningJobs": 1,
   "status": "available | busy | unknown",
-  "raw": {}
+  "raw": "internal only; redacted from public API responses"
 }
 ```
 

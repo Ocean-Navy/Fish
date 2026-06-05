@@ -289,6 +289,8 @@ Direct provider endpoints can be listed in:
 data/node_endpoints.txt
 ```
 
+Treat these as private operator configuration. Public Ocean dashboard API responses redact exact endpoint URLs, raw payloads, and direct-node endpoint-derived labels while preserving source-state labels and normalized capacity metrics.
+
 ## Prototype Fish API
 
 The Phase 1 API prototype is local-first. It proves API keys, credit debits, and usage receipts before selected Ocean provider routing is live.
