@@ -194,7 +194,7 @@ The V0 form sink, prototype API ledger, Ocean batch receipts, provider proof rec
 /app/data/staking
 ```
 
-Back up these volumes or replace the sinks with a database/email/CRM integration and secret-managed signing key before running a public campaign.
+Back up these volumes or replace the sinks with a database/email/CRM integration and secret-managed signing key before running a public campaign. Provider proof receipt verification trusts the local `data/proof/signing-key.json` public key when present; external verifiers or rotated deployments should pin provider proof public keys with `FISH_PROVIDER_PROOF_PUBLIC_KEY_ID`/`FISH_PROVIDER_PROOF_PUBLIC_KEY_PEM`, `FISH_PROVIDER_PROOF_PUBLIC_KEYS_JSON`, or `FISH_PROVIDER_PROOF_PUBLIC_KEYS_PATH` instead of trusting key material embedded in receipt JSON.
 
 ## Signup Exports
 
@@ -272,6 +272,10 @@ FISH_RUNNER_PUBLIC_KEY_ID=
 FISH_RUNNER_PUBLIC_KEY_PEM=
 FISH_RUNNER_PUBLIC_KEYS_JSON=
 FISH_RUNNER_PUBLIC_KEYS_PATH=
+FISH_PROVIDER_PROOF_PUBLIC_KEY_ID=
+FISH_PROVIDER_PROOF_PUBLIC_KEY_PEM=
+FISH_PROVIDER_PROOF_PUBLIC_KEYS_JSON=
+FISH_PROVIDER_PROOF_PUBLIC_KEYS_PATH=
 FISH_EXTERNAL_CHAT_BASE_URL=
 FISH_EXTERNAL_CHAT_API_KEY=
 FISH_EXTERNAL_CHAT_MODEL=

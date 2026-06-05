@@ -1,4 +1,5 @@
 import { createHash, createPrivateKey, createPublicKey, generateKeyPairSync, randomUUID, sign, verify } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
@@ -505,15 +506,15 @@ export function verifyProviderJobReceipt(receipt: ProviderJobReceipt): ReceiptVe
 
   if (receipt.signatureStatus === "not_required" || receipt.signer.algorithm === "none") {
     return {
-      ok: true,
+      ok: false,
       status: "not_required",
       receiptId: receipt.receiptId,
       canonicalReceiptHash,
-      error: null
+      error: "signature_not_required_untrusted"
     };
   }
 
-  if (!receipt.signature || !receipt.signer.publicKeyPem) {
+  if (!receipt.signature || !receipt.signer.keyId) {
     return {
       ok: false,
       status: "missing",
@@ -523,8 +524,29 @@ export function verifyProviderJobReceipt(receipt: ProviderJobReceipt): ReceiptVe
     };
   }
 
+  const trustedPublicKeyPem = trustedProviderProofPublicKey(receipt.signer.keyId);
+  if (!trustedPublicKeyPem) {
+    return {
+      ok: false,
+      status: "invalid",
+      receiptId: receipt.receiptId,
+      canonicalReceiptHash,
+      error: "trusted_provider_proof_public_key_not_configured"
+    };
+  }
+
+  if (receipt.signer.publicKeyPem && normalizePem(receipt.signer.publicKeyPem) !== trustedPublicKeyPem) {
+    return {
+      ok: false,
+      status: "invalid",
+      receiptId: receipt.receiptId,
+      canonicalReceiptHash,
+      error: "signer_public_key_mismatch"
+    };
+  }
+
   try {
-    const publicKey = createPublicKey(receipt.signer.publicKeyPem);
+    const publicKey = createPublicKey(trustedPublicKeyPem);
     const valid = verify(null, Buffer.from(canonicalReceiptHash), publicKey, Buffer.from(receipt.signature, "base64"));
     return {
       ok: valid,
@@ -906,6 +928,91 @@ function hashReceipt(receipt: ProviderJobReceipt | Omit<ProviderJobReceipt, "sig
     }
   };
   return normalizeHash(stableStringify(withoutHash));
+}
+
+function trustedProviderProofPublicKey(keyId: string) {
+  return collectTrustedProviderProofKeys().find((key) => key.keyId === keyId)?.publicKeyPem ?? null;
+}
+
+type TrustedProviderProofKey = {
+  keyId: string;
+  publicKeyPem: string;
+};
+
+function collectTrustedProviderProofKeys(): TrustedProviderProofKey[] {
+  return [
+    ...trustedProviderProofKeyFromLocalSigningKey(),
+    ...trustedProviderProofKeysFromJson(cleanEnv(process.env.FISH_PROVIDER_PROOF_PUBLIC_KEYS_JSON)),
+    ...trustedProviderProofKeysFromPath(cleanEnv(process.env.FISH_PROVIDER_PROOF_PUBLIC_KEYS_PATH)),
+    ...trustedProviderProofKeyFromSingleEnv()
+  ];
+}
+
+function trustedProviderProofKeyFromLocalSigningKey(): TrustedProviderProofKey[] {
+  try {
+    const parsed = signingKeySchema.safeParse(JSON.parse(readFileSync(SIGNING_KEY_PATH, "utf8")));
+    if (parsed.success) {
+      const publicKeyPem = normalizePem(parsed.data.publicKeyPem);
+      return publicKeyPem ? [{ keyId: parsed.data.keyId, publicKeyPem }] : [];
+    }
+  } catch {
+    // A verifier can still use configured public keys when the local prototype signing key is absent.
+  }
+  return [];
+}
+
+function trustedProviderProofKeysFromPath(filePath: string | null): TrustedProviderProofKey[] {
+  if (!filePath) {
+    return [];
+  }
+  try {
+    return trustedProviderProofKeysFromJson(readFileSync(filePath, "utf8"));
+  } catch {
+    return [];
+  }
+}
+
+function trustedProviderProofKeyFromSingleEnv(): TrustedProviderProofKey[] {
+  const keyId = cleanEnv(process.env.FISH_PROVIDER_PROOF_PUBLIC_KEY_ID);
+  const publicKeyPem = normalizePem(cleanEnv(process.env.FISH_PROVIDER_PROOF_PUBLIC_KEY_PEM));
+  return keyId && publicKeyPem ? [{ keyId, publicKeyPem }] : [];
+}
+
+function trustedProviderProofKeysFromJson(value: string | null): TrustedProviderProofKey[] {
+  if (!value) {
+    return [];
+  }
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (Array.isArray(parsed)) {
+      return parsed.flatMap((entry) => {
+        if (!isRecord(entry)) {
+          return [];
+        }
+        const keyId = readString(entry, ["keyId"]);
+        const publicKeyPem = normalizePem(readString(entry, ["publicKeyPem"]));
+        return keyId && publicKeyPem ? [{ keyId, publicKeyPem }] : [];
+      });
+    }
+    if (isRecord(parsed)) {
+      return Object.entries(parsed).flatMap(([keyId, publicKeyValue]) => {
+        const publicKeyPem = normalizePem(typeof publicKeyValue === "string" ? publicKeyValue : null);
+        return keyId && publicKeyPem ? [{ keyId, publicKeyPem }] : [];
+      });
+    }
+  } catch {
+    return [];
+  }
+  return [];
+}
+
+function normalizePem(value: string | null) {
+  return value?.replaceAll("\\n", "\n").trim() ?? null;
+}
+
+function cleanEnv(value: string | undefined) {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
 }
 
 async function readOrCreateSigningKey(): Promise<ProofSigningKey> {
