@@ -941,7 +941,7 @@ export async function recordChatUsage(params: {
   const totalTokens = params.promptTokens + params.completionTokens;
   const tokenCreditsSpent = Math.max(1, Math.ceil(totalTokens / 1000));
   const minimumCreditsSpent = Math.max(0, Math.ceil(params.minimumCreditsSpent ?? 0));
-  const creditsSpent = Math.max(tokenCreditsSpent, minimumCreditsSpent);
+  const estimatedCreditsSpent = Math.max(tokenCreditsSpent, minimumCreditsSpent);
   if (params.reservation) {
     await releaseFishCreditReservation({
       ledger: params.ledger,
@@ -951,12 +951,18 @@ export async function recordChatUsage(params: {
       reason: "credit_reserve_release_before_debit"
     });
   }
+  // A backend that ignores the reserved max-token cap must not turn a paid provider call into
+  // a post-call 402 with no debit. Spend the available reserved balance instead.
+  const creditsSpent =
+    params.reservation && params.account.creditBalance < estimatedCreditsSpent
+      ? Math.max(1, params.account.creditBalance)
+      : estimatedCreditsSpent;
   if (params.account.creditBalance < creditsSpent) {
     return {
       ok: false as const,
       status: 402,
       error: "insufficient_fish_credits",
-      needed: creditsSpent,
+      needed: estimatedCreditsSpent,
       available: params.account.creditBalance
     };
   }
