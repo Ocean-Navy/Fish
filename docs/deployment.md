@@ -262,6 +262,7 @@ FISH_MAX_CONCURRENT_REQUESTS=8
 FISH_RATE_LIMIT_MAX_BUCKETS=10000
 # Granted once to the shared unauthenticated guest account, not once per browser.
 FISH_GUEST_CREDIT_GRANT=25
+# Optional deployment namespace for the shared guest bucket; it is not a bearer credential.
 FISH_GUEST_ID_SALT=
 FISH_CHAT_PAUSED=false
 FISH_ROUTER_KILL_SWITCH=false
