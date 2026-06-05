@@ -17,30 +17,8 @@ curl "${curl_args[@]}" "$runner_url/models" >/dev/null
 
 receipt_file="$(mktemp)"
 chat_file="$(mktemp)"
-trap 'rm -f "$receipt_file" "$chat_file"' EXIT
-
-cat > "$receipt_file" <<JSON
-{
-  "runnerReceiptVersion": 1,
-  "jobId": "job_smoke",
-  "routeId": "ocean-demo-vllm",
-  "providerId": "smoke-provider",
-  "runnerId": "smoke-runner",
-  "model": "$model",
-  "engine": "vllm",
-  "status": "succeeded",
-  "usage": {
-    "inputTokens": 4,
-    "outputTokens": 4,
-    "gpuSeconds": 1
-  }
-}
-JSON
-
-curl "${curl_args[@]}" "${auth_args[@]}" \
-  -H "content-type: application/json" \
-  -X POST "$runner_url/receipts/sign" \
-  --data @"$receipt_file" >/dev/null
+chat_response_file="$(mktemp)"
+trap 'rm -f "$receipt_file" "$chat_file" "$chat_response_file"' EXIT
 
 if [[ "$run_chat" == "1" ]]; then
   cat > "$chat_file" <<JSON
@@ -66,7 +44,23 @@ JSON
     -H "x-fish-route-id: ocean-demo-vllm" \
     -H "x-fish-idempotency-key: smoke-runner" \
     -X POST "$runner_url/v1/chat/completions" \
-    --data @"$chat_file" >/dev/null
+    --data @"$chat_file" >"$chat_response_file"
+
+  node -e '
+    const fs = require("node:fs");
+    const payload = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+    const receipt = payload.fish_runner;
+    if (!receipt || typeof receipt.jobId !== "string" || typeof receipt.idempotencyKey !== "string") {
+      console.error("Fish Runner chat response did not include a receipt with jobId and idempotencyKey.");
+      process.exit(1);
+    }
+    process.stdout.write(JSON.stringify({ jobId: receipt.jobId, idempotencyKey: receipt.idempotencyKey, runnerId: receipt.runnerId, providerId: receipt.providerId }));
+  ' "$chat_response_file" >"$receipt_file"
+
+  curl "${curl_args[@]}" "${auth_args[@]}" \
+    -H "content-type: application/json" \
+    -X POST "$runner_url/receipts/sign" \
+    --data @"$receipt_file" >/dev/null
 fi
 
 echo "Fish Runner smoke passed for $runner_url."

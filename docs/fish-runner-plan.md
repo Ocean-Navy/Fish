@@ -65,7 +65,7 @@ POST /receipts/sign
 
 `POST /v1/chat/completions` accepts an OpenAI-compatible request subset plus Fish routing metadata. Streaming should use SSE-compatible chunks.
 
-`POST /receipts/sign` signs the final public-safe usage record if signing is not bundled into the inference response.
+`POST /receipts/sign` is not a generic signing oracle. If signing is not bundled into the inference response, it must only sign or re-sign a public-safe usage record that the runner already produced for a known `jobId` or `idempotencyKey`, and it must reject caller-supplied receipt bodies that do not match runner-owned state.
 
 ### Definition Of Done
 

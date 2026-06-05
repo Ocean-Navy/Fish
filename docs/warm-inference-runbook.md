@@ -174,10 +174,10 @@ Runner responsibilities:
 - enforce per-request token caps and concurrent request limits;
 - rely on Fish Gateway for plan-based per-minute request limits;
 - call vLLM over loopback or a private Docker network;
-- expose `/healthz`, `/models`, and `/v1/chat/completions`;
+- expose `/healthz`, `/models`, `/v1/chat/completions`, and a constrained `/receipts/sign` lookup for receipts already issued by this runner;
 - record first-token latency, duration, token usage, status, and route id;
 - sign public-safe receipts without storing raw prompt or output text in public proof;
-- reject traffic when the model is cold, degraded, over budget, or queue depth is too high.
+- reject unauthenticated chat and receipt-signing traffic when `FISH_RUNNER_API_KEY` is not configured, or when the model is cold, degraded, over budget, or queue depth is too high.
 
 Check runner health:
 
@@ -189,7 +189,7 @@ FISH_RUNNER_API_KEY="$FISH_RUNNER_API_KEY" \
 ./smoke-fish-runner.sh
 ```
 
-Set `FISH_RUNNER_SMOKE_CHAT=1` on the smoke command only after vLLM is warm. Without that flag, the runner smoke checks health, model inventory, and receipt signing only.
+Set `FISH_RUNNER_SMOKE_CHAT=1` on the smoke command only after vLLM is warm. Without that flag, the runner smoke checks health and model inventory only. With chat enabled, it also asks `/receipts/sign` to re-sign the receipt identified by the job id that `/v1/chat/completions` just produced; the runner does not sign caller-supplied receipt bodies.
 
 When Runner is not deployed, treat a direct Gateway-to-vLLM route as a controlled demo backend, not the final provider contract.
 
@@ -297,7 +297,7 @@ Use this only in private preview or controlled beta. Keep public route labels cl
 Required controls:
 
 - vLLM binds to `127.0.0.1` or a private interface, never public `0.0.0.0` without a firewall and gateway auth.
-- Fish Gateway or Fish Runner authenticates with a long random API key or stronger service identity.
+- Fish Gateway or Fish Runner authenticates with a long random API key or stronger service identity; Runner rejects protected endpoints when `FISH_RUNNER_API_KEY` is unset.
 - Public users never receive the vLLM base URL or API key.
 - Admin endpoints require `FISH_ADMIN_TOKEN`.
 - SSH is key-only and restricted to operators.
