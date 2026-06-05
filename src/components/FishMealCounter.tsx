@@ -157,7 +157,6 @@ export function FishMealCounter() {
   const ActiveIcon = activeDish.icon;
   const maxOutputTokens = routePolicy?.guardrails?.maxOutputTokens ?? 512;
   const orderMaxTokens = Math.min(activeDish.maxTokens, maxOutputTokens);
-  const currentRouteLabel = routePolicy?.activeRoute?.label ? formatRouteLabel(routePolicy.activeRoute.label) : activeDish.routeLabel;
   const oceanBatchPrivatePayload = routePolicy?.backend?.oceanBatchPrivatePayload === true;
 
   useEffect(() => {
@@ -291,7 +290,7 @@ export function FishMealCounter() {
             </span>
             <div>
               <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">Fish market</p>
-              <h2 className="text-3xl font-black text-white">Pick a dish.</h2>
+              <h2 className="text-3xl font-black text-white">Choose what you need.</h2>
             </div>
           </div>
 
@@ -319,7 +318,7 @@ export function FishMealCounter() {
             <a className="rounded-[1.25rem] border border-fish-accent/18 bg-fish-navy950/45 p-4 transition hover:border-fish-accent/55" href="/dashboard">
               <span className="text-xs font-black uppercase tracking-[0.12em] text-fish-gold">Dashboard</span>
               <span className="mt-2 block text-xl font-black text-white">See supply</span>
-              <span className="mt-1 block text-sm font-bold leading-6 text-fish-secondary">Ocean GPUs, usage, and route split.</span>
+              <span className="mt-1 block text-sm font-bold leading-6 text-fish-secondary">Receipts, credits, and supply.</span>
             </a>
           </div>
         </div>
@@ -331,7 +330,7 @@ export function FishMealCounter() {
             </span>
             <div>
               <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">Pilot access</p>
-              <h2 className="text-2xl font-black text-white">Free taste or API key</h2>
+              <h2 className="text-2xl font-black text-white">Try it or use your key</h2>
             </div>
           </div>
 
@@ -348,25 +347,28 @@ export function FishMealCounter() {
             className="mt-2 h-12 w-full rounded-2xl border border-fish-accent/25 bg-fish-navy950/70 px-4 text-sm font-bold text-white outline-none transition placeholder:text-fish-muted focus:border-fish-accent"
           />
 
-          <label className="mt-5 block text-sm font-black text-fish-primary" htmlFor="fish-meal-model">
-            Model
-          </label>
-          <select
-            id="fish-meal-model"
-            value={selectedModel}
-            onChange={(event) => setSelectedModel(event.target.value)}
-            className="mt-2 h-12 w-full rounded-2xl border border-fish-accent/25 bg-fish-navy950/70 px-4 text-sm font-black text-white outline-none transition focus:border-fish-accent"
-          >
-            {models.map((model) => (
-              <option key={model.id} value={model.id}>
-                {model.id}
-              </option>
-            ))}
-          </select>
+          <details className="mt-5 rounded-2xl border border-fish-accent/15 bg-white/[0.035] p-4">
+            <summary className="cursor-pointer text-sm font-black text-fish-primary">Advanced</summary>
+            <label className="mt-4 block text-sm font-black text-fish-primary" htmlFor="fish-meal-model">
+              Model
+            </label>
+            <select
+              id="fish-meal-model"
+              value={selectedModel}
+              onChange={(event) => setSelectedModel(event.target.value)}
+              className="mt-2 h-12 w-full rounded-2xl border border-fish-accent/25 bg-fish-navy950/70 px-4 text-sm font-black text-white outline-none transition focus:border-fish-accent"
+            >
+              {models.map((model) => (
+                <option key={model.id} value={model.id}>
+                  {model.id}
+                </option>
+              ))}
+            </select>
+          </details>
 
           <div className="mt-5 grid gap-3 sm:grid-cols-3">
-            <StatusTile label="Dish" value={activeDish.status} />
-            <StatusTile label="Route" value={result?.route ? formatBadge(result.route) : currentRouteLabel} />
+            <StatusTile label="Dish" value={activeDish.title} />
+            <StatusTile label="Result" value={activeDish.subtitle} />
             <StatusTile label="Access" value={apiKey.trim() ? "API key" : "Free taste"} />
           </div>
         </div>
@@ -379,18 +381,16 @@ export function FishMealCounter() {
               <ActiveIcon className="h-6 w-6" aria-hidden="true" />
             </span>
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">{activeDish.status}</p>
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">Your order</p>
               <h2 className="text-3xl font-black text-white">{activeDish.title}</h2>
               <p className="mt-1 text-sm font-black text-fish-accent">{activeDish.subtitle}</p>
             </div>
           </div>
-          <span className="inline-flex h-9 items-center rounded-full border border-fish-accent/25 bg-fish-accent/10 px-3 text-xs font-black uppercase tracking-[0.08em] text-fish-accent">
-            {currentRouteLabel}
-          </span>
+          <span className="inline-flex h-9 items-center rounded-full border border-fish-accent/25 bg-fish-accent/10 px-3 text-xs font-black uppercase tracking-[0.08em] text-fish-accent">Ready</span>
         </div>
 
         <label className="mt-6 block text-sm font-black text-fish-primary" htmlFor="fish-meal-prompt">
-          Order
+          What should Fish make?
         </label>
         <textarea
           id="fish-meal-prompt"
@@ -415,7 +415,7 @@ export function FishMealCounter() {
             className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-fish-accent to-fish-aqua px-6 text-sm font-black text-fish-navy950 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isLoading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Send className="h-4 w-4" aria-hidden="true" />}
-            {activeDish.oceanBatch ? "Send to kitchen" : "Place order"}
+            Get my result
           </button>
           <button
             type="button"
@@ -433,9 +433,9 @@ export function FishMealCounter() {
           <span>
             {activeDish.oceanBatch
               ? oceanBatchPrivatePayload
-                ? `${activeDish.oceanBatch.inputLabel} goes to the private Ocean batch kitchen. Public proof shows tickets and hashes, not raw text.`
-                : `${activeDish.oceanBatch.inputLabel} becomes a hash-only kitchen ticket. Public proof does not show the raw order.`
-              : "No key needed for a small daily demo. API keys unlock balances, usage history, and higher caps."}
+                ? "Fish uses your order to make the result. Receipts never show the raw order or answer."
+                : "Fish can make a receipt without showing the raw order."
+              : "No key needed for a small daily demo. API keys unlock more usage."}
           </span>{" "}
           <Link className="font-black text-fish-accent hover:text-white" href={"/privacy" as Route}>
             Data policy
@@ -450,19 +450,17 @@ export function FishMealCounter() {
             </div>
           ) : result ? (
             <article>
-              <div className="mb-4 flex flex-wrap items-center gap-2">
-                <span className="rounded-full bg-fish-accent/15 px-3 py-1 text-xs font-black uppercase tracking-[0.08em] text-fish-accent">{result.dishTitle}</span>
-                <span className="rounded-full border border-fish-accent/20 px-3 py-1 text-xs font-black text-fish-secondary">{result.model}</span>
-                {result.route ? <span className="rounded-full border border-fish-gold/25 bg-fish-gold/10 px-3 py-1 text-xs font-black text-fish-gold">{formatBadge(result.route)}</span> : null}
+              <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">Served</p>
+                  <h3 className="text-3xl font-black text-white">Your result</h3>
+                </div>
+                <span className="inline-flex h-9 w-fit items-center rounded-full bg-fish-accent/15 px-3 text-xs font-black uppercase tracking-[0.08em] text-fish-accent">{result.dishTitle}</span>
               </div>
-              <p className="whitespace-pre-wrap text-base font-bold leading-7 text-white">{result.content}</p>
-              <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                <Metric label="Credits spent" value={String(result.creditsSpent ?? 0)} />
+              <ResultContent content={result.content} />
+              <div className="mt-6 grid gap-3 sm:grid-cols-2">
                 <Metric label="Credits left" value={String(result.creditsRemaining ?? 0)} />
-                <Metric label="Tokens" value={String(result.totalTokens ?? 0)} />
-                <Metric label={result.accessMode === "guest" ? "Orders left" : "User price"} value={result.accessMode === "guest" ? String(result.quotaRemaining ?? 0) : `$${(result.userChargeUsd ?? 0).toFixed(4)}`} />
-                <Metric label="Privacy" value={formatBadge(result.privacyMode ?? "route label")} />
-                <Metric label="Prompt path" value={formatBadge(result.rawPromptSentTo ?? "not stored")} />
+                <Metric label={result.accessMode === "guest" ? "Free tastes left" : "Price"} value={result.accessMode === "guest" ? String(result.quotaRemaining ?? 0) : `$${(result.userChargeUsd ?? 0).toFixed(4)}`} />
               </div>
               {result.privacyDowngradeReason ? (
                 <p className="mt-3 rounded-2xl border border-fish-gold/25 bg-fish-gold/10 p-4 text-sm font-black leading-6 text-fish-primary">
@@ -475,30 +473,53 @@ export function FishMealCounter() {
                   {result.fallbackReason ? ` (${formatBadge(result.fallbackReason)})` : ""}.
                 </p>
               ) : null}
-              {result.receiptId ? (
-                <p className="mt-3 break-all rounded-2xl border border-fish-accent/15 bg-white/[0.035] p-4 text-xs font-bold leading-6 text-fish-secondary">
-                  Activity id: <span className="text-fish-accent">{result.receiptId}</span>
-                </p>
-              ) : null}
-              {result.batchReceiptId ? (
-                <div className="mt-3 rounded-2xl border border-fish-accent/15 bg-white/[0.035] p-4 text-xs font-bold leading-6 text-fish-secondary">
-                  <p className="mb-2 text-sm font-black text-fish-primary">
-                    {activeDish.oceanBatch?.proofLabel ?? "Kitchen receipt"}
+              <details className="mt-4 rounded-2xl border border-fish-accent/15 bg-white/[0.035] p-4 text-xs font-bold leading-6 text-fish-secondary">
+                <summary className="cursor-pointer text-sm font-black text-fish-primary">Receipt</summary>
+                <div className="mt-3 grid gap-2">
+                  <p>
+                    Credits used: <span className="text-fish-primary">{result.creditsSpent ?? 0}</span>
                   </p>
                   <p>
-                    Ticket: <span className="break-all text-fish-accent">{result.batchReceiptId}</span>
+                    Model: <span className="text-fish-primary">{result.model}</span>
                   </p>
-                  <p>
-                    Job: <span className="break-all text-fish-primary">{result.batchJobId}</span>
-                  </p>
-                  <p>
-                    Kitchen: <span className="text-fish-primary">{formatBadge(result.batchSourceState ?? "")}</span> / {formatBadge(result.batchAdapterMode ?? "")}
-                  </p>
-                  <p>
-                    Input ref: <span className="break-all text-fish-primary">{result.inputRef}</span>
-                  </p>
+                  {result.route ? (
+                    <p>
+                      Kitchen: <span className="text-fish-primary">{formatBadge(result.route)}</span>
+                    </p>
+                  ) : null}
+                  {result.totalTokens ? (
+                    <p>
+                      Size: <span className="text-fish-primary">{result.totalTokens} tokens</span>
+                    </p>
+                  ) : null}
+                  {result.privacyMode ? (
+                    <p>
+                      Privacy: <span className="text-fish-primary">{formatBadge(result.privacyMode)}</span>
+                    </p>
+                  ) : null}
+                  {result.receiptId ? (
+                    <p>
+                      Activity id: <span className="break-all text-fish-accent">{result.receiptId}</span>
+                    </p>
+                  ) : null}
+                  {result.batchReceiptId ? (
+                    <>
+                      <p>
+                        Batch receipt: <span className="break-all text-fish-accent">{result.batchReceiptId}</span>
+                      </p>
+                      <p>
+                        Batch job: <span className="break-all text-fish-primary">{result.batchJobId}</span>
+                      </p>
+                      <p>
+                        Source: <span className="text-fish-primary">{formatBadge(result.batchSourceState ?? "")}</span> / {formatBadge(result.batchAdapterMode ?? "")}
+                      </p>
+                      <p>
+                        Input reference: <span className="break-all text-fish-primary">{result.inputRef}</span>
+                      </p>
+                    </>
+                  ) : null}
                 </div>
-              ) : null}
+              </details>
               {result.knowledgeSources?.length ? (
                 <div className="mt-3 rounded-2xl border border-fish-accent/15 bg-white/[0.035] p-4 text-xs font-bold leading-6 text-fish-secondary">
                   <p className="font-black uppercase tracking-[0.08em] text-fish-gold">Context used</p>
@@ -571,9 +592,11 @@ function DishSection({
                 <span className="grid h-11 w-11 place-items-center rounded-2xl bg-fish-navy950/70 text-fish-accent ring-1 ring-fish-accent/25">
                   <Icon className="h-5 w-5" aria-hidden="true" />
                 </span>
-                <span className="rounded-full border border-fish-gold/25 bg-fish-gold/10 px-3 py-1 text-[0.68rem] font-black uppercase tracking-[0.08em] text-fish-gold">
-                  {dish.status}
-                </span>
+                {dish.disabled ? (
+                  <span className="rounded-full border border-fish-gold/25 bg-fish-gold/10 px-3 py-1 text-[0.68rem] font-black uppercase tracking-[0.08em] text-fish-gold">
+                    Later
+                  </span>
+                ) : null}
               </span>
               <span className="mt-4 block text-2xl font-black text-white">{dish.title}</span>
               <span className="mt-1 block text-sm font-black text-fish-accent">{dish.subtitle}</span>
@@ -604,6 +627,65 @@ function Metric({ label, value }: { label: string; value: string }) {
   );
 }
 
+function ResultContent({ content }: { content: string }) {
+  const lines = content.split("\n");
+  const blocks: Array<{ type: "heading" | "subheading" | "bullet" | "paragraph"; text: string }> = [];
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      continue;
+    }
+    if (trimmed.startsWith("# ")) {
+      blocks.push({ type: "heading", text: trimmed.slice(2).trim() });
+    } else if (trimmed.startsWith("## ")) {
+      blocks.push({ type: "subheading", text: trimmed.slice(3).trim() });
+    } else if (trimmed.startsWith("- ")) {
+      blocks.push({ type: "bullet", text: trimmed.slice(2).trim() });
+    } else {
+      blocks.push({ type: "paragraph", text: trimmed });
+    }
+  }
+
+  if (!blocks.length) {
+    return <p className="text-base font-bold leading-7 text-white">Fish did not return text for this order.</p>;
+  }
+
+  return (
+    <div className="space-y-3 text-white">
+      {blocks.map((block, index) => {
+        if (block.type === "heading") {
+          return (
+            <h4 key={`${block.type}-${index}`} className="text-2xl font-black leading-tight text-white">
+              {block.text}
+            </h4>
+          );
+        }
+        if (block.type === "subheading") {
+          return (
+            <p key={`${block.type}-${index}`} className="pt-2 text-xs font-black uppercase tracking-[0.12em] text-fish-gold">
+              {block.text}
+            </p>
+          );
+        }
+        if (block.type === "bullet") {
+          return (
+            <div key={`${block.type}-${index}`} className="flex gap-3 rounded-2xl border border-fish-accent/10 bg-white/[0.025] p-3 text-sm font-bold leading-6 text-fish-primary">
+              <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-fish-accent" aria-hidden="true" />
+              <p>{block.text}</p>
+            </div>
+          );
+        }
+        return (
+          <p key={`${block.type}-${index}`} className="text-base font-bold leading-7 text-fish-primary">
+            {block.text}
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
 function formatBadge(value: string) {
   if (value === "mock") {
     return "demo";
@@ -621,17 +703,4 @@ function formatBadge(value: string) {
     return "provider checked";
   }
   return value.replaceAll("-", " ").replaceAll("_", " ");
-}
-
-function formatRouteLabel(value: string) {
-  if (value === "Demo mock") {
-    return "Demo";
-  }
-  if (value === "Ocean demo vLLM") {
-    return "Ocean demo";
-  }
-  if (value === "External fallback") {
-    return "Outside AI";
-  }
-  return value;
 }

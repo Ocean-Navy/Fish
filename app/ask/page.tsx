@@ -4,14 +4,14 @@ import { RolePageShell } from "@/components/RolePageShell";
 
 export const metadata: Metadata = {
   title: "Ask Fish - AI meal counter",
-  description: "Pick a Fish AI dish, send it to the kitchen, and see the proof ticket."
+  description: "Pick a Fish AI dish and get a clear result."
 };
 
 const steps = [
   { title: "Pick a dish", body: "Choose the outcome you want." },
-  { title: "Send it in", body: "Fish prepares it behind the counter." },
-  { title: "Get served", body: "Your answer comes back with a ticket." },
-  { title: "Check proof", body: "Batch dishes keep raw text off public proof." }
+  { title: "Send it in", body: "Tell Fish what to make." },
+  { title: "Get served", body: "Read the answer first." },
+  { title: "Keep receipt", body: "Proof stays available when you need it." }
 ];
 
 const cards = [
@@ -26,7 +26,7 @@ export default function AskPage() {
     <RolePageShell
       eyebrow="Fish market"
       title="Order from Fish."
-      subtitle="Pick a dish. Fish prepares it. The ticket lands on your table."
+      subtitle="Pick a dish. Fish prepares the answer. The receipt stays out of the way."
       image="/assets/generated/fish-dish-menu-market.webp"
       imageAlt="Fish Venice market dolphin chef preparing AI dishes"
       chips={["Docs Bento", "Repo Roll", "Eval Platter", "Data Sushi", "Quick Catch"]}
@@ -34,7 +34,7 @@ export default function AskPage() {
       secondaryAction={{ label: "Route compass", href: "/routing" }}
       steps={steps}
       cards={cards}
-      note="Batch dishes use proof tickets. Sample tickets are clearly labeled until a private Ocean batch kitchen is configured."
+      note="Your result comes first. Receipts and proof stay available without showing the raw order or answer."
     >
       <section className="px-4 pb-14 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl">

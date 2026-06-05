@@ -82,10 +82,10 @@ export const FISH_DISHES: FishDishDefinition[] = [
     id: "docs",
     title: "Docs Bento",
     subtitle: "Summarize docs",
-    status: "Ocean batch",
-    routeLabel: "Batch kitchen",
+    status: "Deep dish",
+    routeLabel: "Fish kitchen",
     lane: "batch",
-    short: "Turn long notes into a hash-only summary receipt.",
+    short: "Turn long notes into a short brief.",
     placeholder: "Paste docs or notes for Fish to prepare a short summary.",
     systemPrompt: "You are Fish Docs Bento. Extract the main points, risks, and next step. Do not invent facts.",
     userWrapper: (input) => `Summarize this document text into bullets and one next step:\n\n${input}`,
@@ -95,7 +95,7 @@ export const FISH_DISHES: FishDishDefinition[] = [
     oceanBatch: {
       taskType: "document_summary",
       inputLabel: "Docs or notes",
-      proofLabel: "Summary receipt",
+      proofLabel: "Receipt",
       maxRuntimeSeconds: 600,
       maxCostUsd: 1
     }
@@ -104,10 +104,10 @@ export const FISH_DISHES: FishDishDefinition[] = [
     id: "repo",
     title: "Repo Roll",
     subtitle: "Map a codebase",
-    status: "Ocean batch",
-    routeLabel: "Batch kitchen",
+    status: "Deep dish",
+    routeLabel: "Fish kitchen",
     lane: "batch",
-    short: "Find structure, risks, and next steps from repo notes.",
+    short: "Map repo notes into risks and next steps.",
     placeholder: "Paste a repo URL, file list, diff, or README notes for Fish to map.",
     systemPrompt: "You are Fish Repo Roll. Map codebase structure, risks, and useful next steps. Be concrete and avoid unsupported claims.",
     userWrapper: (input) => `Prepare a compact codebase map with risks and next steps from this repo input:\n\n${input}`,
@@ -117,7 +117,7 @@ export const FISH_DISHES: FishDishDefinition[] = [
     oceanBatch: {
       taskType: "structured_extraction",
       inputLabel: "Repo notes",
-      proofLabel: "Repo map receipt",
+      proofLabel: "Receipt",
       maxRuntimeSeconds: 900,
       maxCostUsd: 1.5
     }
@@ -126,10 +126,10 @@ export const FISH_DISHES: FishDishDefinition[] = [
     id: "eval",
     title: "Eval Platter",
     subtitle: "Score test prompts",
-    status: "Ocean batch",
-    routeLabel: "Batch kitchen",
+    status: "Deep dish",
+    routeLabel: "Fish kitchen",
     lane: "batch",
-    short: "Run a small prompt set and return a scorecard receipt.",
+    short: "Turn prompt tests into a simple scorecard.",
     placeholder: "Paste 3-10 test prompts, expected traits, and the model answer set to score.",
     systemPrompt: "You are Fish Eval Platter. Create a simple evaluation scorecard from prompt tests. Flag uncertainty and missing evidence.",
     userWrapper: (input) => `Prepare a compact evaluation scorecard from this test set:\n\n${input}`,
@@ -139,7 +139,7 @@ export const FISH_DISHES: FishDishDefinition[] = [
     oceanBatch: {
       taskType: "batch_chat",
       inputLabel: "Prompt tests",
-      proofLabel: "Eval receipt",
+      proofLabel: "Receipt",
       maxRuntimeSeconds: 1200,
       maxCostUsd: 2
     }
@@ -148,10 +148,10 @@ export const FISH_DISHES: FishDishDefinition[] = [
     id: "data",
     title: "Data Sushi",
     subtitle: "Make data searchable",
-    status: "Ocean batch",
-    routeLabel: "Batch kitchen",
+    status: "Deep dish",
+    routeLabel: "Fish kitchen",
     lane: "batch",
-    short: "Prepare clean chunks or embeddings from pasted data notes.",
+    short: "Clean messy data notes into searchable chunks.",
     placeholder: "Paste table notes, rows, or a dataset reference for Fish to prepare.",
     systemPrompt: "You are Fish Data Sushi. Turn messy data notes into clean chunks, fields, and search-ready structure. Do not expose private data.",
     userWrapper: (input) => `Prepare search-ready data chunks and field notes from this input:\n\n${input}`,
@@ -161,7 +161,7 @@ export const FISH_DISHES: FishDishDefinition[] = [
     oceanBatch: {
       taskType: "embeddings",
       inputLabel: "Data notes",
-      proofLabel: "Data prep receipt",
+      proofLabel: "Receipt",
       maxRuntimeSeconds: 900,
       maxCostUsd: 1.25
     }
@@ -246,6 +246,7 @@ export function buildFishDishChatInput(dish: FishDishDefinition, input: FishDish
     max_tokens: maxTokens,
     metadata: {
       ...(input.metadata ?? {}),
+      fish_order_text: input.prompt,
       fish_feature: dish.id,
       fish_dish: dish.title,
       fish_dish_id: dish.id

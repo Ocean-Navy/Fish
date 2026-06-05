@@ -623,13 +623,10 @@ function buildSampleArtifact(input: OceanBatchJobInput): OceanBatchArtifact {
     markdown: [
       `# ${title}`,
       "",
-      "Fish prepared a sample artifact because the private Ocean batch adapter is not configured.",
+      "Fish prepared a sample result because the private kitchen is not configured.",
       "",
-      "## Input",
+      "## Result",
       payload || "No private payload was included.",
-      "",
-      "## Ticket",
-      `Input reference: ${input.inputRef}`
     ].join("\n"),
     mimeType: "text/markdown"
   };

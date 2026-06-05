@@ -626,15 +626,11 @@ if not takeaways:
 markdown = "\\n".join([
     f"# {title}",
     "",
-    "## Catch",
+    "## Result",
     *(f"- {item}" for item in takeaways),
     "",
     "## Next step",
-    "Turn this into a pilot-ready artifact, share the ticket, and keep raw order text off public proof.",
-    "",
-    "## Proof",
-    f"- Job: {os.getenv('FISH_JOB_ID', '')}",
-    f"- Input reference: {os.getenv('FISH_INPUT_REF', '')}",
+    "Use this as a short draft, then refine names, numbers, and claims before sharing.",
 ])
 html_doc = "<!doctype html><html><head><meta charset='utf-8'><title>" + html.escape(title) + "</title></head><body><main><pre>" + html.escape(markdown) + "</pre></main></body></html>"
 payload = {
@@ -668,15 +664,11 @@ function buildLocalBatchArtifact(job) {
   const markdown = [
     `# ${title}`,
     "",
-    "## Catch",
+    "## Result",
     ...takeaways.map((item) => `- ${item}`),
     "",
     "## Next step",
-    "Turn this into a pilot-ready artifact, share the ticket, and keep raw order text off public proof.",
-    "",
-    "## Proof",
-    `- Job: ${job.jobId}`,
-    `- Input reference: ${job.inputRef}`
+    "Use this as a short draft, then refine names, numbers, and claims before sharing."
   ].join("\n");
   return {
     title,
@@ -709,7 +701,7 @@ function artifactTakeaways(inputPayload) {
     .filter(Boolean)
     .slice(0, 4)
     .map((part) => (part.length > 180 ? `${part.slice(0, 176).trimEnd()}...` : part));
-  return chunks.length ? chunks : ["Ocean Node ran the private batch job.", "Fish kept public proof to hashes and tickets."];
+  return chunks.length ? chunks : ["Fish prepared the order.", "Review the result before sharing it."];
 }
 
 function readLocalOceanResources() {

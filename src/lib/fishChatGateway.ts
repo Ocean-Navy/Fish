@@ -78,6 +78,7 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
   const modelAccess = checkFishModelAccess(input.model, context.account.planId);
   const originalPromptText = messagesToText(input);
   const originalUserPromptText = messagesToUserText(input);
+  const privateOrderText = readPrivateOrderText(input.metadata) ?? originalUserPromptText;
   const knowledge = featurePolicy.id === "ocean" ? buildFishKnowledgeContext(originalPromptText) : null;
   const effectiveInput = knowledge ? withFishKnowledgeContext(input, knowledge.context) : input;
   const promptText = messagesToText(effectiveInput);
@@ -182,7 +183,7 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
       input,
       context,
       promptText,
-      privatePayloadText: originalUserPromptText,
+      privatePayloadText: privateOrderText,
       promptTokens,
       maxOutputTokens: requestedMaxOutputTokens,
       featureLabel: featurePolicy.label,
@@ -642,6 +643,11 @@ function messagesToUserText(input: ChatCompletionInput) {
     .join("\n");
 }
 
+function readPrivateOrderText(metadata: Record<string, unknown> | undefined) {
+  const value = metadata?.fish_order_text;
+  return typeof value === "string" && value.trim() ? value : null;
+}
+
 function withFishKnowledgeContext(input: ChatCompletionInput, context: string): ChatCompletionInput {
   return {
     ...input,
@@ -818,20 +824,13 @@ function batchCompletionText(
   artifact: { title: string; markdown: string } | null
 ) {
   if (artifact?.markdown) {
-    return [
-      artifact.markdown,
-      "",
-      "---------",
-      `Ticket: ${receipt.receiptId}`,
-      `Job: ${receipt.jobId}`,
-      `Output reference: ${receipt.hashes.outputHash ?? "not available"}`
-    ].join("\n");
+    return artifact.markdown;
   }
   const path =
     receipt.sourceState === "snapshot"
-      ? `Fish sent the ${featureLabel} job reference to the private Ocean batch kitchen.`
-      : `Fish prepared a sample ${featureLabel} receipt because the private Ocean batch kitchen is not configured yet.`;
-  return `${path}\n\nTicket: ${receipt.receiptId}\nJob: ${receipt.jobId}\nOutput reference: ${receipt.hashes.outputHash ?? "not available"}`;
+      ? `Your ${featureLabel.toLowerCase()} result is ready.`
+      : `Your sample ${featureLabel.toLowerCase()} result is ready.`;
+  return `${path}\n\nThe receipt is saved separately.`;
 }
 
 function shouldSendBatchPrivatePayload(featureId: FishFeatureId) {

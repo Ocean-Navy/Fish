@@ -63,9 +63,10 @@ Providers are paid from real usage, reserves, or funded budgets — not by staki
 
 ```text
 Your order is used to prepare your dish.
+Your result comes first.
 Public proof shows tickets, hashes, route labels, usage, and credits.
 Public proof does not show your raw order or answer.
-The route label tells you who processed the order.
+Receipts are there when you want to check them.
 ```
 
 ## Footer disclaimer
