@@ -30,7 +30,7 @@ const server = createServer(async (request, response) => {
     if (request.method === "GET" && url.pathname === "/healthz") {
       return sendJson(response, 200, await healthPayload());
     }
-    if (request.method === "GET" && url.pathname === "/models") {
+    if (request.method === "GET" && (url.pathname === "/models" || url.pathname === "/v1/models")) {
       return sendJson(response, 200, { object: "list", data: await modelPayloads() });
     }
     if (request.method === "POST" && url.pathname === "/v1/chat/completions") {

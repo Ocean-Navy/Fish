@@ -77,6 +77,8 @@ FISH_RUNNER_BIND=127.0.0.1
 FISH_MLX_BASE_URL=http://host.docker.internal:8080/v1
 ```
 
+The template stores Ocean Node localfs payloads under `/tmp/ocean-node-persistent-storage` inside the container. This is intentionally local-demo friendly because Docker Desktop named volumes mounted under `/data` can be unwritable for the Ocean Node process. For a persistent production node, set `OCEAN_NODE_PERSISTENT_STORAGE` to a writable mounted path and verify the node stays up before exposing it.
+
 Expose only through a private network, WireGuard, SSH tunnel, cloud private IP, or nginx allowlist when connecting the public web VM.
 
 ## Start Ocean Node And Adapter

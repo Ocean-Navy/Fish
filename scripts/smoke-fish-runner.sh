@@ -14,6 +14,7 @@ fi
 
 curl "${curl_args[@]}" "$runner_url/healthz" >/dev/null
 curl "${curl_args[@]}" "$runner_url/models" >/dev/null
+curl "${curl_args[@]}" "$runner_url/v1/models" >/dev/null
 
 receipt_file="$(mktemp)"
 chat_file="$(mktemp)"
@@ -37,7 +38,7 @@ cat > "$receipt_file" <<JSON
 }
 JSON
 
-curl "${curl_args[@]}" "${auth_args[@]}" \
+curl "${curl_args[@]}" "${auth_args[@]+"${auth_args[@]}"}" \
   -H "content-type: application/json" \
   -X POST "$runner_url/receipts/sign" \
   --data @"$receipt_file" >/dev/null
@@ -61,7 +62,7 @@ if [[ "$run_chat" == "1" ]]; then
 }
 JSON
 
-  curl "${curl_args[@]}" "${auth_args[@]}" \
+  curl "${curl_args[@]}" "${auth_args[@]+"${auth_args[@]}"}" \
     -H "content-type: application/json" \
     -H "x-fish-route-id: ocean-demo-vllm" \
     -H "x-fish-idempotency-key: smoke-runner" \

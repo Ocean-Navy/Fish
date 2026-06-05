@@ -32,7 +32,7 @@ services:
       ALLOWED_ADMINS: ${OCEAN_NODE_ALLOWED_ADMINS:-[]}
       INDEXER_NETWORKS: ${OCEAN_NODE_INDEXER_NETWORKS:-[]}
       DOCKER_COMPUTE_ENVIRONMENTS: ${OCEAN_NODE_DOCKER_COMPUTE_ENVIRONMENTS:-[]}
-      PERSISTENT_STORAGE: ${OCEAN_NODE_PERSISTENT_STORAGE:-{"enabled":true,"type":"localfs","accessLists":[],"options":{"folder":"/data/persistent-storage"}}}
+      PERSISTENT_STORAGE: ${OCEAN_NODE_PERSISTENT_STORAGE:-{"enabled":true,"type":"localfs","accessLists":[],"options":{"folder":"/tmp/ocean-node-persistent-storage"}}}
       JWT_SECRET: ${OCEAN_NODE_JWT_SECRET:-change-me-ocean-node-jwt}
       LOG_CONSOLE: ${OCEAN_NODE_LOG_CONSOLE:-true}
       LOG_LEVEL: ${OCEAN_NODE_LOG_LEVEL:-info}

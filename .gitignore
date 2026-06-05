@@ -3,6 +3,7 @@ contracts/node_modules/
 contracts/artifacts/
 contracts/cache/
 contracts/deployments/*.local.json
+.venv*/
 .deps/
 __pycache__/
 *.pyc
