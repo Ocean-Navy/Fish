@@ -1,12 +1,24 @@
 import assert from "node:assert/strict";
+import { mkdtemp, rm } from "node:fs/promises";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
-import { afterEach, test } from "node:test";
-import { runFishChatGateway, type FishChatGatewayContext } from "./fishChatGateway";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { after, afterEach, before, test } from "node:test";
+import type { FishChatGatewayContext } from "./fishChatGateway";
 import type { Account, ChatCompletionInput, Ledger } from "./fishLedger";
 
 const previousEnv = new Map<string, string | undefined>();
 const touchedEnv = ["FISH_MAX_CONCURRENT_REQUESTS", "FISH_OCEAN_BATCH_ENDPOINT", "FISH_OCEAN_BATCH_TIMEOUT_MS", "FISH_OCEAN_BATCH_DAILY_BUDGET_USD", "FISH_DOCS_BATCH_MAX_RUNTIME_SECONDS"];
+const originalLedgerDir = process.env.FISH_LEDGER_DIR;
+let activeTempDir: string | null = null;
+let modules: Awaited<ReturnType<typeof loadModules>> | null = null;
+
+before(async () => {
+  activeTempDir = await mkdtemp(path.join(tmpdir(), "fish-chat-gateway-"));
+  process.env.FISH_LEDGER_DIR = activeTempDir;
+  modules = await loadModules();
+});
 
 afterEach(() => {
   for (const key of touchedEnv) {
@@ -17,6 +29,18 @@ afterEach(() => {
       process.env[key] = value;
     }
     previousEnv.delete(key);
+  }
+});
+
+after(async () => {
+  if (originalLedgerDir === undefined) {
+    delete process.env.FISH_LEDGER_DIR;
+  } else {
+    process.env.FISH_LEDGER_DIR = originalLedgerDir;
+  }
+  if (activeTempDir) {
+    await rm(activeTempDir, { force: true, recursive: true });
+    activeTempDir = null;
   }
 });
 
@@ -44,7 +68,8 @@ function context(overrides: Partial<FishChatGatewayContext> = {}): FishChatGatew
 }
 
 test("batch dishes require an authenticated Fish API key before adapter dispatch", async () => {
-  const result = await runFishChatGateway(
+  const loaded = assertModulesLoaded();
+  const result = await loaded.runFishChatGateway(
     {
       model: "fish-repo",
       messages: [{ role: "user", content: "Map this repo." }],
@@ -68,7 +93,8 @@ test("batch dishes require an authenticated Fish API key before adapter dispatch
 });
 
 test("batch dishes require an Ocean-provider-capable plan for keyed accounts", async () => {
-  const result = await runFishChatGateway(
+  const loaded = assertModulesLoaded();
+  const result = await loaded.runFishChatGateway(
     {
       model: "fish-repo",
       messages: [{ role: "user", content: "Map this repo." }],
@@ -92,6 +118,7 @@ test("batch dishes require an Ocean-provider-capable plan for keyed accounts", a
 });
 
 test("Fish docs batch chat uses the global concurrency guard", async () => {
+  const loaded = assertModulesLoaded();
   rememberEnv();
   process.env.FISH_MAX_CONCURRENT_REQUESTS = "1";
   process.env.FISH_OCEAN_BATCH_TIMEOUT_MS = "2000";
@@ -119,18 +146,15 @@ test("Fish docs batch chat uses the global concurrency guard", async () => {
     }
     process.env.FISH_OCEAN_BATCH_ENDPOINT = `http://127.0.0.1:${address.port}`;
 
-    const ledger: Ledger = { accounts: [] };
-    const account = buildAccount({
-      id: `acct_docs_concurrency_${Date.now()}`,
-      label: "Docs concurrency test",
-      planId: "provider-test",
-      creditBalance: 1000,
-      totalCreditsGranted: 1000
-    });
-    ledger.accounts.push(account);
+    const created = await loaded.createApiKey("Docs concurrency test", 1000, "provider-test");
+    const auth = await loaded.authenticateRequest(authorizedRequest(created.key));
+    assert.equal(auth.ok, true);
+    if (!auth.ok) {
+      throw new Error("docs concurrency account did not authenticate");
+    }
     const gatewayContext: FishChatGatewayContext = {
-      ledger,
-      account,
+      ledger: auth.ledger,
+      account: auth.account,
       principalId: `docs-concurrency-${Date.now()}`,
       dailyQuotaLimit: 100,
       allowExternalFallback: false,
@@ -143,7 +167,7 @@ test("Fish docs batch chat uses the global concurrency guard", async () => {
       max_tokens: 20
     };
 
-    const results = await Promise.all([runFishChatGateway(input, gatewayContext), runFishChatGateway(input, gatewayContext), runFishChatGateway(input, gatewayContext)]);
+    const results = await Promise.all([loaded.runFishChatGateway(input, gatewayContext), loaded.runFishChatGateway(input, gatewayContext), loaded.runFishChatGateway(input, gatewayContext)]);
 
     assert.equal(results.filter((result) => result.ok).length, 1);
     const rejected = results.filter((result) => !result.ok);
@@ -157,6 +181,7 @@ test("Fish docs batch chat uses the global concurrency guard", async () => {
 });
 
 test("Ocean helper rejects oversized prompts before quota or credit mutations", async () => {
+  const loaded = assertModulesLoaded();
   const account = buildAccount({
     id: "security-test-account",
     label: "Security test account",
@@ -165,7 +190,7 @@ test("Ocean helper rejects oversized prompts before quota or credit mutations", 
   });
   const ledger: Ledger = { accounts: [account] };
 
-  const result = await runFishChatGateway(
+  const result = await loaded.runFishChatGateway(
     {
       model: "fish-ocean-helper",
       messages: [{ role: "user", content: "x".repeat(12000) }],
@@ -187,6 +212,29 @@ test("Ocean helper rejects oversized prompts before quota or credit mutations", 
   assert.equal(account.creditBalance, 25);
   assert.equal(account.requestCount, 0);
 });
+
+async function loadModules() {
+  const gateway = await import("./fishChatGateway");
+  const ledger = await import("./fishLedger");
+  return {
+    runFishChatGateway: gateway.runFishChatGateway,
+    createApiKey: ledger.createApiKey,
+    authenticateRequest: ledger.authenticateRequest
+  };
+}
+
+function assertModulesLoaded() {
+  assert.ok(modules);
+  return modules;
+}
+
+function authorizedRequest(key: string) {
+  return new Request("http://127.0.0.1/v1", {
+    headers: {
+      authorization: `Bearer ${key}`
+    }
+  });
+}
 
 function rememberEnv() {
   for (const key of touchedEnv) {
