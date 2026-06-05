@@ -21,7 +21,7 @@ export async function getFishDashboardSummary() {
   const activeRouteConfig = routerConfig.routes[routerConfig.activeRouteId];
 
   return {
-    dataState: combinedDataState([oceanSummary.dataState, fishUsage.dataState, routePolicy.dataState, warmStatus.dataState, contractStatus.dataState, capacitySettlements.dataState]),
+    dataState: combinedDashboardDataState([oceanSummary.dataState, fishUsage.dataState, warmStatus.dataState, contractStatus.dataState, capacitySettlements.dataState]),
     generatedAt: new Date().toISOString(),
     product: {
       name: "Fish",
@@ -47,6 +47,7 @@ export async function getFishDashboardSummary() {
       latencyMs: warmStatus.probe.latencyMs
     },
     fishUsage: {
+      dataState: fishUsage.dataState,
       requests: fishUsage.requests,
       accounts: fishUsage.accounts,
       tokensServed: fishUsage.tokensServed,
@@ -130,17 +131,17 @@ export async function getFishDashboardSummary() {
   };
 }
 
-function combinedDataState(states: DataState[]): DataState {
-  if (states.includes("live")) {
-    return "live";
-  }
-  if (states.includes("snapshot")) {
-    return "snapshot";
+export function combinedDashboardDataState(states: DataState[]): DataState {
+  if (states.includes("unavailable")) {
+    return "unavailable";
   }
   if (states.includes("sample")) {
     return "sample";
   }
-  return "unavailable";
+  if (states.includes("snapshot")) {
+    return "snapshot";
+  }
+  return "live";
 }
 
 function uniqueStrings(values: string[]) {

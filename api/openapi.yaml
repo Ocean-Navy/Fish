@@ -5062,6 +5062,9 @@ components:
         fishUsage:
           type: object
           properties:
+            dataState:
+              type: string
+              enum: [live, snapshot, sample, unavailable]
             requests:
               type: integer
             accounts:
