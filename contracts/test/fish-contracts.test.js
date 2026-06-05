@@ -102,6 +102,23 @@ describe("Fish OCEAN staking and capacity pool", function () {
     expect(await ocean.balanceOf(holder.address)).to.equal(parse("10000"));
   });
 
+  it("does not pull funded emissions when no user has staked", async function () {
+    const { operator, emissionSource, ocean, staking } = await deploySystem();
+
+    expect(await staking.totalSupply()).to.equal(0n);
+    expect(await staking.balanceOf(await staking.getAddress())).to.equal(0n);
+
+    await ocean.connect(emissionSource).approve(await staking.getAddress(), parse("1000"));
+    await staking.setEmissionRate(parse("1"));
+    await increaseTime(100);
+
+    await staking.connect(operator).claim();
+
+    expect(await ocean.balanceOf(emissionSource.address)).to.equal(parse("10000"));
+    expect(await ocean.balanceOf(await staking.getAddress())).to.equal(0n);
+    expect(await staking.pendingRewards(operator.address)).to.equal(0n);
+  });
+
   it("keeps OCEAN emissions disabled by default and can pull funded emissions from a reserve wallet", async function () {
     const { holder, holderTwo, treasury, emissionSource, ocean, fish, staking } = await deploySystem();
 
