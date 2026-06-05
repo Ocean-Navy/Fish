@@ -4,7 +4,7 @@ import {
   checkFishMonthlyRequestLimit,
   checkFishModelAccess,
   estimateTokens,
-  getFishPlan,
+  getActiveFishPlan,
   recordChatUsage,
   recordFailedChatUsage,
   releaseFishCreditReservation,
@@ -74,7 +74,8 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
   const featurePolicy = getFishFeaturePolicy(input.metadata, routerConfig, input.model);
   const batchFeature = getFishBatchFeatureConfig(featurePolicy.id);
   const privacyPreference = readFishPrivacyPreference(input.metadata);
-  const modelAccess = checkFishModelAccess(input.model, context.account.planId);
+  const plan = getActiveFishPlan(context.account);
+  const modelAccess = checkFishModelAccess(input.model, context.account);
   const originalPromptText = messagesToText(input);
   const knowledge = featurePolicy.id === "ocean" ? buildFishKnowledgeContext(originalPromptText) : null;
   const effectiveInput = knowledge ? withFishKnowledgeContext(input, knowledge.context) : input;
@@ -149,7 +150,6 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
     return privacyModeError(batchPrivacy);
   }
 
-  const plan = getFishPlan(context.account.planId);
   const monthlyRequests = await checkFishMonthlyRequestLimit(context.account, plan.monthlyRequestLimit);
   if (!monthlyRequests.ok) {
     return jsonError(monthlyRequests.status, monthlyRequests.error, "quota_error", {
@@ -876,12 +876,12 @@ function canUseExternalFallback(routerConfig: FishRouterConfig, context: FishCha
   if (!context.allowExternalFallback) {
     return false;
   }
-  const plan = getFishPlan(context.account.planId);
+  const plan = getActiveFishPlan(context.account);
   return routerConfig.routes["external-fallback"].configured && (plan.externalFallbackAllowed || routerConfig.guardrails.externalFallbackFreeAllowed);
 }
 
 function canUseOceanProviderRoute(context: FishChatGatewayContext) {
-  const plan = getFishPlan(context.account.planId);
+  const plan = getActiveFishPlan(context.account);
   return plan.oceanProviderAllowed;
 }
 

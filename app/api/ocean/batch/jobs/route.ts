@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { authenticateRequest, checkFishMonthlyRequestLimit, getFishPlan } from "@/lib/fishLedger";
+import { authenticateRequest, checkFishModelAccess, checkFishMonthlyRequestLimit, getActiveFishPlan } from "@/lib/fishLedger";
 import { spendFishMinuteRateLimit } from "@/lib/fishRateLimit";
 import { getFishRouterConfig } from "@/lib/fishRouter";
 import { parseOceanBatchJobRequest, runOceanBatchJob, summarizeOceanBatchJobs } from "@/lib/oceanBatch";
@@ -31,7 +31,22 @@ export async function POST(request: Request) {
   }
 
   const routerConfig = getFishRouterConfig();
-  const plan = getFishPlan(auth.account.planId);
+  const plan = getActiveFishPlan(auth.account);
+  const modelAccess = checkFishModelAccess("ocean-batch-placeholder", auth.account);
+  if (!modelAccess.ok) {
+    return NextResponse.json(
+      {
+        error: {
+          message: modelAccess.error,
+          type: "model_error",
+          planId: modelAccess.plan.planId,
+          allowedModels: modelAccess.status === 403 ? modelAccess.allowedModels : undefined
+        }
+      },
+      { status: modelAccess.status }
+    );
+  }
+
   const monthlyRequests = await checkFishMonthlyRequestLimit(auth.account, plan.monthlyRequestLimit);
   if (!monthlyRequests.ok) {
     return NextResponse.json(
