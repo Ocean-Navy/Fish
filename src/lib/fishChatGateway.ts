@@ -19,7 +19,7 @@ import { ExternalChatError, runExternalChat } from "@/lib/externalChat";
 import { tryAcquireFishConcurrencySlot } from "@/lib/fishConcurrency";
 import { getFishBatchFeatureConfig, getFishFeaturePolicy, type FishBatchTaskType, type FishFeatureId } from "@/lib/fishFeaturePolicy";
 import { buildFishKnowledgeContext } from "@/lib/fishKnowledge";
-import { checkRouteDailyBudget, type RouteBudgetCheck } from "@/lib/fishBudget";
+import { releaseRouteDailyBudgetReservation, reserveRouteDailyBudget, type RouteBudgetCheck, type RouteBudgetReservation } from "@/lib/fishBudget";
 import { spendDailyQuota } from "@/lib/fishQuota";
 import { readFishPrivacyPreference, resolveFishPrivacy, type FishUsagePrivacy } from "@/lib/fishPrivacy";
 import { spendFishMinuteRateLimit } from "@/lib/fishRateLimit";
@@ -243,16 +243,9 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
     });
   }
 
+  let routeBudgetReservation: RouteBudgetReservation | null = null;
+
   try {
-  let budgetCheck = await checkRouteDailyBudget({
-    route,
-    promptTokens,
-    maxOutputTokens: requestedMaxOutputTokens,
-    routerConfig
-  });
-  if (!budgetCheck.ok) {
-    return budgetExceededError(budgetCheck);
-  }
 
   const estimatedMaxCredits = Math.max(1, Math.ceil((promptTokens + requestedMaxOutputTokens) / 1000));
   if (context.account.creditBalance < estimatedMaxCredits) {
@@ -261,6 +254,17 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
       available: context.account.creditBalance
     });
   }
+
+  let budgetCheck = await reserveRouteDailyBudget({
+    route,
+    promptTokens,
+    maxOutputTokens: requestedMaxOutputTokens,
+    routerConfig
+  });
+  if (!budgetCheck.ok) {
+    return budgetExceededError(budgetCheck);
+  }
+  routeBudgetReservation = budgetCheck;
 
   const quota = await spendDailyQuota(context.principalId, route, context.dailyQuotaLimit);
   if (!quota.ok) {
@@ -329,7 +333,10 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
         });
       }
 
-      const fallbackBudgetCheck = await checkRouteDailyBudget({
+      await releaseRouteDailyBudgetReservation(routeBudgetReservation);
+      routeBudgetReservation = null;
+
+      const fallbackBudgetCheck = await reserveRouteDailyBudget({
         route: "external-fallback",
         promptTokens,
         maxOutputTokens: requestedMaxOutputTokens,
@@ -354,6 +361,7 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
         });
       }
       budgetCheck = fallbackBudgetCheck;
+      routeBudgetReservation = fallbackBudgetCheck;
 
       const fallbackPrivacyDecision = resolveFishPrivacy({
         route: "external-fallback",
@@ -445,7 +453,10 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
         });
       }
 
-      const fallbackBudgetCheck = await checkRouteDailyBudget({
+      await releaseRouteDailyBudgetReservation(routeBudgetReservation);
+      routeBudgetReservation = null;
+
+      const fallbackBudgetCheck = await reserveRouteDailyBudget({
         route: "external-fallback",
         promptTokens,
         maxOutputTokens: requestedMaxOutputTokens,
@@ -470,6 +481,7 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
         });
       }
       budgetCheck = fallbackBudgetCheck;
+      routeBudgetReservation = fallbackBudgetCheck;
 
       const fallbackPrivacyDecision = resolveFishPrivacy({
         route: "external-fallback",
@@ -638,6 +650,7 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
     }
   };
   } finally {
+    await releaseRouteDailyBudgetReservation(routeBudgetReservation);
     concurrencySlot.release();
   }
 }

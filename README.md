@@ -370,7 +370,7 @@ curl -sS http://127.0.0.1:3000/v1/chat/completions \
 
 Set `"stream": true` for OpenAI-style server-sent events. V0 streaming is compatibility streaming after Gateway has settled the request; true first-token streaming from Fish Runner is a later hardening step.
 
-Before Fish calls a configured backend, Gateway reserves the maximum estimated credits for the request. Successful requests release the unused reserve and debit the measured usage. Backend failures release the reserve without recording a usage charge.
+Before Fish calls a configured backend, Gateway reserves the maximum estimated credits for the request and reserves the route's estimated provider spend against the daily route budget. In-flight route budget reservations are counted with completed receipts so concurrent calls cannot all pass the same daily budget preflight. Successful requests release unused credit reserve, debit measured usage, write the receipt, and then release the in-flight route budget reservation; backend failures release the credit and route budget reservations without recording a usage charge.
 
 Check balance, credit lanes, and receipts:
 
