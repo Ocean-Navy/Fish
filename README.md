@@ -98,6 +98,7 @@ Useful local routes:
 /api/proof/payouts
 /api/proof/capacity-settlements
 /api/contracts/status
+/api/testnet/faucet
 /api/staking/summary
 /api/staking/wallet-intents
 /api
@@ -283,6 +284,22 @@ FISH_CONTRACT_CAPACITY_POOL_ADDRESS=
 FISH_CONTRACT_TREASURY_ADDRESS=
 FISH_CONTRACT_EMISSION_SOURCE_ADDRESS=
 FISH_CONTRACT_OPERATOR_ADDRESS=
+FISH_TESTNET_FAUCET_ENABLED=false
+FISH_TESTNET_FAUCET_PRIVATE_KEY=
+FISH_TESTNET_FAUCET_RPC_URL=https://sepolia.base.org
+FISH_TESTNET_FAUCET_CHAIN_ID=84532
+FISH_TESTNET_FAUCET_CHAIN_NAME=Base Sepolia
+FISH_TESTNET_FAUCET_EXPLORER_URL=https://sepolia.basescan.org
+FISH_TESTNET_FAUCET_OCEAN_TOKEN_ADDRESS=
+FISH_TESTNET_FAUCET_USDC_TOKEN_ADDRESS=
+FISH_TESTNET_FAUCET_ETH_AMOUNT=0.0005
+FISH_TESTNET_FAUCET_ETH_LOW_BALANCE_THRESHOLD=0.0002
+FISH_TESTNET_FAUCET_OCEAN_AMOUNT=1000
+FISH_TESTNET_FAUCET_USDC_AMOUNT=25
+FISH_TESTNET_FAUCET_WALLET_COOLDOWN_HOURS=24
+FISH_TESTNET_FAUCET_IP_COOLDOWN_HOURS=24
+FISH_TESTNET_FAUCET_MAX_DAILY_CLAIMS=50
+FISH_TESTNET_FAUCET_CONFIRMATIONS=1
 ```
 
 Direct provider endpoints can be listed in:
@@ -619,6 +636,17 @@ finish OCEAN exit
 ```
 
 Use the batch ID shown in `/api/contracts/status` or on the `/credits` panel when claiming a capacity withdrawal batch. The capacity batch must be flushed and then wait through the FISH cooldown before claiming. The OCEAN exit must also wait through the OCEAN cooldown before final withdrawal.
+
+The `/credits` page includes a Base Sepolia playground faucet when enabled. It sends a tiny gas top-up plus Test OCEAN and Test USDC from a dedicated faucet wallet:
+
+```bash
+curl -sS http://127.0.0.1:3000/api/testnet/faucet
+curl -sS http://127.0.0.1:3000/api/testnet/faucet \
+  -H 'content-type: application/json' \
+  -d '{"walletAddress":"0x..."}'
+```
+
+Keep this wallet separate from deployer, operator, and treasury wallets. Fund it only with limited Base Sepolia ETH and test tokens. The faucet is disabled by default, Base Sepolia only, and capped by wallet, IP, and daily claim limits.
 
 Staking positions and wallet intents are written under `data/staking/`, which is ignored by git. This is not an onchain staking contract; it is a funded-budget prototype for proving OCEAN lock intent, credit issuance, and credit spend.
 

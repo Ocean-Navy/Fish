@@ -3,6 +3,7 @@ import { EvmStakeIntentPanel } from "@/components/EvmStakeIntentPanel";
 import { FishContractsPanel } from "@/components/FishContractsPanel";
 import { RolePageShell } from "@/components/RolePageShell";
 import { StakingCreditsPanel } from "@/components/StakingCreditsPanel";
+import { TestnetFaucetPanel } from "@/components/TestnetFaucetPanel";
 import { summarizeFishContracts } from "@/lib/fishContracts";
 import { summarizeStakingCredits } from "@/lib/stakingCredits";
 
@@ -50,6 +51,7 @@ export default async function CreditsPage() {
       note="Credit rule: product first, token utility after usage. Fish credits should be backed by real demand and real payment coverage."
     >
       <StakingCreditsPanel summary={stakingSummary} />
+      <TestnetFaucetPanel />
       <FishContractsPanel status={contractStatus} />
       <EvmStakeIntentPanel />
       <section className="px-4 pb-14 sm:px-6 lg:px-8">

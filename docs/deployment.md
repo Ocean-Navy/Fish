@@ -315,6 +315,22 @@ FISH_CONTRACT_CAPACITY_POOL_ADDRESS=
 FISH_CONTRACT_TREASURY_ADDRESS=
 FISH_CONTRACT_EMISSION_SOURCE_ADDRESS=
 FISH_CONTRACT_OPERATOR_ADDRESS=
+FISH_TESTNET_FAUCET_ENABLED=false
+FISH_TESTNET_FAUCET_PRIVATE_KEY=
+FISH_TESTNET_FAUCET_RPC_URL=https://sepolia.base.org
+FISH_TESTNET_FAUCET_CHAIN_ID=84532
+FISH_TESTNET_FAUCET_CHAIN_NAME=Base Sepolia
+FISH_TESTNET_FAUCET_EXPLORER_URL=https://sepolia.basescan.org
+FISH_TESTNET_FAUCET_OCEAN_TOKEN_ADDRESS=
+FISH_TESTNET_FAUCET_USDC_TOKEN_ADDRESS=
+FISH_TESTNET_FAUCET_ETH_AMOUNT=0.0005
+FISH_TESTNET_FAUCET_ETH_LOW_BALANCE_THRESHOLD=0.0002
+FISH_TESTNET_FAUCET_OCEAN_AMOUNT=1000
+FISH_TESTNET_FAUCET_USDC_AMOUNT=25
+FISH_TESTNET_FAUCET_WALLET_COOLDOWN_HOURS=24
+FISH_TESTNET_FAUCET_IP_COOLDOWN_HOURS=24
+FISH_TESTNET_FAUCET_MAX_DAILY_CLAIMS=50
+FISH_TESTNET_FAUCET_CONFIRMATIONS=1
 ```
 
 Set `FISH_ADMIN_TOKEN` in production-like environments before issuing prototype API keys.
@@ -328,6 +344,8 @@ Keep `FISH_CHAT_BACKEND=mock` for a no-secret local deployment. Set `FISH_CHAT_R
 Paid credit checkout is disabled until secrets are set and `FISH_MAX_OUTSTANDING_PREPAID_CREDITS` is configured. For card checkout, set `FISH_STRIPE_SECRET_KEY`, `FISH_STRIPE_WEBHOOK_SECRET`, and `FISH_PUBLIC_APP_URL`, then configure Stripe webhooks for `/api/billing/webhooks/stripe`. For USDC checkout, set `FISH_USDC_RECEIVE_ADDRESS` and `FISH_USDC_RPC_URL`; Fish verifies Base USDC transfer logs before issuing prepaid credits. Keep `FISH_MIN_CHECKOUT_USD`, `FISH_MAX_CHECKOUT_USD`, and the prepaid liability cap conservative until support/refund handling is ready. Set `FISH_PAID_TOPUPS_PAUSED=true` to stop new paid checkout requests without disabling existing balances.
 
 Contract status is read-only by default. Set the `FISH_CONTRACT_*` addresses and `FISH_CONTRACT_RPC_URL` after deploying the prototype contracts on a testnet. Keep `FISH_CONTRACT_ACTIONS_ENABLED=false` until the addresses, chain, roles, and test wallet path are reviewed. Keep `FISH_CONTRACT_SETTLEMENT_SUBMIT_ENABLED=false` until the operator wallet, USDC funding, allowance path, and idempotency process are tested. Keep `FISH_CONTRACT_MAINNET_WRITES_ALLOWED=false` unless the contracts have passed audit, legal review, multisig ownership, monitoring, and incident-response checks.
+
+The testnet faucet is disabled by default. Enable it only on Base Sepolia with a dedicated low-balance faucet wallet. Do not reuse deployer, operator, treasury, or production payment wallets. Keep `FISH_TESTNET_FAUCET_MAX_DAILY_CLAIMS`, wallet cooldown, IP cooldown, and token amounts conservative.
 
 For Base Sepolia contract testing:
 

@@ -1281,6 +1281,39 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/FishContractStatus'
+  /api/testnet/faucet:
+    get:
+      summary: Base Sepolia testnet faucet status
+      description: Public-safe status for the Fish playground faucet. Does not expose private keys or raw claim ledger rows.
+      responses:
+        '200':
+          description: Faucet status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TestnetFaucetStatus'
+    post:
+      summary: Claim Base Sepolia test tokens
+      description: Sends a tiny Base Sepolia ETH top-up, Test OCEAN, and Test USDC from a dedicated faucet wallet when enabled and within wallet/IP/day limits.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TestnetFaucetClaimRequest'
+      responses:
+        '200':
+          description: Faucet claim submitted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TestnetFaucetClaimResponse'
+        '400':
+          description: Invalid wallet address
+        '429':
+          description: Wallet, IP, or daily faucet limit reached
+        '503':
+          description: Faucet disabled or not configured
   /api/staking/summary:
     get:
       summary: Public offchain OCEAN staking credit summary
@@ -4128,6 +4161,126 @@ components:
           type: array
           items:
             type: string
+    TestnetFaucetStatus:
+      type: object
+      properties:
+        dataState:
+          type: string
+          enum: [live, snapshot, sample, unavailable]
+        enabled:
+          type: boolean
+        ready:
+          type: boolean
+        reason:
+          type: string
+        chain:
+          type: object
+          properties:
+            chainId:
+              type: integer
+            chainName:
+              type: string
+            explorerUrl:
+              type: string
+        faucetAddress:
+          type: string
+          nullable: true
+        tokenAddresses:
+          type: object
+          properties:
+            testOcean:
+              type: string
+              nullable: true
+            testUsdc:
+              type: string
+              nullable: true
+        grants:
+          type: object
+          properties:
+            ethAmount:
+              type: string
+            ethLowBalanceThreshold:
+              type: string
+            testOceanAmount:
+              type: string
+            testUsdcAmount:
+              type: string
+        limits:
+          type: object
+          properties:
+            walletCooldownHours:
+              type: integer
+            ipCooldownHours:
+              type: integer
+            maxDailyClaims:
+              type: integer
+        balances:
+          type: object
+          properties:
+            eth:
+              type: string
+              nullable: true
+            testOcean:
+              type: string
+              nullable: true
+            testUsdc:
+              type: string
+              nullable: true
+        warnings:
+          type: array
+          items:
+            type: string
+    TestnetFaucetClaimRequest:
+      type: object
+      additionalProperties: false
+      required: [walletAddress]
+      properties:
+        walletAddress:
+          type: string
+          pattern: '^0x[a-fA-F0-9]{40}$'
+    TestnetFaucetClaimResponse:
+      type: object
+      properties:
+        object:
+          type: string
+          example: testnet_faucet_claim
+        claim:
+          type: object
+          properties:
+            claimId:
+              type: string
+            walletPrefix:
+              type: string
+            createdAt:
+              type: string
+            chainId:
+              type: integer
+            ethTxHash:
+              type: string
+              nullable: true
+            oceanTxHash:
+              type: string
+            usdcTxHash:
+              type: string
+        grants:
+          type: object
+          properties:
+            ethSent:
+              type: boolean
+            testOceanAmount:
+              type: string
+            testUsdcAmount:
+              type: string
+        explorer:
+          type: object
+          properties:
+            eth:
+              type: string
+              nullable: true
+            testOcean:
+              type: string
+            testUsdc:
+              type: string
     FishContractAddress:
       type: object
       properties:
