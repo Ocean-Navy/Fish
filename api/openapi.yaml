@@ -4712,15 +4712,18 @@ components:
     FishCheckoutRequest:
       type: object
       additionalProperties: false
+      oneOf:
+        - required: [amountUsd]
+        - required: [credits]
       properties:
         amountUsd:
           type: number
           minimum: 0.01
-          description: Dollar amount to convert into Fish Credits. Either amountUsd or credits is required.
+          description: Dollar amount to convert into Fish Credits. Exactly one of amountUsd or credits is required.
         credits:
           type: integer
           minimum: 1
-          description: Optional exact credit amount; amount is rounded up to cover the credit liability.
+          description: Optional exact credit amount; exactly one of amountUsd or credits is required and the payment amount is rounded up to cover the credit liability.
         idempotencyKey:
           type: string
           maxLength: 120

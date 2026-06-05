@@ -27,6 +27,13 @@ const checkoutSchema = z
         message: "amountUsd or credits is required"
       });
     }
+    if (input.amountUsd !== undefined && input.credits !== undefined) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["credits"],
+        message: "amountUsd and credits cannot both be supplied"
+      });
+    }
   });
 
 const usdcCheckoutSchema = checkoutSchema.and(
@@ -403,6 +410,10 @@ export async function confirmUsdcPayment(account: Account, input: UsdcConfirmInp
 }
 
 function normalizePaymentAmount(input: CheckoutInput) {
+  if (input.amountUsd !== undefined && input.credits !== undefined) {
+    return { ok: false as const, status: 400, error: "ambiguous_checkout_amount" };
+  }
+
   const minUsd = readNumber(process.env.FISH_MIN_CHECKOUT_USD, 1);
   const maxUsd = readNumber(process.env.FISH_MAX_CHECKOUT_USD, 500);
   const amountCents = input.amountUsd !== undefined ? Math.round(input.amountUsd * 100) : Math.ceil((input.credits ?? 0) * FISH_CREDIT_USD * 100);
