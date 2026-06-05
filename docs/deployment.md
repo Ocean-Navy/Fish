@@ -416,13 +416,14 @@ Keep these private by default:
 
 ```text
 OCEAN_NODE_HTTP_BIND=127.0.0.1
+OCEAN_NODE_P2P_BIND=127.0.0.1
 OCEAN_WORKLOAD_ADAPTER_BIND=127.0.0.1
 FISH_VLLM_BIND=127.0.0.1
 FISH_RUNNER_BIND=127.0.0.1
 FISH_MLX_BASE_URL=http://host.docker.internal:8080/v1
 ```
 
-Expose Fish Runner and the adapter only through a private network, WireGuard, SSH tunnel, cloud private IP, or nginx allowlist. Never expose raw vLLM or raw MLX publicly. Ocean Node mounts the Docker socket for compute execution, so this stack belongs on a dedicated VM with conservative free-job caps.
+Expose Fish Runner and the adapter only through a private network, WireGuard, SSH tunnel, cloud private IP, or nginx allowlist. Keep Ocean Node P2P localhost-bound for private proof runs, and only bind it to a reachable interface when the node is intentionally joining a P2P network. Never expose raw vLLM or raw MLX publicly. Ocean Node mounts the Docker socket for compute execution, so this stack belongs on a dedicated VM with conservative free-job caps.
 
 After the stack is running:
 

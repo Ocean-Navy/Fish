@@ -33,6 +33,16 @@ export function PublicProofPage({
   const providerRows = scorecard.rows.filter((row) => row.selected || row.jobsRouted || row.benchmarkRuns).slice(0, 4);
   const receiptRows = proof.receipts.slice(0, 5);
   const benchmarkRows = benchmarks.matrix.slice(0, 6);
+  const hasOceanBatchProof = oceanProof.proof.hasNonSampleReceipt;
+  const heroState = hasOceanBatchProof ? oceanProof.proof.latestReceiptState : proof.dataState;
+  const heroCopy = hasOceanBatchProof
+    ? oceanProof.proof.latestReceiptState === "live"
+      ? "Ocean batch proof has a live receipt."
+      : "Ocean batch proof is snapshot evidence from our local Ocean Node."
+    : hasLiveProof
+      ? "Selected provider runs have public proof."
+      : "The market is open, and proof is still early.";
+  const heroUpdatedAt = oceanProof.proof.latestReceiptAt ?? proof.lastUpdated;
 
   return (
     <main className="min-h-screen overflow-hidden">
@@ -68,12 +78,12 @@ export function PublicProofPage({
             </p>
             <h1 className="max-w-4xl text-5xl font-black leading-none text-white sm:text-7xl lg:text-8xl">What is live?</h1>
             <p className="mt-6 max-w-2xl text-2xl font-black leading-tight text-fish-primary sm:text-4xl">
-              {hasLiveProof ? "Selected provider runs have public proof." : "The market is open, and proof is still early."}
+              {heroCopy}
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-3">
-              <StatusBadge state={proof.dataState} />
+              <StatusBadge state={heroState} />
               <span className="rounded-full border border-fish-accent/25 bg-fish-navy950/65 px-4 py-2 text-sm font-black text-fish-secondary">
-                Updated {formatDateTime(proof.lastUpdated)}
+                Updated {formatDateTime(heroUpdatedAt)}
               </span>
             </div>
           </div>

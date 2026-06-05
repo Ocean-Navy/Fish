@@ -93,11 +93,14 @@ For a private first test, keep these endpoints bound to localhost:
 
 ```text
 OCEAN_NODE_HTTP_BIND=127.0.0.1
+OCEAN_NODE_P2P_BIND=127.0.0.1
 OCEAN_WORKLOAD_ADAPTER_BIND=127.0.0.1
 FISH_VLLM_BIND=127.0.0.1
 FISH_RUNNER_BIND=127.0.0.1
 FISH_MLX_BASE_URL=http://host.docker.internal:8080/v1
 ```
+
+Only change `OCEAN_NODE_P2P_BIND` to a public or private-network interface when the node is intentionally joining a reachable P2P network. For the local proof stack, keep it on localhost.
 
 The template stores Ocean Node localfs payloads under `/tmp/ocean-node-persistent-storage` inside the container. This is intentionally local-demo friendly because Docker Desktop named volumes mounted under `/data` can be unwritable for the Ocean Node process. For a persistent production node, set `OCEAN_NODE_PERSISTENT_STORAGE` to a writable mounted path and verify the node stays up before exposing it.
 
@@ -108,6 +111,7 @@ The free compute guard is layered:
 ```text
 free.access.addresses=<only the Ocean proof wallet address>
 OCEAN_NODE_HTTP_BIND=127.0.0.1 or private network only
+OCEAN_NODE_P2P_BIND=127.0.0.1 or intentionally selected P2P interface only
 OCEAN_WORKLOAD_ADAPTER_API_KEY=<secret>
 OCEAN_WORKLOAD_ADAPTER_BIND=127.0.0.1 or private network only
 ```
