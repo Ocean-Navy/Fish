@@ -2603,9 +2603,8 @@ components:
         nodeEndpointHash:
           type: string
           nullable: true
-        healthEndpointHash:
-          type: string
-          nullable: true
+        healthEndpointReady:
+          type: boolean
         region:
           type: string
         gpuTypes:
@@ -2673,9 +2672,8 @@ components:
           type: number
         benchmarkRequired:
           type: boolean
-        healthEndpointHash:
-          type: string
-          nullable: true
+        healthEndpointReady:
+          type: boolean
         priceShared:
           type: boolean
         payoutReady:
