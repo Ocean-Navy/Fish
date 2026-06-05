@@ -1752,6 +1752,15 @@ components:
           type: array
           items:
             type: object
+            description: Public source-state metadata; exact endpoint URLs are redacted.
+            properties:
+              name:
+                type: string
+              state:
+                type: string
+                enum: [live, snapshot, sample, unavailable]
+              message:
+                type: string
         sourceCount:
           type: integer
         warnings:
@@ -1829,8 +1838,6 @@ components:
         providerId:
           type: string
         providerLabel:
-          type: string
-        nodeEndpoint:
           type: string
         environmentId:
           type: string
