@@ -109,7 +109,9 @@ test("stale authenticated ledger writes do not undo API key revocation", async (
     credits: 1,
     reason: "stale_write_after_revoke"
   });
-  assert.equal(staleReserve.ok, true);
+  assert.equal(staleReserve.ok, false);
+  assert.equal(staleReserve.status, 401);
+  assert.equal(staleReserve.error, "api_key_revoked");
 
   const authAfterStaleWrite = await authenticateRequest(request);
   assert.equal(authAfterStaleWrite.ok, false);
