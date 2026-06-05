@@ -22,6 +22,23 @@ function setDataState(state) {
   el.textContent = state === 'live' ? 'Live data' : state === 'unavailable' ? 'Unavailable' : 'Sample data';
 }
 
+function appendTableRow(tbody, cells) {
+  const tr = document.createElement('tr');
+  cells.forEach((cell) => {
+    const td = document.createElement('td');
+    if (cell && typeof cell === 'object') {
+      Object.entries(cell.attributes || {}).forEach(([name, value]) => {
+        td.setAttribute(name, value);
+      });
+      td.textContent = cell.text;
+    } else {
+      td.textContent = cell;
+    }
+    tr.appendChild(td);
+  });
+  tbody.appendChild(tr);
+}
+
 function renderSummary(summary) {
   const kpis = summary.kpis || {};
   setDataState(summary.dataState || 'sample');
@@ -33,25 +50,33 @@ function renderSummary(summary) {
   document.getElementById('metricJobs').textContent = formatNumber(kpis.oceanNativeJobs, '0');
   document.getElementById('metricPayouts').textContent = formatUsd(kpis.providerPayoutUsd || 0);
 
-  const gpuRows = (summary.gpuSupply || []).map(row => `
-    <tr>
-      <td>${row.gpu || 'GPU'}</td>
-      <td>${formatNumber(row.total)}</td>
-      <td>${formatNumber(row.available)}</td>
-      <td>${formatUsd(row.lowestUsdHr)}</td>
-    </tr>
-  `).join('');
-  document.getElementById('gpuTable').innerHTML = gpuRows || '<tr><td colspan="4">No GPU rows yet</td></tr>';
+  const gpuTable = document.getElementById('gpuTable');
+  gpuTable.replaceChildren();
+  (summary.gpuSupply || []).forEach((row) => {
+    appendTableRow(gpuTable, [
+      row.gpu || 'GPU',
+      formatNumber(row.total),
+      formatNumber(row.available),
+      formatUsd(row.lowestUsdHr),
+    ]);
+  });
+  if (!gpuTable.children.length) {
+    appendTableRow(gpuTable, [{ text: 'No GPU rows yet', attributes: { colspan: '4' } }]);
+  }
 
-  const providerRows = (summary.providers || []).map(row => `
-    <tr>
-      <td>${row.label || row.providerId || 'Provider'}</td>
-      <td>${row.region || 'unknown'}</td>
-      <td>${formatNumber(row.availableGpus)}</td>
-      <td>${row.pilotEligible ? 'pilot candidate' : 'needs review'}</td>
-    </tr>
-  `).join('');
-  document.getElementById('providerTable').innerHTML = providerRows || '<tr><td colspan="4">No providers yet</td></tr>';
+  const providerTable = document.getElementById('providerTable');
+  providerTable.replaceChildren();
+  (summary.providers || []).forEach((row) => {
+    appendTableRow(providerTable, [
+      row.label || row.providerId || 'Provider',
+      row.region || 'unknown',
+      formatNumber(row.availableGpus),
+      row.pilotEligible ? 'pilot candidate' : 'needs review',
+    ]);
+  });
+  if (!providerTable.children.length) {
+    appendTableRow(providerTable, [{ text: 'No providers yet', attributes: { colspan: '4' } }]);
+  }
 }
 
 async function loadDashboard() {
