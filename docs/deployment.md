@@ -453,7 +453,7 @@ Then browser-check:
 - `/api/billing/checkout/usdc` with a Fish API key when USDC env is configured
 - `/api/billing/subscriptions` with `x-fish-admin-token`
 - `/api/billing/topups` with `x-fish-admin-token`
-- `/api/billing/usage-analytics`
+- `/api/billing/usage-analytics` with `x-fish-admin-token`
 - `/api/routing/policy`
 - `/api/warm/status` snapshot and `/api/warm/status?probe=live` with `x-fish-admin-token` for operator live probes
 - `/api/ocean/batch/readiness`

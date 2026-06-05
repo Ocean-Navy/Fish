@@ -511,7 +511,9 @@ paths:
   /api/billing/usage-analytics:
     get:
       summary: Aggregate Fish billing usage analytics
-      description: Public-safe aggregate billing metrics. Excludes API keys, raw prompts, outputs, and account-level rows.
+      description: Admin-only aggregate billing metrics. Excludes API keys, raw prompts, outputs, and account-level rows, but can include billing totals and configured model labels.
+      security:
+        - adminToken: []
       responses:
         '200':
           description: Billing usage analytics

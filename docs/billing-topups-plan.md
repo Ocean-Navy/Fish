@@ -165,7 +165,7 @@ POST /v1/admin/grants
 
 Users and operators can understand where credits went.
 
-Current prototype status: `/api/billing/usage-analytics` exposes aggregate requests by day, credits by lane/model, route mix, and margin fields without API keys, raw prompts, outputs, or account rows.
+Current prototype status: `/api/billing/usage-analytics` is admin-only and exposes aggregate requests by day, credits by lane/model, route mix, and margin fields without API keys, raw prompts, outputs, or account rows.
 
 ### Metrics
 
