@@ -1,9 +1,9 @@
-export const SHARED_GUEST_ID = "shared-anonymous-v1";
-export const SHARED_GUEST_PRINCIPAL_ID = `guest:${SHARED_GUEST_ID}`;
+import { anonymousGuestId } from "@/lib/guestIdentity";
 
 export function getSharedGuestIdentity() {
+  const guestId = anonymousGuestId();
   return {
-    guestId: SHARED_GUEST_ID,
-    principalId: SHARED_GUEST_PRINCIPAL_ID
+    guestId,
+    principalId: `guest:${guestId}`
   };
 }

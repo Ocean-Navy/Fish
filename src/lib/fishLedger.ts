@@ -156,7 +156,7 @@ export type Account = {
   planId?: FishPlanId;
   planActivatedAt?: string | null;
   planExpiresAt?: string | null;
-  planSource?: "pilot_key" | "operator_subscription" | null;
+  planSource?: "pilot_key" | "operator_subscription" | "guest_demo" | null;
   creditBalance: number;
   totalCreditsGranted: number;
   totalCreditsSpent: number;
@@ -488,9 +488,16 @@ export async function createApiKey(label: string, creditGrant: number, planId: F
 
 export async function getOrCreateGuestAccount(guestId: string, creditGrant = 25) {
   const ledger = await readLedger();
-  const keyHash = hashSecret(`guest:${guestId}`);
-  const existing = ledger.accounts.find((candidate) => candidate.keyHash === keyHash);
+  const id = guestAccountId(guestId);
+  const keyHash = guestAccountKeyHash(guestId);
+  const legacyKeyHash = hashSecret(`guest:${guestId}`);
+  const existing = ledger.accounts.find((candidate) => candidate.id === id || candidate.keyHash === keyHash || candidate.keyHash === legacyKeyHash);
   if (existing) {
+    if (existing.keyHash !== keyHash || existing.planSource !== "guest_demo") {
+      existing.keyHash = keyHash;
+      existing.planSource = "guest_demo";
+      await writeLedger(ledger);
+    }
     return {
       ledger,
       account: existing
@@ -499,7 +506,7 @@ export async function getOrCreateGuestAccount(guestId: string, creditGrant = 25)
 
   const now = new Date().toISOString();
   const account: Account = {
-    id: randomUUID(),
+    id,
     label: `Guest ${guestId.slice(0, 8)}`,
     keyHash,
     createdAt: now,
@@ -508,7 +515,7 @@ export async function getOrCreateGuestAccount(guestId: string, creditGrant = 25)
     planId: "free",
     planActivatedAt: now,
     planExpiresAt: null,
-    planSource: "pilot_key",
+    planSource: "guest_demo",
     creditBalance: creditGrant,
     totalCreditsGranted: creditGrant,
     totalCreditsSpent: 0,
@@ -550,7 +557,7 @@ export async function authenticateRequest(request: Request) {
   const ledger = await readLedger();
   const keyHash = hashSecret(token);
   const account = ledger.accounts.find((candidate) => candidate.keyHash === keyHash);
-  if (!account) {
+  if (!account || isGuestDemoAccount(account)) {
     return {
       ok: false as const,
       status: 401,
@@ -1264,6 +1271,22 @@ export function buildMockCompletion(input: ChatCompletionInput) {
 
 export function estimateTokens(value: string) {
   return Math.max(1, Math.ceil(value.length / 4));
+}
+
+function guestAccountId(guestId: string) {
+  return `guest_${hashSecret(`fish:guest-account-id:${guestId}`).slice(0, 32)}`;
+}
+
+function guestAccountKeyHash(guestId: string) {
+  return `guest_account:${hashSecret(`fish:guest-account-key:${guestId}`)}`;
+}
+
+function isGuestDemoAccount(account: Account) {
+  if (account.planSource === "guest_demo") {
+    return true;
+  }
+
+  return /^Guest (?:[a-f0-9]{8}|shared-a)$/.test(account.label);
 }
 
 function bearerToken(request: Request) {

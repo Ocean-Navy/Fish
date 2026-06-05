@@ -172,6 +172,28 @@ test("stale authenticated ledger writes do not undo API key revocation", async (
   assert.equal(authAfterStaleWrite.error, "api_key_revoked");
 });
 
+test("guest demo accounts cannot authenticate as bearer API keys or mint repeated grants", async () => {
+  const ledger = await useTempFishLedger();
+  const { authenticateRequest, getOrCreateGuestAccount } = await importFishLedger(ledger);
+  const guestId = "shared-anonymous-v1";
+
+  const first = await getOrCreateGuestAccount(guestId, 25);
+  assert.equal(first.account.creditBalance, 25);
+  assert.equal(first.account.totalCreditsGranted, 25);
+
+  const guestBearerAuth = await authenticateRequest(authorizedRequest(`guest:${guestId}`));
+  assert.equal(guestBearerAuth.ok, false);
+  if (guestBearerAuth.ok) {
+    throw new Error("expected guest bearer credential to fail authentication");
+  }
+  assert.equal(guestBearerAuth.error, "invalid_api_key");
+
+  const second = await getOrCreateGuestAccount(guestId, 25);
+  assert.equal(second.account.id, first.account.id);
+  assert.equal(second.account.creditBalance, 25);
+  assert.equal(second.account.totalCreditsGranted, 25);
+});
+
 test("requireAdmin rejects public placeholder admin tokens in production", () => {
   mutableEnv.NODE_ENV = "production";
 

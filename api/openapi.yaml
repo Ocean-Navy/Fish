@@ -250,7 +250,7 @@ paths:
   /api/dishes/{dishId}/run:
     post:
       summary: Run a Fish AI menu dish
-      description: Runs a menu dish such as ask, code, docs, repo, eval, data, proposal, or ocean with server-side prompts. Non-batch dishes use a shared anonymous guest credit/quota bucket when no bearer key is provided and Fish API-key credits when authorization is present. Ocean batch dishes return public-safe ticket metadata and require a bearer Fish API key on an Ocean-provider-allowed plan.
+      description: Runs a menu dish such as ask, code, docs, repo, eval, data, proposal, or ocean with server-side prompts. Non-batch dishes use an internal shared anonymous guest credit/quota bucket when no bearer key is provided and Fish API-key credits when authorization is present; the guest principal is not accepted as a bearer API key. Ocean batch dishes return public-safe ticket metadata and require a bearer Fish API key on an Ocean-provider-allowed plan.
       parameters:
         - in: path
           name: dishId
@@ -284,7 +284,7 @@ paths:
   /api/meal/order:
     post:
       summary: Guest Fish meal-counter order
-      description: Globally capped guest route for the public meal counter. Uses the same chat request shape without exposing a Fish API key, and unauthenticated callers share one anonymous quota principal.
+      description: Globally capped guest route for the public meal counter. Uses the same chat request shape without exposing or accepting a Fish API key, and unauthenticated callers share one internal anonymous quota principal.
       requestBody:
         required: true
         content:
