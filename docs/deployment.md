@@ -152,6 +152,14 @@ curl -fsS http://127.0.0.1:3000/api/health
 
 ```bash
 cp .env.production.example .env.production
+python - <<'PY_ENV'
+from pathlib import Path
+from secrets import token_urlsafe
+path = Path(".env.production")
+text = path.read_text()
+text = text.replace("FISH_ADMIN_TOKEN=", f"FISH_ADMIN_TOKEN={token_urlsafe(32)}", 1)
+path.write_text(text)
+PY_ENV
 docker compose up --build -d
 docker compose ps
 docker compose logs -f fish-web
@@ -347,7 +355,7 @@ FISH_TESTNET_FAUCET_MAX_DAILY_CLAIMS=50
 FISH_TESTNET_FAUCET_CONFIRMATIONS=1
 ```
 
-Set `FISH_ADMIN_TOKEN` to a unique long random secret in production-like environments before issuing prototype API keys. Public placeholder values such as `change-me-for-production` are rejected by the admin guard.
+Set `FISH_ADMIN_TOKEN` to a unique long random secret in production-like environments before issuing prototype API keys. Public placeholder values such as `change-me-for-production` or `replace-with-a-long-random-secret` are rejected by the admin guard.
 Set `FISH_PROVIDER_ALLOWLIST` or mount `data/provider_allowlist.json` when the first selected providers are approved.
 Set `FISH_PROVIDER_JOB_ENDPOINTS=prov_abc=https://provider.example.com/fish/jobs` and optionally `FISH_PROVIDER_JOB_API_KEY` only when a selected provider has a private HTTP job adapter ready. Use only `http` or `https` endpoints on public-routable provider hosts; Fish rejects localhost, link-local, private-network, and credentialed URLs, validates DNS results before dispatch, and fails provider redirects instead of following them. Until then, keep provider proof on mock/sample data.
 Set `FISH_OCEAN_BATCH_ENDPOINT` and optionally `FISH_OCEAN_BATCH_API_KEY` only when a private Oncompute/Ocean batch adapter is ready. Until then, `/api/ocean/batch/jobs` should stay in sample mode. Use `/api/ocean/batch/readiness` and `/proof` to verify that the adapter is reachable, live-ready, and backed by a successful non-sample receipt before claiming real Ocean workload proof.
