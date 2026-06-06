@@ -264,11 +264,13 @@ The adapter template lives at:
 deploy/ocean-workload-adapter/env.example
 ```
 
-Copy it to an ignored private file:
+Copy the root external-proof template to an ignored private file:
 
 ```bash
-cp deploy/ocean-workload-adapter/env.example .env.ocean-proof.local
+cp .env.ocean-proof.example .env.ocean-proof.local
 ```
+
+The fuller service template remains available at `deploy/ocean-workload-adapter/env.example` when you need local Ocean Node mode or adapter defaults.
 
 Prepare the Ocean CLI checkout:
 

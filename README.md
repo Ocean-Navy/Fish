@@ -646,19 +646,20 @@ npm run proof:external-preflight -- --env-file .env.ocean-proof.local
 npm run ocean-demo:web-env -- --env .env.ocean-demo-stack --host <private-gpu-vm-host>
 npm run readiness:public-testnet -- --env .env.production.example --app-env-overlay .env.production.private --derive-ocean-web-env-host <private-gpu-vm-host>
 npm run readiness:public-testnet
-npm run readiness:public-testnet -- --strict
+npm run readiness:public-testnet:strict
+npm run readiness:paid-mainnet
 npm run backup:runtime -- --dry-run
 ```
 
 Use an absolute private backup target such as `/var/backups/fish`. Do not point backups at `public/`, `data/`, a relative repository path, or temporary storage. The backup dry run and public-readiness audit report unsafe targets.
 
-`npm run readiness:public-testnet` uses the no-real-money public-testnet profile by default. It treats intentionally paused paid checkout as a manual follow-up, not as a public-testnet blocker. Each row maps back to the step numbers in `docs/public-testnet-launch-readiness.md`, including the proof UX/claim gate for steps 4 and 9. Add `--strict` when every manual and partial item must be resolved. `--app-env-overlay <private-env>` lets the audit merge private host settings such as admin tokens, guest salts, backup targets, and proof signing keys without printing their values. `--derive-ocean-web-env-host <private-gpu-vm-host>` lets the audit evaluate the private Ocean adapter/Fish Runner web-env block without printing its keys. Before paid Stripe/USDC launch, run `npm run readiness:public-testnet -- --profile paid-mainnet`. `npm run secrets:public-testnet` prints generated starter values for private env files; it includes secrets and should not be committed or pasted into public notes. See `docs/public-testnet-launch-readiness.md`.
+`npm run readiness:public-testnet` uses the no-real-money public-testnet profile by default. It treats intentionally paused paid checkout as a manual follow-up, not as a public-testnet blocker. Each row maps back to the step numbers in `docs/public-testnet-launch-readiness.md`, including the proof UX/claim gate for steps 4 and 9. Use `npm run readiness:public-testnet:strict` when every manual and partial item must be resolved. `--app-env-overlay <private-env>` lets the audit merge private host settings such as admin tokens, guest salts, backup targets, and proof signing keys without printing their values. `--derive-ocean-web-env-host <private-gpu-vm-host>` lets the audit evaluate the private Ocean adapter/Fish Runner web-env block without printing its keys. Before paid Stripe/USDC launch, run `npm run readiness:paid-mainnet`. `npm run secrets:public-testnet` prints generated starter values for private env files; it includes secrets and should not be committed or pasted into public notes. See `docs/public-testnet-launch-readiness.md`.
 
 The readiness audit also checks repository hygiene. Runtime ledgers, private env files, local contract deployment artifacts, backups, nginx password files, provider allowlists, and proof signing keys must stay ignored and untracked before a public link or security scan.
 
 `npm run proof:algorithm-smoke` checks the prepared Fish Docs Bento Ocean algorithm locally with no wallet, RPC, or Ocean CLI. Run it before publishing the algorithm DID for the first real Ocean/Oncompute proof.
 
-`npm run proof:external-preflight -- --env-file .env.ocean-proof.local` checks the private Ocean workload adapter env without starting HTTP and without printing adapter keys, wallet secrets, mnemonics, or RPC URLs. It should report `liveReady: true` before Fish sends an external Ocean/Oncompute proof job.
+Create the private external-proof env from `.env.ocean-proof.example`, then run `npm run proof:external-preflight -- --env-file .env.ocean-proof.local`. The preflight checks the private Ocean workload adapter env without starting HTTP and without printing adapter keys, wallet secrets, mnemonics, or RPC URLs. It should report `liveReady: true` before Fish sends an external Ocean/Oncompute proof job.
 
 To open the public tester faucet after Base Sepolia test token contracts exist, generate a private web-app overlay instead of editing the public example env:
 

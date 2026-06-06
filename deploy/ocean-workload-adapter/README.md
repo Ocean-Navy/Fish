@@ -45,8 +45,11 @@ Docker job, the job finishes, and the adapter downloads the Ocean Node
 Copy the template to a private env file:
 
 ```bash
-cp deploy/ocean-workload-adapter/env.example .env.ocean-proof.local
+cp .env.ocean-proof.example .env.ocean-proof.local
 ```
+
+Use `deploy/ocean-workload-adapter/env.example` when you need the full adapter
+service defaults or local Ocean Node mode settings.
 
 Fill in:
 
