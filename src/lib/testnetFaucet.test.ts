@@ -45,6 +45,12 @@ test("testnet faucet is disabled by default", async () => {
   assert.equal(status.ready, false);
   assert.equal(status.dataState, "unavailable");
   assert.equal(status.reason, "testnet_faucet_disabled");
+  assert.deepEqual(status.claiming, {
+    available: false,
+    state: "closed",
+    message: "Playground refills are closed right now.",
+    action: "You can still connect a wallet and explore the testnet pages."
+  });
 });
 
 test("testnet faucet claim parser accepts only EVM addresses", () => {
@@ -104,6 +110,37 @@ test("testnet faucet status exposes only aggregate daily usage", async () => {
     resetAt: "2026-06-07T00:00:00.000Z",
     latestClaimAt: "2026-06-06T01:00:00.000Z"
   });
+});
+
+test("testnet faucet status uses setup copy when enabled but not ready", async () => {
+  process.env.FISH_TESTNET_FAUCET_ENABLED = "true";
+  const status = await summarizeTestnetFaucet();
+
+  assert.equal(status.enabled, true);
+  assert.equal(status.ready, false);
+  assert.equal(status.dataState, "snapshot");
+  assert.equal(status.reason, "testnet_faucet_private_key_required");
+  assert.deepEqual(status.claiming, {
+    available: false,
+    state: "setup",
+    message: "Playground refills are being prepared.",
+    action: "The faucet needs funding or operator setup before claims open."
+  });
+});
+
+test("testnet faucet status uses ready copy when configured", async () => {
+  process.env.FISH_TESTNET_FAUCET_ENABLED = "true";
+  process.env.FISH_TESTNET_FAUCET_CHAIN_ID = "84532";
+  process.env.FISH_TESTNET_FAUCET_RPC_URL = "http://127.0.0.1:1";
+  process.env.FISH_TESTNET_FAUCET_PRIVATE_KEY = `0x${"11".repeat(32)}`;
+  process.env.FISH_TESTNET_FAUCET_OCEAN_TOKEN_ADDRESS = "0x1111111111111111111111111111111111111111";
+  process.env.FISH_TESTNET_FAUCET_USDC_TOKEN_ADDRESS = "0x2222222222222222222222222222222222222222";
+  const status = await summarizeTestnetFaucet({ claimsPath: await tempClaimsPath() });
+
+  assert.equal(status.ready, true);
+  assert.equal(status.claiming.available, true);
+  assert.equal(status.claiming.state, "ready");
+  assert.equal(status.claiming.message, "Playground refills are open.");
 });
 
 async function tempClaimsPath() {

@@ -4300,6 +4300,19 @@ components:
           type: boolean
         reason:
           type: string
+        claiming:
+          type: object
+          description: Public-safe, user-facing claim state. Does not expose private keys, IP hashes, wallet hashes, or raw claim rows.
+          properties:
+            available:
+              type: boolean
+            state:
+              type: string
+              enum: [ready, closed, setup]
+            message:
+              type: string
+            action:
+              type: string
         chain:
           type: object
           properties:

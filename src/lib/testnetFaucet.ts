@@ -51,6 +51,12 @@ export type TestnetFaucetStatus = {
   enabled: boolean;
   ready: boolean;
   reason: string;
+  claiming: {
+    available: boolean;
+    state: "ready" | "closed" | "setup";
+    message: string;
+    action: string;
+  };
   chain: {
     chainId: number;
     chainName: string;
@@ -136,6 +142,7 @@ export async function summarizeTestnetFaucet(options: TestnetFaucetOptions = {})
     enabled: config.enabled,
     ready: readiness.ready,
     reason: readiness.reason,
+    claiming: publicClaimingState(readiness, config),
     chain: {
       chainId: config.chainId,
       chainName: config.chainName,
@@ -242,6 +249,33 @@ export async function claimTestnetFaucet(walletAddress: string, ipAddress: strin
       error: claim.failureReason
     };
   }
+}
+
+function publicClaimingState(readiness: { ready: boolean; reason: string }, config: TestnetFaucetConfig): TestnetFaucetStatus["claiming"] {
+  if (readiness.ready) {
+    return {
+      available: true,
+      state: "ready",
+      message: "Playground refills are open.",
+      action: "Connect a wallet, switch to Base Sepolia, and claim a small refill."
+    };
+  }
+
+  if (!config.enabled || readiness.reason === "testnet_faucet_disabled") {
+    return {
+      available: false,
+      state: "closed",
+      message: "Playground refills are closed right now.",
+      action: "You can still connect a wallet and explore the testnet pages."
+    };
+  }
+
+  return {
+    available: false,
+    state: "setup",
+    message: "Playground refills are being prepared.",
+    action: "The faucet needs funding or operator setup before claims open."
+  };
 }
 
 export function getTestnetFaucetConfig(): TestnetFaucetConfig {

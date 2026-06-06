@@ -10,6 +10,12 @@ type FaucetStatus = {
   enabled: boolean;
   ready: boolean;
   reason: string;
+  claiming: {
+    available: boolean;
+    state: "ready" | "closed" | "setup";
+    message: string;
+    action: string;
+  };
   chain: {
     chainId: number;
     chainName: string;
@@ -215,7 +221,7 @@ export function TestnetFaucetPanel() {
   const setupSteps = [
     { title: "Connect wallet", body: connected ? formatEvmAddress(walletAddress) : "Use any EVM wallet.", done: connected },
     { title: "Pick Base Sepolia", body: onBaseSepolia ? "Network ready." : "Fish can switch it for you.", done: onBaseSepolia },
-    { title: "Claim tokens", body: ready ? "One small playground refill." : "Faucet opens when funded.", done: Boolean(claim) }
+    { title: "Claim tokens", body: status?.claiming.available ? "One small playground refill." : (status?.claiming.message ?? "Faucet opens later."), done: Boolean(claim) }
   ];
 
   return (
@@ -226,11 +232,11 @@ export function TestnetFaucetPanel() {
             <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">Testnet playground</p>
             <h2 className="mt-2 text-3xl font-black text-white sm:text-5xl">Try Fish without real money.</h2>
             <p className="mt-3 max-w-3xl text-base font-bold leading-7 text-fish-secondary">
-              Connect a wallet, switch to Base Sepolia, and claim a small playground refill.
+              {status?.claiming.action ?? "Connect a wallet, switch to Base Sepolia, and claim a small playground refill."}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <Badge label={ready ? "ready" : formatReason(status?.reason)} tone={ready ? "ready" : "muted"} />
+            <Badge label={status?.claiming.state ?? "loading"} tone={ready ? "ready" : "muted"} />
             <button
               type="button"
               onClick={refreshStatus}
@@ -311,7 +317,7 @@ export function TestnetFaucetPanel() {
               <Mini label="Claims left today" value={`${formatNumber(status?.usage.remainingToday ?? 0)} / ${formatNumber(status?.limits.maxDailyClaims ?? 50)}`} />
               <Mini label="Cooldown" value={`${status?.limits.walletCooldownHours ?? 24}h wallet / ${status?.limits.ipCooldownHours ?? 24}h IP`} />
               <Mini label="Resets" value={formatDateTime(status?.usage.resetAt)} />
-              <Mini label="Status" value={ready ? "Ready" : formatReason(status?.reason)} />
+              <Mini label="Status" value={status?.claiming.message ?? (ready ? "Ready" : formatReason(status?.reason))} />
             </div>
             {claim ? (
               <div className="mt-4 rounded-3xl border border-fish-gold/25 bg-fish-gold/10 p-4">
