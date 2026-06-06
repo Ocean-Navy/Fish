@@ -106,6 +106,11 @@ test("billing readiness is unavailable without a liability cap or provider", () 
 
   assert.equal(readiness.checkoutAvailable, false);
   assert.equal(readiness.dataState, "unavailable");
+  assert.deepEqual(readiness.liabilityCap, {
+    configured: false,
+    maxOutstandingPrepaidCredits: null,
+    maxOutstandingPrepaidUsd: null
+  });
   assert.deepEqual(readiness.blockers, ["paid_credit_liability_cap_not_configured", "payment_provider_not_configured"]);
 });
 
@@ -119,6 +124,11 @@ test("billing readiness keeps providers disabled while paid topups are paused", 
 
   assert.equal(readiness.checkoutAvailable, false);
   assert.equal(readiness.dataState, "snapshot");
+  assert.deepEqual(readiness.liabilityCap, {
+    configured: true,
+    maxOutstandingPrepaidCredits: 100000,
+    maxOutstandingPrepaidUsd: 100
+  });
   assert.equal(readiness.providers.usdc.configured, true);
   assert.equal(readiness.providers.usdc.enabled, false);
   assert.deepEqual(readiness.blockers, ["paid_topups_paused"]);
@@ -133,6 +143,11 @@ test("billing readiness enables configured providers only after caps are set and
 
   assert.equal(readiness.checkoutAvailable, true);
   assert.equal(readiness.dataState, "live");
+  assert.deepEqual(readiness.liabilityCap, {
+    configured: true,
+    maxOutstandingPrepaidCredits: 100000,
+    maxOutstandingPrepaidUsd: 100
+  });
   assert.equal(readiness.providers.stripe.enabled, true);
   assert.equal(readiness.providers.usdc.enabled, false);
   assert.deepEqual(readiness.blockers, []);

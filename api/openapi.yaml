@@ -4964,6 +4964,9 @@ components:
             maxOutstandingPrepaidCredits:
               type: integer
               nullable: true
+            maxOutstandingPrepaidUsd:
+              type: number
+              nullable: true
         providers:
           type: object
           properties:

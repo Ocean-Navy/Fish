@@ -635,7 +635,7 @@ function PaymentDock({
   const paymentStatusCards = [
     { label: "Checkout", value: paymentsOpen ? "Open" : "Closed" },
     { label: "Top-ups", value: topupState },
-    { label: "Liability cap", value: readiness?.liabilityCap.configured ? formatNumber(readiness.liabilityCap.maxOutstandingPrepaidCredits ?? 0) : "Not set" },
+    { label: "Liability cap", value: readiness?.liabilityCap.configured ? formatUsd(readiness.liabilityCap.maxOutstandingPrepaidUsd ?? 0) : "Not set" },
     { label: "Providers", value: readiness?.providers.stripe.configured || readiness?.providers.usdc.configured ? "Configured" : "Not ready" }
   ];
 

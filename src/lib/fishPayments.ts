@@ -103,6 +103,7 @@ export type FishBillingReadiness = {
   liabilityCap: {
     configured: boolean;
     maxOutstandingPrepaidCredits: number | null;
+    maxOutstandingPrepaidUsd: number | null;
   };
   providers: {
     stripe: {
@@ -160,7 +161,8 @@ export function summarizeBillingReadiness(): FishBillingReadiness {
     maxCheckoutUsd: readNumber(process.env.FISH_MAX_CHECKOUT_USD, 500),
     liabilityCap: {
       configured: liabilityCapConfigured,
-      maxOutstandingPrepaidCredits: liabilityCapConfigured ? maxOutstandingPrepaidCredits : null
+      maxOutstandingPrepaidCredits: liabilityCapConfigured ? maxOutstandingPrepaidCredits : null,
+      maxOutstandingPrepaidUsd: liabilityCapConfigured ? creditsToUsd(maxOutstandingPrepaidCredits) : null
     },
     providers: {
       stripe: {
@@ -766,6 +768,10 @@ function amountCentsToAtomic(amountCents: number, decimals: number) {
 
 function creditsToCents(credits: number) {
   return Math.ceil(credits * FISH_CREDIT_USD * 100);
+}
+
+function creditsToUsd(credits: number) {
+  return Number((credits * FISH_CREDIT_USD).toFixed(6));
 }
 
 function atomicToDecimal(value: string, decimals: number) {
