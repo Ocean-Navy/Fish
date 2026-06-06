@@ -314,7 +314,7 @@ export function TestnetFaucetPanel() {
               <Mini label="Test USDC" value={formatAmount(status?.grants.testUsdcAmount)} />
             </div>
             <div className="mt-3 grid gap-3 md:grid-cols-2">
-              <Mini label="Claims left today" value={`${formatNumber(status?.usage.remainingToday ?? 0)} / ${formatNumber(status?.limits.maxDailyClaims ?? 50)}`} />
+              <Mini label="Attempts left today" value={`${formatNumber(status?.usage.remainingToday ?? 0)} / ${formatNumber(status?.limits.maxDailyClaims ?? 50)}`} />
               <Mini label="Cooldown" value={`${status?.limits.walletCooldownHours ?? 24}h wallet / ${status?.limits.ipCooldownHours ?? 24}h IP`} />
               <Mini label="Resets" value={formatDateTime(status?.usage.resetAt)} />
               <Mini label="Status" value={status?.claiming.message ?? (ready ? "Ready" : formatReason(status?.reason))} />
@@ -339,7 +339,7 @@ export function TestnetFaucetPanel() {
                 <Mini label="Faucet ETH" value={formatAmount(status?.balances.eth)} />
                 <Mini label="Faucet OCEAN" value={formatAmount(status?.balances.testOcean)} />
                 <Mini label="Faucet USDC" value={formatAmount(status?.balances.testUsdc)} />
-                <Mini label="Last claim" value={formatDateTime(status?.usage.latestClaimAt)} />
+                <Mini label="Last attempt" value={formatDateTime(status?.usage.latestClaimAt)} />
                 <AddressMini label="Faucet wallet" value={status?.faucetAddress} />
                 <AddressMini label="Test OCEAN token" value={status?.tokenAddresses.testOcean} />
                 <AddressMini label="Test USDC token" value={status?.tokenAddresses.testUsdc} />

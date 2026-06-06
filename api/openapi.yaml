@@ -4455,17 +4455,21 @@ components:
               type: integer
         usage:
           type: object
+          description: Public-safe aggregate faucet usage. Successful and failed recorded claim attempts count toward daily and cooldown limits so partial payout failures cannot be retried without a cooldown.
           properties:
             claimsToday:
               type: integer
+              description: Recorded faucet attempts today, including failed attempts.
             remainingToday:
               type: integer
+              description: Remaining recorded attempts before the daily cap is reached.
             resetAt:
               type: string
               format: date-time
             latestClaimAt:
               type: string
               format: date-time
+              description: Latest recorded faucet attempt time.
               nullable: true
         balances:
           type: object

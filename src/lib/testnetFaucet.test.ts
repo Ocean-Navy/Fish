@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { writeFile, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -85,7 +86,7 @@ test("testnet faucet config derives faucet address without exposing it publicly 
   assert.match(config.faucetAddress ?? "", /^0x[a-fA-F0-9]{40}$/);
 });
 
-test("testnet faucet status exposes only aggregate daily usage", async () => {
+test("testnet faucet status exposes only aggregate daily usage and counts failed attempts", async () => {
   process.env.FISH_TESTNET_FAUCET_MAX_DAILY_CLAIMS = "3";
   const claimsPath = await tempClaimsPath();
   await writeFile(
@@ -105,11 +106,81 @@ test("testnet faucet status exposes only aggregate daily usage", async () => {
   });
 
   assert.deepEqual(status.usage, {
-    claimsToday: 1,
-    remainingToday: 2,
+    claimsToday: 2,
+    remainingToday: 1,
     resetAt: "2026-06-07T00:00:00.000Z",
-    latestClaimAt: "2026-06-06T01:00:00.000Z"
+    latestClaimAt: "2026-06-06T02:00:00.000Z"
   });
+});
+
+test("testnet faucet failed attempts count toward wallet cooldown", async () => {
+  configureReadyFaucet();
+  const walletAddress = "0x1111111111111111111111111111111111111111";
+  const now = new Date("2026-06-06T12:00:00.000Z");
+  const claimsPath = await tempClaimsPath();
+  await writeFile(
+    claimsPath,
+    JSON.stringify({
+      claims: [
+        {
+          claimId: "faucet_failed_wallet",
+          walletHash: hashValue(walletAddress.toLowerCase()),
+          walletPrefix: "0x1111...1111",
+          ipHash: hashValue("203.0.113.10"),
+          status: "failed",
+          createdAt: "2026-06-06T11:30:00.000Z",
+          chainId: 84532,
+          ethTxHash: null,
+          oceanTxHash: null,
+          usdcTxHash: null,
+          failureReason: "testnet_faucet_ocean_balance_low"
+        }
+      ]
+    })
+  );
+
+  const result = await claimTestnetFaucet(walletAddress, "203.0.113.10", { claimsPath, now });
+
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.equal(result.status, 429);
+    assert.equal(result.error, "testnet_faucet_wallet_cooldown");
+  }
+});
+
+test("testnet faucet failed attempts count toward daily cap", async () => {
+  configureReadyFaucet();
+  process.env.FISH_TESTNET_FAUCET_MAX_DAILY_CLAIMS = "1";
+  const now = new Date("2026-06-06T12:00:00.000Z");
+  const claimsPath = await tempClaimsPath();
+  await writeFile(
+    claimsPath,
+    JSON.stringify({
+      claims: [
+        {
+          claimId: "faucet_failed_daily",
+          walletHash: hashValue("0x2222222222222222222222222222222222222222"),
+          walletPrefix: "0x2222...2222",
+          ipHash: hashValue("203.0.113.20"),
+          status: "failed",
+          createdAt: "2026-06-06T01:00:00.000Z",
+          chainId: 84532,
+          ethTxHash: null,
+          oceanTxHash: null,
+          usdcTxHash: null,
+          failureReason: "testnet_faucet_usdc_balance_low"
+        }
+      ]
+    })
+  );
+
+  const result = await claimTestnetFaucet("0x3333333333333333333333333333333333333333", "203.0.113.30", { claimsPath, now });
+
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.equal(result.status, 429);
+    assert.equal(result.error, "testnet_faucet_daily_cap_reached");
+  }
 });
 
 test("testnet faucet status uses setup copy when enabled but not ready", async () => {
@@ -152,4 +223,17 @@ function clearFaucetEnv() {
   for (const key of FAUCET_ENV_KEYS) {
     delete process.env[key];
   }
+}
+
+function configureReadyFaucet() {
+  process.env.FISH_TESTNET_FAUCET_ENABLED = "true";
+  process.env.FISH_TESTNET_FAUCET_CHAIN_ID = "84532";
+  process.env.FISH_TESTNET_FAUCET_RPC_URL = "http://127.0.0.1:1";
+  process.env.FISH_TESTNET_FAUCET_PRIVATE_KEY = `0x${"11".repeat(32)}`;
+  process.env.FISH_TESTNET_FAUCET_OCEAN_TOKEN_ADDRESS = "0x1111111111111111111111111111111111111111";
+  process.env.FISH_TESTNET_FAUCET_USDC_TOKEN_ADDRESS = "0x2222222222222222222222222222222222222222";
+}
+
+function hashValue(value: string) {
+  return createHash("sha256").update(value).digest("hex");
 }

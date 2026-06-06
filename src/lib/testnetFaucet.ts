@@ -323,20 +323,20 @@ function checkFaucetRateLimit(
     walletHash: string;
   }
 ) {
-  const successfulClaims = ledger.claims.filter((claim) => claim.status === "succeeded");
+  const limitedClaims = claimsThatCountTowardLimits(ledger.claims);
   const dayStart = startOfUtcDay(input.now);
-  const dailyClaims = successfulClaims.filter((claim) => Date.parse(claim.createdAt) >= dayStart.getTime()).length;
+  const dailyClaims = limitedClaims.filter((claim) => Date.parse(claim.createdAt) >= dayStart.getTime()).length;
   if (dailyClaims >= input.config.maxDailyClaims) {
     return { ok: false as const, status: 429, error: "testnet_faucet_daily_cap_reached", resetAt: new Date(dayStart.getTime() + 24 * 60 * 60_000).toISOString() };
   }
 
-  const walletClaim = latestClaim(successfulClaims.filter((claim) => claim.walletHash === input.walletHash));
+  const walletClaim = latestClaim(limitedClaims.filter((claim) => claim.walletHash === input.walletHash));
   const walletResetAt = cooldownResetAt(walletClaim?.createdAt, input.config.cooldownHours);
   if (walletResetAt && walletResetAt.getTime() > input.now.getTime()) {
     return { ok: false as const, status: 429, error: "testnet_faucet_wallet_cooldown", resetAt: walletResetAt.toISOString() };
   }
 
-  const ipClaim = latestClaim(successfulClaims.filter((claim) => claim.ipHash === input.ipHash));
+  const ipClaim = latestClaim(limitedClaims.filter((claim) => claim.ipHash === input.ipHash));
   const ipResetAt = cooldownResetAt(ipClaim?.createdAt, input.config.ipCooldownHours);
   if (ipResetAt && ipResetAt.getTime() > input.now.getTime()) {
     return { ok: false as const, status: 429, error: "testnet_faucet_ip_cooldown", resetAt: ipResetAt.toISOString() };
@@ -346,11 +346,11 @@ function checkFaucetRateLimit(
 }
 
 function summarizeFaucetUsage(ledger: FaucetLedger, config: TestnetFaucetConfig, now: Date) {
-  const successfulClaims = ledger.claims.filter((claim) => claim.status === "succeeded");
+  const limitedClaims = claimsThatCountTowardLimits(ledger.claims);
   const dayStart = startOfUtcDay(now);
   const resetAt = new Date(dayStart.getTime() + 24 * 60 * 60_000).toISOString();
-  const claimsToday = successfulClaims.filter((claim) => Date.parse(claim.createdAt) >= dayStart.getTime()).length;
-  const latestClaimAt = latestClaim(successfulClaims)?.createdAt ?? null;
+  const claimsToday = limitedClaims.filter((claim) => Date.parse(claim.createdAt) >= dayStart.getTime()).length;
+  const latestClaimAt = latestClaim(limitedClaims)?.createdAt ?? null;
   return {
     claimsToday,
     remainingToday: Math.max(0, config.maxDailyClaims - claimsToday),
@@ -376,20 +376,11 @@ async function submitFaucetTransfers(config: TestnetFaucetConfig, walletAddress:
   const recipient = walletAddress as Address;
   const ethThreshold = parseEther(config.ethLowBalanceThreshold);
   const ethGrant = parseEther(config.ethAmount);
-  const recipientEthBalance = await publicClient.getBalance({ address: recipient });
-  const faucetEthBalance = await publicClient.getBalance({ address: account.address });
-  let ethTxHash: Hex | null = null;
-  let ethSent = false;
-  if (recipientEthBalance < ethThreshold) {
-    if (faucetEthBalance < ethGrant) throw new Error("testnet_faucet_eth_balance_low");
-    ethTxHash = await walletClient.sendTransaction({ to: recipient, value: ethGrant });
-    await publicClient.waitForTransactionReceipt({ hash: ethTxHash, confirmations: config.confirmations });
-    ethSent = true;
-  }
-
   const oceanAddress = config.oceanTokenAddress as Address;
   const usdcAddress = config.usdcTokenAddress as Address;
-  const [oceanDecimals, usdcDecimals] = await Promise.all([
+  const [recipientEthBalance, faucetEthBalance, oceanDecimals, usdcDecimals] = await Promise.all([
+    publicClient.getBalance({ address: recipient }),
+    publicClient.getBalance({ address: account.address }),
     publicClient.readContract({ address: oceanAddress, abi: ERC20_TRANSFER_ABI, functionName: "decimals" }),
     publicClient.readContract({ address: usdcAddress, abi: ERC20_TRANSFER_ABI, functionName: "decimals" })
   ]);
@@ -399,8 +390,18 @@ async function submitFaucetTransfers(config: TestnetFaucetConfig, walletAddress:
     publicClient.readContract({ address: oceanAddress, abi: ERC20_TRANSFER_ABI, functionName: "balanceOf", args: [account.address] }),
     publicClient.readContract({ address: usdcAddress, abi: ERC20_TRANSFER_ABI, functionName: "balanceOf", args: [account.address] })
   ]);
+  const ethTopUpNeeded = recipientEthBalance < ethThreshold;
+  if (ethTopUpNeeded && faucetEthBalance < ethGrant) throw new Error("testnet_faucet_eth_balance_low");
   if ((faucetOceanBalance as bigint) < oceanAmount) throw new Error("testnet_faucet_ocean_balance_low");
   if ((faucetUsdcBalance as bigint) < usdcAmount) throw new Error("testnet_faucet_usdc_balance_low");
+
+  let ethTxHash: Hex | null = null;
+  let ethSent = false;
+  if (ethTopUpNeeded) {
+    ethTxHash = await walletClient.sendTransaction({ to: recipient, value: ethGrant });
+    await publicClient.waitForTransactionReceipt({ hash: ethTxHash, confirmations: config.confirmations });
+    ethSent = true;
+  }
 
   const oceanTxHash = await walletClient.writeContract({
     address: oceanAddress,
@@ -499,6 +500,10 @@ function createBaseSepoliaChain(config: TestnetFaucetConfig): Chain {
 
 function latestClaim(claims: TestnetFaucetClaim[]) {
   return claims.sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt))[0] ?? null;
+}
+
+function claimsThatCountTowardLimits(claims: TestnetFaucetClaim[]) {
+  return claims.filter((claim) => (claim.status === "succeeded" || claim.status === "failed") && Number.isFinite(Date.parse(claim.createdAt)));
 }
 
 function startOfUtcDay(value: Date) {
