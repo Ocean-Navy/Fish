@@ -37,9 +37,12 @@ This checklist covers the next Fish version work that can be finished before ren
 ```bash
 npm run verify
 npm run readiness:public-testnet
+npm run readiness:public-testnet -- --profile paid-mainnet
 npm run backup:runtime -- --dry-run
 docker compose config >/tmp/fish-compose.yml
 ```
+
+The default readiness profile is for a no-real-money public testnet and allows intentionally paused paid checkout. The `paid-mainnet` profile must stay blocked until the payment provider, liability cap, and support/refund path are ready.
 
 8. Browser-check:
    - `/`

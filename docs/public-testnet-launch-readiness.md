@@ -113,7 +113,15 @@ npm run readiness:public-testnet
 curl -sS http://127.0.0.1:3000/api/billing/readiness
 ```
 
-If the script reports payments as blocked, keep:
+The default readiness profile is `public-testnet`. In that profile, intentionally paused paid checkout is acceptable because public testers are not using real money. It still reports the missing Stripe/USDC/liability-cap work as manual follow-up.
+
+Before a paid launch, use the stricter profile:
+
+```bash
+npm run readiness:public-testnet -- --profile paid-mainnet
+```
+
+If the paid-mainnet profile reports payments as blocked, keep:
 
 ```text
 FISH_PAID_TOPUPS_PAUSED=true
@@ -238,6 +246,7 @@ Optional:
 
 ```bash
 npm run readiness:public-testnet -- --env .env.production --ocean-env .env.ocean-demo-stack --json
+npm run readiness:public-testnet -- --profile paid-mainnet --env .env.production --ocean-env .env.ocean-demo-stack
 ```
 
 The command prints public-safe readiness states and never prints secrets.

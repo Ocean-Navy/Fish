@@ -4,7 +4,14 @@ import { existsSync, readFileSync } from "node:fs";
 
 const rootEnvPath = option("--env") || ".env.production";
 const oceanEnvPath = option("--ocean-env") || ".env.ocean-demo-stack";
+const profile = option("--profile") || "public-testnet";
 const json = hasFlag("--json");
+
+if (!["public-testnet", "paid-mainnet"].includes(profile)) {
+  console.error(`Unknown readiness profile: ${profile}`);
+  console.error("Use --profile public-testnet or --profile paid-mainnet.");
+  process.exit(2);
+}
 
 const appEnv = readEnvFile(rootEnvPath);
 const oceanEnv = readEnvFile(oceanEnvPath);
@@ -12,7 +19,7 @@ const checks = [
   checkPublicWeb(appEnv, rootEnvPath),
   checkOceanDemo(oceanEnv, oceanEnvPath),
   checkBatchDishes(appEnv),
-  checkPayments(appEnv),
+  checkPayments(appEnv, profile),
   checkTestnetFaucet(appEnv),
   checkContracts(appEnv),
   checkDataHygiene(appEnv),
@@ -22,6 +29,7 @@ const checks = [
 
 const summary = {
   checkedAt: new Date().toISOString(),
+  profile,
   env: {
     app: rootEnvPath,
     ocean: oceanEnvPath
@@ -78,14 +86,24 @@ function checkBatchDishes(env) {
   return result("Ocean batch dishes", findings.length ? "partial" : "ready", findings);
 }
 
-function checkPayments(env) {
-  const findings = [];
+function checkPayments(env, profile) {
+  const blockers = [];
   const hasStripe = safeSecret(env.FISH_STRIPE_SECRET_KEY) && safeSecret(env.FISH_STRIPE_WEBHOOK_SECRET);
   const hasUsdc = address(env.FISH_USDC_RECEIVE_ADDRESS) && env.FISH_USDC_RPC_URL;
-  if (!env.FISH_MAX_OUTSTANDING_PREPAID_CREDITS) findings.push("FISH_MAX_OUTSTANDING_PREPAID_CREDITS is missing; paid top-ups must stay blocked.");
-  if (!hasStripe && !hasUsdc) findings.push("Neither Stripe nor USDC checkout is fully configured.");
-  if (!truthy(env.FISH_PAID_TOPUPS_PAUSED) && findings.length) findings.push("Set FISH_PAID_TOPUPS_PAUSED=true until the above payment blockers are cleared.");
-  return result("Payments/mainnet checkout", findings.length ? "blocked" : "ready", findings);
+  const paidTopupsPaused = truthy(env.FISH_PAID_TOPUPS_PAUSED);
+  if (!env.FISH_MAX_OUTSTANDING_PREPAID_CREDITS) blockers.push("FISH_MAX_OUTSTANDING_PREPAID_CREDITS is missing; paid top-ups must stay blocked.");
+  if (!hasStripe && !hasUsdc) blockers.push("Neither Stripe nor USDC checkout is fully configured.");
+
+  if (profile === "public-testnet" && paidTopupsPaused) {
+    const findings = blockers.length
+      ? [...blockers, "Paid top-ups are paused, so these payment gaps do not block a no-real-money public testnet."]
+      : ["Paid top-ups are configured but intentionally paused for public testnet."];
+    return result("Payments/mainnet checkout", "manual", findings);
+  }
+
+  if (paidTopupsPaused) blockers.push("FISH_PAID_TOPUPS_PAUSED is enabled; paid checkout cannot launch until this is intentionally removed.");
+  if (!paidTopupsPaused && blockers.length) blockers.push("Set FISH_PAID_TOPUPS_PAUSED=true until the above payment blockers are cleared.");
+  return result("Payments/mainnet checkout", blockers.length ? "blocked" : "ready", blockers);
 }
 
 function checkTestnetFaucet(env) {
@@ -169,6 +187,7 @@ function result(name, state, findings) {
 
 function printSummary(summary) {
   console.log(`Fish public-testnet readiness (${summary.checkedAt})`);
+  console.log(`profile: ${summary.profile}`);
   console.log(`app env: ${summary.env.app}`);
   console.log(`ocean env: ${summary.env.ocean}`);
   console.log("");
