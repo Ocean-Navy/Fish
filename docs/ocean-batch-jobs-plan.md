@@ -33,7 +33,7 @@ Request shape:
 
 `inputRef` is a hash or storage reference. By default, do not send raw document text, repo text, datasets, or output text to this endpoint.
 
-For private artifact demos, Fish may include `inputPayload` and `artifactKind` when `FISH_OCEAN_BATCH_PRIVATE_PAYLOAD=true`. Use this only with a private adapter and Ocean Node we operate. Public Fish receipts still store only hashes, ids, route labels, cost, usage, and source state; returned artifact text is not written into public proof.
+For private artifact demos, Fish may include `inputPayload` and `artifactKind` when `FISH_OCEAN_BATCH_PRIVATE_PAYLOAD=true`. Use this only with a private adapter and Ocean Node we operate. Public Fish receipts still store only hashes, ids, route labels, cost, usage, and source state; returned artifact text is not written into public proof. If `inputPayload` is present, Fish derives a minimum input-token estimate from both `inputRef` and the private payload; omitted estimates use that value, and client estimates below it are rejected before any adapter call.
 
 For `adapterMode: "ocean_http"`, Fish atomically reserves `maxCostUsd` against the remaining `FISH_OCEAN_BATCH_DAILY_BUDGET_USD` before calling a private adapter. Only provider-verified `ocean_http` receipts and in-flight Ocean reservations count against the real daily cap; sample/prototype receipts remain local proof only. The default daily cap is `$30`. Live `ocean_http` jobs also require an Ocean-provider-eligible Fish plan, reserve enough Fish Credits to cover the requested `maxCostUsd` cap before execution, and debit successful provider-verified jobs by at least the accepted provider cost.
 

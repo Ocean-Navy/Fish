@@ -30,19 +30,31 @@ const pricingStateSchema = z.enum(["prototype_estimate", "provider_verified", "n
 const dataStateSchema = z.enum(["live", "snapshot", "sample", "unavailable"]);
 const artifactKindSchema = z.enum(["summary_card", "repo_map", "eval_scorecard", "data_card"]);
 
+const MAX_OCEAN_BATCH_INPUT_TOKENS = 200000;
+
 const oceanBatchJobRequestSchema = z
   .object({
     taskType: batchTaskTypeSchema.default("document_summary"),
     inputRef: z.string().trim().min(8).max(200),
     inputPayload: z.string().trim().min(1).max(20000).optional(),
     artifactKind: artifactKindSchema.optional(),
-    estimatedInputTokens: z.number().int().min(1).max(200000).optional(),
+    estimatedInputTokens: z.number().int().min(1).max(MAX_OCEAN_BATCH_INPUT_TOKENS).optional(),
     maxOutputTokens: z.number().int().min(1).max(8192).optional().default(512),
     maxRuntimeSeconds: z.number().int().min(1).max(3600).optional().default(600),
     maxCostUsd: z.number().min(0).max(100).optional().default(1),
     adapterMode: batchAdapterModeSchema.optional().default("sample_success")
   })
-  .strict();
+  .strict()
+  .superRefine((input, context) => {
+    const minimumEstimatedInputTokens = estimateOceanBatchInputTokens(input);
+    if (input.estimatedInputTokens !== undefined && input.estimatedInputTokens < minimumEstimatedInputTokens) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["estimatedInputTokens"],
+        message: `estimatedInputTokens must be at least ${minimumEstimatedInputTokens} for the input reference and private payload`
+      });
+    }
+  });
 
 export type OceanBatchJobRequestInput = z.infer<typeof oceanBatchJobRequestSchema>;
 type OceanBatchJobInput = Omit<OceanBatchJobRequestInput, "estimatedInputTokens"> & { estimatedInputTokens: number };
@@ -478,7 +490,6 @@ async function sumOceanBatchReservedCostSince(sinceIso: string) {
 
 function isRealOceanBatchBudgetReceipt(receipt: OceanBatchReceipt) {
   return (
-    receipt.status === "succeeded" &&
     receipt.adapterMode === "ocean_http" &&
     (receipt.sourceState === "snapshot" || receipt.sourceState === "live") &&
     receipt.cost.pricingState === "provider_verified"
@@ -486,10 +497,16 @@ function isRealOceanBatchBudgetReceipt(receipt: OceanBatchReceipt) {
 }
 
 function normalizeBatchInput(input: OceanBatchJobRequestInput): OceanBatchJobInput {
+  const minimumEstimatedInputTokens = estimateOceanBatchInputTokens(input);
   return {
     ...input,
-    estimatedInputTokens: input.estimatedInputTokens ?? Math.min(200000, Math.max(1, estimateTokens(input.inputRef)))
+    estimatedInputTokens: Math.max(input.estimatedInputTokens ?? minimumEstimatedInputTokens, minimumEstimatedInputTokens)
   };
+}
+
+function estimateOceanBatchInputTokens(input: Pick<OceanBatchJobRequestInput, "inputRef" | "inputPayload">) {
+  const payloadTokens = input.inputPayload ? estimateTokens(input.inputPayload) : 0;
+  return Math.min(MAX_OCEAN_BATCH_INPUT_TOKENS, Math.max(1, estimateTokens(input.inputRef) + payloadTokens));
 }
 
 function runSampleBatchAdapter(input: OceanBatchJobInput): OceanBatchAdapterOutcome {
@@ -561,18 +578,15 @@ function batchOutcome(input: OceanBatchJobInput, payload: Record<string, unknown
   const status = readBatchStatus(payload);
   const providerCostUsd = readProviderCostUsd(payload);
   if (providerCostUsd > input.maxCostUsd) {
-    return batchFailure(input, "ocean_batch_cost_cap_exceeded");
+    return batchFailure(input, "ocean_batch_cost_cap_exceeded", "failed", payload, input.maxCostUsd);
   }
   if (status !== "succeeded") {
-    return {
-      ...batchFailure(input, readString(payload, ["errorCode"]) ?? "ocean_batch_job_failed", status),
-      providerJobId: readString(payload, ["providerJobId"]) ?? readString(payload, ["jobId"])
-    };
+    return batchFailure(input, readString(payload, ["errorCode"]) ?? "ocean_batch_job_failed", status, payload, providerCostUsd);
   }
 
   const usage = readBatchUsage(input, payload);
   if (usage.inputTokens > input.estimatedInputTokens || usage.outputTokens > input.maxOutputTokens) {
-    return batchFailure(input, "ocean_batch_token_cap_exceeded");
+    return batchFailure(input, "ocean_batch_token_cap_exceeded", "failed", payload, providerCostUsd);
   }
 
   const outputRef = readString(payload, ["outputRef"]) ?? readString(payload, ["outputHash"]);
@@ -595,14 +609,24 @@ function batchOutcome(input: OceanBatchJobInput, payload: Record<string, unknown
   };
 }
 
-function batchFailure(input: OceanBatchJobInput, errorCode: string, status: "failed" | "timed_out" = "failed"): OceanBatchAdapterOutcome {
+function batchFailure(
+  input: OceanBatchJobInput,
+  errorCode: string,
+  status: "failed" | "timed_out" = "failed",
+  payload?: Record<string, unknown>,
+  providerCostUsd = 0
+): OceanBatchAdapterOutcome {
+  const usage = payload ? readBatchUsage(input, payload) : emptyUsage(input);
   return {
     status,
-    providerJobId: null,
+    providerJobId: payload ? readString(payload, ["providerJobId"]) ?? readString(payload, ["jobId"]) : null,
     outputRef: null,
     artifact: null,
-    usage: status === "timed_out" ? { ...emptyUsage(input), gpuSeconds: input.maxRuntimeSeconds } : emptyUsage(input),
-    cost: { userChargeUsd: 0, providerCostUsd: 0, pricingState: "not_applicable" },
+    usage: status === "timed_out" ? { ...usage, gpuSeconds: Math.max(usage.gpuSeconds, input.maxRuntimeSeconds) } : usage,
+    cost:
+      providerCostUsd > 0
+        ? { userChargeUsd: 0, providerCostUsd: Number(Math.min(providerCostUsd, input.maxCostUsd).toFixed(6)), pricingState: "provider_verified" }
+        : { userChargeUsd: 0, providerCostUsd: 0, pricingState: "not_applicable" },
     errorCode
   };
 }
