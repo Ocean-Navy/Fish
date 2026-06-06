@@ -120,6 +120,7 @@ Paid credits should stay blocked until:
 ```text
 FISH_MAX_OUTSTANDING_PREPAID_CREDITS is set
 Stripe or USDC checkout secrets are set
+USDC checkout uses Base mainnet chain id 8453 and canonical Base USDC
 FISH_BILLING_SUPPORT_URL and FISH_BILLING_REFUND_POLICY_URL are public-safe HTTP(S)/mailto links
 mainnet contract writes stay disabled unless explicitly reviewed
 ```
@@ -132,7 +133,7 @@ curl -sS http://127.0.0.1:3000/api/billing/readiness
 ```
 
 The default readiness profile is `public-testnet`. In that profile, intentionally paused paid checkout is acceptable because public testers are not using real money. It still reports the missing Stripe/USDC/liability-cap work as manual follow-up.
-`GET /api/billing/readiness` exposes the prepaid liability cap in both credits and USD exposure, plus support/refund readiness. Use the USD field for launch review because it is the real maximum prepaid liability if checkout is opened.
+`GET /api/billing/readiness` exposes the prepaid liability cap in both credits and USD exposure, plus support/refund readiness and public-safe USDC chain/token checks. Use the USD field for launch review because it is the real maximum prepaid liability if checkout is opened.
 
 Before a paid launch, use the stricter profile:
 

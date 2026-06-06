@@ -70,6 +70,48 @@ test("paid mainnet readiness blocks checkout without support and refund links", 
   assert.match(payments.findings.join("\n"), /FISH_BILLING_REFUND_POLICY_URL/);
 });
 
+test("paid mainnet readiness rejects USDC checkout on Base Sepolia", async () => {
+  const appEnv = await tempEnv(
+    [
+      "FISH_MAX_OUTSTANDING_PREPAID_CREDITS=100000",
+      "FISH_USDC_RECEIVE_ADDRESS=0x1111111111111111111111111111111111111111",
+      "FISH_USDC_RPC_URL=https://sepolia.base.org",
+      "FISH_USDC_CHAIN_ID=84532",
+      "FISH_BILLING_SUPPORT_URL=mailto:support@op.fish",
+      "FISH_BILLING_REFUND_POLICY_URL=https://op.fish/refunds"
+    ].join("\n")
+  );
+  const result = runReadiness(["--profile", "paid-mainnet", "--env", appEnv, "--ocean-env", missingOceanEnv(), "--json"]);
+
+  assert.equal(result.status, 1);
+  const summary = JSON.parse(result.stdout);
+  const payments = summary.checks.find((check: { name: string }) => check.name === "Payments/mainnet checkout");
+
+  assert.equal(payments.state, "blocked");
+  assert.match(payments.findings.join("\n"), /FISH_USDC_CHAIN_ID must be Base mainnet 8453/);
+});
+
+test("paid mainnet readiness rejects non-canonical USDC token config", async () => {
+  const appEnv = await tempEnv(
+    [
+      "FISH_MAX_OUTSTANDING_PREPAID_CREDITS=100000",
+      "FISH_USDC_RECEIVE_ADDRESS=0x1111111111111111111111111111111111111111",
+      "FISH_USDC_RPC_URL=https://mainnet.base.org",
+      "FISH_USDC_TOKEN_ADDRESS=0x2222222222222222222222222222222222222222",
+      "FISH_BILLING_SUPPORT_URL=mailto:support@op.fish",
+      "FISH_BILLING_REFUND_POLICY_URL=https://op.fish/refunds"
+    ].join("\n")
+  );
+  const result = runReadiness(["--profile", "paid-mainnet", "--env", appEnv, "--ocean-env", missingOceanEnv(), "--json"]);
+
+  assert.equal(result.status, 1);
+  const summary = JSON.parse(result.stdout);
+  const payments = summary.checks.find((check: { name: string }) => check.name === "Payments/mainnet checkout");
+
+  assert.equal(payments.state, "blocked");
+  assert.match(payments.findings.join("\n"), /FISH_USDC_TOKEN_ADDRESS must be canonical Base USDC/);
+});
+
 test("public web readiness blocks an unconfigured Ocean demo route", async () => {
   const appEnv = await tempEnv(["FISH_PAID_TOPUPS_PAUSED=true", "FISH_ADMIN_TOKEN=12345678901234567890123456789012", "FISH_CHAT_ROUTE=ocean-first"].join("\n"));
   const result = runReadiness(["--env", appEnv, "--ocean-env", missingOceanEnv(), "--json"]);

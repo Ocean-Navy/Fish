@@ -123,6 +123,8 @@ export type FishBillingReadiness = {
       tokenAddress: string;
       rpcConfigured: boolean;
       receiveAddressConfigured: boolean;
+      chainConfigured: boolean;
+      tokenConfigured: boolean;
     };
   };
   blockers: string[];
@@ -146,13 +148,11 @@ export function summarizeBillingReadiness(): FishBillingReadiness {
   const maxOutstandingPrepaidCredits = readOptionalInteger(process.env.FISH_MAX_OUTSTANDING_PREPAID_CREDITS);
   const liabilityCapConfigured = maxOutstandingPrepaidCredits !== null && maxOutstandingPrepaidCredits > 0;
   const stripeConfigured = configuredSecret(process.env.FISH_STRIPE_SECRET_KEY) && configuredSecret(process.env.FISH_STRIPE_WEBHOOK_SECRET);
-  const usdcReceiveAddress = cleanEnv(process.env.FISH_USDC_RECEIVE_ADDRESS);
-  const usdcRpcUrl = cleanEnv(process.env.FISH_USDC_RPC_URL);
-  const usdcConfigured = Boolean(usdcReceiveAddress && isAddress(usdcReceiveAddress) && usdcRpcUrl);
+  const usdcConfig = readUsdcCheckoutConfig();
   const supportUrl = publicCareUrl(process.env.FISH_BILLING_SUPPORT_URL);
   const refundPolicyUrl = publicCareUrl(process.env.FISH_BILLING_REFUND_POLICY_URL);
   const customerCareConfigured = Boolean(supportUrl && refundPolicyUrl);
-  const hasPaymentProvider = stripeConfigured || usdcConfigured;
+  const hasPaymentProvider = stripeConfigured || usdcConfig.configured;
   const checkoutAvailable = !paidTopupsPaused && liabilityCapConfigured && hasPaymentProvider && customerCareConfigured;
   const blockers = [
     ...(paidTopupsPaused ? ["paid_topups_paused"] : []),
@@ -187,19 +187,23 @@ export function summarizeBillingReadiness(): FishBillingReadiness {
         enabled: checkoutAvailable && stripeConfigured
       },
       usdc: {
-        configured: usdcConfigured,
-        enabled: checkoutAvailable && usdcConfigured,
-        chainId: readInteger(process.env.FISH_USDC_CHAIN_ID, BASE_CHAIN_ID),
-        tokenAddress: cleanEnv(process.env.FISH_USDC_TOKEN_ADDRESS) ?? BASE_USDC_ADDRESS,
-        rpcConfigured: Boolean(usdcRpcUrl),
-        receiveAddressConfigured: Boolean(usdcReceiveAddress && isAddress(usdcReceiveAddress))
+        configured: usdcConfig.configured,
+        enabled: checkoutAvailable && usdcConfig.configured,
+        chainId: usdcConfig.chainId,
+        tokenAddress: usdcConfig.tokenAddress,
+        rpcConfigured: usdcConfig.rpcConfigured,
+        receiveAddressConfigured: usdcConfig.receiveAddressConfigured,
+        chainConfigured: usdcConfig.chainConfigured,
+        tokenConfigured: usdcConfig.tokenConfigured
       }
     },
     blockers,
     warnings: [
       "Credits are issued only after payment confirmation.",
       "Paid top-ups should stay paused until support and refund handling are ready.",
-      "Base mainnet writes stay blocked by the contract write gates."
+      "Base mainnet writes stay blocked by the contract write gates.",
+      ...(usdcConfig.touched && !usdcConfig.chainConfigured ? ["USDC checkout must use Base mainnet chain id 8453."] : []),
+      ...(usdcConfig.touched && !usdcConfig.tokenConfigured ? [`USDC checkout must use canonical Base USDC ${BASE_USDC_ADDRESS}.`] : [])
     ]
   };
 }
@@ -421,6 +425,10 @@ export async function createUsdcPayment(account: Account, input: UsdcCheckoutInp
   const ledger = await readPaymentLedger();
   const existing = input.idempotencyKey ? findReusablePayment(ledger, account.id, "usdc_base", input.idempotencyKey) : null;
   if (existing) {
+    const existingConfigError = canonicalBaseUsdcPaymentError(existing);
+    if (existingConfigError) {
+      return existingConfigError;
+    }
     return {
       ok: true as const,
       idempotent: true,
@@ -433,9 +441,18 @@ export async function createUsdcPayment(account: Account, input: UsdcCheckoutInp
     return gate;
   }
 
-  const receiveAddress = cleanEnv(process.env.FISH_USDC_RECEIVE_ADDRESS);
-  if (!receiveAddress || !isAddress(receiveAddress)) {
+  const usdcConfig = readUsdcCheckoutConfig();
+  if (!usdcConfig.receiveAddressConfigured || !usdcConfig.receiveAddress) {
     return { ok: false as const, status: 503, error: "usdc_checkout_not_configured" };
+  }
+  if (!usdcConfig.rpcConfigured) {
+    return { ok: false as const, status: 503, error: "usdc_rpc_not_configured" };
+  }
+  if (!usdcConfig.chainConfigured) {
+    return { ok: false as const, status: 503, error: "usdc_checkout_chain_not_base_mainnet" };
+  }
+  if (!usdcConfig.tokenConfigured) {
+    return { ok: false as const, status: 503, error: "usdc_checkout_token_not_canonical_base_usdc" };
   }
 
   const now = new Date().toISOString();
@@ -459,9 +476,9 @@ export async function createUsdcPayment(account: Account, input: UsdcCheckoutInp
     providerPaymentIntentId: null,
     providerEventIds: [],
     checkoutUrl: null,
-    chainId: readInteger(process.env.FISH_USDC_CHAIN_ID, BASE_CHAIN_ID),
-    tokenAddress: cleanEnv(process.env.FISH_USDC_TOKEN_ADDRESS) ?? BASE_USDC_ADDRESS,
-    receiveAddress,
+    chainId: usdcConfig.chainId,
+    tokenAddress: usdcConfig.tokenAddress,
+    receiveAddress: usdcConfig.receiveAddress,
     payerAddress: input.payerAddress ?? null,
     amountAtomic: amountAtomic.toString(),
     transactionHash: null,
@@ -493,6 +510,10 @@ export async function confirmUsdcPayment(account: Account, input: UsdcConfirmInp
   }
   if (payment.status === "paid" && payment.creditEntryId) {
     return { ok: true as const, idempotent: true, payment: publicPayment(payment) };
+  }
+  const paymentConfigError = canonicalBaseUsdcPaymentError(payment);
+  if (paymentConfigError) {
+    return paymentConfigError;
   }
   const reusedTransaction = ledger.payments.find(
     (candidate) => candidate.paymentId !== payment.paymentId && candidate.provider === "usdc_base" && candidate.transactionHash?.toLowerCase() === input.transactionHash.toLowerCase()
@@ -740,6 +761,17 @@ function findReusablePayment(ledger: FishPaymentLedger, accountId: string, provi
   );
 }
 
+function canonicalBaseUsdcPaymentError(payment: FishPaymentRequest) {
+  if ((payment.chainId ?? BASE_CHAIN_ID) !== BASE_CHAIN_ID) {
+    return { ok: false as const, status: 400, error: "usdc_checkout_chain_not_base_mainnet" };
+  }
+  const tokenAddress = payment.tokenAddress ?? BASE_USDC_ADDRESS;
+  if (!isAddress(tokenAddress) || normalizeAddress(tokenAddress) !== normalizeAddress(BASE_USDC_ADDRESS)) {
+    return { ok: false as const, status: 400, error: "usdc_checkout_token_not_canonical_base_usdc" };
+  }
+  return null;
+}
+
 async function appendPayment(payment: FishPaymentRequest, ledger?: FishPaymentLedger) {
   ledger ??= await readPaymentLedger();
   ledger.payments.push(payment);
@@ -848,6 +880,33 @@ function publicCareUrl(value: string | undefined) {
 function configuredSecret(value: string | undefined) {
   const clean = cleanEnv(value);
   return Boolean(clean && clean.length >= 8 && !/change-me|replace-with|placeholder/i.test(clean));
+}
+
+function readUsdcCheckoutConfig() {
+  const receiveAddress = cleanEnv(process.env.FISH_USDC_RECEIVE_ADDRESS);
+  const rpcUrl = cleanEnv(process.env.FISH_USDC_RPC_URL);
+  const chainIdRaw = cleanEnv(process.env.FISH_USDC_CHAIN_ID);
+  const tokenAddressRaw = cleanEnv(process.env.FISH_USDC_TOKEN_ADDRESS);
+  const parsedChainId = chainIdRaw ? Number(chainIdRaw) : BASE_CHAIN_ID;
+  const chainId = Number.isInteger(parsedChainId) ? parsedChainId : BASE_CHAIN_ID;
+  const tokenAddress = tokenAddressRaw ?? BASE_USDC_ADDRESS;
+  const receiveAddressConfigured = Boolean(receiveAddress && isAddress(receiveAddress));
+  const rpcConfigured = Boolean(rpcUrl);
+  const chainConfigured = Number.isInteger(parsedChainId) && parsedChainId === BASE_CHAIN_ID;
+  const tokenConfigured = isAddress(tokenAddress) && normalizeAddress(tokenAddress) === normalizeAddress(BASE_USDC_ADDRESS);
+
+  return {
+    receiveAddress,
+    rpcUrl,
+    chainId,
+    tokenAddress,
+    receiveAddressConfigured,
+    rpcConfigured,
+    chainConfigured,
+    tokenConfigured,
+    configured: receiveAddressConfigured && rpcConfigured && chainConfigured && tokenConfigured,
+    touched: Boolean(receiveAddress || rpcUrl || chainIdRaw || tokenAddressRaw)
+  };
 }
 
 function readNumber(value: string | undefined, fallback: number) {

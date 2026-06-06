@@ -5033,6 +5033,10 @@ components:
                   type: boolean
                 receiveAddressConfigured:
                   type: boolean
+                chainConfigured:
+                  type: boolean
+                tokenConfigured:
+                  type: boolean
         blockers:
           type: array
           items:

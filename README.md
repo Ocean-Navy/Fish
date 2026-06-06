@@ -488,7 +488,7 @@ curl -sS http://127.0.0.1:3000/api/billing/checkout/usdc \
   -d '{"amountUsd":5,"payerAddress":"0x..."}'
 ```
 
-Set `FISH_USDC_RECEIVE_ADDRESS`, `FISH_USDC_RPC_URL`, and `FISH_MAX_OUTSTANDING_PREPAID_CREDITS`. The default token is Base USDC at `0x833589fcD6EDb6E08f4c7C32D4f71b54bdA02913`. After sending the exact amount, confirm it:
+Set `FISH_USDC_RECEIVE_ADDRESS`, `FISH_USDC_RPC_URL`, and `FISH_MAX_OUTSTANDING_PREPAID_CREDITS`. USDC checkout is intentionally limited to Base mainnet chain id `8453` and canonical Base USDC at `0x833589fcD6EDb6E08f4c7C32D4f71b54bdA02913`; Fish marks USDC checkout unconfigured if those values are changed. After sending the exact amount, confirm it:
 
 ```bash
 curl -sS http://127.0.0.1:3000/api/billing/checkout/usdc/confirm \

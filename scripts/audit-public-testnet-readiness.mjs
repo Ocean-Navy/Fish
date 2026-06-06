@@ -15,6 +15,8 @@ const MAX_FAUCET_ETH_GRANT = 0.001;
 const MAX_FAUCET_TEST_OCEAN_GRANT = 10000;
 const MAX_FAUCET_TEST_USDC_GRANT = 100;
 const MIN_FAUCET_COOLDOWN_HOURS = 1;
+const BASE_CHAIN_ID = 8453;
+const BASE_USDC_ADDRESS = "0x833589fcD6EDb6E08f4c7C32D4f71b54bdA02913";
 
 if (!["public-testnet", "paid-mainnet"].includes(profile)) {
   console.error(`Unknown readiness profile: ${profile}`);
@@ -107,10 +109,13 @@ function checkBatchDishes(env) {
 function checkPayments(env, profile) {
   const blockers = [];
   const hasStripe = safeSecret(env.FISH_STRIPE_SECRET_KEY) && safeSecret(env.FISH_STRIPE_WEBHOOK_SECRET);
-  const hasUsdc = address(env.FISH_USDC_RECEIVE_ADDRESS) && env.FISH_USDC_RPC_URL;
+  const usdcConfig = usdcCheckoutConfig(env);
+  const hasUsdc = usdcConfig.configured;
   const paidTopupsPaused = truthy(env.FISH_PAID_TOPUPS_PAUSED);
   if (!env.FISH_MAX_OUTSTANDING_PREPAID_CREDITS) blockers.push("FISH_MAX_OUTSTANDING_PREPAID_CREDITS is missing; paid top-ups must stay blocked.");
   if (!hasStripe && !hasUsdc) blockers.push("Neither Stripe nor USDC checkout is fully configured.");
+  if (usdcConfig.touched && !usdcConfig.chainConfigured) blockers.push("FISH_USDC_CHAIN_ID must be Base mainnet 8453 for paid USDC checkout.");
+  if (usdcConfig.touched && !usdcConfig.tokenConfigured) blockers.push(`FISH_USDC_TOKEN_ADDRESS must be canonical Base USDC ${BASE_USDC_ADDRESS}.`);
   if (!publicCareUrl(env.FISH_BILLING_SUPPORT_URL)) blockers.push("FISH_BILLING_SUPPORT_URL is missing or not a public HTTP(S)/mailto URL.");
   if (!publicCareUrl(env.FISH_BILLING_REFUND_POLICY_URL)) blockers.push("FISH_BILLING_REFUND_POLICY_URL is missing or not a public HTTP(S)/mailto URL.");
 
@@ -552,6 +557,23 @@ function publicBind(value) {
 
 function address(value) {
   return /^0x[a-fA-F0-9]{40}$/.test(String(value || "").trim());
+}
+
+function usdcCheckoutConfig(env) {
+  const receiveAddress = String(env.FISH_USDC_RECEIVE_ADDRESS || "").trim();
+  const rpcUrl = String(env.FISH_USDC_RPC_URL || "").trim();
+  const chainIdRaw = String(env.FISH_USDC_CHAIN_ID || "").trim();
+  const tokenAddress = String(env.FISH_USDC_TOKEN_ADDRESS || BASE_USDC_ADDRESS).trim();
+  const parsedChainId = chainIdRaw ? Number(chainIdRaw) : BASE_CHAIN_ID;
+  const chainConfigured = Number.isInteger(parsedChainId) && parsedChainId === BASE_CHAIN_ID;
+  const tokenConfigured = address(tokenAddress) && tokenAddress.toLowerCase() === BASE_USDC_ADDRESS.toLowerCase();
+
+  return {
+    touched: Boolean(receiveAddress || rpcUrl || chainIdRaw || env.FISH_USDC_TOKEN_ADDRESS),
+    chainConfigured,
+    tokenConfigured,
+    configured: address(receiveAddress) && Boolean(rpcUrl) && chainConfigured && tokenConfigured
+  };
 }
 
 function httpUrl(value) {
