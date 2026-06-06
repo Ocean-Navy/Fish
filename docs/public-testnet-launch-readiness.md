@@ -316,6 +316,10 @@ non-sample Fish receipt
 
 Until then, keep the claim at local Ocean Node snapshot proof.
 
+The readiness audit has a separate `External Oncompute proof` gate for this. It remains manual for `local_ocean_node` mode or local/private `NODE_URL` values, even when the local demo stack is healthy. It turns ready only when the private workload adapter is in `live` mode with a strong adapter key, proof wallet, HTTP(S) RPC, non-local Ocean/Oncompute node URL, `FISH_OCEAN_DATASET_DIDS` (use `[]` for a self-contained first algorithm), `FISH_OCEAN_ALGO_DID`, `FISH_OCEAN_COMPUTE_ENV_ID`, and either `OCEAN_CLI_DIR` or `FISH_OCEAN_CLI_BIN`.
+
+For paid external jobs, configure `FISH_OCEAN_PAYMENT_TOKEN` and valid JSON `FISH_OCEAN_RESOURCES` together. Leave both empty only when the selected external compute environment is intentionally free for the proof wallet.
+
 ## Audit Command
 
 Run:

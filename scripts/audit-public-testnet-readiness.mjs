@@ -282,9 +282,33 @@ function checkOperations(appEnv, oceanEnv) {
 
 function checkRealOncomputeProof(env) {
   const findings = [];
+  const mode = String(env.OCEAN_WORKLOAD_ADAPTER_MODE || "dry_run").trim();
+  const nodeUrl = String(env.NODE_URL || "").trim();
+  const rpc = String(env.OCEAN_PROOF_RPC || env.RPC || "").trim();
+  const hasWallet = safeSecret(env.OCEAN_PROOF_PRIVATE_KEY) || safeSecret(env.PRIVATE_KEY) || safeSecret(env.OCEAN_PROOF_MNEMONIC) || safeSecret(env.MNEMONIC);
+  const hasCli = Boolean(String(env.FISH_OCEAN_CLI_BIN || "").trim() || String(env.OCEAN_CLI_DIR || "").trim());
+  const datasetDids = String(env.FISH_OCEAN_DATASET_DIDS || "").trim();
+  const paymentToken = String(env.FISH_OCEAN_PAYMENT_TOKEN || "").trim();
+  const resources = String(env.FISH_OCEAN_RESOURCES || "").trim();
+  const output = String(env.FISH_OCEAN_OUTPUT || "").trim();
+  const paidTouched = Boolean(paymentToken || resources);
+
+  if (mode !== "live") findings.push("OCEAN_WORKLOAD_ADAPTER_MODE must be live for external Ocean/Oncompute proof.");
+  if (!safeSecret(env.OCEAN_WORKLOAD_ADAPTER_API_KEY)) findings.push("OCEAN_WORKLOAD_ADAPTER_API_KEY is missing or weak.");
+  if (!hasWallet) findings.push("Ocean proof wallet is missing; set OCEAN_PROOF_PRIVATE_KEY/OCEAN_PROOF_MNEMONIC in the private adapter env.");
+  if (!httpUrl(rpc)) findings.push("OCEAN_PROOF_RPC or RPC must be an HTTP(S) RPC URL.");
+  if (!nodeUrl) {
+    findings.push("NODE_URL is missing.");
+  } else if (looksLocal(nodeUrl)) {
+    findings.push("NODE_URL points at a local Ocean Node; this is local proof, not third-party Oncompute demand.");
+  }
+  if (!datasetDids) findings.push("FISH_OCEAN_DATASET_DIDS is missing; use [] when the first algorithm is self-contained.");
   if (!env.FISH_OCEAN_ALGO_DID) findings.push("FISH_OCEAN_ALGO_DID is missing for official Ocean CLI paid/free external proofs.");
-  if (!env.FISH_OCEAN_PAYMENT_TOKEN && !looksLocal(env.NODE_URL)) findings.push("FISH_OCEAN_PAYMENT_TOKEN is missing for paid external Oncompute jobs.");
-  if (looksLocal(env.NODE_URL)) findings.push("NODE_URL points at a local Ocean Node; this is local proof, not third-party Oncompute demand.");
+  if (!env.FISH_OCEAN_COMPUTE_ENV_ID) findings.push("FISH_OCEAN_COMPUTE_ENV_ID is missing.");
+  if (!hasCli) findings.push("OCEAN_CLI_DIR or FISH_OCEAN_CLI_BIN is missing.");
+  if (paidTouched && (!paymentToken || !resources)) findings.push("Paid external jobs require both FISH_OCEAN_PAYMENT_TOKEN and FISH_OCEAN_RESOURCES; leave both empty only for free compute.");
+  if (resources && !jsonObject(resources)) findings.push("FISH_OCEAN_RESOURCES must be valid JSON when set.");
+  if (output && !jsonObject(output)) findings.push("FISH_OCEAN_OUTPUT must be valid JSON when set.");
   return result("External Oncompute proof", findings.length ? "manual" : "ready", findings);
 }
 
@@ -515,6 +539,11 @@ function readJson(value) {
   }
 }
 
+function jsonObject(value) {
+  const parsed = readJson(String(value || "").trim());
+  return parsed.ok && parsed.value !== null && typeof parsed.value === "object" && !Array.isArray(parsed.value);
+}
+
 function backupTargetFindings(value) {
   const target = String(value || "").trim();
   if (!target) return [];
@@ -722,5 +751,25 @@ function number(value) {
 }
 
 function looksLocal(value) {
-  return /^https?:\/\/(127\.0\.0\.1|localhost|ocean-node)(:|\/|$)/i.test(String(value || "").trim());
+  const cleaned = String(value || "").trim();
+  if (!cleaned) return false;
+  if (/^\/p2p\//i.test(cleaned)) return false;
+  try {
+    const parsed = new URL(cleaned);
+    const host = parsed.hostname.toLowerCase();
+    return (
+      host === "localhost" ||
+      host === "127.0.0.1" ||
+      host === "::1" ||
+      host === "0.0.0.0" ||
+      host === "ocean-node" ||
+      host === "host.docker.internal" ||
+      host.endsWith(".local") ||
+      /^10\./.test(host) ||
+      /^192\.168\./.test(host) ||
+      /^172\.(1[6-9]|2\d|3[0-1])\./.test(host)
+    );
+  } catch {
+    return /(^|[/:])(localhost|127\.0\.0\.1|0\.0\.0\.0|ocean-node|host\.docker\.internal)([/:]|$)/i.test(cleaned);
+  }
 }

@@ -150,6 +150,8 @@ deploy/ocean-workload-adapter/algorithms/fish-document-summary/
 
 It can summarize text dataset files, but it also supports `FISH_OCEAN_DATASET_DIDS=[]` for the first no-dataset Ocean compute proof.
 
+The public-testnet readiness audit keeps the two proof claims separate. A local Ocean Node adapter can make the local proof path ready, but the `External Oncompute proof` check stays manual until the private adapter env is explicitly live and has a non-local `NODE_URL`, wallet, HTTP(S) RPC, dataset DID list, algorithm DID, compute environment id, and Ocean CLI checkout path or binary. Paid jobs must set both `FISH_OCEAN_PAYMENT_TOKEN` and valid JSON `FISH_OCEAN_RESOURCES`; leave both empty only for free external compute.
+
 ## Adapter Contract
 
 Fish sends:
