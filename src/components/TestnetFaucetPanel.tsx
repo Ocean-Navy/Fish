@@ -31,6 +31,12 @@ type FaucetStatus = {
     ipCooldownHours: number;
     maxDailyClaims: number;
   };
+  usage: {
+    claimsToday: number;
+    remainingToday: number;
+    resetAt: string;
+    latestClaimAt: string | null;
+  };
   balances: {
     eth: string | null;
     testOcean: string | null;
@@ -300,7 +306,9 @@ export function TestnetFaucetPanel() {
               <AddressMini label="Test OCEAN token" value={status?.tokenAddresses.testOcean} />
               <AddressMini label="Test USDC token" value={status?.tokenAddresses.testUsdc} />
               <AddressMini label="Faucet wallet" value={status?.faucetAddress} />
-              <Mini label="Daily cap" value={`${formatNumber(status?.limits.maxDailyClaims ?? 50)} claims`} />
+              <Mini label="Left today" value={`${formatNumber(status?.usage.remainingToday ?? 0)} / ${formatNumber(status?.limits.maxDailyClaims ?? 50)}`} />
+              <Mini label="Resets" value={formatDateTime(status?.usage.resetAt)} />
+              <Mini label="Last claim" value={formatDateTime(status?.usage.latestClaimAt)} />
             </div>
             {claim ? (
               <div className="mt-4 rounded-3xl border border-fish-gold/25 bg-fish-gold/10 p-4">
@@ -371,6 +379,17 @@ function formatReason(value: string | null | undefined) {
     return "not ready";
   }
   return value.replaceAll("_", " ");
+}
+
+function formatDateTime(value: string | null | undefined) {
+  if (!value) {
+    return "-";
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "-";
+  }
+  return date.toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" });
 }
 
 function readError(payload: unknown) {

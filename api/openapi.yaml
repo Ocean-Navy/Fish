@@ -4315,6 +4315,20 @@ components:
               type: integer
             maxDailyClaims:
               type: integer
+        usage:
+          type: object
+          properties:
+            claimsToday:
+              type: integer
+            remainingToday:
+              type: integer
+            resetAt:
+              type: string
+              format: date-time
+            latestClaimAt:
+              type: string
+              format: date-time
+              nullable: true
         balances:
           type: object
           properties:

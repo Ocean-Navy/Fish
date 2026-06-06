@@ -72,6 +72,12 @@ export type TestnetFaucetStatus = {
     ipCooldownHours: number;
     maxDailyClaims: number;
   };
+  usage: {
+    claimsToday: number;
+    remainingToday: number;
+    resetAt: string;
+    latestClaimAt: string | null;
+  };
   balances: {
     eth: string | null;
     testOcean: string | null;
@@ -107,10 +113,23 @@ export function parseTestnetFaucetClaim(body: unknown) {
   return faucetClaimSchema.safeParse(body);
 }
 
-export async function summarizeTestnetFaucet(): Promise<TestnetFaucetStatus> {
+export async function summarizeTestnetFaucet(options: TestnetFaucetOptions = {}): Promise<TestnetFaucetStatus> {
   const config = getTestnetFaucetConfig();
+  const now = options.now ?? new Date();
   const readiness = getFaucetReadiness(config);
   const balances = readiness.ready ? await readFaucetBalances(config) : { eth: null, testOcean: null, testUsdc: null };
+  const warnings = [
+    "Testnet tokens have no real value.",
+    "The faucet is only for Base Sepolia playground testing.",
+    "Mainnet contract writes stay blocked by the normal contract gates."
+  ];
+  let ledger: FaucetLedger = { claims: [] };
+  try {
+    ledger = await readFaucetLedger(options.claimsPath);
+  } catch {
+    warnings.push("Faucet claim counters are temporarily unavailable.");
+  }
+  const usage = summarizeFaucetUsage(ledger, config, now);
 
   return {
     dataState: readiness.ready ? "live" : config.enabled ? "snapshot" : "unavailable",
@@ -138,12 +157,9 @@ export async function summarizeTestnetFaucet(): Promise<TestnetFaucetStatus> {
       ipCooldownHours: config.ipCooldownHours,
       maxDailyClaims: config.maxDailyClaims
     },
+    usage,
     balances,
-    warnings: [
-      "Testnet tokens have no real value.",
-      "The faucet is only for Base Sepolia playground testing.",
-      "Mainnet contract writes stay blocked by the normal contract gates."
-    ]
+    warnings
   };
 }
 
@@ -274,8 +290,7 @@ function checkFaucetRateLimit(
   }
 ) {
   const successfulClaims = ledger.claims.filter((claim) => claim.status === "succeeded");
-  const dayStart = new Date(input.now);
-  dayStart.setUTCHours(0, 0, 0, 0);
+  const dayStart = startOfUtcDay(input.now);
   const dailyClaims = successfulClaims.filter((claim) => Date.parse(claim.createdAt) >= dayStart.getTime()).length;
   if (dailyClaims >= input.config.maxDailyClaims) {
     return { ok: false as const, status: 429, error: "testnet_faucet_daily_cap_reached", resetAt: new Date(dayStart.getTime() + 24 * 60 * 60_000).toISOString() };
@@ -294,6 +309,20 @@ function checkFaucetRateLimit(
   }
 
   return { ok: true as const };
+}
+
+function summarizeFaucetUsage(ledger: FaucetLedger, config: TestnetFaucetConfig, now: Date) {
+  const successfulClaims = ledger.claims.filter((claim) => claim.status === "succeeded");
+  const dayStart = startOfUtcDay(now);
+  const resetAt = new Date(dayStart.getTime() + 24 * 60 * 60_000).toISOString();
+  const claimsToday = successfulClaims.filter((claim) => Date.parse(claim.createdAt) >= dayStart.getTime()).length;
+  const latestClaimAt = latestClaim(successfulClaims)?.createdAt ?? null;
+  return {
+    claimsToday,
+    remainingToday: Math.max(0, config.maxDailyClaims - claimsToday),
+    resetAt,
+    latestClaimAt
+  };
 }
 
 async function submitFaucetTransfers(config: TestnetFaucetConfig, walletAddress: string) {
@@ -436,6 +465,12 @@ function createBaseSepoliaChain(config: TestnetFaucetConfig): Chain {
 
 function latestClaim(claims: TestnetFaucetClaim[]) {
   return claims.sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt))[0] ?? null;
+}
+
+function startOfUtcDay(value: Date) {
+  const dayStart = new Date(value);
+  dayStart.setUTCHours(0, 0, 0, 0);
+  return dayStart;
 }
 
 function cooldownResetAt(createdAt: string | undefined, hours: number) {

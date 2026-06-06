@@ -134,6 +134,7 @@ FISH_TESTNET_FAUCET_IP_COOLDOWN_HOURS=24
 ```
 
 Fund the faucet wallet only with limited Base Sepolia ETH, Test OCEAN, and Test USDC.
+`GET /api/testnet/faucet` is public-safe and shows only readiness, grant sizes, daily remaining claims, reset time, faucet balances, and token addresses. It must not show wallet hashes, IP hashes, private keys, or raw claim rows.
 
 ## Step 7: Data Hygiene
 

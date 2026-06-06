@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { writeFile, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, test } from "node:test";
@@ -77,6 +77,33 @@ test("testnet faucet config derives faucet address without exposing it publicly 
 
   assert.equal(config.faucetPrivateKey, process.env.FISH_TESTNET_FAUCET_PRIVATE_KEY);
   assert.match(config.faucetAddress ?? "", /^0x[a-fA-F0-9]{40}$/);
+});
+
+test("testnet faucet status exposes only aggregate daily usage", async () => {
+  process.env.FISH_TESTNET_FAUCET_MAX_DAILY_CLAIMS = "3";
+  const claimsPath = await tempClaimsPath();
+  await writeFile(
+    claimsPath,
+    JSON.stringify({
+      claims: [
+        { status: "succeeded", createdAt: "2026-06-06T01:00:00.000Z" },
+        { status: "failed", createdAt: "2026-06-06T02:00:00.000Z" },
+        { status: "succeeded", createdAt: "2026-06-05T23:00:00.000Z" }
+      ]
+    })
+  );
+
+  const status = await summarizeTestnetFaucet({
+    claimsPath,
+    now: new Date("2026-06-06T12:00:00.000Z")
+  });
+
+  assert.deepEqual(status.usage, {
+    claimsToday: 1,
+    remainingToday: 2,
+    resetAt: "2026-06-07T00:00:00.000Z",
+    latestClaimAt: "2026-06-06T01:00:00.000Z"
+  });
 });
 
 async function tempClaimsPath() {

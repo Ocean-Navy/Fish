@@ -714,7 +714,7 @@ curl -sS http://127.0.0.1:3000/api/testnet/faucet \
   -d '{"walletAddress":"0x..."}'
 ```
 
-Keep this wallet separate from deployer, operator, and treasury wallets. Fund it only with limited Base Sepolia ETH and test tokens. The faucet is disabled by default, Base Sepolia only, and capped by wallet, IP, and daily claim limits.
+Keep this wallet separate from deployer, operator, and treasury wallets. Fund it only with limited Base Sepolia ETH and test tokens. The faucet is disabled by default, Base Sepolia only, and capped by wallet, IP, and daily claim limits. Public status exposes safe aggregate counters only: enabled/ready state, grant sizes, wallet/IP/day limits, claims used today, remaining claims, reset time, token addresses, faucet address, and faucet balances. It does not expose wallet hashes, IP hashes, private keys, or raw claim rows.
 
 Staking positions and wallet intents are written under `data/staking/`, which is ignored by git. This is not an onchain staking contract; it is a funded-budget prototype for proving OCEAN lock intent, credit issuance, and credit spend.
 
