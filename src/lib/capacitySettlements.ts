@@ -6,7 +6,7 @@ import { submitCapacityPoolSettlementOnchain, summarizeFishContracts } from "@/l
 import type { CapacitySettlementSubmission } from "@/lib/fishContracts";
 import type { DataState } from "@/lib/types";
 
-const DEFAULT_SETTLEMENT_DIR = path.join(/*turbopackIgnore: true*/ process.cwd(), "data", "proof", "capacity-settlements");
+const DEFAULT_SETTLEMENT_DIR_PARTS = ["data", "proof", "capacity-settlements"] as const;
 const TX_PATTERN = /^0x[a-fA-F0-9]{64}$/;
 const ADDRESS_PATTERN = /^0x[a-fA-F0-9]{40}$/;
 
@@ -199,21 +199,21 @@ export async function summarizeCapacitySettlements(options: CapacitySettlementSt
 }
 
 async function writeSettlement(settlement: CapacitySettlement, options: CapacitySettlementStorageOptions) {
-  const dir = options.settlementDir ?? DEFAULT_SETTLEMENT_DIR;
+  const dir = settlementDir(options);
   await mkdir(dir, { recursive: true });
-  await writeFile(path.join(/*turbopackIgnore: true*/ dir, `${settlement.occurredAt}-${settlement.settlementId}.json`.replaceAll(":", "-")), `${JSON.stringify(settlement, null, 2)}\n`);
+  await writeFile(path.join(dir, `${settlement.occurredAt}-${settlement.settlementId}.json`.replaceAll(":", "-")), `${JSON.stringify(settlement, null, 2)}\n`);
 }
 
 async function readSettlements(options: CapacitySettlementStorageOptions) {
   try {
-    const dir = options.settlementDir ?? DEFAULT_SETTLEMENT_DIR;
-    const files = await readdir(/*turbopackIgnore: true*/ dir);
+    const dir = settlementDir(options);
+    const files = await readdir(dir);
     const settlements = await Promise.all(
       files
         .filter((file) => file.endsWith(".json"))
         .map(async (file) => {
           try {
-            const raw = await readFile(path.join(/*turbopackIgnore: true*/ dir, file), "utf8");
+            const raw = await readFile(path.join(dir, file), "utf8");
             const parsed = capacitySettlementSchema.safeParse(JSON.parse(raw));
             return parsed.success ? parsed.data : null;
           } catch {
@@ -230,6 +230,10 @@ async function readSettlements(options: CapacitySettlementStorageOptions) {
 async function findSettlementByIdempotencyHash(idempotencyHash: string, options: CapacitySettlementStorageOptions) {
   const settlements = await readSettlements(options);
   return settlements.find((settlement) => settlement.idempotencyHash === idempotencyHash) ?? null;
+}
+
+function settlementDir(options: CapacitySettlementStorageOptions) {
+  return options.settlementDir ?? path.resolve(...DEFAULT_SETTLEMENT_DIR_PARTS);
 }
 
 function publicSubmission(submission: CapacitySettlementSubmission): CapacitySettlement["onchainSubmission"] {
