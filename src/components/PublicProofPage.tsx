@@ -45,6 +45,7 @@ export function PublicProofPage({
   const heroUpdatedAt = oceanProof.proof.latestReceiptAt ?? proof.lastUpdated;
   const oceanNextSteps = oceanProof.blockers.map(publicOceanBlocker);
   const verdict = proofVerdict({ hasOceanBatchProof, hasLiveProof, oceanProof });
+  const boundaryCards = proofBoundaryCards({ hasOceanBatchProof, oceanProof });
   const plainProofCards = [
     {
       icon: Utensils,
@@ -153,6 +154,15 @@ export function PublicProofPage({
                 </article>
               );
             })}
+          </div>
+          <div className="mt-3 grid gap-3 lg:grid-cols-3">
+            {boundaryCards.map((card) => (
+              <article key={card.label} className={`rounded-[1.5rem] border p-5 shadow-harbor ${card.className}`}>
+                <p className="text-xs font-black uppercase tracking-[0.12em]">{card.label}</p>
+                <h3 className="mt-3 text-2xl font-black leading-tight text-white">{card.title}</h3>
+                <p className="mt-3 text-sm font-bold leading-6">{card.body}</p>
+              </article>
+            ))}
           </div>
         </div>
       </section>
@@ -469,4 +479,34 @@ function proofVerdict({
     title: "Setup",
     boundary: "Fish is still in setup proof mode. Sample data and missing proof stay labeled until a real Ocean dish ticket exists."
   };
+}
+
+function proofBoundaryCards({ hasOceanBatchProof, oceanProof }: { hasOceanBatchProof: boolean; oceanProof: OceanProofReadiness }) {
+  const readyTitle = hasOceanBatchProof ? "Test dish through our Ocean Node" : oceanProof.trafficReady ? "Ocean route connected" : "Setup mode";
+  const readyBody = hasOceanBatchProof
+    ? "A public-safe ticket proves the local Ocean path."
+    : oceanProof.trafficReady
+      ? "Run one successful dish to record the first Ocean ticket."
+      : "No Ocean workload claim yet.";
+
+  return [
+    {
+      label: "Ready",
+      title: readyTitle,
+      body: readyBody,
+      className: "border-emerald-300/25 bg-emerald-400/10 text-emerald-100"
+    },
+    {
+      label: "Not claimed",
+      title: "Paid external Oncompute demand",
+      body: "This needs a live external node, algorithm DID, compute environment, and one real receipt.",
+      className: "border-fish-gold/25 bg-fish-gold/10 text-fish-primary"
+    },
+    {
+      label: "Never public",
+      title: "Raw orders and answers",
+      body: "Proof shows ticket ids, hashes, usage, status, and timing only.",
+      className: "border-fish-accent/20 bg-fish-surface/80 text-fish-secondary"
+    }
+  ];
 }

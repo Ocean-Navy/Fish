@@ -169,6 +169,12 @@ function assertProofPage(html) {
   if (!html.includes("External paid demand is not claimed yet.")) {
     throw new Error("/proof does not show the external Oncompute demand boundary");
   }
+  if (!html.includes("Not claimed") || !html.includes("Paid external Oncompute demand")) {
+    throw new Error("/proof does not show the plain external Oncompute boundary card");
+  }
+  if (!html.includes("Never public") || !html.includes("Raw orders and answers")) {
+    throw new Error("/proof does not show the plain privacy boundary card");
+  }
   if (prompt && html.includes(prompt)) {
     throw new Error("/proof rendered the raw smoke prompt");
   }
