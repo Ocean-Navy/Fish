@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
-import { createUsdcPayment, normalizeFishPaymentAmount, parseStripeCheckoutRequest, parseUsdcCheckoutRequest } from "./fishPayments";
+import { createUsdcPayment, normalizeFishPaymentAmount, parseStripeCheckoutRequest, parseUsdcCheckoutRequest, summarizeBillingReadiness } from "./fishPayments";
 import type { Account } from "./fishLedger";
 
 const PAYMENT_ENV_KEYS = [
@@ -8,7 +8,10 @@ const PAYMENT_ENV_KEYS = [
   "FISH_MAX_OUTSTANDING_PREPAID_CREDITS",
   "FISH_MIN_CHECKOUT_USD",
   "FISH_PAID_TOPUPS_PAUSED",
-  "FISH_USDC_RECEIVE_ADDRESS"
+  "FISH_STRIPE_SECRET_KEY",
+  "FISH_STRIPE_WEBHOOK_SECRET",
+  "FISH_USDC_RECEIVE_ADDRESS",
+  "FISH_USDC_RPC_URL"
 ] as const;
 
 afterEach(() => {
@@ -96,6 +99,55 @@ test("paid topups can be paused before payment requests are created", async () =
     assert.equal(result.status, 503);
     assert.equal(result.error, "paid_topups_paused");
   }
+});
+
+test("billing readiness is unavailable without a liability cap or provider", () => {
+  const readiness = summarizeBillingReadiness();
+
+  assert.equal(readiness.checkoutAvailable, false);
+  assert.equal(readiness.dataState, "unavailable");
+  assert.deepEqual(readiness.blockers, ["paid_credit_liability_cap_not_configured", "payment_provider_not_configured"]);
+});
+
+test("billing readiness keeps providers disabled while paid topups are paused", () => {
+  process.env.FISH_PAID_TOPUPS_PAUSED = "true";
+  process.env.FISH_MAX_OUTSTANDING_PREPAID_CREDITS = "100000";
+  process.env.FISH_USDC_RECEIVE_ADDRESS = "0x1111111111111111111111111111111111111111";
+  process.env.FISH_USDC_RPC_URL = "https://base-mainnet.example";
+
+  const readiness = summarizeBillingReadiness();
+
+  assert.equal(readiness.checkoutAvailable, false);
+  assert.equal(readiness.dataState, "snapshot");
+  assert.equal(readiness.providers.usdc.configured, true);
+  assert.equal(readiness.providers.usdc.enabled, false);
+  assert.deepEqual(readiness.blockers, ["paid_topups_paused"]);
+});
+
+test("billing readiness enables configured providers only after caps are set and topups are unpaused", () => {
+  process.env.FISH_MAX_OUTSTANDING_PREPAID_CREDITS = "100000";
+  process.env.FISH_STRIPE_SECRET_KEY = "sk_test_configured";
+  process.env.FISH_STRIPE_WEBHOOK_SECRET = "whsec_configured";
+
+  const readiness = summarizeBillingReadiness();
+
+  assert.equal(readiness.checkoutAvailable, true);
+  assert.equal(readiness.dataState, "live");
+  assert.equal(readiness.providers.stripe.enabled, true);
+  assert.equal(readiness.providers.usdc.enabled, false);
+  assert.deepEqual(readiness.blockers, []);
+});
+
+test("billing readiness treats placeholder payment secrets as unconfigured", () => {
+  process.env.FISH_MAX_OUTSTANDING_PREPAID_CREDITS = "100000";
+  process.env.FISH_STRIPE_SECRET_KEY = "change-me-stripe";
+  process.env.FISH_STRIPE_WEBHOOK_SECRET = "replace-with-webhook";
+
+  const readiness = summarizeBillingReadiness();
+
+  assert.equal(readiness.checkoutAvailable, false);
+  assert.equal(readiness.providers.stripe.configured, false);
+  assert.deepEqual(readiness.blockers, ["payment_provider_not_configured"]);
 });
 
 function testAccount(): Account {

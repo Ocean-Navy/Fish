@@ -1,11 +1,14 @@
 import type { Metadata } from "next";
 import { FishAccountPanel } from "@/components/FishAccountPanel";
 import { RolePageShell } from "@/components/RolePageShell";
+import { summarizeBillingReadiness } from "@/lib/fishPayments";
 
 export const metadata: Metadata = {
   title: "Fish Account - Credit tab",
   description: "Check Fish credits and recent activity with a pilot key."
 };
+
+export const dynamic = "force-dynamic";
 
 const steps = [
   { title: "Paste key", body: "Use your Fish pilot key." },
@@ -29,6 +32,8 @@ const billingLanes = [
 ];
 
 export default function AccountPage() {
+  const billingReadiness = summarizeBillingReadiness();
+
   return (
     <RolePageShell
       eyebrow="Credit tab"
@@ -45,7 +50,7 @@ export default function AccountPage() {
     >
       <section className="px-4 pb-14 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl">
-          <FishAccountPanel />
+          <FishAccountPanel initialBillingReadiness={billingReadiness} />
         </div>
       </section>
       <section className="px-4 pb-14 sm:px-6 lg:px-8">

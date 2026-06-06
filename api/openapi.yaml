@@ -317,6 +317,17 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/FishPlan'
+  /api/billing/readiness:
+    get:
+      summary: Public-safe billing readiness
+      description: Shows whether paid Fish Credit top-ups are intentionally paused, capped, and provider-configured without exposing Stripe secrets, RPC URLs, or payment recipient addresses.
+      responses:
+        '200':
+          description: Billing readiness status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FishBillingReadiness'
   /api/billing/subscriptions:
     post:
       summary: Admin-only pilot subscription activation
@@ -4926,6 +4937,66 @@ components:
           type: boolean
         oceanProviderAllowed:
           type: boolean
+    FishBillingReadiness:
+      type: object
+      properties:
+        object:
+          type: string
+          example: fish_billing_readiness
+        dataState:
+          type: string
+          enum: [live, snapshot, sample, unavailable]
+        checkoutAvailable:
+          type: boolean
+        paidTopupsPaused:
+          type: boolean
+        creditUsd:
+          type: number
+        minCheckoutUsd:
+          type: number
+        maxCheckoutUsd:
+          type: number
+        liabilityCap:
+          type: object
+          properties:
+            configured:
+              type: boolean
+            maxOutstandingPrepaidCredits:
+              type: integer
+              nullable: true
+        providers:
+          type: object
+          properties:
+            stripe:
+              type: object
+              properties:
+                configured:
+                  type: boolean
+                enabled:
+                  type: boolean
+            usdc:
+              type: object
+              properties:
+                configured:
+                  type: boolean
+                enabled:
+                  type: boolean
+                chainId:
+                  type: integer
+                tokenAddress:
+                  type: string
+                rpcConfigured:
+                  type: boolean
+                receiveAddressConfigured:
+                  type: boolean
+        blockers:
+          type: array
+          items:
+            type: string
+        warnings:
+          type: array
+          items:
+            type: string
     FishCreditLane:
       type: object
       properties:

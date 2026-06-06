@@ -3,6 +3,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 import { addFishCredits, FISH_CREDIT_USD, summarizeBillingUsageAnalytics, type Account } from "@/lib/fishLedger";
+import type { DataState } from "@/lib/types";
 
 const ROOT = process.cwd();
 const PAYMENT_DIR = path.join(ROOT, "data", "fish");
@@ -91,6 +92,36 @@ type PublicPaymentRequest = Omit<FishPaymentRequest, "accountId" | "providerEven
   amountUsdc?: string;
 };
 
+export type FishBillingReadiness = {
+  object: "fish_billing_readiness";
+  dataState: DataState;
+  checkoutAvailable: boolean;
+  paidTopupsPaused: boolean;
+  creditUsd: number;
+  minCheckoutUsd: number;
+  maxCheckoutUsd: number;
+  liabilityCap: {
+    configured: boolean;
+    maxOutstandingPrepaidCredits: number | null;
+  };
+  providers: {
+    stripe: {
+      configured: boolean;
+      enabled: boolean;
+    };
+    usdc: {
+      configured: boolean;
+      enabled: boolean;
+      chainId: number;
+      tokenAddress: string;
+      rpcConfigured: boolean;
+      receiveAddressConfigured: boolean;
+    };
+  };
+  blockers: string[];
+  warnings: string[];
+};
+
 export function parseStripeCheckoutRequest(body: unknown) {
   return checkoutSchema.safeParse(body);
 }
@@ -101,6 +132,57 @@ export function parseUsdcCheckoutRequest(body: unknown) {
 
 export function parseUsdcConfirmRequest(body: unknown) {
   return usdcConfirmSchema.safeParse(body);
+}
+
+export function summarizeBillingReadiness(): FishBillingReadiness {
+  const paidTopupsPaused = readBoolean(process.env.FISH_PAID_TOPUPS_PAUSED, false);
+  const maxOutstandingPrepaidCredits = readOptionalInteger(process.env.FISH_MAX_OUTSTANDING_PREPAID_CREDITS);
+  const liabilityCapConfigured = maxOutstandingPrepaidCredits !== null && maxOutstandingPrepaidCredits > 0;
+  const stripeConfigured = configuredSecret(process.env.FISH_STRIPE_SECRET_KEY) && configuredSecret(process.env.FISH_STRIPE_WEBHOOK_SECRET);
+  const usdcReceiveAddress = cleanEnv(process.env.FISH_USDC_RECEIVE_ADDRESS);
+  const usdcRpcUrl = cleanEnv(process.env.FISH_USDC_RPC_URL);
+  const usdcConfigured = Boolean(usdcReceiveAddress && isAddress(usdcReceiveAddress) && usdcRpcUrl);
+  const hasPaymentProvider = stripeConfigured || usdcConfigured;
+  const checkoutAvailable = !paidTopupsPaused && liabilityCapConfigured && hasPaymentProvider;
+  const blockers = [
+    ...(paidTopupsPaused ? ["paid_topups_paused"] : []),
+    ...(!liabilityCapConfigured ? ["paid_credit_liability_cap_not_configured"] : []),
+    ...(!hasPaymentProvider ? ["payment_provider_not_configured"] : [])
+  ];
+
+  return {
+    object: "fish_billing_readiness",
+    dataState: checkoutAvailable ? "live" : hasPaymentProvider || liabilityCapConfigured ? "snapshot" : "unavailable",
+    checkoutAvailable,
+    paidTopupsPaused,
+    creditUsd: FISH_CREDIT_USD,
+    minCheckoutUsd: readNumber(process.env.FISH_MIN_CHECKOUT_USD, 1),
+    maxCheckoutUsd: readNumber(process.env.FISH_MAX_CHECKOUT_USD, 500),
+    liabilityCap: {
+      configured: liabilityCapConfigured,
+      maxOutstandingPrepaidCredits: liabilityCapConfigured ? maxOutstandingPrepaidCredits : null
+    },
+    providers: {
+      stripe: {
+        configured: stripeConfigured,
+        enabled: checkoutAvailable && stripeConfigured
+      },
+      usdc: {
+        configured: usdcConfigured,
+        enabled: checkoutAvailable && usdcConfigured,
+        chainId: readInteger(process.env.FISH_USDC_CHAIN_ID, BASE_CHAIN_ID),
+        tokenAddress: cleanEnv(process.env.FISH_USDC_TOKEN_ADDRESS) ?? BASE_USDC_ADDRESS,
+        rpcConfigured: Boolean(usdcRpcUrl),
+        receiveAddressConfigured: Boolean(usdcReceiveAddress && isAddress(usdcReceiveAddress))
+      }
+    },
+    blockers,
+    warnings: [
+      "Credits are issued only after payment confirmation.",
+      "Paid top-ups should stay paused until support and refund handling are ready.",
+      "Base mainnet writes stay blocked by the contract write gates."
+    ]
+  };
 }
 
 export async function createStripeCheckoutPayment(account: Account, input: CheckoutInput) {
@@ -719,6 +801,11 @@ function stripeErrorMessage(payload: unknown) {
 function cleanEnv(value: string | undefined) {
   const clean = value?.trim();
   return clean || undefined;
+}
+
+function configuredSecret(value: string | undefined) {
+  const clean = cleanEnv(value);
+  return Boolean(clean && clean.length >= 8 && !/change-me|replace-with|placeholder/i.test(clean));
 }
 
 function readNumber(value: string | undefined, fallback: number) {

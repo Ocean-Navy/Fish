@@ -86,6 +86,7 @@ Useful local routes:
 /api/ocean/refresh
 /api/ocean/batch/jobs
 /api/ocean/batch/readiness
+/api/billing/readiness
 /api/billing/plans
 /api/billing/usage-analytics
 /api/routing/policy
@@ -464,6 +465,8 @@ https://<your-domain>/api/billing/webhooks/stripe
 ```
 
 Fish accepts `checkout.session.completed`, verifies the Stripe signature, checks the session metadata against the local payment request, and grants `prepaid` credits idempotently by checkout session.
+
+Use `GET /api/billing/readiness` to show public-safe payment state before checkout is enabled. It reports whether top-ups are paused, whether the prepaid liability cap is set, and whether Stripe or USDC checkout is configured; it does not expose Stripe secrets, RPC URLs, or payment recipient addresses.
 
 USDC checkout uses Base USDC by default:
 

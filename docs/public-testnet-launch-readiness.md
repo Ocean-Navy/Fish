@@ -110,6 +110,7 @@ Use:
 
 ```bash
 npm run readiness:public-testnet
+curl -sS http://127.0.0.1:3000/api/billing/readiness
 ```
 
 If the script reports payments as blocked, keep:

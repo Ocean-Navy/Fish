@@ -4,6 +4,7 @@ import { BadgeDollarSign, CreditCard, KeyRound, Loader2, ReceiptText, RefreshCcw
 import { useState } from "react";
 import { formatEvmAddress, parseEvmChainId } from "@/lib/evmWallet";
 import { formatDateTime, formatNumber, formatUsd } from "@/lib/format";
+import type { FishBillingReadiness } from "@/lib/fishPayments";
 
 type AccountPayload = {
   account: {
@@ -107,7 +108,7 @@ function getErrorMessage(payload: unknown) {
   return "request_failed";
 }
 
-export function FishAccountPanel() {
+export function FishAccountPanel({ initialBillingReadiness }: { initialBillingReadiness: FishBillingReadiness }) {
   const [apiKey, setApiKey] = useState("");
   const [account, setAccount] = useState<AccountPayload | null>(null);
   const [receipts, setReceipts] = useState<Receipt[]>([]);
@@ -572,6 +573,7 @@ export function FishAccountPanel() {
               isConnectingPaymentWallet={isConnectingPaymentWallet}
               onConnectPaymentWallet={connectPaymentWallet}
               disabled={account.account.status === "revoked"}
+              readiness={initialBillingReadiness}
             />
             <CreditLaneNet lanes={account.creditLanes} />
             <ReceiptNet receipts={receipts} />
@@ -602,7 +604,8 @@ function PaymentDock({
   paymentWalletChainId,
   isConnectingPaymentWallet,
   onConnectPaymentWallet,
-  disabled
+  disabled,
+  readiness
 }: {
   amountUsd: string;
   onAmountChange: (value: string) => void;
@@ -620,9 +623,14 @@ function PaymentDock({
   isConnectingPaymentWallet: boolean;
   onConnectPaymentWallet: () => void;
   disabled: boolean;
+  readiness: FishBillingReadiness | null;
 }) {
   const numericAmount = Number(amountUsd);
-  const estimatedCredits = Number.isFinite(numericAmount) && numericAmount > 0 ? Math.floor(numericAmount / 0.001) : 0;
+  const creditUsd = readiness?.creditUsd && readiness.creditUsd > 0 ? readiness.creditUsd : 0.001;
+  const estimatedCredits = Number.isFinite(numericAmount) && numericAmount > 0 ? Math.floor(numericAmount / creditUsd) : 0;
+  const stripeDisabled = disabled || isStartingStripe || readiness?.providers.stripe.enabled !== true;
+  const usdcDisabled = disabled || isStartingUsdc || readiness?.providers.usdc.enabled !== true;
+  const paymentsOpen = readiness?.checkoutAvailable === true;
 
   return (
     <div className="rounded-3xl border border-fish-accent/15 bg-fish-navy950/55 p-4">
@@ -637,6 +645,13 @@ function PaymentDock({
           <p className="mt-1 text-lg font-black text-white">{formatNumber(estimatedCredits)} credits</p>
         </div>
       </div>
+      <div className={`mb-3 rounded-2xl border p-3 text-sm font-bold leading-6 ${paymentsOpen ? "border-emerald-300/25 bg-emerald-400/10 text-emerald-100" : "border-fish-gold/25 bg-fish-gold/10 text-fish-primary"}`}>
+        {paymentsOpen ? (
+          <span>Payments are open. Card and USDC credits settle only after confirmation.</span>
+        ) : (
+          <span>Payments are not open yet. {formatBillingBlockers(readiness?.blockers)}</span>
+        )}
+      </div>
       <div className="grid gap-3 lg:grid-cols-[1fr_auto_auto] lg:items-end">
         <label className="block">
           <span className="text-sm font-black uppercase tracking-[0.1em] text-fish-gold">Amount USD</span>
@@ -650,7 +665,7 @@ function PaymentDock({
         <button
           type="button"
           onClick={onStripeCheckout}
-          disabled={disabled || isStartingStripe}
+          disabled={stripeDisabled}
           className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-fish-accent to-fish-aqua px-5 text-xs font-black text-fish-navy950 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {isStartingStripe ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <CreditCard className="h-4 w-4" aria-hidden="true" />}
@@ -659,7 +674,7 @@ function PaymentDock({
         <button
           type="button"
           onClick={onUsdcCheckout}
-          disabled={disabled || isStartingUsdc}
+          disabled={usdcDisabled}
           className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-fish-accent/35 px-5 text-xs font-black text-fish-accent transition hover:bg-fish-accent/10 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {isStartingUsdc ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Wallet className="h-4 w-4" aria-hidden="true" />}
@@ -887,4 +902,16 @@ function formatPlanSource(source: AccountPayload["account"]["planSource"]) {
     return "pilot subscription";
   }
   return "pilot key";
+}
+
+function formatBillingBlockers(blockers: string[] | undefined) {
+  if (!blockers?.length) {
+    return "Setup is still being checked.";
+  }
+  const labels: Record<string, string> = {
+    paid_topups_paused: "Top-ups are paused.",
+    paid_credit_liability_cap_not_configured: "The prepaid credit cap is not set.",
+    payment_provider_not_configured: "Card or USDC checkout is not configured."
+  };
+  return blockers.map((blocker) => labels[blocker] ?? blocker.replaceAll("_", " ")).join(" ");
 }
