@@ -31,28 +31,32 @@ describe("Fish OCEAN staking and capacity pool", function () {
     expect(await ocean.balanceOf(holder.address)).to.equal(parse("10000"));
   });
 
-  it("does not pull funded emissions when no user has staked", async function () {
+  it("does not allocate pre-funded emissions when no user has staked", async function () {
     const { operator, emissionSource, ocean, staking } = await deploySystem();
+    const stakingAddress = await staking.getAddress();
 
     expect(await staking.totalSupply()).to.equal(0n);
-    expect(await staking.balanceOf(await staking.getAddress())).to.equal(0n);
+    expect(await staking.balanceOf(stakingAddress)).to.equal(0n);
 
-    await ocean.connect(emissionSource).approve(await staking.getAddress(), parse("1000"));
+    await ocean.connect(emissionSource).approve(stakingAddress, parse("1000"));
+    await staking.connect(emissionSource).fundEmissions(parse("1000"));
     await staking.setEmissionRate(parse("1"));
     await increaseTime(100);
 
     await staking.connect(operator).claim();
 
-    expect(await ocean.balanceOf(emissionSource.address)).to.equal(parse("10000"));
-    expect(await ocean.balanceOf(await staking.getAddress())).to.equal(0n);
+    expect(await ocean.balanceOf(emissionSource.address)).to.equal(parse("9000"));
+    expect(await ocean.balanceOf(stakingAddress)).to.equal(parse("1000"));
+    expect(await staking.emissionReserve()).to.equal(parse("1000"));
     expect(await staking.pendingRewards(operator.address)).to.equal(0n);
   });
 
-  it("keeps OCEAN emissions disabled by default and can pull funded emissions from a reserve wallet", async function () {
+  it("keeps OCEAN emissions disabled by default and distributes from a pre-funded reserve", async function () {
     const { holder, holderTwo, treasury, emissionSource, ocean, fish, staking } = await deploySystem();
+    const stakingAddress = await staking.getAddress();
 
-    await ocean.connect(holder).approve(await staking.getAddress(), parse("1000"));
-    await ocean.connect(holderTwo).approve(await staking.getAddress(), parse("1000"));
+    await ocean.connect(holder).approve(stakingAddress, parse("1000"));
+    await ocean.connect(holderTwo).approve(stakingAddress, parse("1000"));
     await staking.connect(holder).stake(holder.address, parse("1000"));
     await staking.connect(holderTwo).stake(holderTwo.address, parse("1000"));
     await staking.connect(holder).mintFish(parse("500"), 0);
@@ -61,15 +65,20 @@ describe("Fish OCEAN staking and capacity pool", function () {
     await staking.connect(holder).claim();
     expect(await ocean.balanceOf(treasury.address)).to.equal(0n);
 
-    await ocean.connect(emissionSource).approve(await staking.getAddress(), parse("1000"));
+    await ocean.connect(emissionSource).approve(stakingAddress, parse("1000"));
+    await expect(staking.connect(emissionSource).fundEmissions(parse("1000")))
+      .to.emit(staking, "EmissionReserveFunded")
+      .withArgs(emissionSource.address, parse("1000"));
     await staking.setEmissionRate(parse("1"));
     await increaseTime(100);
 
     await staking.connect(holder).claim();
     await staking.connect(holderTwo).claim();
 
+    expect(await ocean.balanceOf(emissionSource.address)).to.equal(parse("9000"));
     expect(await ocean.balanceOf(treasury.address)).to.be.gt(0n);
-    expect(await ocean.balanceOf(await staking.getAddress())).to.be.gt(parse("2000"));
+    expect(await ocean.balanceOf(stakingAddress)).to.be.gt(parse("2000"));
+    expect(await staking.emissionReserve()).to.be.lt(parse("1000"));
     expect(await fish.balanceOf(holder.address)).to.equal(parse("50"));
   });
 

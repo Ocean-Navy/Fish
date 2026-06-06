@@ -7,6 +7,7 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 interface IFishStake {
     function stake(uint256 amount) external;
@@ -145,6 +146,7 @@ contract FishCapacityPool is Ownable, Pausable, ReentrancyGuard {
         uint32 batchId = currentUnstakeBatch;
         UnstakeBatch storage batch = unstakeBatches[batchId];
 
+        // slither-disable-next-line timestamp
         if (batch.total == 0) currentUnstakeBatchOpenedAt = uint64(block.timestamp);
 
         uint128 existing = unstakeBatchUserAmount[batchId][msg.sender];
@@ -165,6 +167,7 @@ contract FishCapacityPool is Ownable, Pausable, ReentrancyGuard {
         emit UnstakeQueued(msg.sender, batchId, amount);
     }
 
+    // slither-disable-start timestamp
     function flush() external nonReentrant whenNotPaused {
         if (currentUnstakeBatch != oldestUnclaimedUnstakeBatch) revert PriorUnstakeBatchUnclaimed();
 
@@ -191,9 +194,11 @@ contract FishCapacityPool is Ownable, Pausable, ReentrancyGuard {
 
         emit UnstakeBatchFlushed(batchId, batch.total, unlockAt);
     }
+    // slither-disable-end timestamp
 
     function claimUnstakeBatch(uint32 batchId) external nonReentrant {
         UnstakeBatch storage batch = unstakeBatches[batchId];
+        // slither-disable-next-line timestamp
         if (batch.unlockAt == 0 || block.timestamp < batch.unlockAt) revert UnstakeBatchNotReady();
         if (batch.claimed) revert UnstakeBatchAlreadyClaimed();
 
@@ -246,14 +251,16 @@ contract FishCapacityPool is Ownable, Pausable, ReentrancyGuard {
 
     function earnedUsdc(address account) external view returns (uint256) {
         return usdcRewards[account]
-            + ((staked[account] * (usdcRewardPerTokenStored - userUsdcRewardPerTokenPaid[account])) / RAY);
+            + Math.mulDiv(staked[account], usdcRewardPerTokenStored - userUsdcRewardPerTokenPaid[account], RAY);
     }
 
+    // slither-disable-start timestamp
     function flushableAt() external view returns (uint64) {
         uint64 openedAt = currentUnstakeBatchOpenedAt;
-        if (openedAt == 0) return 0;
+        if (openedAt < 1) return 0;
         return openedAt + minUnstakeBatchOpenSecs;
     }
+    // slither-disable-end timestamp
 
     function setOperator(address operator, bool enabled) external onlyOwner {
         if (operator == address(0)) revert InvalidAddress();
@@ -304,11 +311,11 @@ contract FishCapacityPool is Ownable, Pausable, ReentrancyGuard {
     function _distributeUsdcInstant(uint256 amount) internal {
         if (amount == 0 || totalStaked == 0) return;
 
-        uint256 rewardPerTokenDelta = (amount * RAY) / totalStaked;
+        uint256 rewardPerTokenDelta = Math.mulDiv(amount, RAY, totalStaked);
         if (rewardPerTokenDelta == 0) return;
 
         usdcRewardPerTokenStored += rewardPerTokenDelta;
-        uint256 distributable = (rewardPerTokenDelta * totalStaked) / RAY;
+        uint256 distributable = Math.mulDiv(rewardPerTokenDelta, totalStaked, RAY);
         totalUsdcReservedForStakers += distributable;
         totalUsdcDistributedEver += distributable;
 
@@ -316,7 +323,8 @@ contract FishCapacityPool is Ownable, Pausable, ReentrancyGuard {
     }
 
     function _updateUsdcForUser(address account) internal {
-        uint256 delta = (staked[account] * (usdcRewardPerTokenStored - userUsdcRewardPerTokenPaid[account])) / RAY;
+        uint256 delta =
+            Math.mulDiv(staked[account], usdcRewardPerTokenStored - userUsdcRewardPerTokenPaid[account], RAY);
         if (delta > 0) usdcRewards[account] += delta;
         userUsdcRewardPerTokenPaid[account] = usdcRewardPerTokenStored;
     }

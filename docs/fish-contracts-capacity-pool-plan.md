@@ -54,7 +54,7 @@ StakingV2 implementation: 0xe37A7920dbc11253ac6d031C29f592f71B348DCA
 DIEM token:             0xf4d97f2da56e8c3098f3a8D538DB630A2606a024
 ```
 
-Venice mints VVV emissions because the staking proxy owns the VVV token. Fish cannot mint OCEAN, so the prototype replaces native minting with an optional funded `emissionSource`.
+Venice mints VVV emissions because the staking proxy owns the VVV token. Fish cannot mint OCEAN, so the prototype replaces native minting with a pre-funded OCEAN emission reserve that only the configured `emissionSource` can fund.
 
 ### AntSeed
 
@@ -90,7 +90,7 @@ FishOceanStaking
   mints non-transferable sOCEAN receipts
   locks sOCEAN to mint FISH through a 256-bucket curve
   burns FISH to unlock proportional sOCEAN
-  optionally pulls OCEAN rewards from an emission source
+  optionally allocates OCEAN rewards from a pre-funded reserve
 
 FishCapacityPool
   accepts FISH from users
@@ -131,8 +131,9 @@ The prototype supports an emission source:
 
 ```text
 emissionSource approves FishOceanStaking to spend OCEAN
+emissionSource calls FishOceanStaking.fundEmissions(amount)
 owner sets emissionRatePerSecond
-staking update pulls OCEAN from emissionSource
+staking update allocates OCEAN from emissionReserve
 stakers receive OCEAN rewards
 treasury receives the configured protocol share
 ```
@@ -143,16 +144,20 @@ Default launch posture:
 emissionRatePerSecond = 0
 ```
 
-If OceanDAO funds the emission wallet, then Fish can enable OCEAN rewards without modifying the contracts.
+If OceanDAO funds the emission source wallet, then Fish can enable OCEAN rewards without modifying the contracts. Reward updates do not pull from arbitrary wallets; they only spend OCEAN that was already pushed into `emissionReserve`.
 
-Important: if emissions are enabled and the source is not sufficiently funded or approved, reward-updating interactions can revert. Mainnet readiness needs monitoring, caps, and operating runbooks before emissions are enabled.
+Important: if emissions are enabled and the reserve is empty, new reward allocation stops until the source funds more OCEAN. Mainnet readiness needs reserve monitoring, caps, and operating runbooks before emissions are enabled.
 
 ## Key Parameters
 
 ```text
 FishOceanStaking.emissionRatePerSecond
   0 by default.
-  Nonzero only when the emission source is funded and approved.
+  Nonzero only when the emission reserve is intentionally funded.
+
+FishOceanStaking.emissionReserve
+  Unallocated OCEAN rewards already pushed into the staking contract.
+  Increased only by `fundEmissions(amount)` from the configured emission source.
 
 FishOceanStaking.protocolEmissionsPercentage
   0..1e18.
@@ -197,7 +202,7 @@ For testnet only:
 6. Set FISH mint curve.
 7. Deploy FishCapacityPool(FISH, USDC, operator).
 8. Transfer admin/owner roles to multisig.
-9. Keep emissions at 0 unless a funded source is ready.
+9. Keep emissions at 0 unless a funded reserve is ready.
 10. Run stake, mint, burn, capacity settlement, and withdrawal tests on testnet.
 ```
 
@@ -289,7 +294,7 @@ The local tests cover:
 - FISH burn-to-unlock.
 - OCEAN withdrawal after cooldown.
 - zero-emission default.
-- funded OCEAN emissions from an emission source.
+- pre-funded OCEAN emissions from an emission source.
 - treasury cut from locked-stake emissions.
 - FISH capacity staking.
 - paid USDC usage settlement.
@@ -305,7 +310,7 @@ The local tests cover:
 - Confirm canonical Base OCEAN address.
 - Multisig ownership and role plan.
 - Pause and incident response runbook.
-- Emission-source funding monitor if emissions are enabled.
+- Emission-reserve funding monitor and runbook if emissions are enabled.
 - Public terms modeled on conservative capacity-program language.
 - UI must avoid guaranteed yield, guaranteed API credit, and passive-income phrasing.
 - Decide how paid API/subscription demand is proven before `recordPaidUsage`.

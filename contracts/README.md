@@ -13,7 +13,7 @@ Status:
 
 ```text
 FishToken.sol            DIEM-style FISH token with role-gated mint/burn and stake cooldown.
-FishOceanStaking.sol     Venice-style OCEAN deposit, sOCEAN accounting, FISH mint/burn, optional funded emissions.
+FishOceanStaking.sol     Venice-style OCEAN deposit, sOCEAN accounting, FISH mint/burn, optional reserve-funded emissions.
 FishCapacityPool.sol     AntSeed-inspired FISH capacity pool for paid USDC demand.
 FishERC1967Proxy.sol     ERC1967 proxy wrapper for the UUPS staking contract.
 test/TestERC20.sol       Local test token fixture.
@@ -127,10 +127,11 @@ The core compatibility difference is emissions:
 
 ```text
 Venice: staking contract mints VVV rewards.
-Fish: staking contract can pull funded OCEAN from an emission source.
+Fish: configured emission source pushes OCEAN into a pre-funded staking reserve.
+Fish: staking contract allocates rewards from that reserve.
 ```
 
-If the emission rate is zero, no OCEAN rewards are distributed. That is the expected default unless an OceanDAO or operator-funded reserve is explicitly configured.
+If the emission rate is zero, no OCEAN rewards are distributed. That is the expected default unless an OceanDAO or operator-funded reserve is explicitly configured. To enable prototype OCEAN emissions, the configured emission source approves the staking proxy and calls `fundEmissions(amount)` before the owner sets a nonzero emission rate.
 
 The capacity pool follows the AntSeed pattern at a simpler boundary:
 
