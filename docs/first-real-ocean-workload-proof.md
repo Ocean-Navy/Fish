@@ -306,6 +306,14 @@ paid compute token USDC on Base
 
 For a free local Ocean Node demo, a supported testnet can be used instead if the Ocean contracts are deployed there and the proof wallet has gas on that chain. Fish's own Base Sepolia prototype contracts do not automatically make Ocean CLI asset publishing work on Base Sepolia.
 
+Preflight the private adapter env before starting the adapter or asking Fish to send a job:
+
+```bash
+npm run proof:external-preflight -- --env-file .env.ocean-proof.local
+```
+
+This exits without starting HTTP. It prints only public-safe selected values, missing fields, warnings, and booleans for whether the adapter key, proof wallet, and RPC are configured. Do not proceed to an external proof until it reports `liveReady: true`.
+
 5. Configure Fish:
 
 ```text

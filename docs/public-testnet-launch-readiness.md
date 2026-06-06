@@ -338,6 +338,14 @@ npm run proof:algorithm-smoke
 
 This checks the no-dataset proof mode and a local text-dataset summary mode without using a wallet, RPC, Ocean CLI, or public proof ledger.
 
+Before attempting the first external Ocean/Oncompute job, preflight the private adapter env:
+
+```bash
+npm run proof:external-preflight -- --env-file .env.ocean-proof.local
+```
+
+The preflight exits without starting HTTP and prints public-safe selected values, missing fields, warnings, and booleans for whether secrets are configured. It must not print adapter keys, proof wallet secrets, mnemonics, or RPC URLs.
+
 The readiness audit has a separate `External Oncompute proof` gate for this. It remains manual for `local_ocean_node` mode or local/private `NODE_URL` values, even when the local demo stack is healthy. It turns ready only when the private workload adapter is in `live` mode with a strong adapter key, proof wallet, HTTP(S) RPC, non-local Ocean/Oncompute node URL, `FISH_OCEAN_DATASET_DIDS` (use `[]` for a self-contained first algorithm), `FISH_OCEAN_ALGO_DID`, `FISH_OCEAN_COMPUTE_ENV_ID`, and either `OCEAN_CLI_DIR` or `FISH_OCEAN_CLI_BIN`.
 
 For paid external jobs, configure `FISH_OCEAN_PAYMENT_TOKEN` and valid JSON `FISH_OCEAN_RESOURCES` together. Leave both empty only when the selected external compute environment is intentionally free for the proof wallet.

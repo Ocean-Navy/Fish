@@ -1,6 +1,6 @@
 BASIC_USER ?= fish
 
-.PHONY: install dev build typecheck lint verify serve-api smoke public-testnet-readiness backup-runtime public-testnet-secrets ocean-demo-web-env proof-algorithm-smoke docker-build docker-up docker-down preview-config preview-up preview-down ocean-demo-config ocean-demo-up ocean-demo-up-warm ocean-demo-up-mlx ocean-demo-down ocean-demo-smoke fish-ocean-proof-smoke nginx-password health zip
+.PHONY: install dev build typecheck lint verify serve-api smoke public-testnet-readiness backup-runtime public-testnet-secrets ocean-demo-web-env proof-algorithm-smoke proof-external-preflight docker-build docker-up docker-down preview-config preview-up preview-down ocean-demo-config ocean-demo-up ocean-demo-up-warm ocean-demo-up-mlx ocean-demo-down ocean-demo-smoke fish-ocean-proof-smoke nginx-password health zip
 
 install:
 	npm ci
@@ -40,6 +40,9 @@ ocean-demo-web-env:
 
 proof-algorithm-smoke:
 	npm run proof:algorithm-smoke
+
+proof-external-preflight:
+	npm run proof:external-preflight -- --env-file $${FISH_OCEAN_PROOF_ENV:-.env.ocean-proof.local}
 
 docker-build:
 	docker build -t opfish-web:latest .

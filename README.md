@@ -641,6 +641,7 @@ For the public tester checklist, run:
 ```bash
 npm run secrets:public-testnet
 npm run proof:algorithm-smoke
+npm run proof:external-preflight -- --env-file .env.ocean-proof.local
 npm run ocean-demo:web-env -- --env .env.ocean-demo-stack --host <private-gpu-vm-host>
 npm run readiness:public-testnet -- --env .env.production.example --app-env-overlay .env.production.private --derive-ocean-web-env-host <private-gpu-vm-host>
 npm run readiness:public-testnet
@@ -655,6 +656,8 @@ Use an absolute private backup target such as `/var/backups/fish`. Do not point 
 The readiness audit also checks repository hygiene. Runtime ledgers, private env files, local contract deployment artifacts, backups, nginx password files, provider allowlists, and proof signing keys must stay ignored and untracked before a public link or security scan.
 
 `npm run proof:algorithm-smoke` checks the prepared Fish Docs Bento Ocean algorithm locally with no wallet, RPC, or Ocean CLI. Run it before publishing the algorithm DID for the first real Ocean/Oncompute proof.
+
+`npm run proof:external-preflight -- --env-file .env.ocean-proof.local` checks the private Ocean workload adapter env without starting HTTP and without printing adapter keys, wallet secrets, mnemonics, or RPC URLs. It should report `liveReady: true` before Fish sends an external Ocean/Oncompute proof job.
 
 To open the public tester faucet after Base Sepolia test token contracts exist, generate a private web-app overlay instead of editing the public example env:
 
