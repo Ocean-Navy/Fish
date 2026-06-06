@@ -391,7 +391,20 @@ Paid credit checkout is disabled until secrets are set, `FISH_MAX_OUTSTANDING_PR
 
 Contract status is read-only by default. Set the `FISH_CONTRACT_*` addresses and `FISH_CONTRACT_RPC_URL` after deploying the prototype contracts on a testnet. Keep `FISH_CONTRACT_ACTIONS_ENABLED=false` until the addresses, chain, roles, and test wallet path are reviewed. Keep `FISH_CONTRACT_SETTLEMENT_SUBMIT_ENABLED=false` until the operator wallet, USDC funding, allowance path, and idempotency process are tested. Keep `FISH_CONTRACT_MAINNET_WRITES_ALLOWED=false` unless the contracts have passed audit, legal review, multisig ownership, monitoring, and incident-response checks.
 
-The testnet faucet is disabled by default. Enable it only on Base Sepolia with a dedicated low-balance faucet wallet. Do not reuse deployer, operator, treasury, or production payment wallets. Keep `FISH_TESTNET_FAUCET_MAX_DAILY_CLAIMS`, wallet cooldown, IP cooldown, and token amounts conservative. In production, faucet claims fail closed unless `FISH_TRUST_PROXY_HEADERS=true`, `FISH_PROXY_HEADER_SECRET` is set to a long random secret, and the trusted nginx/private proxy strips any incoming `x-fish-proxy-secret` header before adding its own `x-fish-proxy-secret` and client IP headers.
+The testnet faucet is disabled by default. Enable it only on Base Sepolia with a dedicated low-balance faucet wallet. Do not reuse deployer, operator, treasury, Ocean proof, or production payment wallets. Keep `FISH_TESTNET_FAUCET_MAX_DAILY_CLAIMS`, wallet cooldown, IP cooldown, and token amounts conservative. In production, faucet claims fail closed unless `FISH_TRUST_PROXY_HEADERS=true`, `FISH_PROXY_HEADER_SECRET` is set to a long random secret, and the trusted nginx/private proxy strips any incoming `x-fish-proxy-secret` header before adding its own `x-fish-proxy-secret` and client IP headers.
+
+Once test token contracts exist, generate the private web-app faucet overlay with:
+
+```bash
+npm run secrets:public-testnet -- \
+  --include-wallets \
+  --include-faucet \
+  --test-ocean-address 0x... \
+  --test-usdc-address 0x... \
+  --faucet-rpc-url https://sepolia.base.org
+```
+
+Paste the generated app env block into the private web-host env file. The faucet private key belongs to the web app because `/api/testnet/faucet` signs claims; it should not be copied into `.env.ocean-demo-stack`.
 
 For Base Sepolia contract testing:
 
@@ -467,6 +480,7 @@ npm run backup:runtime -- --dry-run
 ```
 
 `npm run secrets:public-testnet` prints generated starter values for private env files. Keep the output out of git, tickets, and public chat. Use `--app-env-overlay .env.production.private` when auditing a production-like host from the public example env; the readiness command reports only states and findings, not secret values.
+Use `--include-faucet --test-ocean-address 0x... --test-usdc-address 0x...` only after the Base Sepolia test tokens are deployed and the faucet wallet can be low-funded.
 
 Then point the public web VM at the private GPU stack:
 

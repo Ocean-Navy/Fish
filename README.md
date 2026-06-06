@@ -649,6 +649,19 @@ Use an absolute private backup target such as `/var/backups/fish`. Do not point 
 
 `npm run readiness:public-testnet` uses the no-real-money public-testnet profile by default. It treats intentionally paused paid checkout as a manual follow-up, not as a public-testnet blocker. Add `--strict` when every manual and partial item must be resolved. `--app-env-overlay <private-env>` lets the audit merge private host settings such as admin tokens, guest salts, backup targets, and proof signing keys without printing their values. `--derive-ocean-web-env-host <private-gpu-vm-host>` lets the audit evaluate the private Ocean adapter/Fish Runner web-env block without printing its keys. Before paid Stripe/USDC launch, run `npm run readiness:public-testnet -- --profile paid-mainnet`. `npm run secrets:public-testnet` prints generated starter values for private env files; it includes secrets and should not be committed or pasted into public notes. See `docs/public-testnet-launch-readiness.md`.
 
+To open the public tester faucet after Base Sepolia test token contracts exist, generate a private web-app overlay instead of editing the public example env:
+
+```bash
+npm run secrets:public-testnet -- \
+  --include-wallets \
+  --include-faucet \
+  --test-ocean-address 0x... \
+  --test-usdc-address 0x... \
+  --faucet-rpc-url https://sepolia.base.org
+```
+
+Paste the app env block into a private web-host env file. The faucet key belongs only to the web app. Keep it separate from deployer, operator, treasury, Ocean proof, and payment wallets, then fund it only with limited Base Sepolia ETH, Test OCEAN, and Test USDC.
+
 ## OCEAN Staking Credits
 
 Phase 4 starts as an offchain prototype. Operators can record an OCEAN lock, issue spendable Fish Credits into the existing API ledger, and track whether those credits are actually used.
@@ -749,7 +762,9 @@ curl -sS http://127.0.0.1:3000/api/testnet/faucet \
   -d '{"walletAddress":"0x..."}'
 ```
 
-Keep this wallet separate from deployer, operator, and treasury wallets. Fund it only with limited Base Sepolia ETH and test tokens. The faucet is disabled by default, Base Sepolia only, and capped by wallet, IP, and daily claim limits. Public faucet claims trust proxy IP headers only when `FISH_TRUST_PROXY_HEADERS=true` and nginx/private proxy adds `x-fish-proxy-secret: <FISH_PROXY_HEADER_SECRET>` after stripping any user-supplied copy of that header. Public status exposes safe aggregate counters only: enabled/ready state, plain-language claim state, grant sizes, wallet/IP/day limits, claims used today, remaining claims, reset time, token addresses, faucet address, and faucet balances. It does not expose wallet hashes, IP hashes, private keys, or raw claim rows.
+Keep this wallet separate from deployer, operator, treasury, Ocean proof, and payment wallets. Fund it only with limited Base Sepolia ETH and test tokens. The faucet is disabled by default, Base Sepolia only, and capped by wallet, IP, and daily claim limits. Public faucet claims trust proxy IP headers only when `FISH_TRUST_PROXY_HEADERS=true` and nginx/private proxy adds `x-fish-proxy-secret: <FISH_PROXY_HEADER_SECRET>` after stripping any user-supplied copy of that header. Public status exposes safe aggregate counters only: enabled/ready state, plain-language claim state, grant sizes, wallet/IP/day limits, claims used today, remaining claims, reset time, token addresses, faucet address, and faucet balances. It does not expose wallet hashes, IP hashes, private keys, or raw claim rows.
+
+Use `npm run secrets:public-testnet -- --include-wallets --include-faucet --test-ocean-address 0x... --test-usdc-address 0x...` to generate a private faucet overlay. The command intentionally places `FISH_TESTNET_FAUCET_PRIVATE_KEY` in the web-app env block, not the Ocean demo stack env block, because `/api/testnet/faucet` signs from the web app.
 
 Staking positions and wallet intents are written under `data/staking/`, which is ignored by git. This is not an onchain staking contract; it is a funded-budget prototype for proving OCEAN lock intent, credit issuance, and credit spend.
 

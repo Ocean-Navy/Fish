@@ -39,6 +39,7 @@ Paste the generated values into private env files only. The command prints admin
 `npm run ocean-demo:web-env` prints the matching web-host env block for the private adapter, Fish Runner route, and runner receipt public key. Its output includes adapter and runner API keys, so paste it only into the private web host env.
 `--app-env-overlay` lets the readiness audit merge a private app env file with the public example env without printing admin tokens, salts, proof keys, or PEM material.
 `--derive-ocean-web-env-host` lets the readiness audit evaluate that generated web-host block without printing adapter keys, runner keys, or PEM material.
+Faucet credentials belong in the private web-app env, not in the Ocean demo stack env. Add `--include-faucet` only when the Base Sepolia test token addresses are known and the faucet wallet is intentionally low-funded.
 
 The readiness script also audits the selected Ocean compute environment. `FISH_OCEAN_COMPUTE_ENV_ID` must match an environment inside `OCEAN_NODE_DOCKER_COMPUTE_ENVIRONMENTS`, and that environment must restrict `free.access.addresses` to the Ocean proof wallet used by the workload adapter.
 
@@ -161,11 +162,26 @@ FISH_CONTRACT_MAINNET_WRITES_ALLOWED=false
 
 For testers without funds:
 
+```bash
+npm run secrets:public-testnet -- \
+  --include-wallets \
+  --include-faucet \
+  --test-ocean-address 0x... \
+  --test-usdc-address 0x... \
+  --faucet-rpc-url https://sepolia.base.org
+```
+
+Paste only the generated app env block into the private web-host env file, then fund the generated faucet address with limited Base Sepolia ETH, Test OCEAN, and Test USDC. Do not reuse deployer, operator, treasury, Ocean proof, or payment wallets for the faucet.
+
 ```text
 FISH_TRUST_PROXY_HEADERS=true
 FISH_PROXY_HEADER_SECRET=<long random secret set by nginx/private proxy>
 FISH_TESTNET_FAUCET_ENABLED=true
 FISH_TESTNET_FAUCET_CHAIN_ID=84532
+FISH_TESTNET_FAUCET_PRIVATE_KEY=<dedicated low-balance faucet key>
+FISH_TESTNET_FAUCET_RPC_URL=https://sepolia.base.org
+FISH_TESTNET_FAUCET_OCEAN_TOKEN_ADDRESS=<Base Sepolia Test OCEAN>
+FISH_TESTNET_FAUCET_USDC_TOKEN_ADDRESS=<Base Sepolia Test USDC>
 FISH_TESTNET_FAUCET_MAX_DAILY_CLAIMS=<small cap>
 FISH_TESTNET_FAUCET_ETH_AMOUNT=0.0005
 FISH_TESTNET_FAUCET_OCEAN_AMOUNT=1000
