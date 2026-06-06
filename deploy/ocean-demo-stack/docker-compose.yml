@@ -110,7 +110,7 @@ services:
     restart: unless-stopped
     ipc: host
     ports:
-      - "${FISH_VLLM_BIND:-127.0.0.1}:${FISH_VLLM_PORT:-8000}:8000"
+      - "${FISH_VLLM_BIND:-127.0.0.1}:${FISH_VLLM_PORT:-8001}:8000"
     environment:
       HUGGING_FACE_HUB_TOKEN: ${HUGGING_FACE_HUB_TOKEN:-}
       HF_HOME: /root/.cache/huggingface
