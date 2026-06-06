@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { execFileSync } from "node:child_process";
-import { createPublicKey } from "node:crypto";
+import { createPrivateKey, createPublicKey } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { mnemonicToAccount, privateKeyToAccount } from "viem/accounts";
@@ -8,6 +8,9 @@ import { mnemonicToAccount, privateKeyToAccount } from "viem/accounts";
 const rootEnvPath = option("--env") || ".env.production";
 const oceanEnvPath = option("--ocean-env") || ".env.ocean-demo-stack";
 const profile = option("--profile") || "public-testnet";
+const deriveOceanWebEnvHost = option("--derive-ocean-web-env-host");
+const deriveOceanWebEnvProfile = option("--derive-ocean-web-env-profile") || "warm";
+const deriveOceanWebEnvScheme = option("--derive-ocean-web-env-scheme") || "http";
 const json = hasFlag("--json");
 const strict = hasFlag("--strict");
 const MAX_FAUCET_DAILY_CLAIMS = 100;
@@ -23,18 +26,30 @@ if (!["public-testnet", "paid-mainnet"].includes(profile)) {
   console.error("Use --profile public-testnet or --profile paid-mainnet.");
   process.exit(2);
 }
+if (deriveOceanWebEnvHost && !["warm", "mlx"].includes(deriveOceanWebEnvProfile)) {
+  console.error(`Unknown derived Ocean web env profile: ${deriveOceanWebEnvProfile}`);
+  console.error("Use --derive-ocean-web-env-profile warm or mlx.");
+  process.exit(2);
+}
+if (deriveOceanWebEnvHost && !["http", "https"].includes(deriveOceanWebEnvScheme)) {
+  console.error(`Unknown derived Ocean web env scheme: ${deriveOceanWebEnvScheme}`);
+  console.error("Use --derive-ocean-web-env-scheme http or https.");
+  process.exit(2);
+}
 
 const appEnv = readEnvFile(rootEnvPath);
 const oceanEnv = readEnvFile(oceanEnvPath);
+const derivedOceanWebEnv = deriveOceanWebEnvHost ? buildOceanWebEnv(oceanEnv, deriveOceanWebEnvHost, deriveOceanWebEnvProfile, deriveOceanWebEnvScheme) : null;
+const effectiveAppEnv = derivedOceanWebEnv ? { ...appEnv, ...derivedOceanWebEnv.env } : appEnv;
 const checks = [
-  checkPublicWeb(appEnv, rootEnvPath),
+  checkPublicWeb(effectiveAppEnv, rootEnvPath),
   checkOceanDemo(oceanEnv, oceanEnvPath),
-  checkBatchDishes(appEnv),
-  checkPayments(appEnv, profile),
-  checkTestnetFaucet(appEnv),
-  checkContracts(appEnv),
-  checkDataHygiene(appEnv),
-  checkOperations(appEnv, oceanEnv),
+  checkBatchDishes(effectiveAppEnv),
+  checkPayments(effectiveAppEnv, profile),
+  checkTestnetFaucet(effectiveAppEnv),
+  checkContracts(effectiveAppEnv),
+  checkDataHygiene(effectiveAppEnv),
+  checkOperations(effectiveAppEnv, oceanEnv, derivedOceanWebEnv),
   checkRealOncomputeProof(oceanEnv)
 ];
 
@@ -44,7 +59,16 @@ const summary = {
   strict,
   env: {
     app: rootEnvPath,
-    ocean: oceanEnvPath
+    ocean: oceanEnvPath,
+    oceanWebEnv: derivedOceanWebEnv
+      ? {
+          derived: true,
+          host: deriveOceanWebEnvHost,
+          profile: deriveOceanWebEnvProfile
+        }
+      : {
+          derived: false
+        }
   },
   totals: checks.reduce(
     (acc, check) => {
@@ -238,6 +262,9 @@ function printSummary(summary) {
   if (summary.strict) console.log("strict: true");
   console.log(`app env: ${summary.env.app}`);
   console.log(`ocean env: ${summary.env.ocean}`);
+  if (summary.env.oceanWebEnv.derived) {
+    console.log(`derived Ocean web env: ${summary.env.oceanWebEnv.profile} via ${summary.env.oceanWebEnv.host}`);
+  }
   console.log("");
   for (const check of summary.checks) {
     console.log(`${symbol(check.state)} ${check.name}: ${check.state}`);
@@ -251,6 +278,33 @@ function printSummary(summary) {
 
 function symbol(state) {
   return state === "ready" ? "[ok]" : state === "blocked" ? "[block]" : state === "partial" ? "[partial]" : "[manual]";
+}
+
+function buildOceanWebEnv(oceanEnv, host, profile, scheme) {
+  const adapterPort = oceanEnv.OCEAN_WORKLOAD_ADAPTER_PORT || "8787";
+  const runnerPort = oceanEnv.FISH_RUNNER_PORT || "8088";
+  const providerId = oceanEnv.FISH_RUNNER_PROVIDER_ID || (profile === "mlx" ? "ocean-navy-local-mlx" : "ocean-navy-demo-node");
+  const model = profile === "mlx" ? oceanEnv.FISH_MLX_MODEL || "mlx-community/Llama-3.2-3B-Instruct-4bit" : oceanEnv.FISH_VLLM_SERVED_MODEL_NAME || "fish-warm-chat";
+  const runnerPublicKey = deriveRunnerPublicKeyFromOceanEnv(oceanEnv);
+
+  return {
+    env: {
+      FISH_OCEAN_BATCH_ENDPOINT: `${scheme}://${host}:${adapterPort}/jobs`,
+      FISH_OCEAN_BATCH_API_KEY: oceanEnv.OCEAN_WORKLOAD_ADAPTER_API_KEY || "",
+      FISH_OCEAN_BATCH_PROVIDER_ID: providerId,
+      FISH_OCEAN_BATCH_DAILY_BUDGET_USD: "5",
+      FISH_OCEAN_BATCH_PRIVATE_PAYLOAD: "true",
+      FISH_CHAT_ROUTE: "ocean-first",
+      FISH_OCEAN_DEMO_VLLM_BASE_URL: `${scheme}://${host}:${runnerPort}/v1`,
+      FISH_OCEAN_DEMO_VLLM_API_KEY: oceanEnv.FISH_RUNNER_API_KEY || "",
+      FISH_OCEAN_DEMO_VLLM_MODEL: model,
+      FISH_OCEAN_DEMO_PROVIDER_ID: providerId,
+      FISH_OCEAN_DEMO_COST_USD_PER_1K_TOKENS: oceanEnv.FISH_RUNNER_PRICE_USD_PER_1K_TOKENS || "0",
+      FISH_OCEAN_DEMO_DAILY_BUDGET_USD: "10",
+      FISH_RUNNER_PUBLIC_KEY_ID: runnerPublicKey.keyId,
+      FISH_RUNNER_PUBLIC_KEY_PEM: runnerPublicKey.publicKeyPem
+    }
+  };
 }
 
 function checkSelectedChatRoute(env, route) {
@@ -316,7 +370,11 @@ function readEnvFile(path) {
     if (!match) continue;
     let value = match[2].trim();
     if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
-      value = value.slice(1, -1);
+      try {
+        value = JSON.parse(value);
+      } catch {
+        value = value.slice(1, -1);
+      }
     }
     out[match[1]] = value;
   }
@@ -500,6 +558,24 @@ function trustedRunnerKeyFromSingleEnv(env) {
   const keyId = String(env.FISH_RUNNER_PUBLIC_KEY_ID || "").trim();
   const publicKeyPem = normalizePem(String(env.FISH_RUNNER_PUBLIC_KEY_PEM || "").trim());
   return keyId && publicKeyPem ? [{ keyId, publicKeyPem }] : [];
+}
+
+function deriveRunnerPublicKeyFromOceanEnv(env) {
+  const keyId = String(env.FISH_RUNNER_SIGNING_KEY_ID || "").trim() || "runner-ocean-navy-demo-ed25519";
+  const privateKeyPem = normalizePem(String(env.FISH_RUNNER_SIGNING_PRIVATE_KEY_PEM || "").trim());
+  if (!privateKeyPem) {
+    return { keyId, publicKeyPem: "" };
+  }
+  try {
+    const privateKey = createPrivateKey(privateKeyPem);
+    if (privateKey.asymmetricKeyType !== "ed25519") {
+      return { keyId, publicKeyPem: "" };
+    }
+    const publicKeyPem = createPublicKey(privateKey).export({ type: "spki", format: "pem" });
+    return { keyId, publicKeyPem };
+  } catch {
+    return { keyId, publicKeyPem: "" };
+  }
 }
 
 function trustedRunnerKeysFromJson(value) {

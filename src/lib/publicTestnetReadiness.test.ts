@@ -146,6 +146,38 @@ test("public web readiness accepts a configured Ocean demo route", async () => {
   assert.doesNotMatch(web.findings.join("\n"), /Selected chat route/);
 });
 
+test("public testnet readiness can derive web env from the Ocean demo stack", async () => {
+  const { keyId, privateKeyPem } = runnerSigningKey();
+  const appEnv = await tempEnv(["FISH_PAID_TOPUPS_PAUSED=true", "FISH_ADMIN_TOKEN=12345678901234567890123456789012", "FISH_GUEST_ID_SALT=12345678901234567890123456789012"].join("\n"));
+  const oceanEnv = await tempEnv(
+    oceanEnvWithComputeAccess([PROOF_WALLET_ADDRESS], {
+      runnerSigningKeyId: keyId,
+      runnerSigningPrivateKeyPem: privateKeyPem,
+      runnerApiKey: "runner-key-12345678901234567890"
+    })
+  );
+  const result = runReadiness(["--env", appEnv, "--ocean-env", oceanEnv, "--derive-ocean-web-env-host", "10.0.0.7", "--json"]);
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.doesNotMatch(result.stdout, /BEGIN PRIVATE KEY/);
+  assert.doesNotMatch(result.stdout, /BEGIN PUBLIC KEY/);
+  assert.doesNotMatch(result.stdout, /runner-key-12345678901234567890/);
+  const summary = JSON.parse(result.stdout);
+  const web = summary.checks.find((check: { name: string }) => check.name === "Public web env");
+  const batch = summary.checks.find((check: { name: string }) => check.name === "Ocean batch dishes");
+  const operations = summary.checks.find((check: { name: string }) => check.name === "Operational hardening");
+
+  assert.deepEqual(summary.env.oceanWebEnv, {
+    derived: true,
+    host: "10.0.0.7",
+    profile: "warm"
+  });
+  assert.doesNotMatch(web.findings.join("\n"), /Selected chat route/);
+  assert.equal(batch.state, "ready");
+  assert.doesNotMatch(operations.findings.join("\n"), /missing trusted runner public key/);
+  assert.doesNotMatch(operations.findings.join("\n"), /signing key id/);
+});
+
 test("public testnet readiness flags oversized faucet grants", async () => {
   const appEnv = await tempEnv(
     [
@@ -327,7 +359,7 @@ function missingOceanEnv() {
   return path.join(tmpdir(), `fish-missing-ocean-env-${Date.now()}-${Math.random().toString(16).slice(2)}`);
 }
 
-function oceanEnvWithComputeAccess(addresses: string[], options: { runnerSigningKeyId?: string } = {}) {
+function oceanEnvWithComputeAccess(addresses: string[], options: { runnerSigningKeyId?: string; runnerSigningPrivateKeyPem?: string; runnerApiKey?: string } = {}) {
   const computeEnvironments = [
     {
       socketPath: "/var/run/docker.sock",
@@ -351,12 +383,19 @@ function oceanEnvWithComputeAccess(addresses: string[], options: { runnerSigning
     "OCEAN_NODE_HTTP_BIND=127.0.0.1",
     "OCEAN_WORKLOAD_ADAPTER_BIND=127.0.0.1",
     "OCEAN_NODE_P2P_BIND=127.0.0.1",
+    options.runnerApiKey ? `FISH_RUNNER_API_KEY=${options.runnerApiKey}` : "",
     options.runnerSigningKeyId ? `FISH_RUNNER_SIGNING_KEY_ID=${options.runnerSigningKeyId}` : "",
-    options.runnerSigningKeyId ? "FISH_RUNNER_SIGNING_PRIVATE_KEY_PEM=12345678901234567890123456789012" : "",
+    options.runnerSigningKeyId ? `FISH_RUNNER_SIGNING_PRIVATE_KEY_PEM=${JSON.stringify(options.runnerSigningPrivateKeyPem ?? "12345678901234567890123456789012")}` : "",
     `OCEAN_NODE_DOCKER_COMPUTE_ENVIRONMENTS=${JSON.stringify(computeEnvironments)}`
   ]
     .filter(Boolean)
     .join("\n");
+}
+
+function runnerSigningKey(keyId = "runner-test") {
+  const { privateKey } = generateKeyPairSync("ed25519");
+  const privateKeyPem = privateKey.export({ type: "pkcs8", format: "pem" }).toString();
+  return { keyId, privateKeyPem };
 }
 
 function runnerPublicKeysJsonEnv(keyId = "runner-test") {

@@ -312,6 +312,16 @@ FISH_RUNNER_PUBLIC_KEY_ID=<FISH_RUNNER_SIGNING_KEY_ID>
 FISH_RUNNER_PUBLIC_KEY_PEM=<derived public key>
 ```
 
+Before pasting the block into the web host, audit the effective web env without printing secrets:
+
+```bash
+npm run readiness:public-testnet -- \
+  --env .env.production \
+  --ocean-env .env.ocean-demo-stack \
+  --derive-ocean-web-env-host <private-gpu-vm-host> \
+  --derive-ocean-web-env-profile warm
+```
+
 `FISH_OCEAN_BATCH_PRIVATE_PAYLOAD=true` makes batch dishes useful by sending short order text to the private adapter so the Ocean job can write a returned Markdown/HTML artifact. Use it only when the adapter and Ocean Node are private and operated by us. Public proof still stores tickets and hashes, not raw order text.
 
 Do not expose raw vLLM or raw MLX publicly. Fish Gateway should call Fish Runner, not the model server.
