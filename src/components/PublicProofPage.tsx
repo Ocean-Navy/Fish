@@ -1,4 +1,4 @@
-import { CircleDollarSign, FileText, Fish, Gauge, ReceiptText, Ship, Vault } from "lucide-react";
+import { EyeOff, FileText, Fish, Gauge, ReceiptText, ShieldCheck, Ship, Utensils } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -43,6 +43,32 @@ export function PublicProofPage({
       ? "Selected provider runs have public proof."
       : "The market is open, and proof is still early.";
   const heroUpdatedAt = oceanProof.proof.latestReceiptAt ?? proof.lastUpdated;
+  const plainProofCards = [
+    {
+      icon: Utensils,
+      label: "Dish",
+      title: batch.succeededJobs ? `${formatCompact(batch.succeededJobs)} prepared` : "Waiting for first dish",
+      body: hasOceanBatchProof ? "A Fish dish ran through the Ocean batch path." : "The first Ocean batch dish will make this card light up."
+    },
+    {
+      icon: ReceiptText,
+      label: "Ticket",
+      title: proof.verifiedReceipts ? `${formatCompact(proof.verifiedReceipts)} proof tickets` : "No proof tickets yet",
+      body: "Tickets show ids, hashes, usage, status, and timing."
+    },
+    {
+      icon: EyeOff,
+      label: "Privacy",
+      title: "Orders stay off proof",
+      body: "Public proof does not show raw prompts, files, or answers."
+    },
+    {
+      icon: ShieldCheck,
+      label: "Claim",
+      title: hasOceanBatchProof ? "Local Ocean proof" : "Early proof",
+      body: hasOceanBatchProof ? "This proves our local Ocean Node path, not paid third-party Oncompute demand yet." : "Sample and missing states stay clearly labeled."
+    }
+  ];
 
   return (
     <main className="min-h-screen overflow-hidden">
@@ -55,8 +81,8 @@ export function PublicProofPage({
             <span className="text-lg font-black text-white">Fish</span>
           </Link>
           <nav className="hidden items-center gap-6 text-sm font-black text-fish-secondary md:flex" aria-label="Proof navigation">
-            <a className="hover:text-white" href="#boats">Boats</a>
-            <a className="hover:text-white" href="#activity">Activity</a>
+            <a className="hover:text-white" href="#proof-story">What counts</a>
+            <a className="hover:text-white" href="#activity">Tickets</a>
             <Link className="hover:text-white" href={"/privacy" as Route}>Data policy</Link>
             <Link className="hover:text-white" href="/dashboard">Dashboard</Link>
           </nav>
@@ -89,27 +115,53 @@ export function PublicProofPage({
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <HeroCounter icon={ReceiptText} label="Proof records" value={formatCompact(proof.verifiedReceipts)} />
+            <HeroCounter icon={FileText} label="Dishes prepared" value={formatCompact(batch.succeededJobs)} />
+            <HeroCounter icon={ReceiptText} label="Proof tickets" value={formatCompact(proof.verifiedReceipts)} />
             <HeroCounter icon={Ship} label="Ocean jobs" value={formatCompact(proof.oceanJobsRouted)} />
-            <HeroCounter icon={FileText} label="Batch dishes" value={formatCompact(batch.succeededJobs)} />
-            <HeroCounter icon={Gauge} label="Ocean gate" value={oceanProof.proofReady ? "Ready" : "Not yet"} />
-            <HeroCounter icon={CircleDollarSign} label="Provider chest" value={formatUsd(proof.providerPayoutUsd)} />
-            <HeroCounter icon={Vault} label="Capacity pool" value={formatUsd(capacitySettlements.totals.netUsdcAmount)} />
+            <HeroCounter icon={Gauge} label="Ocean path" value={oceanProof.proofReady ? "Ready" : "Not yet"} />
           </div>
         </div>
       </section>
 
-      <MetricGroup title="Market Counters" eyebrow="Harbor signs" state={proof.dataState}>
+      <section id="proof-story" className="px-4 py-10 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl">
+          <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">Plain proof</p>
+              <h2 className="mt-2 text-4xl font-black text-white sm:text-5xl">What counts here?</h2>
+            </div>
+            <Link className="w-fit rounded-full border border-fish-accent/35 px-4 py-2 text-sm font-black text-fish-accent hover:bg-fish-accent/10" href={"/privacy" as Route}>
+              Data policy
+            </Link>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {plainProofCards.map((card) => {
+              const Icon = card.icon;
+              return (
+                <article key={card.label} className="rounded-[1.5rem] border border-fish-accent/20 bg-fish-surface/80 p-5 shadow-harbor">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-xs font-black uppercase tracking-[0.12em] text-fish-gold">{card.label}</p>
+                    <Icon className="h-5 w-5 text-fish-accent" aria-hidden="true" />
+                  </div>
+                  <h3 className="mt-4 text-2xl font-black leading-tight text-white">{card.title}</h3>
+                  <p className="mt-3 text-sm font-bold leading-6 text-fish-secondary">{card.body}</p>
+                </article>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      <MetricGroup title="At A Glance" eyebrow="Harbor signs" state={proof.dataState}>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <ProofTile label="Jobs routed" value={formatCompact(proof.oceanJobsRouted)} detail={`${formatCompact(proof.failedJobs + proof.timedOutJobs)} need review`} />
-          <ProofTile label="Proof records" value={formatCompact(proof.verifiedReceipts)} detail={`${formatCompact(proof.receiptVerificationFailures)} need review`} />
+          <ProofTile label="Proof tickets" value={formatCompact(proof.verifiedReceipts)} detail={`${formatCompact(proof.receiptVerificationFailures)} need review`} />
           <ProofTile label="Batch dishes" value={formatCompact(batch.jobs)} detail={batch.dataState === "sample" ? "sample path" : "private adapter"} />
-          <ProofTile label="Providers paid" value={formatUsd(proof.payouts.totals.paid)} detail={`${formatUsd(proof.payouts.totals.outstandingUsd)} still open`} />
-          <ProofTile label="Benchmark runs" value={formatCompact(benchmarks.totals.benchmarkRuns)} detail={`${formatCompact(benchmarks.totals.untestedCells)} untested routes`} />
+          <ProofTile label="Provider payouts" value={formatUsd(proof.payouts.totals.paid)} detail={`${formatUsd(proof.payouts.totals.outstandingUsd)} open`} />
         </div>
       </MetricGroup>
 
-      <MetricGroup title="Ocean Proof Gate" eyebrow="Milestone 3" state={oceanProof.dataState}>
+      <MetricGroup title="Ocean Path" eyebrow="Proof gate" state={oceanProof.dataState}>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <ProofTile label="Adapter" value={oceanProof.adapter.reachable ? "Reachable" : "Not ready"} detail={oceanProof.adapter.mode ? `mode ${oceanProof.adapter.mode}` : "no adapter"} />
           <ProofTile label="Traffic gate" value={oceanProof.trafficReady ? "Ready" : "Blocked"} detail={oceanProof.adapter.liveReady ? "live adapter" : "needs live config"} />
@@ -145,7 +197,7 @@ export function PublicProofPage({
         </div>
       </MetricGroup>
 
-      <MetricGroup title="Batch Dishes" eyebrow="Ocean batch path" state={batch.dataState}>
+      <MetricGroup title="Dish Tickets" eyebrow="Ocean batch path" state={batch.dataState}>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <ProofTile label="Batch jobs" value={formatCompact(batch.jobs)} />
           <ProofTile label="Succeeded" value={formatCompact(batch.succeededJobs)} />
@@ -192,7 +244,7 @@ export function PublicProofPage({
         )}
       </MetricGroup>
 
-      <MetricGroup id="activity" title="Activity Net" eyebrow="Public proof" state={proof.dataState}>
+      <MetricGroup id="activity" title="Ticket Net" eyebrow="Public proof" state={proof.dataState}>
         {receiptRows.length ? (
           <div className="grid gap-3 lg:grid-cols-5">
             {receiptRows.map((receipt) => (
@@ -209,7 +261,7 @@ export function PublicProofPage({
         )}
       </MetricGroup>
 
-      <MetricGroup title="Payout Chest" eyebrow="Provider money" state={proof.payouts.dataState}>
+      <MetricGroup title="Money Details" eyebrow="Provider payouts" state={proof.payouts.dataState}>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
           <ProofTile label="Accrued" value={formatUsd(proof.payouts.totals.accrued)} />
           <ProofTile label="Review" value={formatUsd(proof.payouts.totals.review)} />
@@ -220,7 +272,7 @@ export function PublicProofPage({
         </div>
       </MetricGroup>
 
-      <MetricGroup title="Capacity Pool" eyebrow="Paid demand" state={capacitySettlements.dataState}>
+      <MetricGroup title="Capacity Details" eyebrow="Paid demand" state={capacitySettlements.dataState}>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <ProofTile label="Settlements" value={formatCompact(capacitySettlements.totals.settlements)} />
           <ProofTile label="USDC recorded" value={formatUsd(capacitySettlements.totals.grossUsdcAmount)} />
@@ -248,7 +300,7 @@ export function PublicProofPage({
         {capacitySettlements.warnings[1] ? <p className="mt-3 rounded-2xl border border-fish-gold/25 bg-fish-gold/10 p-4 text-sm font-black leading-6 text-fish-primary">{capacitySettlements.warnings[1]}</p> : null}
       </MetricGroup>
 
-      <MetricGroup title="Benchmark Board" eyebrow="Route tests" state={benchmarks.dataState}>
+      <MetricGroup title="Route Tests" eyebrow="Deep proof" state={benchmarks.dataState}>
         {benchmarkRows.length ? (
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {benchmarkRows.map((row) => (
