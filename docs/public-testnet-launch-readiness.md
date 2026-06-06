@@ -32,11 +32,12 @@ npm run secrets:public-testnet
 make ocean-demo-up-mlx FISH_OCEAN_DEMO_ENV=.env.ocean-demo-stack
 make ocean-demo-smoke FISH_OCEAN_DEMO_ENV=.env.ocean-demo-stack
 npm run ocean-demo:web-env -- --env .env.ocean-demo-stack --host <private-gpu-vm-host> --profile mlx
-npm run readiness:public-testnet -- --derive-ocean-web-env-host <private-gpu-vm-host> --derive-ocean-web-env-profile mlx
+npm run readiness:public-testnet -- --env .env.production.example --app-env-overlay .env.production.private --derive-ocean-web-env-host <private-gpu-vm-host> --derive-ocean-web-env-profile mlx
 ```
 
 Paste the generated values into private env files only. The command prints admin tokens, adapter keys, runner signing keys, proof signing keys, salts, and optional throwaway wallet keys.
 `npm run ocean-demo:web-env` prints the matching web-host env block for the private adapter, Fish Runner route, and runner receipt public key. Its output includes adapter and runner API keys, so paste it only into the private web host env.
+`--app-env-overlay` lets the readiness audit merge a private app env file with the public example env without printing admin tokens, salts, proof keys, or PEM material.
 `--derive-ocean-web-env-host` lets the readiness audit evaluate that generated web-host block without printing adapter keys, runner keys, or PEM material.
 
 The readiness script also audits the selected Ocean compute environment. `FISH_OCEAN_COMPUTE_ENV_ID` must match an environment inside `OCEAN_NODE_DOCKER_COMPUTE_ENVIRONMENTS`, and that environment must restrict `free.access.addresses` to the Ocean proof wallet used by the workload adapter.
@@ -286,9 +287,9 @@ npm run readiness:public-testnet
 Optional:
 
 ```bash
-npm run readiness:public-testnet -- --env .env.production --ocean-env .env.ocean-demo-stack --json
-npm run readiness:public-testnet -- --env .env.production --ocean-env .env.ocean-demo-stack --strict
-npm run readiness:public-testnet -- --profile paid-mainnet --env .env.production --ocean-env .env.ocean-demo-stack
+npm run readiness:public-testnet -- --env .env.production.example --app-env-overlay .env.production.private --ocean-env .env.ocean-demo-stack --json
+npm run readiness:public-testnet -- --env .env.production.example --app-env-overlay .env.production.private --ocean-env .env.ocean-demo-stack --strict
+npm run readiness:public-testnet -- --profile paid-mainnet --env .env.production.example --app-env-overlay .env.production.private --ocean-env .env.ocean-demo-stack
 ```
 
-The default command exits non-zero only for blocked states. Use `--strict` when every manual and partial item must be resolved before a public link or security-scan handoff. The command prints public-safe readiness states and never prints secrets.
+The default command exits non-zero only for blocked states. Use `--strict` when every manual and partial item must be resolved before a public link or security-scan handoff. The command prints public-safe readiness states and never prints secrets. Keep `.env.production.private` outside git or in a secret-managed deploy path.

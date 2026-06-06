@@ -458,11 +458,11 @@ After the stack is running:
 ```bash
 npm run secrets:public-testnet
 scripts/smoke-ocean-demo-stack.sh .env.ocean-demo-stack
-npm run readiness:public-testnet
+npm run readiness:public-testnet -- --env .env.production.example --app-env-overlay .env.production.private
 npm run backup:runtime -- --dry-run
 ```
 
-`npm run secrets:public-testnet` prints generated starter values for private env files. Keep the output out of git, tickets, and public chat.
+`npm run secrets:public-testnet` prints generated starter values for private env files. Keep the output out of git, tickets, and public chat. Use `--app-env-overlay .env.production.private` when auditing a production-like host from the public example env; the readiness command reports only states and findings, not secret values.
 
 Then point the public web VM at the private GPU stack:
 

@@ -6,6 +6,7 @@ import path from "node:path";
 import { mnemonicToAccount, privateKeyToAccount } from "viem/accounts";
 
 const rootEnvPath = option("--env") || ".env.production";
+const appEnvOverlayPath = option("--app-env-overlay");
 const oceanEnvPath = option("--ocean-env") || ".env.ocean-demo-stack";
 const profile = option("--profile") || "public-testnet";
 const deriveOceanWebEnvHost = option("--derive-ocean-web-env-host");
@@ -37,12 +38,14 @@ if (deriveOceanWebEnvHost && !["http", "https"].includes(deriveOceanWebEnvScheme
   process.exit(2);
 }
 
-const appEnv = readEnvFile(rootEnvPath);
+const appEnvBase = readEnvFile(rootEnvPath);
+const appEnvOverlay = appEnvOverlayPath ? readEnvFile(appEnvOverlayPath) : {};
+const appEnv = { ...appEnvBase, ...appEnvOverlay };
 const oceanEnv = readEnvFile(oceanEnvPath);
 const derivedOceanWebEnv = deriveOceanWebEnvHost ? buildOceanWebEnv(oceanEnv, deriveOceanWebEnvHost, deriveOceanWebEnvProfile, deriveOceanWebEnvScheme) : null;
 const effectiveAppEnv = derivedOceanWebEnv ? { ...appEnv, ...derivedOceanWebEnv.env } : appEnv;
 const checks = [
-  checkPublicWeb(effectiveAppEnv, rootEnvPath),
+  checkPublicWeb(effectiveAppEnv, rootEnvPath, appEnvOverlayPath),
   checkOceanDemo(oceanEnv, oceanEnvPath),
   checkBatchDishes(effectiveAppEnv),
   checkPayments(effectiveAppEnv, profile),
@@ -59,6 +62,14 @@ const summary = {
   strict,
   env: {
     app: rootEnvPath,
+    appOverlay: appEnvOverlayPath
+      ? {
+          configured: true,
+          path: appEnvOverlayPath
+        }
+      : {
+          configured: false
+        },
     ocean: oceanEnvPath,
     oceanWebEnv: derivedOceanWebEnv
       ? {
@@ -88,9 +99,10 @@ if (json) {
 
 process.exitCode = checks.some((check) => check.state === "blocked") || (strict && checks.some((check) => check.state !== "ready")) ? 1 : 0;
 
-function checkPublicWeb(env, path) {
+function checkPublicWeb(env, path, overlayPath) {
   const findings = [];
   if (!existsSync(path)) findings.push(`Missing ${path}; copy .env.production.example before public testing.`);
+  if (overlayPath && !existsSync(overlayPath)) findings.push(`Missing app env overlay ${overlayPath}; private app settings cannot be audited.`);
   if (!safeSecret(env.FISH_ADMIN_TOKEN)) findings.push("FISH_ADMIN_TOKEN is missing or still a placeholder.");
   const route = normalizeChatRoute(env.FISH_CHAT_ROUTE || env.FISH_CHAT_BACKEND);
   const paused = truthy(env.FISH_CHAT_PAUSED) || truthy(env.FISH_ROUTER_PAUSED);
@@ -261,6 +273,7 @@ function printSummary(summary) {
   console.log(`profile: ${summary.profile}`);
   if (summary.strict) console.log("strict: true");
   console.log(`app env: ${summary.env.app}`);
+  if (summary.env.appOverlay.configured) console.log(`app env overlay: ${summary.env.appOverlay.path}`);
   console.log(`ocean env: ${summary.env.ocean}`);
   if (summary.env.oceanWebEnv.derived) {
     console.log(`derived Ocean web env: ${summary.env.oceanWebEnv.profile} via ${summary.env.oceanWebEnv.host}`);

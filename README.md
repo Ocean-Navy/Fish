@@ -626,7 +626,7 @@ For the public tester checklist, run:
 ```bash
 npm run secrets:public-testnet
 npm run ocean-demo:web-env -- --env .env.ocean-demo-stack --host <private-gpu-vm-host>
-npm run readiness:public-testnet -- --derive-ocean-web-env-host <private-gpu-vm-host>
+npm run readiness:public-testnet -- --env .env.production.example --app-env-overlay .env.production.private --derive-ocean-web-env-host <private-gpu-vm-host>
 npm run readiness:public-testnet
 npm run readiness:public-testnet -- --strict
 npm run backup:runtime -- --dry-run
@@ -634,7 +634,7 @@ npm run backup:runtime -- --dry-run
 
 Use an absolute private backup target such as `/var/backups/fish`. Do not point backups at `public/`, `data/`, a relative repository path, or temporary storage. The backup dry run and public-readiness audit report unsafe targets.
 
-`npm run readiness:public-testnet` uses the no-real-money public-testnet profile by default. It treats intentionally paused paid checkout as a manual follow-up, not as a public-testnet blocker. Add `--strict` when every manual and partial item must be resolved. `--derive-ocean-web-env-host <private-gpu-vm-host>` lets the audit evaluate the private Ocean adapter/Fish Runner web-env block without printing its keys. Before paid Stripe/USDC launch, run `npm run readiness:public-testnet -- --profile paid-mainnet`. `npm run secrets:public-testnet` prints generated starter values for private env files; it includes secrets and should not be committed or pasted into public notes. See `docs/public-testnet-launch-readiness.md`.
+`npm run readiness:public-testnet` uses the no-real-money public-testnet profile by default. It treats intentionally paused paid checkout as a manual follow-up, not as a public-testnet blocker. Add `--strict` when every manual and partial item must be resolved. `--app-env-overlay <private-env>` lets the audit merge private host settings such as admin tokens, guest salts, backup targets, and proof signing keys without printing their values. `--derive-ocean-web-env-host <private-gpu-vm-host>` lets the audit evaluate the private Ocean adapter/Fish Runner web-env block without printing its keys. Before paid Stripe/USDC launch, run `npm run readiness:public-testnet -- --profile paid-mainnet`. `npm run secrets:public-testnet` prints generated starter values for private env files; it includes secrets and should not be committed or pasted into public notes. See `docs/public-testnet-launch-readiness.md`.
 
 ## OCEAN Staking Credits
 

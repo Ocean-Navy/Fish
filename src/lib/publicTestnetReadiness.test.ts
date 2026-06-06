@@ -178,6 +178,50 @@ test("public testnet readiness can derive web env from the Ocean demo stack", as
   assert.doesNotMatch(operations.findings.join("\n"), /signing key id/);
 });
 
+test("public testnet readiness accepts a private app env overlay without exposing secrets", async () => {
+  const { keyId, privateKeyPem } = runnerSigningKey();
+  const { publicKeyPem, privateKeyPem: providerProofPrivateKeyPem } = providerProofSigningKey();
+  const appEnv = await tempEnv("FISH_PAID_TOPUPS_PAUSED=true\n");
+  const appEnvOverlay = await tempEnv(
+    [
+      "FISH_ADMIN_TOKEN=admin-token-12345678901234567890",
+      "FISH_GUEST_ID_SALT=guest-salt-123456789012345678901",
+      "FISH_DATA_BACKUP_TARGET=/var/backups/fish",
+      `FISH_PROVIDER_PROOF_PUBLIC_KEY_ID=proof-key-private-overlay`,
+      `FISH_PROVIDER_PROOF_PUBLIC_KEY_PEM=${JSON.stringify(publicKeyPem.replaceAll("\n", "\\n"))}`,
+      `FISH_PROVIDER_PROOF_SIGNING_KEY_ID=proof-key-private-overlay`,
+      `FISH_PROVIDER_PROOF_SIGNING_PRIVATE_KEY_PEM=${JSON.stringify(providerProofPrivateKeyPem.replaceAll("\n", "\\n"))}`
+    ].join("\n")
+  );
+  const oceanEnv = await tempEnv(
+    oceanEnvWithComputeAccess([PROOF_WALLET_ADDRESS], {
+      runnerSigningKeyId: keyId,
+      runnerSigningPrivateKeyPem: privateKeyPem,
+      runnerApiKey: "runner-key-12345678901234567890"
+    })
+  );
+  const result = runReadiness(["--env", appEnv, "--app-env-overlay", appEnvOverlay, "--ocean-env", oceanEnv, "--derive-ocean-web-env-host", "10.0.0.7", "--json"]);
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.doesNotMatch(result.stdout, /admin-token-12345678901234567890/);
+  assert.doesNotMatch(result.stdout, /guest-salt-123456789012345678901/);
+  assert.doesNotMatch(result.stdout, /BEGIN PRIVATE KEY/);
+  assert.doesNotMatch(result.stdout, /BEGIN PUBLIC KEY/);
+
+  const summary = JSON.parse(result.stdout);
+  const web = summary.checks.find((check: { name: string }) => check.name === "Public web env");
+  const dataHygiene = summary.checks.find((check: { name: string }) => check.name === "Data retention and backups");
+  const operations = summary.checks.find((check: { name: string }) => check.name === "Operational hardening");
+
+  assert.deepEqual(summary.env.appOverlay, {
+    configured: true,
+    path: appEnvOverlay
+  });
+  assert.doesNotMatch(web.findings.join("\n"), /FISH_ADMIN_TOKEN/);
+  assert.equal(dataHygiene.state, "ready");
+  assert.doesNotMatch(operations.findings.join("\n"), /FISH_GUEST_ID_SALT/);
+});
+
 test("public testnet readiness flags oversized faucet grants", async () => {
   const appEnv = await tempEnv(
     [
@@ -405,6 +449,13 @@ function runnerPublicKeysJsonEnv(keyId = "runner-test") {
     keyId,
     envLine: `FISH_RUNNER_PUBLIC_KEYS_JSON=${JSON.stringify([{ keyId, publicKeyPem }])}`
   };
+}
+
+function providerProofSigningKey() {
+  const { privateKey, publicKey } = generateKeyPairSync("ed25519");
+  const privateKeyPem = privateKey.export({ type: "pkcs8", format: "pem" }).toString();
+  const publicKeyPem = publicKey.export({ type: "spki", format: "pem" }).toString();
+  return { privateKeyPem, publicKeyPem };
 }
 
 function runReadiness(args: string[]) {
