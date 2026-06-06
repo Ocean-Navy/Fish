@@ -201,6 +201,22 @@ The V0 form sink, prototype API ledger, Ocean batch receipts, provider proof rec
 
 Back up these volumes or replace the sinks with a database/email/CRM integration and secret-managed signing key before running a public campaign. Provider proof receipt verification trusts the local `data/proof/signing-key.json` public key when present; external verifiers or rotated deployments should pin provider proof public keys with `FISH_PROVIDER_PROOF_PUBLIC_KEY_ID`/`FISH_PROVIDER_PROOF_PUBLIC_KEY_PEM`, `FISH_PROVIDER_PROOF_PUBLIC_KEYS_JSON`, or `FISH_PROVIDER_PROOF_PUBLIC_KEYS_PATH` instead of trusting key material embedded in receipt JSON.
 
+On a host with the runtime `data/` directory mounted, create a private archive with:
+
+```bash
+npm run backup:runtime -- --dry-run
+npm run backup:runtime -- --output-dir /var/backups/fish
+```
+
+The archive and manifest are written with owner-only permissions. They may include API ledgers, provider proof signing keys, wallet intent rows, payout rows, and user submissions, so keep them off public storage. Restore by stopping Fish, extracting the archive from the repository root or deployed app root, checking ownership, then restarting Fish:
+
+```bash
+systemctl stop fish-web
+tar -xzf /var/backups/fish/fish-runtime-data-....tar.gz -C /opt/fish-web
+chown -R fish:fish /opt/fish-web/data
+systemctl start fish-web
+```
+
 ## Signup Exports
 
 Public forms write one JSON file per submission in `/app/data/submissions` inside the `fish-submissions` Docker volume.
@@ -431,6 +447,7 @@ After the stack is running:
 ```bash
 scripts/smoke-ocean-demo-stack.sh .env.ocean-demo-stack
 npm run readiness:public-testnet
+npm run backup:runtime -- --dry-run
 ```
 
 Then point the public web VM at the private GPU stack:

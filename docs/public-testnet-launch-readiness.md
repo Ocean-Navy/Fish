@@ -150,6 +150,20 @@ data/staking/
 data/submissions/
 ```
 
+Check the backup set before publishing:
+
+```bash
+npm run backup:runtime -- --dry-run
+```
+
+Create a private archive on the host:
+
+```bash
+npm run backup:runtime -- --output-dir /var/backups/fish
+```
+
+The archive can contain proof signing keys, API ledger data, payout records, wallet intent rows, and user submissions. Keep it private and restrict filesystem permissions.
+
 Keep raw prompts and outputs out of public proof, dashboards, billing rows, and exports.
 
 ## Step 8: Operational Hardening

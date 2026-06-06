@@ -606,6 +606,7 @@ For the public tester checklist, run:
 
 ```bash
 npm run readiness:public-testnet
+npm run backup:runtime -- --dry-run
 ```
 
 See `docs/public-testnet-launch-readiness.md`.
@@ -840,4 +841,5 @@ Generated images should be text-free and used as scene assets. Render copy, butt
 - `/` is visually clear on mobile and desktop.
 - `/dashboard` loads with live data or sample fallback.
 - `data/submissions` is persisted or integrated with a real intake system.
+- `npm run backup:runtime -- --dry-run` shows the expected runtime paths, and a private backup target is configured before public traffic.
 - Public copy keeps the status clear: Ocean Navy-built, on Ocean Protocol, not official unless approved.

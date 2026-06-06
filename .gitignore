@@ -28,4 +28,5 @@ data/ocean-batch/
 data/ocean-workload-adapter/
 data/staking/
 data/provider_allowlist.json
+backups/
 deploy/nginx/auth/.htpasswd

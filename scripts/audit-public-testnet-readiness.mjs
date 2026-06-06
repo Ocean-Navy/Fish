@@ -114,7 +114,7 @@ function checkContracts(env) {
 
 function checkDataHygiene(env) {
   const findings = [];
-  if (!env.FISH_DATA_BACKUP_TARGET) findings.push("No FISH_DATA_BACKUP_TARGET configured; local JSON ledgers need VM volume backups or database migration before public scale.");
+  if (!env.FISH_DATA_BACKUP_TARGET) findings.push("No FISH_DATA_BACKUP_TARGET configured; run npm run backup:runtime with a private output path or move ledgers to a database before public scale.");
   if (!env.FISH_PROVIDER_PROOF_PUBLIC_KEYS_JSON && !env.FISH_PROVIDER_PROOF_PUBLIC_KEYS_PATH && !env.FISH_PROVIDER_PROOF_PUBLIC_KEY_PEM) {
     findings.push("No pinned provider proof public key configured; local prototype signing key is acceptable only for private tests.");
   }

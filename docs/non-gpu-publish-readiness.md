@@ -37,6 +37,7 @@ This checklist covers the next Fish version work that can be finished before ren
 ```bash
 npm run verify
 npm run readiness:public-testnet
+npm run backup:runtime -- --dry-run
 docker compose config >/tmp/fish-compose.yml
 ```
 
