@@ -1,4 +1,4 @@
-import { EyeOff, FileText, Fish, Gauge, ReceiptText, ShieldCheck, Ship, Utensils } from "lucide-react";
+import { ChevronDown, EyeOff, Fish, Gauge, ReceiptText, ShieldCheck, Utensils } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -44,12 +44,13 @@ export function PublicProofPage({
       : "The market is open, and proof is still early.";
   const heroUpdatedAt = oceanProof.proof.latestReceiptAt ?? proof.lastUpdated;
   const oceanNextSteps = oceanProof.blockers.map(publicOceanBlocker);
+  const verdict = proofVerdict({ hasOceanBatchProof, hasLiveProof, oceanProof });
   const plainProofCards = [
     {
       icon: Utensils,
       label: "Dish",
-      title: batch.succeededJobs ? `${formatCompact(batch.succeededJobs)} prepared` : "Waiting for first dish",
-      body: hasOceanBatchProof ? "A Fish dish ran through the Ocean batch path." : "The first Ocean batch dish will make this card light up."
+      title: hasOceanBatchProof ? `${formatCompact(oceanProof.proof.nonSampleJobs)} Ocean ticket${oceanProof.proof.nonSampleJobs === 1 ? "" : "s"}` : "Waiting for first dish",
+      body: hasOceanBatchProof ? "A Fish dish has a non-sample Ocean path ticket." : "The first Ocean batch dish will make this card light up."
     },
     {
       icon: ReceiptText,
@@ -113,13 +114,16 @@ export function PublicProofPage({
                 Updated {formatDateTime(heroUpdatedAt)}
               </span>
             </div>
+            <p className="mt-5 max-w-2xl rounded-[1.25rem] border border-white/10 bg-fish-navy950/65 p-4 text-base font-black leading-7 text-fish-secondary">
+              {verdict.boundary}
+            </p>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <HeroCounter icon={FileText} label="Dishes prepared" value={formatCompact(batch.succeededJobs)} />
-            <HeroCounter icon={ReceiptText} label="Proof tickets" value={formatCompact(proof.verifiedReceipts)} />
-            <HeroCounter icon={Ship} label="Ocean jobs" value={formatCompact(proof.oceanJobsRouted)} />
-            <HeroCounter icon={Gauge} label="Ocean path" value={oceanProof.proofReady ? "Ready" : "Not yet"} />
+            <HeroCounter icon={Gauge} label="Current proof" value={verdict.title} />
+            <HeroCounter icon={Utensils} label="First Ocean dish" value={hasOceanBatchProof ? "Recorded" : "Waiting"} />
+            <HeroCounter icon={ReceiptText} label="Public tickets" value={formatCompact(proof.verifiedReceipts + oceanProof.proof.nonSampleJobs)} />
+            <HeroCounter icon={EyeOff} label="Raw orders" value="Hidden" />
           </div>
         </div>
       </section>
@@ -262,66 +266,81 @@ export function PublicProofPage({
         )}
       </MetricGroup>
 
-      <MetricGroup title="Money Details" eyebrow="Provider payouts" state={proof.payouts.dataState}>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
-          <ProofTile label="Accrued" value={formatUsd(proof.payouts.totals.accrued)} />
-          <ProofTile label="Review" value={formatUsd(proof.payouts.totals.review)} />
-          <ProofTile label="Approved" value={formatUsd(proof.payouts.totals.approved)} />
-          <ProofTile label="Paid" value={formatUsd(proof.payouts.totals.paid)} />
-          <ProofTile label="Disputed" value={formatUsd(proof.payouts.totals.disputed)} />
-          <ProofTile label="Voided" value={formatUsd(proof.payouts.totals.voided)} />
-        </div>
-      </MetricGroup>
-
-      <MetricGroup title="Capacity Details" eyebrow="Paid demand" state={capacitySettlements.dataState}>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <ProofTile label="Settlements" value={formatCompact(capacitySettlements.totals.settlements)} />
-          <ProofTile label="USDC recorded" value={formatUsd(capacitySettlements.totals.grossUsdcAmount)} />
-          <ProofTile label="Net to pool" value={formatUsd(capacitySettlements.totals.netUsdcAmount)} />
-          <ProofTile label="Operator fee" value={formatUsd(capacitySettlements.totals.operatorFeeUsdc)} />
-        </div>
-        {capacitySettlements.settlements.length ? (
-          <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            {capacitySettlements.settlements.slice(0, 4).map((settlement) => (
-              <article key={settlement.settlementId} className="rounded-[1.5rem] border border-fish-accent/20 bg-fish-surface/80 p-5 shadow-harbor">
-                <p className="text-xs font-black uppercase tracking-[0.12em] text-fish-gold">{settlement.settlementSource.replaceAll("_", " ")}</p>
-                <h3 className="mt-3 text-xl font-black text-white">{formatUsd(settlement.netUsdcAmount)} net</h3>
-                <p className="mt-3 text-sm font-bold text-fish-secondary">
-                  {formatUsd(settlement.grossUsdcAmount)} recorded / {formatUsd(settlement.operatorFeeUsdc)} fee
-                </p>
-                <p className="mt-3 break-all text-xs font-bold leading-5 text-fish-secondary">{settlement.transactionHashPrefix ?? "No tx hash recorded"}</p>
-              </article>
-            ))}
-          </div>
-        ) : (
-          <div className="mt-3">
-            <EmptyHarbor text="No capacity-pool settlement records yet. Paid demand records will appear here after operator review." />
-          </div>
-        )}
-        {capacitySettlements.warnings[1] ? <p className="mt-3 rounded-2xl border border-fish-gold/25 bg-fish-gold/10 p-4 text-sm font-black leading-6 text-fish-primary">{capacitySettlements.warnings[1]}</p> : null}
-      </MetricGroup>
-
-      <MetricGroup title="Route Tests" eyebrow="Deep proof" state={benchmarks.dataState}>
-        {benchmarkRows.length ? (
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {benchmarkRows.map((row) => (
-              <article key={`${row.providerId}-${row.benchmarkId}`} className="rounded-[1.5rem] border border-fish-accent/20 bg-fish-surface/80 p-5 shadow-harbor">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-black uppercase tracking-[0.12em] text-fish-gold">{row.title}</p>
-                    <h3 className="mt-2 text-xl font-black text-white">{row.providerLabel}</h3>
-                  </div>
-                  <span className={`rounded-full px-3 py-1 text-xs font-black ${statusClass(row.latestStatus)}`}>{row.latestStatus.replaceAll("_", " ")}</span>
+      <section className="px-4 py-10 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl">
+          <details className="group rounded-[1.75rem] border border-fish-accent/20 bg-fish-surface/80 p-5 shadow-harbor">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-left">
+              <span>
+                <span className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">Builder details</span>
+                <span className="mt-2 block text-3xl font-black text-white sm:text-4xl">Open the proof ledger</span>
+              </span>
+              <ChevronDown className="h-6 w-6 shrink-0 text-fish-accent transition group-open:rotate-180" aria-hidden="true" />
+            </summary>
+            <div className="mt-6 space-y-10 border-t border-fish-accent/15 pt-8">
+              <MetricGroup compact title="Money Details" eyebrow="Provider payouts" state={proof.payouts.dataState}>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+                  <ProofTile label="Accrued" value={formatUsd(proof.payouts.totals.accrued)} />
+                  <ProofTile label="Review" value={formatUsd(proof.payouts.totals.review)} />
+                  <ProofTile label="Approved" value={formatUsd(proof.payouts.totals.approved)} />
+                  <ProofTile label="Paid" value={formatUsd(proof.payouts.totals.paid)} />
+                  <ProofTile label="Disputed" value={formatUsd(proof.payouts.totals.disputed)} />
+                  <ProofTile label="Voided" value={formatUsd(proof.payouts.totals.voided)} />
                 </div>
-                <p className="mt-4 text-sm font-bold text-fish-secondary">{row.inputSizeBucket} to {row.outputSizeBucket} / {row.workloadType}</p>
-                <p className="mt-3 text-sm font-black text-fish-primary">{row.sampleSize ? `${formatNumber(row.sampleSize)} sample${row.sampleSize === 1 ? "" : "s"}` : "Waiting for first catch"}</p>
-              </article>
-            ))}
-          </div>
-        ) : (
-          <EmptyHarbor text="No selected benchmark board yet. Selected providers will appear here even before their first run." />
-        )}
-      </MetricGroup>
+              </MetricGroup>
+
+              <MetricGroup compact title="Capacity Details" eyebrow="Paid demand" state={capacitySettlements.dataState}>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <ProofTile label="Settlements" value={formatCompact(capacitySettlements.totals.settlements)} />
+                  <ProofTile label="USDC recorded" value={formatUsd(capacitySettlements.totals.grossUsdcAmount)} />
+                  <ProofTile label="Net to pool" value={formatUsd(capacitySettlements.totals.netUsdcAmount)} />
+                  <ProofTile label="Operator fee" value={formatUsd(capacitySettlements.totals.operatorFeeUsdc)} />
+                </div>
+                {capacitySettlements.settlements.length ? (
+                  <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                    {capacitySettlements.settlements.slice(0, 4).map((settlement) => (
+                      <article key={settlement.settlementId} className="rounded-[1.5rem] border border-fish-accent/20 bg-fish-navy950/45 p-5 shadow-harbor">
+                        <p className="text-xs font-black uppercase tracking-[0.12em] text-fish-gold">{settlement.settlementSource.replaceAll("_", " ")}</p>
+                        <h3 className="mt-3 text-xl font-black text-white">{formatUsd(settlement.netUsdcAmount)} net</h3>
+                        <p className="mt-3 text-sm font-bold text-fish-secondary">
+                          {formatUsd(settlement.grossUsdcAmount)} recorded / {formatUsd(settlement.operatorFeeUsdc)} fee
+                        </p>
+                        <p className="mt-3 break-all text-xs font-bold leading-5 text-fish-secondary">{settlement.transactionHashPrefix ?? "No tx hash recorded"}</p>
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="mt-3">
+                    <EmptyHarbor text="No capacity-pool settlement records yet. Paid demand records will appear here after operator review." />
+                  </div>
+                )}
+                {capacitySettlements.warnings[1] ? <p className="mt-3 rounded-2xl border border-fish-gold/25 bg-fish-gold/10 p-4 text-sm font-black leading-6 text-fish-primary">{capacitySettlements.warnings[1]}</p> : null}
+              </MetricGroup>
+
+              <MetricGroup compact title="Route Tests" eyebrow="Deep proof" state={benchmarks.dataState}>
+                {benchmarkRows.length ? (
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                    {benchmarkRows.map((row) => (
+                      <article key={`${row.providerId}-${row.benchmarkId}`} className="rounded-[1.5rem] border border-fish-accent/20 bg-fish-navy950/45 p-5 shadow-harbor">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-xs font-black uppercase tracking-[0.12em] text-fish-gold">{row.title}</p>
+                            <h3 className="mt-2 text-xl font-black text-white">{row.providerLabel}</h3>
+                          </div>
+                          <span className={`rounded-full px-3 py-1 text-xs font-black ${statusClass(row.latestStatus)}`}>{row.latestStatus.replaceAll("_", " ")}</span>
+                        </div>
+                        <p className="mt-4 text-sm font-bold text-fish-secondary">{row.inputSizeBucket} to {row.outputSizeBucket} / {row.workloadType}</p>
+                        <p className="mt-3 text-sm font-black text-fish-primary">{row.sampleSize ? `${formatNumber(row.sampleSize)} sample${row.sampleSize === 1 ? "" : "s"}` : "Waiting for first catch"}</p>
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <EmptyHarbor text="No selected benchmark board yet. Selected providers will appear here even before their first run." />
+                )}
+              </MetricGroup>
+            </div>
+          </details>
+        </div>
+      </section>
 
       <footer className="border-t border-fish-accent/15 px-4 py-8 text-sm font-bold text-fish-secondary sm:px-6 lg:px-8">
         <div className="mx-auto flex max-w-7xl flex-col gap-2 md:flex-row md:items-center md:justify-between">
@@ -333,14 +352,14 @@ export function PublicProofPage({
   );
 }
 
-function MetricGroup({ children, eyebrow, id, state, title }: { children: ReactNode; eyebrow: string; id?: string; state: DataState; title: string }) {
+function MetricGroup({ children, compact = false, eyebrow, id, state, title }: { children: ReactNode; compact?: boolean; eyebrow: string; id?: string; state: DataState; title: string }) {
   return (
-    <section id={id} className="px-4 py-10 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-7xl">
+    <section id={id} className={compact ? "" : "px-4 py-10 sm:px-6 lg:px-8"}>
+      <div className={compact ? "" : "mx-auto max-w-7xl"}>
         <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">{eyebrow}</p>
-            <h2 className="mt-2 text-4xl font-black text-white sm:text-5xl">{title}</h2>
+            <h2 className={`mt-2 font-black text-white ${compact ? "text-2xl sm:text-3xl" : "text-4xl sm:text-5xl"}`}>{title}</h2>
           </div>
           <StatusBadge state={state} />
         </div>
@@ -421,4 +440,33 @@ function publicOceanBlocker(blocker: string) {
   if (blocker.includes("not live-ready")) return "Finish the Ocean Node job settings in the private adapter.";
   if (blocker.includes("No successful non-sample Ocean batch receipt")) return "Run one successful Ocean dish and record its public-safe ticket.";
   return "Finish the next private Ocean proof setup step.";
+}
+
+function proofVerdict({
+  hasLiveProof,
+  hasOceanBatchProof,
+  oceanProof
+}: {
+  hasLiveProof: boolean;
+  hasOceanBatchProof: boolean;
+  oceanProof: OceanProofReadiness;
+}) {
+  if (hasOceanBatchProof) {
+    return {
+      title: oceanProof.proof.latestReceiptState === "live" ? "Live" : "Local",
+      boundary: "Fish has a public-safe Ocean dish ticket. This proves the local Ocean path; it does not prove paid third-party Oncompute demand yet."
+    };
+  }
+
+  if (hasLiveProof) {
+    return {
+      title: "Provider",
+      boundary: "Fish has selected-provider proof tickets. Ocean batch proof still needs one successful non-sample dish."
+    };
+  }
+
+  return {
+    title: "Setup",
+    boundary: "Fish is still in setup proof mode. Sample data and missing proof stay labeled until a real Ocean dish ticket exists."
+  };
 }
