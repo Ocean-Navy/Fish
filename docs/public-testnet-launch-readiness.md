@@ -375,3 +375,4 @@ npm run readiness:public-testnet -- --profile paid-mainnet --env .env.production
 ```
 
 The default command exits non-zero only for blocked states. Use `--strict` when every manual and partial item must be resolved before a public link or security-scan handoff. The command prints public-safe readiness states and never prints secrets. Keep `.env.production.private` outside git or in a secret-managed deploy path.
+Each readiness row includes the matching step number from this checklist. The `Proof UX and claims` row covers steps 4 and 9 by checking that the readiness API exposes a conservative public `claim`, the proof page uses it, OpenAPI documents it, and the first public proof surface does not include raw setup labels.

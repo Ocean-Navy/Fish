@@ -19,11 +19,18 @@ test("public testnet readiness treats paused paid checkout as manual", async () 
   assert.equal(result.status, 0, result.stderr);
   const summary = JSON.parse(result.stdout);
   const payments = summary.checks.find((check: { name: string }) => check.name === "Payments/mainnet checkout");
+  const proofUx = summary.checks.find((check: { name: string }) => check.name === "Proof UX and claims");
 
   assert.equal(summary.profile, "public-testnet");
   assert.equal(summary.strict, false);
+  assert.deepEqual(payments.steps, [5]);
+  assert.equal(payments.milestone, "Payments/mainnet readiness");
   assert.equal(payments.state, "manual");
   assert.match(payments.findings.join("\n"), /do not block a no-real-money public testnet/);
+  assert.deepEqual(proofUx.steps, [4, 9]);
+  assert.equal(proofUx.milestone, "Conservative proof claims and proof UX");
+  assert.equal(proofUx.state, "ready");
+  assert.deepEqual(proofUx.findings, []);
 });
 
 test("strict public testnet readiness fails on unresolved manual or partial checks", async () => {

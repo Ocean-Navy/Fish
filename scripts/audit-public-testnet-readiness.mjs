@@ -55,6 +55,7 @@ const checks = [
   checkDataHygiene(effectiveAppEnv),
   checkRepositoryHygiene(),
   checkOperations(effectiveAppEnv, oceanEnv, derivedOceanWebEnv),
+  checkProofUxClaims(),
   checkRealOncomputeProof(oceanEnv)
 ];
 
@@ -115,7 +116,7 @@ function checkPublicWeb(env, path, overlayPath) {
   if (!paused && !killSwitch) findings.push(...checkSelectedChatRoute(env, route));
 
   const routeBroken = findings.some((finding) => finding.startsWith("Selected chat route"));
-  return result("Public web env", routeBroken ? "blocked" : findings.length ? "partial" : "ready", findings);
+  return result("Public web env", [2, 8], "Public web and route readiness", routeBroken ? "blocked" : findings.length ? "partial" : "ready", findings);
 }
 
 function checkOceanDemo(env, path) {
@@ -131,7 +132,7 @@ function checkOceanDemo(env, path) {
   if (publicBind(env.OCEAN_NODE_P2P_BIND)) findings.push("OCEAN_NODE_P2P_BIND is public; use only when intentionally joining P2P.");
   const compose = dockerComposeConfig(path);
   if (!compose.ok) findings.push(`Ocean demo compose config failed: ${compose.error}`);
-  return result("GPU/Ocean demo stack", findings.length ? "partial" : "ready", findings);
+  return result("GPU/Ocean demo stack", [2], "Public/GPU deployment preparation", findings.length ? "partial" : "ready", findings);
 }
 
 function checkBatchDishes(env) {
@@ -141,7 +142,7 @@ function checkBatchDishes(env) {
   if (!env.FISH_OCEAN_BATCH_PROVIDER_ID) findings.push("FISH_OCEAN_BATCH_PROVIDER_ID is missing.");
   if (!truthy(env.FISH_OCEAN_BATCH_PRIVATE_PAYLOAD)) findings.push("FISH_OCEAN_BATCH_PRIVATE_PAYLOAD is false; public receipts still work, but user-facing dish artifacts stay generic.");
   if (number(env.FISH_OCEAN_BATCH_DAILY_BUDGET_USD) <= 0) findings.push("FISH_OCEAN_BATCH_DAILY_BUDGET_USD must be positive.");
-  return result("Ocean batch dishes", findings.length ? "partial" : "ready", findings);
+  return result("Ocean batch dishes", [3], "User-facing batch dishes", findings.length ? "partial" : "ready", findings);
 }
 
 function checkPayments(env, profile) {
@@ -173,17 +174,17 @@ function checkPayments(env, profile) {
     const findings = blockers.length
       ? [...blockers, "Paid top-ups are paused, so these payment gaps do not block a no-real-money public testnet."]
       : ["Paid top-ups are configured but intentionally paused for public testnet."];
-    return result("Payments/mainnet checkout", "manual", findings);
+    return result("Payments/mainnet checkout", [5], "Payments/mainnet readiness", "manual", findings);
   }
 
   if (paidTopupsPaused) blockers.push("FISH_PAID_TOPUPS_PAUSED is enabled; paid checkout cannot launch until this is intentionally removed.");
   if (!paidTopupsPaused && blockers.length) blockers.push("Set FISH_PAID_TOPUPS_PAUSED=true until the above payment blockers are cleared.");
-  return result("Payments/mainnet checkout", blockers.length ? "blocked" : "ready", blockers);
+  return result("Payments/mainnet checkout", [5], "Payments/mainnet readiness", blockers.length ? "blocked" : "ready", blockers);
 }
 
 function checkTestnetFaucet(env) {
   const findings = [];
-  if (!truthy(env.FISH_TESTNET_FAUCET_ENABLED)) return result("Public testnet faucet", "manual", ["Faucet is disabled, which is safe before a public test."]);
+  if (!truthy(env.FISH_TESTNET_FAUCET_ENABLED)) return result("Public testnet faucet", [6], "Public tester UX", "manual", ["Faucet is disabled, which is safe before a public test."]);
   if (!truthy(env.FISH_TRUST_PROXY_HEADERS)) findings.push("FISH_TRUST_PROXY_HEADERS must be true before enabling the public faucet IP cooldown.");
   if (!safeSecret(env.FISH_PROXY_HEADER_SECRET)) findings.push("FISH_PROXY_HEADER_SECRET is missing or weak; nginx/private proxy must sign trusted client IP headers.");
   if (env.FISH_TESTNET_FAUCET_CHAIN_ID !== "84532") findings.push("Faucet must stay on Base Sepolia.");
@@ -207,7 +208,7 @@ function checkTestnetFaucet(env) {
   if (usdcGrant > MAX_FAUCET_TEST_USDC_GRANT) findings.push(`Faucet Test USDC grant is too high for public testing; keep FISH_TESTNET_FAUCET_USDC_AMOUNT <= ${MAX_FAUCET_TEST_USDC_GRANT}.`);
   if (walletCooldownHours < MIN_FAUCET_COOLDOWN_HOURS) findings.push(`Wallet cooldown is too low; keep FISH_TESTNET_FAUCET_WALLET_COOLDOWN_HOURS >= ${MIN_FAUCET_COOLDOWN_HOURS}.`);
   if (ipCooldownHours < MIN_FAUCET_COOLDOWN_HOURS) findings.push(`IP cooldown is too low; keep FISH_TESTNET_FAUCET_IP_COOLDOWN_HOURS >= ${MIN_FAUCET_COOLDOWN_HOURS}.`);
-  return result("Public testnet faucet", findings.length ? "partial" : "ready", findings);
+  return result("Public testnet faucet", [6], "Public tester UX", findings.length ? "partial" : "ready", findings);
 }
 
 function checkContracts(env) {
@@ -240,7 +241,7 @@ function checkContracts(env) {
   if (settlementSubmitEnabled && !safeSecret(env.FISH_CONTRACT_OPERATOR_PRIVATE_KEY)) {
     findings.push("FISH_CONTRACT_SETTLEMENT_SUBMIT_ENABLED is true but FISH_CONTRACT_OPERATOR_PRIVATE_KEY is missing.");
   }
-  return result("Contract status and staking pages", findings.length ? "manual" : "ready", findings);
+  return result("Contract status and staking pages", [5, 6], "Contract status and staking/credits pages", findings.length ? "manual" : "ready", findings);
 }
 
 function checkDataHygiene(env) {
@@ -261,14 +262,14 @@ function checkDataHygiene(env) {
   if (env.FISH_PROVIDER_PROOF_PUBLIC_KEY_ID && env.FISH_PROVIDER_PROOF_SIGNING_KEY_ID && env.FISH_PROVIDER_PROOF_PUBLIC_KEY_ID !== env.FISH_PROVIDER_PROOF_SIGNING_KEY_ID) {
     findings.push("Provider proof public key id does not match provider proof signing key id.");
   }
-  return result("Data retention and backups", findings.length ? "manual" : "ready", findings);
+  return result("Data retention and backups", [7], "Production data hygiene", findings.length ? "manual" : "ready", findings);
 }
 
 function checkRepositoryHygiene() {
   const findings = [];
   const tracked = gitTrackedFiles();
   if (!tracked.ok) {
-    return result("Repository hygiene", "manual", [`Cannot inspect git tracked files: ${tracked.error}`]);
+    return result("Repository hygiene", [7, 8], "Repository hygiene", "manual", [`Cannot inspect git tracked files: ${tracked.error}`]);
   }
 
   const privateTracked = tracked.files.filter(isPrivateTrackedPath);
@@ -294,7 +295,7 @@ function checkRepositoryHygiene() {
     findings.push(`Private runtime paths are not ignored: ${notIgnored.join(", ")}.`);
   }
 
-  return result("Repository hygiene", findings.length ? "manual" : "ready", findings);
+  return result("Repository hygiene", [7, 8], "Repository hygiene", findings.length ? "manual" : "ready", findings);
 }
 
 function checkOperations(appEnv, oceanEnv, derivedOceanWebEnv) {
@@ -324,7 +325,45 @@ function checkOperations(appEnv, oceanEnv, derivedOceanWebEnv) {
   if (runnerTrust.configured && oceanEnv.FISH_RUNNER_SIGNING_KEY_ID && !runnerTrust.keyIds.includes(oceanEnv.FISH_RUNNER_SIGNING_KEY_ID)) {
     findings.push("Fish web trusted runner public keys do not include the Fish Runner signing key id.");
   }
-  return result("Operational hardening", findings.length ? "partial" : "ready", findings);
+  return result("Operational hardening", [8], "Operational hardening", findings.length ? "partial" : "ready", findings);
+}
+
+function checkProofUxClaims() {
+  const findings = [];
+  const readiness = sourceFile("src/lib/oceanProofReadiness.ts");
+  const proofPage = sourceFile("src/components/PublicProofPage.tsx");
+  const openapi = sourceFile("api/openapi.yaml");
+  const checklist = sourceFile("docs/public-testnet-launch-readiness.md");
+
+  if (!readiness.ok) findings.push(readiness.error);
+  if (!proofPage.ok) findings.push(proofPage.error);
+  if (!openapi.ok) findings.push(openapi.error);
+  if (!checklist.ok) findings.push(checklist.error);
+
+  if (readiness.ok) {
+    if (!readiness.text.includes("claim: publicClaim")) findings.push("Ocean proof readiness does not expose the public claim helper.");
+    if (!readiness.text.includes("Paid third-party Oncompute demand")) findings.push("Ocean proof readiness is missing the paid-third-party not-claimed boundary.");
+    if (!readiness.text.includes("Raw prompts or answers in public proof")) findings.push("Ocean proof readiness is missing the raw-prompt/output not-claimed boundary.");
+    if (!readiness.text.includes("Staking alone funds compute")) findings.push("Ocean proof readiness is missing the staking-not-funded-by-itself boundary.");
+  }
+
+  if (proofPage.ok) {
+    if (!proofPage.text.includes("oceanProof.claim.headline")) findings.push("/proof does not use the readiness claim headline.");
+    if (!proofPage.text.includes("oceanProof.claim.boundary")) findings.push("/proof does not use the readiness claim boundary.");
+    if (!proofPage.text.includes("Not claimed")) findings.push("/proof is missing an explicit Not claimed public proof card or row.");
+    const firstSurface = firstProofSurfaceSource(proofPage.text);
+    const forbidden = firstSurface.match(/algorithm DID|dataset DID|adapter mode|free-compute|free compute|compute environment|NODE_URL/gi) ?? [];
+    if (forbidden.length) findings.push(`First public proof surface contains raw setup labels: ${uniqueStrings(forbidden).join(", ")}.`);
+  }
+
+  if (openapi.ok && !openapi.text.includes("Plain-language public claim boundary")) {
+    findings.push("OpenAPI readiness schema is missing the public claim boundary.");
+  }
+  if (checklist.ok && !checklist.text.includes("claim.level")) {
+    findings.push("Public testnet checklist does not tell operators to review the claim object before sharing proof.");
+  }
+
+  return result("Proof UX and claims", [4, 9], "Conservative proof claims and proof UX", findings.length ? "partial" : "ready", findings);
 }
 
 function checkRealOncomputeProof(env) {
@@ -369,11 +408,11 @@ function checkRealOncomputeProof(env) {
   if (paidTouched && (!paymentToken || !resources)) findings.push("Paid external jobs require both FISH_OCEAN_PAYMENT_TOKEN and FISH_OCEAN_RESOURCES; leave both empty only for free compute.");
   if (resources && !jsonObject(resources)) findings.push("FISH_OCEAN_RESOURCES must be valid JSON when set.");
   if (output && !jsonObject(output)) findings.push("FISH_OCEAN_OUTPUT must be valid JSON when set.");
-  return result("External Oncompute proof", findings.length ? "manual" : "ready", findings);
+  return result("External Oncompute proof", [10], "Real Ocean/Oncompute proof path", findings.length ? "manual" : "ready", findings);
 }
 
-function result(name, state, findings) {
-  return { name, state, findings };
+function result(name, steps, milestone, state, findings) {
+  return { name, steps, milestone, state, findings };
 }
 
 function printSummary(summary) {
@@ -388,7 +427,7 @@ function printSummary(summary) {
   }
   console.log("");
   for (const check of summary.checks) {
-    console.log(`${symbol(check.state)} ${check.name}: ${check.state}`);
+    console.log(`${symbol(check.state)} step ${check.steps.join("/")} ${check.name}: ${check.state}`);
     for (const finding of check.findings) {
       console.log(`   - ${finding}`);
     }
@@ -540,6 +579,21 @@ function gitCheckIgnored(filePath) {
   }
 }
 
+function sourceFile(filePath) {
+  try {
+    return { ok: true, text: readFileSync(filePath, "utf8") };
+  } catch (error) {
+    return { ok: false, error: `Cannot read ${filePath}: ${error instanceof Error ? error.message : "read_failed"}` };
+  }
+}
+
+function firstProofSurfaceSource(source) {
+  const start = source.indexOf("const plainProofCards");
+  const end = source.indexOf("<MetricGroup title=\"At A Glance\"");
+  if (start >= 0 && end > start) return source.slice(start, end);
+  return source;
+}
+
 function isPrivateTrackedPath(filePath) {
   const normalized = filePath.replaceAll("\\", "/");
   if (normalized === ".env.example" || normalized === ".env.production.example") return false;
@@ -636,6 +690,10 @@ function readJson(value) {
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "parse_failed" };
   }
+}
+
+function uniqueStrings(values) {
+  return [...new Set(values.map((value) => String(value).trim()).filter(Boolean))];
 }
 
 function jsonObject(value) {
