@@ -126,7 +126,7 @@ Paid credits should stay blocked until:
 ```text
 FISH_MAX_OUTSTANDING_PREPAID_CREDITS is set
 Stripe or USDC checkout secrets are set
-USDC checkout uses Base mainnet chain id 8453 and canonical Base USDC
+USDC checkout uses Base mainnet chain id 8453, canonical Base USDC, a non-zero receive address, and an HTTP(S) Base mainnet RPC
 FISH_BILLING_SUPPORT_URL and FISH_BILLING_REFUND_POLICY_URL are public-safe HTTP(S)/mailto links
 mainnet contract writes stay disabled unless explicitly reviewed
 ```
@@ -153,7 +153,7 @@ Paid-mainnet readiness can pass through either lane:
 
 ```text
 Stripe lane: live-mode Stripe secret or restricted key + webhook secret + public HTTPS app URL
-USDC lane: Base mainnet receive address + Base mainnet RPC + canonical Base USDC
+USDC lane: non-zero Base mainnet receive address + HTTP(S) Base mainnet RPC + canonical Base USDC
 Both lanes: prepaid liability cap + support URL + refund policy URL + paid top-ups intentionally unpaused
 ```
 

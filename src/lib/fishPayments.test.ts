@@ -173,6 +173,32 @@ test("billing readiness rejects USDC checkout with a non-canonical token", () =>
   assert.ok(readiness.warnings.includes("USDC checkout must use canonical Base USDC 0x833589fcD6EDb6E08f4c7C32D4f71b54bdA02913."));
 });
 
+test("billing readiness rejects USDC checkout with an invalid RPC URL", () => {
+  configureUsdcCheckoutEnv();
+  process.env.FISH_USDC_RPC_URL = "base-mainnet";
+
+  const readiness = summarizeBillingReadiness();
+
+  assert.equal(readiness.checkoutAvailable, false);
+  assert.equal(readiness.providers.usdc.configured, false);
+  assert.equal(readiness.providers.usdc.rpcConfigured, false);
+  assert.deepEqual(readiness.blockers, ["payment_provider_not_configured"]);
+  assert.ok(readiness.warnings.includes("USDC checkout requires an HTTP(S) Base mainnet RPC URL."));
+});
+
+test("billing readiness rejects USDC checkout with a zero receive address", () => {
+  configureUsdcCheckoutEnv();
+  process.env.FISH_USDC_RECEIVE_ADDRESS = "0x0000000000000000000000000000000000000000";
+
+  const readiness = summarizeBillingReadiness();
+
+  assert.equal(readiness.checkoutAvailable, false);
+  assert.equal(readiness.providers.usdc.configured, false);
+  assert.equal(readiness.providers.usdc.receiveAddressConfigured, false);
+  assert.deepEqual(readiness.blockers, ["payment_provider_not_configured"]);
+  assert.ok(readiness.warnings.includes("USDC checkout requires a valid non-zero Base mainnet receive address."));
+});
+
 test("billing readiness enables configured providers only after caps are set and topups are unpaused", () => {
   process.env.FISH_MAX_OUTSTANDING_PREPAID_CREDITS = "100000";
   process.env.FISH_BILLING_SUPPORT_URL = "mailto:support@op.fish";
@@ -302,6 +328,32 @@ test("USDC payment creation rejects non-canonical token config", async () => {
   if (!result.ok) {
     assert.equal(result.status, 503);
     assert.equal(result.error, "usdc_checkout_token_not_canonical_base_usdc");
+  }
+});
+
+test("USDC payment creation rejects invalid RPC URL config", async () => {
+  configureUsdcCheckoutEnv();
+  process.env.FISH_USDC_RPC_URL = "base-mainnet";
+
+  const result = await createUsdcPayment(testAccount(), { amountUsd: 5 });
+
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.equal(result.status, 503);
+    assert.equal(result.error, "usdc_rpc_not_configured");
+  }
+});
+
+test("USDC payment creation rejects a zero receive address", async () => {
+  configureUsdcCheckoutEnv();
+  process.env.FISH_USDC_RECEIVE_ADDRESS = "0x0000000000000000000000000000000000000000";
+
+  const result = await createUsdcPayment(testAccount(), { amountUsd: 5 });
+
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.equal(result.status, 503);
+    assert.equal(result.error, "usdc_checkout_not_configured");
   }
 });
 

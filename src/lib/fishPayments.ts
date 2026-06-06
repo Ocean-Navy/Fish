@@ -11,6 +11,7 @@ const PAYMENT_REQUESTS_PATH = path.join(PAYMENT_DIR, "payment_requests.json");
 const STRIPE_API_VERSION = "2024-06-20";
 const BASE_CHAIN_ID = 8453;
 const BASE_USDC_ADDRESS = "0x833589fcD6EDb6E08f4c7C32D4f71b54bdA02913";
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 const USDC_TRANSFER_TOPIC = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
 
 const checkoutSchema = z
@@ -205,6 +206,8 @@ export function summarizeBillingReadiness(): FishBillingReadiness {
       "Credits are issued only after payment confirmation.",
       "Paid top-ups should stay paused until support and refund handling are ready.",
       "Base mainnet writes stay blocked by the contract write gates.",
+      ...(usdcConfig.touched && !usdcConfig.receiveAddressConfigured ? ["USDC checkout requires a valid non-zero Base mainnet receive address."] : []),
+      ...(usdcConfig.touched && !usdcConfig.rpcConfigured ? ["USDC checkout requires an HTTP(S) Base mainnet RPC URL."] : []),
       ...(usdcConfig.touched && !usdcConfig.chainConfigured ? ["USDC checkout must use Base mainnet chain id 8453."] : []),
       ...(usdcConfig.touched && !usdcConfig.tokenConfigured ? [`USDC checkout must use canonical Base USDC ${BASE_USDC_ADDRESS}.`] : []),
       ...(stripeSecretsConfigured && !stripePublicAppUrlConfigured ? ["Stripe checkout requires FISH_PUBLIC_APP_URL or NEXT_PUBLIC_FISH_APP_URL to be a public HTTPS origin."] : [])
@@ -506,7 +509,7 @@ export async function createUsdcPayment(account: Account, input: UsdcCheckoutInp
 
 export async function confirmUsdcPayment(account: Account, input: UsdcConfirmInput) {
   const rpcUrl = cleanEnv(process.env.FISH_USDC_RPC_URL);
-  if (!rpcUrl) {
+  if (!rpcUrl || !httpUrl(rpcUrl)) {
     return { ok: false as const, status: 503, error: "usdc_rpc_not_configured" };
   }
 
@@ -872,6 +875,10 @@ function isAddress(value: string) {
   return /^0x[a-fA-F0-9]{40}$/.test(value);
 }
 
+function isNonZeroAddress(value: string) {
+  return isAddress(value) && normalizeAddress(value) !== ZERO_ADDRESS;
+}
+
 function stripeErrorMessage(payload: unknown) {
   if (isRecord(payload) && isRecord(payload.error)) {
     return stringValue(payload.error.message) ?? stringValue(payload.error.type) ?? "stripe_error";
@@ -910,6 +917,19 @@ function publicHttpsAppUrl(value: string | undefined) {
   }
 }
 
+function httpUrl(value: string | undefined) {
+  const clean = cleanEnv(value);
+  if (!clean) {
+    return false;
+  }
+  try {
+    const parsed = new URL(clean);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 function configuredSecret(value: string | undefined) {
   const clean = cleanEnv(value);
   return Boolean(clean && clean.length >= 8 && !/change-me|replace-with|placeholder/i.test(clean));
@@ -923,8 +943,8 @@ function readUsdcCheckoutConfig() {
   const parsedChainId = chainIdRaw ? Number(chainIdRaw) : BASE_CHAIN_ID;
   const chainId = Number.isInteger(parsedChainId) ? parsedChainId : BASE_CHAIN_ID;
   const tokenAddress = tokenAddressRaw ?? BASE_USDC_ADDRESS;
-  const receiveAddressConfigured = Boolean(receiveAddress && isAddress(receiveAddress));
-  const rpcConfigured = Boolean(rpcUrl);
+  const receiveAddressConfigured = Boolean(receiveAddress && isNonZeroAddress(receiveAddress));
+  const rpcConfigured = httpUrl(rpcUrl);
   const chainConfigured = Number.isInteger(parsedChainId) && parsedChainId === BASE_CHAIN_ID;
   const tokenConfigured = isAddress(tokenAddress) && normalizeAddress(tokenAddress) === normalizeAddress(BASE_USDC_ADDRESS);
 

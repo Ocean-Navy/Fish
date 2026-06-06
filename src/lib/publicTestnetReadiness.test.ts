@@ -173,8 +173,31 @@ test("paid mainnet readiness names missing USDC receive address and RPC", async 
   const payments = summary.checks.find((check: { name: string }) => check.name === "Payments/mainnet checkout");
 
   assert.equal(payments.state, "blocked");
-  assert.match(payments.findings.join("\n"), /FISH_USDC_RECEIVE_ADDRESS must be a valid Base mainnet receive address/);
-  assert.match(payments.findings.join("\n"), /FISH_USDC_RPC_URL must be configured/);
+  assert.match(payments.findings.join("\n"), /FISH_USDC_RECEIVE_ADDRESS must be a valid non-zero Base mainnet receive address/);
+  assert.match(payments.findings.join("\n"), /FISH_USDC_RPC_URL must be an HTTP\(S\) Base mainnet RPC URL/);
+});
+
+test("paid mainnet readiness rejects invalid USDC RPC and zero receive address", async () => {
+  const appEnv = await tempEnv(
+    [
+      "FISH_MAX_OUTSTANDING_PREPAID_CREDITS=100000",
+      "FISH_USDC_RECEIVE_ADDRESS=0x0000000000000000000000000000000000000000",
+      "FISH_USDC_RPC_URL=base-mainnet",
+      "FISH_USDC_CHAIN_ID=8453",
+      "FISH_USDC_TOKEN_ADDRESS=0x833589fcD6EDb6E08f4c7C32D4f71b54bdA02913",
+      "FISH_BILLING_SUPPORT_URL=mailto:support@op.fish",
+      "FISH_BILLING_REFUND_POLICY_URL=https://op.fish/refunds"
+    ].join("\n")
+  );
+  const result = runReadiness(["--profile", "paid-mainnet", "--env", appEnv, "--ocean-env", missingOceanEnv(), "--json"]);
+
+  assert.equal(result.status, 1);
+  const summary = JSON.parse(result.stdout);
+  const payments = summary.checks.find((check: { name: string }) => check.name === "Payments/mainnet checkout");
+
+  assert.equal(payments.state, "blocked");
+  assert.match(payments.findings.join("\n"), /valid non-zero Base mainnet receive address/);
+  assert.match(payments.findings.join("\n"), /HTTP\(S\) Base mainnet RPC URL/);
 });
 
 test("paid mainnet readiness rejects Stripe checkout without a public app URL", async () => {
