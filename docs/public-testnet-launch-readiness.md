@@ -39,7 +39,7 @@ Paste the generated values into private env files only. The command prints admin
 `npm run ocean-demo:web-env` prints the matching web-host env block for the private adapter, Fish Runner route, and runner receipt public key. Its output includes adapter and runner API keys, so paste it only into the private web host env.
 `--app-env-overlay` lets the readiness audit merge a private app env file with the public example env without printing admin tokens, salts, proof keys, or PEM material.
 `--derive-ocean-web-env-host` lets the readiness audit evaluate that generated web-host block without printing adapter keys, runner keys, or PEM material.
-Faucet credentials belong in the private web-app env, not in the Ocean demo stack env. Add `--include-faucet` only when the Base Sepolia test token addresses are known and the faucet wallet is intentionally low-funded.
+Faucet credentials belong in the private web-app env, not in the Ocean demo stack env. Add `--include-faucet` only when the Base Sepolia test token addresses are known, or pass `--contract-deployment contracts/deployments/<base-sepolia>.local.json` after the test contracts are deployed so the generator can read those addresses from the ignored artifact. Keep the faucet wallet intentionally low-funded.
 
 The readiness script also audits the selected Ocean compute environment. `FISH_OCEAN_COMPUTE_ENV_ID` must match an environment inside `OCEAN_NODE_DOCKER_COMPUTE_ENVIRONMENTS`, and that environment must restrict `free.access.addresses` to the Ocean proof wallet used by the workload adapter.
 
@@ -170,6 +170,17 @@ FISH_CONTRACT_CAPACITY_POOL_ADDRESS
 
 For public tester wallet actions, use Base Sepolia (`FISH_CONTRACT_CHAIN_ID=84532`). Mainnet writes remain a separate paid-mainnet milestone.
 
+After `npm run contracts:deploy:testnet`, regenerate the private web-app overlay from the ignored deployment artifact:
+
+```bash
+npm run secrets:public-testnet -- \
+  --contract-deployment contracts/deployments/<base-sepolia>.local.json \
+  --include-wallets \
+  --include-faucet
+```
+
+By default this produces a read-only contract status env. Add `--enable-contract-actions` only for Base Sepolia wallet testing after the deployed addresses, token funding, and test wallets are reviewed. This helper refuses to enable contract actions for Base mainnet.
+
 ## Step 6: Public Tester UX
 
 For testers without funds:
@@ -178,8 +189,7 @@ For testers without funds:
 npm run secrets:public-testnet -- \
   --include-wallets \
   --include-faucet \
-  --test-ocean-address 0x... \
-  --test-usdc-address 0x... \
+  --contract-deployment contracts/deployments/<base-sepolia>.local.json \
   --faucet-rpc-url https://sepolia.base.org
 ```
 

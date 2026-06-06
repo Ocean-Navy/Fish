@@ -45,6 +45,69 @@ test("public testnet secret generator puts faucet settings in the web env", () =
   assert.equal(payload.oceanEnv.FISH_TESTNET_FAUCET_PRIVATE_KEY, undefined);
 });
 
+test("public testnet secret generator maps a contract deployment into read-only web env", async () => {
+  const deployment = await tempDeployment();
+  const result = runSecrets(["--contract-deployment", deployment, "--json"]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const payload = JSON.parse(result.stdout);
+
+  assert.equal(payload.includeContractDeployment, true);
+  assert.equal(payload.appEnv.FISH_CONTRACT_CHAIN_ID, "84532");
+  assert.equal(payload.appEnv.FISH_CONTRACT_CHAIN_NAME, "Base Sepolia");
+  assert.equal(payload.appEnv.FISH_CONTRACT_RPC_URL, "https://sepolia.base.org");
+  assert.equal(payload.appEnv.FISH_CONTRACT_OCEAN_TOKEN_ADDRESS, TEST_OCEAN_ADDRESS);
+  assert.equal(payload.appEnv.FISH_CONTRACT_USDC_TOKEN_ADDRESS, TEST_USDC_ADDRESS);
+  assert.equal(payload.appEnv.FISH_CONTRACT_FISH_TOKEN_ADDRESS, TEST_FISH_ADDRESS);
+  assert.equal(payload.appEnv.FISH_CONTRACT_OCEAN_STAKING_ADDRESS, TEST_STAKING_ADDRESS);
+  assert.equal(payload.appEnv.FISH_CONTRACT_CAPACITY_POOL_ADDRESS, TEST_CAPACITY_ADDRESS);
+  assert.equal(payload.appEnv.FISH_CONTRACT_ACTIONS_ENABLED, "false");
+  assert.equal(payload.appEnv.FISH_CONTRACT_SETTLEMENT_SUBMIT_ENABLED, "false");
+  assert.equal(payload.appEnv.FISH_CONTRACT_OPERATOR_PRIVATE_KEY, undefined);
+});
+
+test("public testnet secret generator derives faucet token addresses from the contract deployment", async () => {
+  const deployment = await tempDeployment();
+  const result = runSecrets(["--include-wallets", "--include-faucet", "--contract-deployment", deployment, "--enable-contract-actions", "--json"]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const payload = JSON.parse(result.stdout);
+
+  assert.equal(payload.appEnv.FISH_CONTRACT_ACTIONS_ENABLED, "true");
+  assert.equal(payload.appEnv.FISH_TESTNET_FAUCET_OCEAN_TOKEN_ADDRESS, TEST_OCEAN_ADDRESS);
+  assert.equal(payload.appEnv.FISH_TESTNET_FAUCET_USDC_TOKEN_ADDRESS, TEST_USDC_ADDRESS);
+  assert.match(payload.appEnv.FISH_TESTNET_FAUCET_PRIVATE_KEY, /^0x[0-9a-f]{64}$/i);
+});
+
+test("public testnet readiness accepts generated contract and faucet overlay", async () => {
+  const deployment = await tempDeployment();
+  const secrets = runSecrets(["--include-wallets", "--include-faucet", "--contract-deployment", deployment, "--json"]);
+  assert.equal(secrets.status, 0, secrets.stderr);
+  const payload = JSON.parse(secrets.stdout);
+  const appEnv = await tempEnv("FISH_PAID_TOPUPS_PAUSED=true\n");
+  const appOverlay = await tempEnv(formatEnv(payload.appEnv));
+  const result = runReadiness(["--env", appEnv, "--app-env-overlay", appOverlay, "--ocean-env", missingOceanEnv(), "--json"]);
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.doesNotMatch(result.stdout, new RegExp(payload.appEnv.FISH_TESTNET_FAUCET_PRIVATE_KEY));
+
+  const summary = JSON.parse(result.stdout);
+  const faucet = summary.checks.find((check: { name: string }) => check.name === "Public testnet faucet");
+  const contracts = summary.checks.find((check: { name: string }) => check.name === "Contract status and staking pages");
+
+  assert.equal(faucet.state, "ready");
+  assert.equal(contracts.state, "ready");
+  assert.deepEqual(contracts.findings, []);
+});
+
+test("public testnet secret generator refuses contract actions for Base mainnet", async () => {
+  const deployment = await tempDeployment({ chainId: 8453, network: "base" });
+  const result = runSecrets(["--contract-deployment", deployment, "--enable-contract-actions", "--contract-rpc-url", "https://mainnet.base.org", "--json"]);
+
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /refused for Base mainnet/);
+});
+
 test("public testnet readiness accepts a generated private faucet overlay without exposing secrets", async () => {
   const secrets = runSecrets([
     "--include-wallets",
@@ -76,6 +139,12 @@ test("public testnet readiness accepts a generated private faucet overlay withou
 
 const TEST_OCEAN_ADDRESS = "0x1111111111111111111111111111111111111111";
 const TEST_USDC_ADDRESS = "0x2222222222222222222222222222222222222222";
+const TEST_FISH_ADDRESS = "0x3333333333333333333333333333333333333333";
+const TEST_STAKING_ADDRESS = "0x4444444444444444444444444444444444444444";
+const TEST_CAPACITY_ADDRESS = "0x5555555555555555555555555555555555555555";
+const TEST_TREASURY_ADDRESS = "0x6666666666666666666666666666666666666666";
+const TEST_EMISSION_ADDRESS = "0x7777777777777777777777777777777777777777";
+const TEST_OPERATOR_ADDRESS = "0x8888888888888888888888888888888888888888";
 
 function runSecrets(args: string[]) {
   return spawnSync(process.execPath, ["scripts/generate-public-testnet-secrets.mjs", ...args], {
@@ -97,6 +166,42 @@ async function tempEnv(contents: string) {
   tempDirs.push(dir);
   const file = path.join(dir, ".env.test");
   await writeFile(file, contents);
+  return file;
+}
+
+async function tempDeployment(options: { chainId?: number; network?: string } = {}) {
+  const dir = path.join(tmpdir(), `fish-deployment-${Date.now()}-${Math.random().toString(16).slice(2)}`);
+  await mkdir(dir, { recursive: true });
+  tempDirs.push(dir);
+  const file = path.join(dir, "baseSepolia.local.json");
+  await writeFile(
+    file,
+    `${JSON.stringify(
+      {
+        network: options.network ?? "baseSepolia",
+        chainId: options.chainId ?? 84532,
+        deployedAt: "2026-06-06T00:00:00.000Z",
+        deployer: TEST_TREASURY_ADDRESS,
+        treasury: TEST_TREASURY_ADDRESS,
+        emissionSource: TEST_EMISSION_ADDRESS,
+        operator: TEST_OPERATOR_ADDRESS,
+        contracts: {
+          oceanToken: TEST_OCEAN_ADDRESS,
+          usdcToken: TEST_USDC_ADDRESS,
+          fishToken: TEST_FISH_ADDRESS,
+          oceanStaking: TEST_STAKING_ADDRESS,
+          capacityPool: TEST_CAPACITY_ADDRESS
+        },
+        parameters: {
+          fishCooldownSeconds: 300,
+          oceanCooldownSeconds: 300,
+          minUnstakeBatchOpenSeconds: 60
+        }
+      },
+      null,
+      2
+    )}\n`
+  );
   return file;
 }
 

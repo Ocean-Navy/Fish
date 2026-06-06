@@ -655,12 +655,11 @@ To open the public tester faucet after Base Sepolia test token contracts exist, 
 npm run secrets:public-testnet -- \
   --include-wallets \
   --include-faucet \
-  --test-ocean-address 0x... \
-  --test-usdc-address 0x... \
+  --contract-deployment contracts/deployments/<base-sepolia>.local.json \
   --faucet-rpc-url https://sepolia.base.org
 ```
 
-Paste the app env block into a private web-host env file. The faucet key belongs only to the web app. Keep it separate from deployer, operator, treasury, Ocean proof, and payment wallets, then fund it only with limited Base Sepolia ETH, Test OCEAN, and Test USDC.
+When `--contract-deployment` is present, the faucet token addresses can be omitted because they are read from the ignored deployment artifact. Paste the app env block into a private web-host env file. The faucet key belongs only to the web app. Keep it separate from deployer, operator, treasury, Ocean proof, and payment wallets, then fund it only with limited Base Sepolia ETH, Test OCEAN, and Test USDC.
 
 ## OCEAN Staking Credits
 
@@ -713,6 +712,17 @@ npm run contracts:deploy:testnet
 
 If no `FISH_CONTRACT_OCEAN_TOKEN_ADDRESS` or `FISH_CONTRACT_USDC_TOKEN_ADDRESS` is set, the deploy script creates test OCEAN and test USDC tokens so the full flow can be tested without real assets. The script prints a web-app env block and writes a local ignored artifact under `contracts/deployments/`.
 
+After deployment, regenerate the private web-app overlay from that artifact:
+
+```bash
+npm run secrets:public-testnet -- \
+  --contract-deployment contracts/deployments/<base-sepolia>.local.json \
+  --include-wallets \
+  --include-faucet
+```
+
+This adds the `FISH_CONTRACT_*` addresses and, when faucet is included, uses the deployed test OCEAN/Test USDC addresses for the public tester faucet. Contract wallet actions stay disabled unless `--enable-contract-actions` is explicitly added. The generator refuses to enable actions for Base mainnet.
+
 Paid demand that is settled into the FISH Capacity Pool can be recorded by an operator:
 
 ```bash
@@ -764,7 +774,7 @@ curl -sS http://127.0.0.1:3000/api/testnet/faucet \
 
 Keep this wallet separate from deployer, operator, treasury, Ocean proof, and payment wallets. Fund it only with limited Base Sepolia ETH and test tokens. The faucet is disabled by default, Base Sepolia only, and capped by wallet, IP, and daily claim limits. Public faucet claims trust proxy IP headers only when `FISH_TRUST_PROXY_HEADERS=true` and nginx/private proxy adds `x-fish-proxy-secret: <FISH_PROXY_HEADER_SECRET>` after stripping any user-supplied copy of that header. Public status exposes safe aggregate counters only: enabled/ready state, plain-language claim state, grant sizes, wallet/IP/day limits, claims used today, remaining claims, reset time, token addresses, faucet address, and faucet balances. It does not expose wallet hashes, IP hashes, private keys, or raw claim rows.
 
-Use `npm run secrets:public-testnet -- --include-wallets --include-faucet --test-ocean-address 0x... --test-usdc-address 0x...` to generate a private faucet overlay. The command intentionally places `FISH_TESTNET_FAUCET_PRIVATE_KEY` in the web-app env block, not the Ocean demo stack env block, because `/api/testnet/faucet` signs from the web app.
+Use `npm run secrets:public-testnet -- --include-wallets --include-faucet --contract-deployment contracts/deployments/<base-sepolia>.local.json` to generate a private faucet overlay from the deployed test token addresses. The command intentionally places `FISH_TESTNET_FAUCET_PRIVATE_KEY` in the web-app env block, not the Ocean demo stack env block, because `/api/testnet/faucet` signs from the web app.
 
 Staking positions and wallet intents are written under `data/staking/`, which is ignored by git. This is not an onchain staking contract; it is a funded-budget prototype for proving OCEAN lock intent, credit issuance, and credit spend.
 

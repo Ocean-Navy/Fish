@@ -399,12 +399,11 @@ Once test token contracts exist, generate the private web-app faucet overlay wit
 npm run secrets:public-testnet -- \
   --include-wallets \
   --include-faucet \
-  --test-ocean-address 0x... \
-  --test-usdc-address 0x... \
+  --contract-deployment contracts/deployments/<base-sepolia>.local.json \
   --faucet-rpc-url https://sepolia.base.org
 ```
 
-Paste the generated app env block into the private web-host env file. The faucet private key belongs to the web app because `/api/testnet/faucet` signs claims; it should not be copied into `.env.ocean-demo-stack`.
+Paste the generated app env block into the private web-host env file. The faucet private key belongs to the web app because `/api/testnet/faucet` signs claims; it should not be copied into `.env.ocean-demo-stack`. When `--contract-deployment` is present, the generator reads the deployed test OCEAN/Test USDC addresses from the ignored contract deployment artifact.
 
 For Base Sepolia contract testing:
 
@@ -519,7 +518,16 @@ FISH_TESTNET_OCEAN_COOLDOWN_SECONDS=300
 FISH_TESTNET_MIN_UNSTAKE_BATCH_OPEN_SECONDS=60
 ```
 
-The script prints the `FISH_CONTRACT_*` web-app env block. Add those values to the app environment, restart the app, then verify:
+The script prints the `FISH_CONTRACT_*` web-app env block and writes an ignored artifact under `contracts/deployments/`. To regenerate a private web-app overlay later, use:
+
+```bash
+npm run secrets:public-testnet -- \
+  --contract-deployment contracts/deployments/<base-sepolia>.local.json
+```
+
+By default this keeps contract wallet actions disabled and makes `/api/contracts/status` read-only. Add `--enable-contract-actions` only after reviewing the testnet addresses, roles, and wallet flow. This public-testnet helper refuses to enable contract actions for Base mainnet.
+
+Add the generated app env values to the app environment, restart the app, then verify:
 
 ```bash
 curl -fsS http://127.0.0.1:3000/api/contracts/status
