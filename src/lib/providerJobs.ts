@@ -350,14 +350,14 @@ export async function runProviderJob(input: ProviderJobRequestInput) {
 export async function summarizeProof(): Promise<ProofSummary> {
   const [registry, receipts, payouts] = await Promise.all([collectProviderPilotRegistry(), readReceipts(), summarizePublicPayouts()]);
   const sorted = receipts.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-  const selectedReceipts = sorted.slice(-20).reverse();
+  const selectedReceipts = sorted.slice(-20).reverse().map(withEffectiveSourceState);
   const proofReceipts = receipts.filter(isProofEvidenceReceipt);
   const succeeded = proofReceipts.filter((receipt) => receipt.status === "succeeded");
   const verifications = proofReceipts.map((receipt) => verifyProviderJobReceipt(receipt));
   const verificationFailures = verifications.filter((verification) => !verification.ok).length;
 
   return {
-    dataState: sourceStateSummary(receipts.map(effectiveReceiptSourceState)),
+    dataState: sourceStateSummary(receipts.map(effectiveProviderReceiptSourceState)),
     lastUpdated: sorted.at(-1)?.createdAt ?? new Date().toISOString(),
     oceanJobsRouted: proofReceipts.filter((receipt) => receipt.status !== "not_allowed").length,
     verifiedReceipts: verifications.filter((verification) => verification.ok).length,
@@ -382,7 +382,7 @@ export async function listProviderJobReceipts() {
   const receipts = await readReceipts();
   return {
     object: "list",
-    dataState: sourceStateSummary(receipts.map(effectiveReceiptSourceState)),
+    dataState: sourceStateSummary(receipts.map(effectiveProviderReceiptSourceState)),
     data: receipts.sort((a, b) => b.createdAt.localeCompare(a.createdAt)).map(withEffectiveSourceState)
   };
 }
@@ -393,7 +393,7 @@ export async function listProviderJobReceiptLedger(query: ReceiptLedgerQuery): P
   const selected = filtered.slice(0, query.limit);
   return {
     object: "list",
-    dataState: sourceStateSummary(receipts.map(effectiveReceiptSourceState)),
+    dataState: sourceStateSummary(receipts.map(effectiveProviderReceiptSourceState)),
     filters: query,
     count: selected.length,
     totalCount: filtered.length,
@@ -413,7 +413,7 @@ export async function exportProviderJobReceiptsJson(query: ReceiptLedgerQuery) {
   const selected = filterReceipts(receipts, query).slice(0, query.limit);
   return {
     object: "receipt_ledger_export",
-    dataState: sourceStateSummary(receipts.map(effectiveReceiptSourceState)),
+    dataState: sourceStateSummary(receipts.map(effectiveProviderReceiptSourceState)),
     filters: query,
     count: selected.length,
     data: selected.map(toOperatorReceiptExport)
@@ -469,7 +469,7 @@ export async function exportProviderJobReceiptsCsv(query: ReceiptLedgerQuery) {
         receipt.workloadType,
         receipt.backend,
         receipt.status,
-        effectiveReceiptSourceState(receipt),
+        effectiveProviderReceiptSourceState(receipt),
         receipt.createdAt,
         receipt.startedAt,
         receipt.completedAt,
@@ -879,20 +879,23 @@ function sourceStateForAdapter(input: ProviderJobRequestInput): DataState {
   return input.adapterMode.startsWith("mock_") ? "sample" : "snapshot";
 }
 
-function effectiveReceiptSourceState(receipt: ProviderJobReceipt): DataState {
+export function effectiveProviderReceiptSourceState(receipt: ProviderJobReceipt): DataState {
   if (receipt.providerJobId?.startsWith("mock_") || receipt.errorCode?.startsWith("mock_")) {
+    return "sample";
+  }
+  if (receipt.status === "not_allowed" && !receipt.providerJobId) {
     return "sample";
   }
   return receipt.sourceState;
 }
 
 function withEffectiveSourceState(receipt: ProviderJobReceipt): ProviderJobReceipt {
-  const sourceState = effectiveReceiptSourceState(receipt);
+  const sourceState = effectiveProviderReceiptSourceState(receipt);
   return sourceState === receipt.sourceState ? receipt : { ...receipt, sourceState };
 }
 
 function isProofEvidenceReceipt(receipt: ProviderJobReceipt) {
-  const sourceState = effectiveReceiptSourceState(receipt);
+  const sourceState = effectiveProviderReceiptSourceState(receipt);
   return sourceState === "live" || sourceState === "snapshot";
 }
 
@@ -958,7 +961,7 @@ function toReceiptLedgerItem(receipt: ProviderJobReceipt): ReceiptLedgerItem {
     workloadType: receipt.workloadType,
     backend: receipt.backend,
     status: receipt.status,
-    sourceState: effectiveReceiptSourceState(receipt),
+    sourceState: effectiveProviderReceiptSourceState(receipt),
     usageSummary: {
       inputTokens: receipt.usage.inputTokens,
       outputTokens: receipt.usage.outputTokens,
@@ -988,7 +991,7 @@ function toPublicReceiptDetail(receipt: ProviderJobReceipt): PublicReceiptDetail
     workloadType: receipt.workloadType,
     backend: receipt.backend,
     status: receipt.status,
-    sourceState: effectiveReceiptSourceState(receipt),
+    sourceState: effectiveProviderReceiptSourceState(receipt),
     visibility: receipt.visibility,
     timestamps: {
       createdAt: receipt.createdAt,
