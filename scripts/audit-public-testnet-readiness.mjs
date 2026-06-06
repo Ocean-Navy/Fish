@@ -156,6 +156,9 @@ function checkPayments(env, profile) {
   if (!env.FISH_MAX_OUTSTANDING_PREPAID_CREDITS) blockers.push("FISH_MAX_OUTSTANDING_PREPAID_CREDITS is missing; paid top-ups must stay blocked.");
   if (!hasStripe && !hasUsdc) blockers.push("Neither Stripe nor USDC checkout is fully configured.");
   if (stripeSecretsConfigured && !stripePublicAppUrlConfigured) blockers.push("FISH_PUBLIC_APP_URL or NEXT_PUBLIC_FISH_APP_URL must be a public HTTPS origin for Stripe checkout.");
+  if (profile === "paid-mainnet" && truthy(env.FISH_STRIPE_TEST_MODE_ALLOWED)) {
+    blockers.push("FISH_STRIPE_TEST_MODE_ALLOWED must be false for paid-mainnet readiness.");
+  }
   if (profile === "paid-mainnet" && stripeSecretsConfigured && !stripeLiveModeKey(stripeSecretKey)) {
     blockers.push("FISH_STRIPE_SECRET_KEY must use a live-mode Stripe secret or restricted key for paid-mainnet readiness.");
   }

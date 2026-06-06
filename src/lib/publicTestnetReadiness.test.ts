@@ -156,6 +156,29 @@ test("paid mainnet readiness accepts complete Base USDC checkout config", async 
   assert.deepEqual(payments.findings, []);
 });
 
+test("paid mainnet readiness rejects the private Stripe test-mode override", async () => {
+  const appEnv = await tempEnv(
+    [
+      "FISH_MAX_OUTSTANDING_PREPAID_CREDITS=100000",
+      "FISH_USDC_RECEIVE_ADDRESS=0x1111111111111111111111111111111111111111",
+      "FISH_USDC_RPC_URL=https://mainnet.base.org",
+      "FISH_USDC_CHAIN_ID=8453",
+      "FISH_USDC_TOKEN_ADDRESS=0x833589fcD6EDb6E08f4c7C32D4f71b54bdA02913",
+      "FISH_BILLING_SUPPORT_URL=mailto:support@op.fish",
+      "FISH_BILLING_REFUND_POLICY_URL=https://op.fish/refunds",
+      "FISH_STRIPE_TEST_MODE_ALLOWED=true"
+    ].join("\n")
+  );
+  const result = runReadiness(["--profile", "paid-mainnet", "--env", appEnv, "--ocean-env", missingOceanEnv(), "--json"]);
+
+  assert.equal(result.status, 1);
+  const summary = JSON.parse(result.stdout);
+  const payments = summary.checks.find((check: { name: string }) => check.name === "Payments/mainnet checkout");
+
+  assert.equal(payments.state, "blocked");
+  assert.match(payments.findings.join("\n"), /FISH_STRIPE_TEST_MODE_ALLOWED must be false/);
+});
+
 test("paid mainnet readiness names missing USDC receive address and RPC", async () => {
   const appEnv = await tempEnv(
     [

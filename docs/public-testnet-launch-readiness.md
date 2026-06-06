@@ -154,8 +154,10 @@ Paid-mainnet readiness can pass through either lane:
 ```text
 Stripe lane: live-mode Stripe secret or restricted key + webhook secret + public HTTPS app URL
 USDC lane: non-zero Base mainnet receive address + HTTP(S) Base mainnet RPC + canonical Base USDC
-Both lanes: prepaid liability cap + support URL + refund policy URL + paid top-ups intentionally unpaused
+Both lanes: prepaid liability cap + support URL + refund policy URL + paid top-ups intentionally unpaused + FISH_STRIPE_TEST_MODE_ALLOWED=false
 ```
+
+`FISH_STRIPE_TEST_MODE_ALLOWED=true` is only for private Stripe test-mode checks. The paid-mainnet readiness profile blocks while it is enabled, even if USDC checkout is the selected paid lane.
 
 Do not use Base Sepolia for paid checkout. Base Sepolia belongs only to public tester faucet and contract playground flows.
 
