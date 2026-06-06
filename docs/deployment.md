@@ -281,6 +281,7 @@ FISH_MAX_CONCURRENT_REQUESTS=8
 FISH_RATE_LIMIT_MAX_BUCKETS=10000
 # Granted once to the shared unauthenticated guest account, not once per browser.
 FISH_GUEST_CREDIT_GRANT=25
+# Required in production for unauthenticated meal and dish routes.
 FISH_GUEST_ID_SALT=
 FISH_CHAT_PAUSED=false
 FISH_ROUTER_KILL_SWITCH=false

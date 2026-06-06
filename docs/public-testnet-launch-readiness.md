@@ -210,6 +210,7 @@ Also verify:
 ```text
 admin token is not a placeholder
 guest salt is set
+production guest routes return `503 guest_identity_salt_required` until the guest salt is set
 daily budgets are low
 selected chat route has its private endpoint, API key, model, and budget
 adapter key is not a placeholder

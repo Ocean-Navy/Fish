@@ -5,7 +5,7 @@ import { buildFishDishChatInput, getFishDish } from "@/lib/fishDishes";
 import { authenticateRequest, getOrCreateGuestAccount } from "@/lib/fishLedger";
 import { runFishChatGateway } from "@/lib/fishChatGateway";
 import { getFishRouterConfig } from "@/lib/fishRouter";
-import { anonymousGuestId } from "@/lib/guestIdentity";
+import { resolveAnonymousGuestIdentity } from "@/lib/guestIdentity";
 
 export const dynamic = "force-dynamic";
 
@@ -73,7 +73,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ dis
   );
   const context = await resolveGatewayContext(request, routerConfig);
   if (!context.ok) {
-    return NextResponse.json({ error: { message: context.error, type: "authentication_error" } }, { status: context.status });
+    return NextResponse.json({ error: { message: context.error, type: context.status === 503 ? "service_unavailable_error" : "authentication_error" } }, { status: context.status });
   }
 
   const wantsStream = chatInput.stream === true;
@@ -111,13 +111,21 @@ async function resolveGatewayContext(request: Request, routerConfig: ReturnType<
     };
   }
 
-  const guestId = anonymousGuestId();
-  const guest = await getOrCreateGuestAccount(guestId, Number(process.env.FISH_GUEST_CREDIT_GRANT ?? "25"));
+  const identity = resolveAnonymousGuestIdentity();
+  if (!identity.ok) {
+    return {
+      ok: false as const,
+      status: identity.status,
+      error: identity.error
+    };
+  }
+
+  const guest = await getOrCreateGuestAccount(identity.guestId, Number(process.env.FISH_GUEST_CREDIT_GRANT ?? "25"));
   return {
     ok: true as const,
     ledger: guest.ledger,
     account: guest.account,
-    principalId: `guest:${guestId}`,
+    principalId: identity.principalId,
     dailyQuotaLimit: routerConfig.guardrails.dailyAnonymousQuota,
     allowExternalFallback: false,
     authenticatedApiKey: false,

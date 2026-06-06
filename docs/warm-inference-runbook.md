@@ -423,7 +423,7 @@ No public warm route should run without:
 - timeout and cancellation handling;
 - fallback disabled by default for anonymous users.
 
-For first public testing, keep the deployment-scoped anonymous guest bucket to a very small allowance such as 3 to 5 short messages per day and 512 output tokens per response. API-key users should use keyed quota instead of the guest bucket. Do not trust client-supplied proxy headers for guest identity; set `FISH_GUEST_ID_SALT` only to separate one deployment bucket from another.
+For first public testing, keep the deployment-scoped anonymous guest bucket to a very small allowance such as 3 to 5 short messages per day and 512 output tokens per response. API-key users should use keyed quota instead of the guest bucket. Do not trust client-supplied proxy headers for guest identity. Production guest routes fail closed with `guest_identity_salt_required` until `FISH_GUEST_ID_SALT` is set.
 
 ## Smoke Test From Fish Gateway
 

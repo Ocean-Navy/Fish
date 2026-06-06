@@ -266,6 +266,7 @@ FISH_DAILY_ANONYMOUS_QUOTA=5
 FISH_RATE_LIMIT_MAX_BUCKETS=10000
 # Granted once to the shared unauthenticated guest account, not once per browser.
 FISH_GUEST_CREDIT_GRANT=25
+# Required in production for unauthenticated meal and dish routes.
 FISH_GUEST_ID_SALT=
 FISH_CHAT_PAUSED=false
 FISH_ROUTER_KILL_SWITCH=false
@@ -397,7 +398,7 @@ Fish stores usage numbers, route metadata, latency, cost estimates, and request 
 
 Feature caps are layered under the global token limits. For example, Code can have a larger cap than Ask when `FISH_MAX_OUTPUT_TOKENS` is raised, while Images remain disabled until a paid image route exists.
 
-Unauthenticated meal and dish routes use one deployment-scoped anonymous guest identity for quota and demo credit accounting. `FISH_GUEST_ID_SALT` can separate that bucket between deployments, but Fish does not trust client-supplied proxy headers such as `X-Forwarded-For` or `X-Real-IP` for guest credit grants.
+Unauthenticated meal and dish routes use one deployment-scoped anonymous guest identity for quota and demo credit accounting. `FISH_GUEST_ID_SALT` separates that bucket between deployments and is required in production; guest routes return `503 guest_identity_salt_required` until it is set. Fish does not trust client-supplied proxy headers such as `X-Forwarded-For` or `X-Real-IP` for guest credit grants.
 
 The public route compass shows what is active without exposing secrets:
 

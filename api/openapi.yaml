@@ -279,6 +279,8 @@ paths:
           description: Insufficient Fish Credits
         '404':
           description: Fish dish not found
+        '503':
+          description: Production guest demo is unavailable until FISH_GUEST_ID_SALT is configured
         '501':
           description: Fish dish not enabled
   /api/meal/order:
@@ -298,6 +300,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/FishChatCompletion'
+        '503':
+          description: Production guest demo is unavailable until FISH_GUEST_ID_SALT is configured
   /api/billing/plans:
     get:
       summary: Public Fish plan catalog

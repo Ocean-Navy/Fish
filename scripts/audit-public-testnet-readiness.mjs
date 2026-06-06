@@ -195,7 +195,7 @@ function checkOperations(appEnv, oceanEnv) {
   if (appEnv.HOSTNAME && appEnv.HOSTNAME !== "0.0.0.0" && appEnv.HOSTNAME !== "127.0.0.1") {
     findings.push("HOSTNAME is unusual for Next standalone; verify nginx/systemd routing.");
   }
-  if (!safeSecret(appEnv.FISH_GUEST_ID_SALT)) findings.push("FISH_GUEST_ID_SALT is empty; set it before a public guest demo.");
+  if (!safeSecret(appEnv.FISH_GUEST_ID_SALT)) findings.push("FISH_GUEST_ID_SALT is empty; production guest routes fail closed until it is set.");
   if (!appEnv.FISH_RUNNER_PUBLIC_KEY_ID || !appEnv.FISH_RUNNER_PUBLIC_KEY_PEM) findings.push("Fish web app is missing trusted runner public key configuration.");
   if (!oceanEnv.FISH_RUNNER_SIGNING_KEY_ID || !safeSecret(oceanEnv.FISH_RUNNER_SIGNING_PRIVATE_KEY_PEM)) findings.push("Fish Runner signing key is missing or weak.");
   if (appEnv.FISH_RUNNER_PUBLIC_KEY_ID && oceanEnv.FISH_RUNNER_SIGNING_KEY_ID && appEnv.FISH_RUNNER_PUBLIC_KEY_ID !== oceanEnv.FISH_RUNNER_SIGNING_KEY_ID) {
