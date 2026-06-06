@@ -3,7 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, test } from "node:test";
-import { requireAdmin } from "./fishLedger";
+import { parseChatCompletion, requireAdmin } from "./fishLedger";
 
 const originalAdminToken = process.env.FISH_ADMIN_TOKEN;
 const originalNodeEnv = process.env.NODE_ENV;
@@ -78,6 +78,123 @@ test("expired top-up credits are not spendable", async () => {
   assert.equal(usage.available, 0);
 });
 
+test("expired credits do not absorb debits when active credits exist", async () => {
+  const ledger = await useTempFishLedger();
+  const { addFishCredits, authenticateRequest, createApiKey, recordChatUsage, reserveFishCredits } = await importFishLedger(ledger);
+  const { key, account } = await createApiKey("Mixed expiry credit test", 0);
+
+  const expiredTopup = await addFishCredits({
+    accountId: account.id,
+    amount: 10,
+    lane: "prepaid",
+    reason: "mixed_expiry_expired_credit_test",
+    expiresAt: "2000-01-01T00:00:00.000Z"
+  });
+  assert.equal(expiredTopup.ok, true);
+
+  const activeTopup = await addFishCredits({
+    accountId: account.id,
+    amount: 1,
+    lane: "prepaid",
+    reason: "mixed_expiry_active_credit_test",
+    expiresAt: "2999-01-01T00:00:00.000Z"
+  });
+  assert.equal(activeTopup.ok, true);
+
+  const auth = await authenticateRequest(authorizedRequest(key));
+  assert.equal(auth.ok, true);
+  if (!auth.ok) {
+    throw new Error("test account authentication failed");
+  }
+
+  const firstReservation = await reserveFishCredits({
+    ledger: auth.ledger,
+    account: auth.account,
+    credits: 1,
+    reason: "mixed_expiry_first_reserve"
+  });
+  assert.equal(firstReservation.ok, true);
+  if (!firstReservation.ok) {
+    throw new Error("expected active credit reservation to succeed");
+  }
+
+  const usage = await recordChatUsage({
+    ledger: auth.ledger,
+    account: auth.account,
+    input: {
+      model: "fish-demo-chat",
+      messages: [{ role: "user", content: "hello" }],
+      stream: false
+    },
+    promptTokens: 1,
+    completionTokens: 1,
+    content: "hello",
+    reservation: firstReservation.reservation
+  });
+  assert.equal(usage.ok, true);
+
+  const secondReservation = await reserveFishCredits({
+    ledger: auth.ledger,
+    account: auth.account,
+    credits: 1,
+    reason: "mixed_expiry_second_reserve"
+  });
+  assert.equal(secondReservation.ok, false);
+  assert.equal(secondReservation.status, 402);
+  assert.equal(secondReservation.available, 0);
+});
+
+test("reserved usage charges are capped to the request reservation", async () => {
+  const ledger = await useTempFishLedger();
+  const { authenticateRequest, createApiKey, recordChatUsage, reserveFishCredits, summarizeAccount } = await importFishLedger(ledger);
+  const { key } = await createApiKey("Reservation cap test", 10_000);
+
+  const auth = await authenticateRequest(authorizedRequest(key));
+  assert.equal(auth.ok, true);
+  if (!auth.ok) {
+    throw new Error("test account authentication failed");
+  }
+
+  const reservation = await reserveFishCredits({
+    ledger: auth.ledger,
+    account: auth.account,
+    credits: 1,
+    reason: "reservation_cap_test"
+  });
+  assert.equal(reservation.ok, true);
+  if (!reservation.ok) {
+    throw new Error("test reservation failed");
+  }
+
+  const usage = await recordChatUsage({
+    ledger: auth.ledger,
+    account: auth.account,
+    input: {
+      model: "fish-demo-chat",
+      messages: [{ role: "user", content: "hello" }],
+      stream: false,
+      max_tokens: 1
+    },
+    promptTokens: 10_000_000,
+    completionTokens: 1_000,
+    content: "hello",
+    route: "external-fallback",
+    costState: "fallback_verified",
+    reservation: reservation.reservation
+  });
+
+  assert.equal(usage.ok, true);
+  if (!usage.ok) {
+    throw new Error("usage recording failed");
+  }
+  assert.equal(usage.receipt.creditsSpent, 1);
+  assert.equal(usage.creditsRemaining, 9_999);
+
+  const summary = await summarizeAccount(auth.account);
+  assert.equal(summary.account.creditBalance, 9_999);
+  assert.equal(summary.account.totalCreditsSpent, 1);
+});
+
 test("stale authenticated ledger writes do not undo API key revocation", async () => {
   const ledger = await useTempFishLedger();
   const { authenticateRequest, createApiKey, reserveFishCredits, revokeApiKey } = await importFishLedger(ledger);
@@ -121,19 +238,62 @@ test("stale authenticated ledger writes do not undo API key revocation", async (
   assert.equal(authAfterStaleWrite.error, "api_key_revoked");
 });
 
-test("requireAdmin rejects the public placeholder admin token in production", () => {
+test("guest demo accounts cannot authenticate as bearer API keys or mint repeated grants", async () => {
+  const ledger = await useTempFishLedger();
+  const { authenticateRequest, getOrCreateGuestAccount } = await importFishLedger(ledger);
+  const guestId = "shared-anonymous-v1";
+
+  const first = await getOrCreateGuestAccount(guestId, 25);
+  assert.equal(first.account.creditBalance, 25);
+  assert.equal(first.account.totalCreditsGranted, 25);
+
+  const guestBearerAuth = await authenticateRequest(authorizedRequest(`guest:${guestId}`));
+  assert.equal(guestBearerAuth.ok, false);
+  if (guestBearerAuth.ok) {
+    throw new Error("expected guest bearer credential to fail authentication");
+  }
+  assert.equal(guestBearerAuth.error, "invalid_api_key");
+
+  const second = await getOrCreateGuestAccount(guestId, 25);
+  assert.equal(second.account.id, first.account.id);
+  assert.equal(second.account.creditBalance, 25);
+  assert.equal(second.account.totalCreditsGranted, 25);
+});
+
+test("public chat parsing drops private batch payload metadata", () => {
+  const parsed = parseChatCompletion({
+    model: "fish-docs",
+    messages: [{ role: "user", content: "ping" }],
+    metadata: {
+      fish_feature: "docs",
+      fish_order_text: "hidden oversized private payload",
+      public_trace_id: "trace_123"
+    }
+  });
+
+  assert.equal(parsed.success, true);
+  if (!parsed.success) {
+    throw new Error("expected chat completion request to parse");
+  }
+  assert.deepEqual(parsed.data.metadata, { fish_feature: "docs", public_trace_id: "trace_123" });
+});
+
+test("requireAdmin rejects public placeholder admin tokens in production", () => {
   mutableEnv.NODE_ENV = "production";
-  mutableEnv.FISH_ADMIN_TOKEN = "change-me-for-production";
 
-  const request = new Request("http://127.0.0.1:3000/v1/api_keys", {
-    headers: { "x-fish-admin-token": "change-me-for-production" }
-  });
+  for (const placeholder of ["change-me-for-production", "replace-with-a-long-random-secret"]) {
+    mutableEnv.FISH_ADMIN_TOKEN = placeholder;
 
-  assert.deepEqual(requireAdmin(request), {
-    ok: false,
-    status: 401,
-    error: "admin_token_required"
-  });
+    const request = new Request("http://127.0.0.1:3000/v1/api_keys", {
+      headers: { "x-fish-admin-token": placeholder }
+    });
+
+    assert.deepEqual(requireAdmin(request), {
+      ok: false,
+      status: 401,
+      error: "admin_token_required"
+    });
+  }
 });
 
 test("requireAdmin accepts a configured non-placeholder admin token in production", () => {
@@ -145,6 +305,33 @@ test("requireAdmin accepts a configured non-placeholder admin token in productio
   });
 
   assert.deepEqual(requireAdmin(request), { ok: true });
+});
+
+test("chat completion validation caps messages and text content", () => {
+  const tooManyMessages = parseChatCompletion({
+    model: "fish-demo-chat",
+    messages: Array.from({ length: 65 }, () => ({ role: "user", content: "hello" }))
+  });
+  const oversizedContent = parseChatCompletion({
+    model: "fish-demo-chat",
+    messages: [{ role: "user", content: "x".repeat(20_001) }]
+  });
+
+  assert.equal(tooManyMessages.success, false);
+  assert.equal(oversizedContent.success, false);
+});
+
+test("chat completion validation caps metadata keys", () => {
+  const parsed = parseChatCompletion({
+    model: "fish-demo-chat",
+    messages: [{ role: "user", content: "hello" }],
+    metadata: Object.fromEntries(Array.from({ length: 33 }, (_, index) => [`k${index}`, index]))
+  });
+
+  assert.equal(parsed.success, false);
+  if (!parsed.success) {
+    assert.deepEqual(parsed.error.flatten().fieldErrors.metadata, ["metadata cannot contain more than 32 keys"]);
+  }
 });
 
 async function useTempFishLedger() {

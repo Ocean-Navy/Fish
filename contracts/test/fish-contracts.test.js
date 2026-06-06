@@ -1,76 +1,5 @@
 const { expect } = require("chai");
-const { ethers, network } = require("hardhat");
-
-const parse = ethers.parseEther;
-const parseUsdc = (value) => ethers.parseUnits(value, 6);
-
-async function increaseTime(seconds) {
-  await network.provider.send("evm_increaseTime", [seconds]);
-  await network.provider.send("evm_mine");
-}
-
-async function deploySystem() {
-  const [owner, treasury, emissionSource, holder, holderTwo, operator, payer] = await ethers.getSigners();
-
-  const TestERC20 = await ethers.getContractFactory("TestERC20");
-  const ocean = await TestERC20.deploy("Ocean", "OCEAN", 18);
-  const usdc = await TestERC20.deploy("USD Coin", "USDC", 6);
-
-  const FishToken = await ethers.getContractFactory("FishToken");
-  const fish = await FishToken.deploy(owner.address);
-
-  const Staking = await ethers.getContractFactory("FishOceanStaking");
-  const stakingImpl = await Staking.deploy();
-  const initData = Staking.interface.encodeFunctionData("initialize", [
-    await ocean.getAddress(),
-    await fish.getAddress(),
-    treasury.address,
-    emissionSource.address
-  ]);
-
-  const Proxy = await ethers.getContractFactory("FishERC1967Proxy");
-  const proxy = await Proxy.deploy(await stakingImpl.getAddress(), initData);
-  const staking = Staking.attach(await proxy.getAddress());
-
-  const minterRole = await fish.MINTER_BURNER_ROLE();
-  await fish.grantRole(minterRole, await staking.getAddress());
-
-  const CapacityPool = await ethers.getContractFactory("FishCapacityPool");
-  const capacityPool = await CapacityPool.deploy(await fish.getAddress(), await usdc.getAddress(), operator.address);
-
-  await ocean.mint(holder.address, parse("10000"));
-  await ocean.mint(holderTwo.address, parse("10000"));
-  await ocean.mint(emissionSource.address, parse("10000"));
-  await usdc.mint(operator.address, parseUsdc("10000"));
-  await usdc.mint(payer.address, parseUsdc("10000"));
-
-  await fish.setCooldownDuration(60);
-  await staking.setCooldownDuration(60);
-  await capacityPool.setMinUnstakeBatchOpenSecs(60);
-
-  const supply = new Array(256).fill(0n);
-  const rates = new Array(256).fill(0n);
-  supply[0] = parse("1000");
-  rates[0] = parse("10");
-  supply[1] = parse("2000");
-  rates[1] = parse("20");
-  await staking.setFishMintCurve(supply, rates);
-
-  return {
-    owner,
-    treasury,
-    emissionSource,
-    holder,
-    holderTwo,
-    operator,
-    payer,
-    ocean,
-    usdc,
-    fish,
-    staking,
-    capacityPool
-  };
-}
+const { deploySystem, increaseTime, parse, parseUsdc } = require("./helpers/fishSystem");
 
 describe("Fish OCEAN staking and capacity pool", function () {
   it("locks OCEAN, mints FISH, burns FISH, and unlocks OCEAN with zero emissions", async function () {
@@ -102,28 +31,32 @@ describe("Fish OCEAN staking and capacity pool", function () {
     expect(await ocean.balanceOf(holder.address)).to.equal(parse("10000"));
   });
 
-  it("does not pull funded emissions when no user has staked", async function () {
+  it("does not allocate pre-funded emissions when no user has staked", async function () {
     const { operator, emissionSource, ocean, staking } = await deploySystem();
+    const stakingAddress = await staking.getAddress();
 
     expect(await staking.totalSupply()).to.equal(0n);
-    expect(await staking.balanceOf(await staking.getAddress())).to.equal(0n);
+    expect(await staking.balanceOf(stakingAddress)).to.equal(0n);
 
-    await ocean.connect(emissionSource).approve(await staking.getAddress(), parse("1000"));
+    await ocean.connect(emissionSource).approve(stakingAddress, parse("1000"));
+    await staking.connect(emissionSource).fundEmissions(parse("1000"));
     await staking.setEmissionRate(parse("1"));
     await increaseTime(100);
 
     await staking.connect(operator).claim();
 
-    expect(await ocean.balanceOf(emissionSource.address)).to.equal(parse("10000"));
-    expect(await ocean.balanceOf(await staking.getAddress())).to.equal(0n);
+    expect(await ocean.balanceOf(emissionSource.address)).to.equal(parse("9000"));
+    expect(await ocean.balanceOf(stakingAddress)).to.equal(parse("1000"));
+    expect(await staking.emissionReserve()).to.equal(parse("1000"));
     expect(await staking.pendingRewards(operator.address)).to.equal(0n);
   });
 
-  it("keeps OCEAN emissions disabled by default and can pull funded emissions from a reserve wallet", async function () {
+  it("keeps OCEAN emissions disabled by default and distributes from a pre-funded reserve", async function () {
     const { holder, holderTwo, treasury, emissionSource, ocean, fish, staking } = await deploySystem();
+    const stakingAddress = await staking.getAddress();
 
-    await ocean.connect(holder).approve(await staking.getAddress(), parse("1000"));
-    await ocean.connect(holderTwo).approve(await staking.getAddress(), parse("1000"));
+    await ocean.connect(holder).approve(stakingAddress, parse("1000"));
+    await ocean.connect(holderTwo).approve(stakingAddress, parse("1000"));
     await staking.connect(holder).stake(holder.address, parse("1000"));
     await staking.connect(holderTwo).stake(holderTwo.address, parse("1000"));
     await staking.connect(holder).mintFish(parse("500"), 0);
@@ -132,15 +65,20 @@ describe("Fish OCEAN staking and capacity pool", function () {
     await staking.connect(holder).claim();
     expect(await ocean.balanceOf(treasury.address)).to.equal(0n);
 
-    await ocean.connect(emissionSource).approve(await staking.getAddress(), parse("1000"));
+    await ocean.connect(emissionSource).approve(stakingAddress, parse("1000"));
+    await expect(staking.connect(emissionSource).fundEmissions(parse("1000")))
+      .to.emit(staking, "EmissionReserveFunded")
+      .withArgs(emissionSource.address, parse("1000"));
     await staking.setEmissionRate(parse("1"));
     await increaseTime(100);
 
     await staking.connect(holder).claim();
     await staking.connect(holderTwo).claim();
 
+    expect(await ocean.balanceOf(emissionSource.address)).to.equal(parse("9000"));
     expect(await ocean.balanceOf(treasury.address)).to.be.gt(0n);
-    expect(await ocean.balanceOf(await staking.getAddress())).to.be.gt(parse("2000"));
+    expect(await ocean.balanceOf(stakingAddress)).to.be.gt(parse("2000"));
+    expect(await staking.emissionReserve()).to.be.lt(parse("1000"));
     expect(await fish.balanceOf(holder.address)).to.equal(parse("50"));
   });
 

@@ -10,7 +10,6 @@ const BASE_SEPOLIA_CHAIN_ID = 84532;
 const BASE_USDC_ADDRESS = "0x833589fcD6EDb6E08f4c7C32D4f71b54bdA02913";
 const DEFAULT_RPC_TIMEOUT_MS = 4000;
 const DEFAULT_CONFIRMATIONS = 1;
-const OCEAN_STAKING_BOOTSTRAP_SOCEAN_SUPPLY = 1_000_000_000_000_000_000n;
 
 const ERC20_ABI = [
   { type: "function", name: "allowance", stateMutability: "view", inputs: [{ name: "owner", type: "address" }, { name: "spender", type: "address" }], outputs: [{ name: "", type: "uint256" }] },
@@ -621,11 +620,7 @@ function defaultUsdcAddress(chainId: number) {
 }
 
 export function visibleSOceanSupplyFromTotalSupply(sOceanSupply: bigint) {
-  return subtractFloor(sOceanSupply, OCEAN_STAKING_BOOTSTRAP_SOCEAN_SUPPLY);
-}
-
-function subtractFloor(value: bigint, delta: bigint) {
-  return value > delta ? value - delta : 0n;
+  return sOceanSupply;
 }
 
 function resolveDataState({ onchainState, requiredConfigured }: { onchainState: DataState; requiredConfigured: boolean }): DataState {

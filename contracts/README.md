@@ -13,7 +13,7 @@ Status:
 
 ```text
 FishToken.sol            DIEM-style FISH token with role-gated mint/burn and stake cooldown.
-FishOceanStaking.sol     Venice-style OCEAN deposit, sOCEAN accounting, FISH mint/burn, optional funded emissions.
+FishOceanStaking.sol     Venice-style OCEAN deposit, sOCEAN accounting, FISH mint/burn, optional reserve-funded emissions.
 FishCapacityPool.sol     AntSeed-inspired FISH capacity pool for paid USDC demand.
 FishERC1967Proxy.sol     ERC1967 proxy wrapper for the UUPS staking contract.
 test/TestERC20.sol       Local test token fixture.
@@ -26,6 +26,7 @@ From the repository root:
 ```bash
 npm run contracts:compile
 npm run contracts:test
+npm run contracts:security
 npm run contracts:deploy:testnet
 ```
 
@@ -34,10 +35,60 @@ Or directly:
 ```bash
 npm --prefix contracts run compile
 npm --prefix contracts test
+npm --prefix contracts run security
 npm --prefix contracts run deploy:testnet
 ```
 
 Hardhat warns when run on unsupported Node.js versions. Use Node.js 22 for the most stable local workflow.
+
+## Security Test Harness
+
+Run the full local contract security harness from the repository root:
+
+```bash
+npm run contracts:security
+```
+
+This compiles the Solidity contracts, runs the complete Hardhat test suite, runs the invariant-style Hardhat tests, and then runs optional Slither static analysis when `slither` is available on `PATH`.
+
+For dependency-isolated Slither without installing Python packages locally:
+
+```bash
+npm run contracts:security:docker
+```
+
+The Docker runner uses `trailofbits/eth-security-toolbox:latest` by default, mounts `contracts/` into the container, and keeps container Node dependencies in the `opfish-slither-node-modules` Docker volume so host `contracts/node_modules` is not rewritten. Override the image or platform with:
+
+```bash
+SLITHER_DOCKER_IMAGE=trailofbits/eth-security-toolbox:latest \
+SLITHER_DOCKER_PLATFORM=linux/amd64 \
+npm run contracts:security:docker
+```
+
+For CI or an audit-prep machine where static analysis must not be skipped:
+
+```bash
+npm run contracts:security:strict
+```
+
+Strict mode fails if Slither is not installed. Install it with:
+
+```bash
+python3 -m pip install slither-analyzer
+```
+
+Useful narrower commands:
+
+```bash
+npm --prefix contracts run test:unit
+npm --prefix contracts run test:invariants
+npm --prefix contracts run security:static:docker
+npm --prefix contracts run security:static:strict
+```
+
+The invariant suite focuses on accounting and authorization properties that should remain true across staking, FISH mint/burn, capacity-pool staking, USDC settlement, reward emissions, cooldown exits, and owner/operator controls.
+
+See `SLITHER_TRIAGE.md` for the current detector triage and the remaining mainnet-readiness follow-ups.
 
 ## Base Sepolia Deployment
 
@@ -76,10 +127,11 @@ The core compatibility difference is emissions:
 
 ```text
 Venice: staking contract mints VVV rewards.
-Fish: staking contract can pull funded OCEAN from an emission source.
+Fish: configured emission source pushes OCEAN into a pre-funded staking reserve.
+Fish: staking contract allocates rewards from that reserve.
 ```
 
-If the emission rate is zero, no OCEAN rewards are distributed. That is the expected default unless an OceanDAO or operator-funded reserve is explicitly configured.
+If the emission rate is zero, no OCEAN rewards are distributed. That is the expected default unless an OceanDAO or operator-funded reserve is explicitly configured. To enable prototype OCEAN emissions, the configured emission source approves the staking proxy and calls `fundEmissions(amount)` before the owner sets a nonzero emission rate.
 
 The capacity pool follows the AntSeed pattern at a simpler boundary:
 

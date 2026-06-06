@@ -118,6 +118,8 @@ npm run smoke      # Typecheck + build
 npm run verify     # Lint + typecheck + build
 npm run contracts:compile
 npm run contracts:test
+npm run contracts:security
+npm run contracts:security:docker
 npm run contracts:deploy:testnet
 ```
 
@@ -148,6 +150,14 @@ Or use Compose:
 
 ```bash
 cp .env.production.example .env.production
+python - <<'PY_ENV'
+from pathlib import Path
+from secrets import token_urlsafe
+path = Path(".env.production")
+text = path.read_text()
+text = text.replace("FISH_ADMIN_TOKEN=", f"FISH_ADMIN_TOKEN={token_urlsafe(32)}", 1)
+path.write_text(text)
+PY_ENV
 docker compose up --build
 ```
 
@@ -168,7 +178,7 @@ The container runs the Next.js standalone server as a non-root user. Form submis
 
 Compose mounts those paths as named volumes named `fish-submissions`, `fish-ledger`, `fish-proof`, and `fish-staking`.
 
-The root Compose file reads `${FISH_ENV_FILE:-.env.production}` when present. Keep `FISH_ADMIN_TOKEN` set before exposing admin routes. For a public site before Fish Runner is configured, leave `FISH_CHAT_ROUTE=mock` so the meal counter labels itself as demo mode, or set `FISH_CHAT_PAUSED=true` to stop orders entirely.
+The root Compose file reads `${FISH_ENV_FILE:-.env.production}` when present. Set `FISH_ADMIN_TOKEN` to a unique long random secret before using or exposing admin routes. For a public site before Fish Runner is configured, leave `FISH_CHAT_ROUTE=mock` so the meal counter labels itself as demo mode, or set `FISH_CHAT_PAUSED=true` to stop orders entirely.
 
 ### Protected VM Preview
 
@@ -176,6 +186,14 @@ For a fresh VM or password-protected preview, copy the production example, set a
 
 ```bash
 cp .env.production.example .env.production
+python - <<'PY_ENV'
+from pathlib import Path
+from secrets import token_urlsafe
+path = Path(".env.production")
+text = path.read_text()
+text = text.replace("FISH_ADMIN_TOKEN=", f"FISH_ADMIN_TOKEN={token_urlsafe(32)}", 1)
+path.write_text(text)
+PY_ENV
 make nginx-password BASIC_USER=fish BASIC_PASSWORD='replace-with-a-long-password'
 make preview-up
 ```
@@ -259,6 +277,7 @@ FISH_DAILY_ANONYMOUS_QUOTA=5
 FISH_RATE_LIMIT_MAX_BUCKETS=10000
 # Granted once to the shared unauthenticated guest account, not once per browser.
 FISH_GUEST_CREDIT_GRANT=25
+# Optional deployment namespace for the shared guest bucket; it is not a bearer credential.
 FISH_GUEST_ID_SALT=
 FISH_CHAT_PAUSED=false
 FISH_ROUTER_KILL_SWITCH=false
@@ -374,7 +393,7 @@ Fish stores usage numbers, route metadata, latency, cost estimates, and request 
 
 Feature caps are layered under the global token limits. For example, Code can have a larger cap than Ask when `FISH_MAX_OUTPUT_TOKENS` is raised, while Images remain disabled until a paid image route exists.
 
-Unauthenticated meal and dish routes use one deployment-scoped anonymous guest identity for quota and demo credit accounting. `FISH_GUEST_ID_SALT` can separate that bucket between deployments, but Fish does not trust client-supplied proxy headers such as `X-Forwarded-For` or `X-Real-IP` for guest credit grants.
+Unauthenticated meal and dish routes use one deployment-scoped anonymous guest identity for quota and demo credit accounting. `FISH_GUEST_ID_SALT` can separate that bucket between deployments, but Fish does not trust client-supplied proxy headers such as `X-Forwarded-For` or `X-Real-IP` for guest credit grants. Guest ledger accounts are internal-only and their anonymous principal must not authenticate as a `/v1` bearer API key.
 
 The public route compass shows what is active without exposing secrets:
 
@@ -398,7 +417,7 @@ curl -sS http://127.0.0.1:3000/v1/api_keys \
   -d '{"label":"Local pilot","creditGrant":1000,"planId":"free"}'
 ```
 
-In local development, `FISH_ADMIN_TOKEN` may be empty. Set it to a unique long random secret in production before issuing keys; public placeholder values such as `change-me-for-production` are rejected by the admin guard.
+In local development, `FISH_ADMIN_TOKEN` may be empty. Set it to a unique long random secret in production before issuing keys; public placeholder values such as `change-me-for-production` or `replace-with-a-long-random-secret` are rejected by the admin guard.
 
 List models:
 
@@ -505,7 +524,7 @@ Public-safe registry data is available at:
 /api/providers/pilot
 ```
 
-The endpoint hides contacts, exact endpoints, private payout preferences, and operator notes. It exposes only public labels, status, capacity summary, allowlist constraints, and a Fish-ready checklist. Provider applications can include optional health endpoint, price hint, payout readiness, ops contact, approved runner/container, and no prompt/output logging policy fields. Public responses keep exact values private and use booleans, counts, and non-sensitive identifiers instead; private health endpoints are represented only as readiness status, never as endpoint URLs or endpoint hashes.
+The endpoint hides contacts, exact endpoints, private payout preferences, and operator notes. It exposes only public labels, status, capacity summary, allowlist constraints, and a Fish-ready checklist. Provider applications can include optional health endpoint, price hint, payout readiness, ops contact, approved runner/container, and no prompt/output logging policy fields. Public responses keep exact values private and use generic labels, booleans, or counts instead; endpoint hashes, source application ids, operator owners, and operator decision reasons stay in admin-only/operator paths.
 
 Admin-only operator export is available at:
 

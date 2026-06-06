@@ -3,6 +3,7 @@ import { streamChatCompletion } from "@/lib/chatCompletionStream";
 import { authenticateRequest, parseChatCompletion } from "@/lib/fishLedger";
 import { getFishRouterConfig } from "@/lib/fishRouter";
 import { runFishChatGateway } from "@/lib/fishChatGateway";
+import { readJsonRequestBody } from "@/lib/requestBody";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +13,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: { message: auth.error, type: "authentication_error" } }, { status: auth.status });
   }
 
-  const parsed = parseChatCompletion(await request.json().catch(() => ({})));
+  const body = await readJsonRequestBody(request);
+  if (!body.ok) {
+    return NextResponse.json({ error: { message: body.error, type: "invalid_request_error", maxBytes: body.maxBytes } }, { status: body.status });
+  }
+
+  const parsed = parseChatCompletion(body.body);
   if (!parsed.success) {
     return NextResponse.json(
       {

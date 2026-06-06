@@ -24,6 +24,14 @@ const FISH_DISH_MODEL_IDS = FISH_DISH_MODELS.map((model) => model.id);
 const FISH_OCEAN_DEMO_MODEL_IDS = compactIds([process.env.FISH_OCEAN_DEMO_VLLM_MODEL]);
 const FISH_OCEAN_PROVIDER_MODEL_IDS = compactIds([process.env.FISH_OCEAN_PROVIDER_MODEL]);
 const FISH_EXTERNAL_MODEL_IDS = compactIds([process.env.FISH_EXTERNAL_CHAT_MODEL]);
+const CHAT_MAX_MESSAGES = 64;
+const CHAT_MAX_TEXT_CONTENT_CHARS = 20_000;
+const CHAT_MAX_ARRAY_CONTENT_ITEMS = 64;
+const CHAT_MAX_METADATA_KEYS = 32;
+const chatMessageContentSchema = z.union([z.string().max(CHAT_MAX_TEXT_CONTENT_CHARS), z.array(z.unknown()).max(CHAT_MAX_ARRAY_CONTENT_ITEMS)]);
+const chatMetadataSchema = z.record(z.unknown()).refine((metadata) => Object.keys(metadata).length <= CHAT_MAX_METADATA_KEYS, {
+  message: `metadata cannot contain more than ${CHAT_MAX_METADATA_KEYS} keys`
+});
 
 export const FISH_MODELS = uniqueModels([
   {
@@ -134,15 +142,26 @@ export const chatCompletionSchema = z.object({
     .array(
       z.object({
         role: z.enum(["system", "user", "assistant", "tool"]).catch("user"),
-        content: z.union([z.string(), z.array(z.unknown())]).optional().default("")
+        content: chatMessageContentSchema.optional().default("")
       })
     )
-    .min(1),
+    .min(1)
+    .max(CHAT_MAX_MESSAGES),
   stream: z.boolean().optional().default(false),
   temperature: z.number().min(0).max(2).optional(),
   max_tokens: z.number().int().min(1).max(4096).optional(),
-  metadata: z.record(z.unknown()).optional()
+  metadata: chatMetadataSchema.optional().transform(stripPublicChatMetadata)
 });
+
+function stripPublicChatMetadata(metadata: Record<string, unknown> | undefined) {
+  if (!metadata || !("fish_order_text" in metadata)) {
+    return metadata;
+  }
+
+  const { fish_order_text: _fishOrderText, ...safeMetadata } = metadata;
+  void _fishOrderText;
+  return safeMetadata;
+}
 
 export type ChatCompletionInput = z.infer<typeof chatCompletionSchema>;
 
@@ -156,7 +175,7 @@ export type Account = {
   planId?: FishPlanId;
   planActivatedAt?: string | null;
   planExpiresAt?: string | null;
-  planSource?: "pilot_key" | "operator_subscription" | null;
+  planSource?: "pilot_key" | "operator_subscription" | "guest_demo" | null;
   creditBalance: number;
   totalCreditsGranted: number;
   totalCreditsSpent: number;
@@ -418,7 +437,7 @@ export function parseChatCompletion(body: unknown) {
   return chatCompletionSchema.safeParse(body);
 }
 
-const UNSAFE_ADMIN_TOKENS = new Set(["change-me-for-production"]);
+const UNSAFE_ADMIN_TOKENS = new Set(["change-me-for-production", "replace-with-a-long-random-secret"]);
 
 function isUnsafeAdminToken(token: string) {
   return UNSAFE_ADMIN_TOKENS.has(token.trim().toLowerCase());
@@ -488,9 +507,16 @@ export async function createApiKey(label: string, creditGrant: number, planId: F
 
 export async function getOrCreateGuestAccount(guestId: string, creditGrant = 25) {
   const ledger = await readLedger();
-  const keyHash = hashSecret(`guest:${guestId}`);
-  const existing = ledger.accounts.find((candidate) => candidate.keyHash === keyHash);
+  const id = guestAccountId(guestId);
+  const keyHash = guestAccountKeyHash(guestId);
+  const legacyKeyHash = hashSecret(`guest:${guestId}`);
+  const existing = ledger.accounts.find((candidate) => candidate.id === id || candidate.keyHash === keyHash || candidate.keyHash === legacyKeyHash);
   if (existing) {
+    if (existing.keyHash !== keyHash || existing.planSource !== "guest_demo") {
+      existing.keyHash = keyHash;
+      existing.planSource = "guest_demo";
+      await writeLedger(ledger);
+    }
     return {
       ledger,
       account: existing
@@ -499,7 +525,7 @@ export async function getOrCreateGuestAccount(guestId: string, creditGrant = 25)
 
   const now = new Date().toISOString();
   const account: Account = {
-    id: randomUUID(),
+    id,
     label: `Guest ${guestId.slice(0, 8)}`,
     keyHash,
     createdAt: now,
@@ -508,7 +534,7 @@ export async function getOrCreateGuestAccount(guestId: string, creditGrant = 25)
     planId: "free",
     planActivatedAt: now,
     planExpiresAt: null,
-    planSource: "pilot_key",
+    planSource: "guest_demo",
     creditBalance: creditGrant,
     totalCreditsGranted: creditGrant,
     totalCreditsSpent: 0,
@@ -550,7 +576,7 @@ export async function authenticateRequest(request: Request) {
   const ledger = await readLedger();
   const keyHash = hashSecret(token);
   const account = ledger.accounts.find((candidate) => candidate.keyHash === keyHash);
-  if (!account) {
+  if (!account || isGuestDemoAccount(account)) {
     return {
       ok: false as const,
       status: 401,
@@ -1039,11 +1065,11 @@ export async function recordChatUsage(params: {
     }
 
     // A backend that ignores the reserved max-token cap must not turn a paid provider call into
-    // a post-call 402 with no debit. Spend the available reserved balance instead.
-    const creditsSpent =
-      params.reservation && account.creditBalance < estimatedCreditsSpent
-        ? Math.max(1, account.creditBalance)
-        : estimatedCreditsSpent;
+    // a post-call 402 with no debit, but untrusted provider-reported usage must never spend
+    // more than the amount reserved for this request.
+    const creditsSpent = params.reservation
+      ? Math.min(estimatedCreditsSpent, params.reservation.credits)
+      : estimatedCreditsSpent;
 
     if (!params.reservation) {
       const spendableBalance = await readSpendableCreditBalance(account, now);
@@ -1264,6 +1290,22 @@ export function buildMockCompletion(input: ChatCompletionInput) {
 
 export function estimateTokens(value: string) {
   return Math.max(1, Math.ceil(value.length / 4));
+}
+
+function guestAccountId(guestId: string) {
+  return `guest_${hashSecret(`fish:guest-account-id:${guestId}`).slice(0, 32)}`;
+}
+
+function guestAccountKeyHash(guestId: string) {
+  return `guest_account:${hashSecret(`fish:guest-account-key:${guestId}`)}`;
+}
+
+function isGuestDemoAccount(account: Account) {
+  if (account.planSource === "guest_demo") {
+    return true;
+  }
+
+  return /^Guest (?:[a-f0-9]{8}|shared-a)$/.test(account.label);
 }
 
 function bearerToken(request: Request) {
@@ -1558,6 +1600,9 @@ function calculateSpendableCreditLaneBalances(entries: CreditLedgerEntry[], now:
     for (const lot of lots.sort(compareCreditLotsForSpend)) {
       if (debitRemaining <= 0) {
         break;
+      }
+      if (!isCreditLotSpendable(lot, entry.createdAt)) {
+        continue;
       }
       const debit = Math.min(lot.amount, debitRemaining);
       lot.amount -= debit;

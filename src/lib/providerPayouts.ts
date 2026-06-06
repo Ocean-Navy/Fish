@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
+import { toCsv } from "@/lib/csv";
 import { collectProviderPilotRegistry } from "@/lib/providerPilot";
 import type { ProviderJobReceipt } from "@/lib/providerJobs";
 import type { DataState } from "@/lib/types";
@@ -592,15 +593,6 @@ function queryObject(searchParams: URLSearchParams) {
     }
   }
   return Object.fromEntries(entries);
-}
-
-function toCsv(headers: string[], rows: Array<Array<string | number>>) {
-  return `${headers.join(",")}\n${rows.map((row) => row.map(csvCell).join(",")).join("\n")}\n`;
-}
-
-function csvCell(value: string | number) {
-  const text = String(value);
-  return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
 }
 
 function shortHash(value: string) {

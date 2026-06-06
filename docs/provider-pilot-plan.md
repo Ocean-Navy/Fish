@@ -82,8 +82,8 @@ expiresAt
 - Operators may also seed selected providers directly from `FISH_PROVIDER_ALLOWLIST` or `data/provider_allowlist.json`; these rows are marked selected but still need health, price, payout, privacy, support, and runner/container readiness before Fish treats them as fully ready.
 - Oncompute `/nodes` and `/envs` data can enrich node identity, region, GPU inventory, HTTP/P2P status, version, and eligibility.
 - `pilotEligible` is a Fish decision. It must not be a direct copy of Ocean node eligibility.
-- Public labels should use a friendly display name or shortened node id. Do not publish contact data, exact IPs, admin addresses, or private payout details.
-- Public readiness should use booleans and counts for health endpoints, pricing, payout, support, logging policy, and approved runner/container state. Do not publish health endpoint URLs or deterministic health endpoint hashes.
+- Public labels should use a maintainer-approved friendly display name or a generated provider id label. Do not derive public labels from submitted endpoint hostnames, and do not publish contact data, exact IPs, endpoint hashes, source application ids, admin addresses, operator owners, decision reasons, or private payout details.
+- Public readiness should use booleans and counts for health endpoints, pricing, payout, support, logging policy, and approved runner/container state. Endpoint URLs and endpoint hashes remain operator-only because hashes can fingerprint likely provider infrastructure.
 - The allowlist should be checked before every provider-routed job, including benchmark jobs.
 
 ### Definition Of Done

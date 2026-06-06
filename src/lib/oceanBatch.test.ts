@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { runOceanBatchJob } from "./oceanBatch";
+import { parseOceanBatchJobRequest, runOceanBatchJob } from "./oceanBatch";
 import type { Account, Ledger } from "./fishLedger";
 
 test("live Ocean batch adapter requires an Ocean-eligible plan", async () => {
@@ -45,6 +45,49 @@ test("live Ocean batch reservation covers the caller-selected provider cost cap"
   assert.equal(result.error, "insufficient_fish_credits");
   if (!result.ok && "needed" in result) {
     assert.equal(result.needed, 100);
+    assert.equal(result.available, 1);
+  }
+});
+
+test("Ocean batch payload estimates cannot be under-reported", () => {
+  const parsed = parseOceanBatchJobRequest({
+    taskType: "document_summary",
+    inputRef: "sha256:payload-estimate-parse-test",
+    inputPayload: "x".repeat(4000),
+    estimatedInputTokens: 1,
+    maxOutputTokens: 1,
+    maxRuntimeSeconds: 60,
+    maxCostUsd: 1,
+    adapterMode: "sample_success"
+  });
+
+  assert.equal(parsed.success, false);
+  if (!parsed.success) {
+    assert.match(parsed.error.flatten().fieldErrors.estimatedInputTokens?.[0] ?? "", /estimatedInputTokens must be at least/);
+  }
+});
+
+test("Ocean batch credit reservation includes private payload tokens", async () => {
+  const { account, ledger } = testLedger({ planId: "free", creditBalance: 1 });
+
+  const result = await runOceanBatchJob(
+    {
+      taskType: "document_summary",
+      inputRef: "sha256:payload-reserve-test",
+      inputPayload: "x".repeat(4000),
+      maxOutputTokens: 1,
+      maxRuntimeSeconds: 60,
+      maxCostUsd: 1,
+      adapterMode: "sample_success"
+    },
+    { account, ledger }
+  );
+
+  assert.equal(result.ok, false);
+  assert.equal(result.status, 402);
+  assert.equal(result.error, "insufficient_fish_credits");
+  if (!result.ok && "needed" in result) {
+    assert.equal(result.needed, 2);
     assert.equal(result.available, 1);
   }
 });

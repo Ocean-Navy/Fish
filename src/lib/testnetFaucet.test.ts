@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, test } from "node:test";
@@ -77,6 +77,42 @@ test("testnet faucet config derives faucet address without exposing it publicly 
 
   assert.equal(config.faucetPrivateKey, process.env.FISH_TESTNET_FAUCET_PRIVATE_KEY);
   assert.match(config.faucetAddress ?? "", /^0x[a-fA-F0-9]{40}$/);
+});
+
+test("testnet faucet reserves a claim before transfers so concurrent requests cannot bypass limits", async () => {
+  process.env.FISH_TESTNET_FAUCET_ENABLED = "true";
+  process.env.FISH_TESTNET_FAUCET_PRIVATE_KEY = `0x${"11".repeat(32)}`;
+  process.env.FISH_TESTNET_FAUCET_RPC_URL = "http://127.0.0.1:8545";
+  process.env.FISH_TESTNET_FAUCET_OCEAN_TOKEN_ADDRESS = "0x2222222222222222222222222222222222222222";
+  process.env.FISH_TESTNET_FAUCET_USDC_TOKEN_ADDRESS = "0x3333333333333333333333333333333333333333";
+  process.env.FISH_TESTNET_FAUCET_MAX_DAILY_CLAIMS = "1";
+
+  const claimsPath = await tempClaimsPath();
+  let transferSubmissions = 0;
+  const submitTransfers = async () => {
+    transferSubmissions += 1;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    return {
+      ethSent: true,
+      ethTxHash: `0x${"44".repeat(32)}` as const,
+      oceanTxHash: `0x${"55".repeat(32)}` as const,
+      usdcTxHash: `0x${"66".repeat(32)}` as const
+    };
+  };
+
+  const [first, second] = await Promise.all([
+    claimTestnetFaucet("0x1111111111111111111111111111111111111111", "203.0.113.10", { claimsPath, submitTransfers }),
+    claimTestnetFaucet("0x1111111111111111111111111111111111111111", "203.0.113.10", { claimsPath, submitTransfers })
+  ]);
+
+  const results = [first, second];
+  assert.equal(results.filter((result) => result.ok).length, 1);
+  assert.equal(results.filter((result) => !result.ok && result.status === 429).length, 1);
+  assert.equal(transferSubmissions, 1);
+
+  const ledger = JSON.parse(await readFile(claimsPath, "utf8"));
+  assert.equal(ledger.claims.length, 1);
+  assert.equal(ledger.claims[0].status, "succeeded");
 });
 
 async function tempClaimsPath() {

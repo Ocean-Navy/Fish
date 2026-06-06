@@ -250,7 +250,7 @@ paths:
   /api/dishes/{dishId}/run:
     post:
       summary: Run a Fish AI menu dish
-      description: Runs a menu dish such as ask, code, docs, repo, eval, data, proposal, or ocean with server-side prompts. Non-batch dishes use a shared anonymous guest credit/quota bucket when no bearer key is provided and Fish API-key credits when authorization is present. Ocean batch dishes return public-safe ticket metadata and require a bearer Fish API key on an Ocean-provider-allowed plan.
+      description: Runs a menu dish such as ask, code, docs, repo, eval, data, proposal, or ocean with server-side prompts. Non-batch dishes use an internal shared anonymous guest credit/quota bucket when no bearer key is provided and Fish API-key credits when authorization is present; the guest principal is not accepted as a bearer API key. Ocean batch dishes return public-safe ticket metadata and require a bearer Fish API key on an Ocean-provider-allowed plan.
       parameters:
         - in: path
           name: dishId
@@ -284,7 +284,7 @@ paths:
   /api/meal/order:
     post:
       summary: Guest Fish meal-counter order
-      description: Globally capped guest route for the public meal counter. Uses the same chat request shape without exposing a Fish API key, and unauthenticated callers share one anonymous quota principal.
+      description: Globally capped guest route for the public meal counter. Uses the same chat request shape without exposing or accepting a Fish API key, and unauthenticated callers share one internal anonymous quota principal.
       requestBody:
         required: true
         content:
@@ -528,6 +528,7 @@ paths:
   /api/providers/pilot:
     get:
       summary: Public-safe provider pilot registry and selected allowlist
+      description: Returns redacted public provider labels, readiness booleans, counts, and routing constraints without source application ids, endpoint hashes, endpoint URLs, operator owners, or operator decision reasons.
       parameters:
         - in: query
           name: providerId
@@ -1990,6 +1991,7 @@ components:
           type: integer
           minimum: 1
           maximum: 200000
+          description: Optional caller estimate. When inputPayload is present, it must be at least Fish's minimum estimate for the input reference plus private payload.
         maxOutputTokens:
           type: integer
           minimum: 1
@@ -2445,6 +2447,10 @@ components:
                 type: string
               fallback:
                 type: string
+              maxInputTokens:
+                type: integer
+              maxOutputTokens:
+                type: integer
               cap:
                 type: string
         rules:
@@ -2695,14 +2701,6 @@ components:
           type: string
         displayName:
           type: string
-        sourceApplicationId:
-          type: string
-          nullable: true
-        nodeEndpointHash:
-          type: string
-          nullable: true
-        healthEndpointReady:
-          type: boolean
         region:
           type: string
         gpuTypes:
@@ -2770,8 +2768,6 @@ components:
           type: number
         benchmarkRequired:
           type: boolean
-        healthEndpointReady:
-          type: boolean
         priceShared:
           type: boolean
         payoutReady:
@@ -2782,10 +2778,6 @@ components:
           type: integer
         supportReady:
           type: boolean
-        operatorOwner:
-          type: string
-        decisionReason:
-          type: string
         startsAt:
           type: string
         expiresAt:
@@ -4758,7 +4750,7 @@ components:
         receipts:
           type: array
           items:
-            $ref: '#/components/schemas/ProviderJobReceipt'
+            $ref: '#/components/schemas/ReceiptLedgerItem'
         warnings:
           type: array
           items:
@@ -4982,19 +4974,22 @@ components:
         successUrl:
           type: string
           format: uri
+          description: Optional checkout success redirect. Must be on the configured Fish app origin.
         cancelUrl:
           type: string
           format: uri
+          description: Optional checkout cancel redirect. Must be on the configured Fish app origin.
     FishUsdcCheckoutRequest:
       allOf:
         - $ref: '#/components/schemas/FishCheckoutRequest'
         - type: object
           additionalProperties: false
+          required: [payerAddress]
           properties:
             payerAddress:
               type: string
               pattern: '^0x[a-fA-F0-9]{40}$'
-              description: Optional sender address to require during transfer verification.
+              description: Sender address required during transfer verification.
     FishUsdcConfirmationRequest:
       type: object
       additionalProperties: false

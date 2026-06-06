@@ -70,6 +70,8 @@ export type FishRoutePolicy = {
     state: "live-beta" | "beta" | "coming-soon";
     primary: string;
     fallback: string;
+    maxInputTokens: number;
+    maxOutputTokens: number;
     cap: string;
   }>;
   rules: Array<{
@@ -201,6 +203,8 @@ export function getFishRoutePolicy(): FishRoutePolicy {
       state: feature.state,
       primary: feature.primary,
       fallback: feature.fallback,
+      maxInputTokens: feature.maxInputTokens,
+      maxOutputTokens: feature.maxOutputTokens,
       cap: feature.enabled
         ? `${feature.cap} / ${
             feature.id === "api"

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { createPublicClient, createWalletClient, formatUnits, http, parseEther, parseUnits } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
@@ -15,6 +15,9 @@ const DEFAULT_BASE_SEPOLIA_RPC = "https://sepolia.base.org";
 const DEFAULT_BASE_SEPOLIA_EXPLORER = "https://sepolia.basescan.org";
 const ADDRESS_PATTERN = /^0x[a-fA-F0-9]{40}$/;
 const PRIVATE_KEY_PATTERN = /^0x[a-fA-F0-9]{64}$/;
+const FAUCET_LOCK_RETRY_MS = 50;
+const FAUCET_LOCK_TIMEOUT_MS = 10_000;
+const PENDING_CLAIM_TTL_MS = 30 * 60_000;
 
 const ERC20_TRANSFER_ABI = [
   { type: "function", name: "balanceOf", stateMutability: "view", inputs: [{ name: "account", type: "address" }], outputs: [{ name: "", type: "uint256" }] },
@@ -85,7 +88,7 @@ export type TestnetFaucetClaim = {
   walletHash: string;
   walletPrefix: string;
   ipHash: string;
-  status: "succeeded" | "failed";
+  status: "pending" | "succeeded" | "failed";
   createdAt: string;
   chainId: number;
   ethTxHash: string | null;
@@ -98,9 +101,12 @@ type FaucetLedger = {
   claims: TestnetFaucetClaim[];
 };
 
+type FaucetTransferResult = Awaited<ReturnType<typeof submitFaucetTransfers>>;
+
 type TestnetFaucetOptions = {
   claimsPath?: string;
   now?: Date;
+  submitTransfers?: (config: TestnetFaucetConfig, walletAddress: string) => Promise<FaucetTransferResult>;
 };
 
 export function parseTestnetFaucetClaim(body: unknown) {
@@ -161,34 +167,42 @@ export async function claimTestnetFaucet(walletAddress: string, ipAddress: strin
     return { ok: false as const, status: 503, error: readiness.reason };
   }
 
-  const ledger = await readFaucetLedger(options.claimsPath);
-  const rateLimit = checkFaucetRateLimit(ledger, {
-    config,
-    ipHash,
-    now,
-    walletHash: hashValue(normalizedWallet)
-  });
-  if (!rateLimit.ok) {
-    return rateLimit;
-  }
+  const walletHash = hashValue(normalizedWallet);
+  const pendingClaim = await withFaucetLedgerLock(options.claimsPath, async (ledger) => {
+    const rateLimit = checkFaucetRateLimit(ledger, {
+      config,
+      ipHash,
+      now,
+      walletHash
+    });
+    if (!rateLimit.ok) {
+      return rateLimit;
+    }
 
-  try {
-    const result = await submitFaucetTransfers(config, normalizedWallet);
     const claim: TestnetFaucetClaim = {
-      claimId: `faucet_${now.getTime()}_${hashValue(`${normalizedWallet}:${now.toISOString()}`).slice(0, 12)}`,
-      walletHash: hashValue(normalizedWallet),
+      claimId: `faucet_${now.getTime()}_${hashValue(`${normalizedWallet}:${ipHash}:${now.toISOString()}:${process.hrtime.bigint()}`).slice(0, 12)}`,
+      walletHash,
       walletPrefix: `${normalizedWallet.slice(0, 6)}...${normalizedWallet.slice(-4)}`,
       ipHash,
-      status: "succeeded",
+      status: "pending",
       createdAt: now.toISOString(),
       chainId: config.chainId,
-      ethTxHash: result.ethTxHash,
-      oceanTxHash: result.oceanTxHash,
-      usdcTxHash: result.usdcTxHash,
+      ethTxHash: null,
+      oceanTxHash: null,
+      usdcTxHash: null,
       failureReason: null
     };
     ledger.claims.push(claim);
-    await writeFaucetLedger(ledger, options.claimsPath);
+    return { ok: true as const, claim };
+  });
+  if (!pendingClaim.ok) {
+    return pendingClaim;
+  }
+
+  const submitTransfers = options.submitTransfers ?? submitFaucetTransfers;
+  try {
+    const result = await submitTransfers(config, normalizedWallet);
+    const claim = await finalizeFaucetClaim(pendingClaim.claim, result, options.claimsPath);
 
     return {
       ok: true as const,
@@ -205,25 +219,12 @@ export async function claimTestnetFaucet(walletAddress: string, ipAddress: strin
       }
     };
   } catch (error) {
-    const claim: TestnetFaucetClaim = {
-      claimId: `faucet_${now.getTime()}_${hashValue(`${normalizedWallet}:failed:${now.toISOString()}`).slice(0, 12)}`,
-      walletHash: hashValue(normalizedWallet),
-      walletPrefix: `${normalizedWallet.slice(0, 6)}...${normalizedWallet.slice(-4)}`,
-      ipHash,
-      status: "failed",
-      createdAt: now.toISOString(),
-      chainId: config.chainId,
-      ethTxHash: null,
-      oceanTxHash: null,
-      usdcTxHash: null,
-      failureReason: error instanceof Error ? error.message : "testnet_faucet_claim_failed"
-    };
-    ledger.claims.push(claim);
-    await writeFaucetLedger(ledger, options.claimsPath);
+    const failureReason = error instanceof Error ? error.message : "testnet_faucet_claim_failed";
+    await failFaucetClaim(pendingClaim.claim, failureReason, options.claimsPath);
     return {
       ok: false as const,
       status: 502,
-      error: claim.failureReason
+      error: failureReason
     };
   }
 }
@@ -254,6 +255,40 @@ export function getTestnetFaucetConfig(): TestnetFaucetConfig {
   };
 }
 
+async function finalizeFaucetClaim(pendingClaim: TestnetFaucetClaim, result: FaucetTransferResult, claimsPath?: string) {
+  return withFaucetLedgerLock(claimsPath, async (ledger) => {
+    const claim: TestnetFaucetClaim = {
+      ...pendingClaim,
+      status: "succeeded",
+      ethTxHash: result.ethTxHash,
+      oceanTxHash: result.oceanTxHash,
+      usdcTxHash: result.usdcTxHash,
+      failureReason: null
+    };
+    replaceFaucetClaim(ledger, claim);
+    return claim;
+  });
+}
+
+async function failFaucetClaim(pendingClaim: TestnetFaucetClaim, failureReason: string, claimsPath?: string) {
+  await withFaucetLedgerLock(claimsPath, async (ledger) => {
+    replaceFaucetClaim(ledger, {
+      ...pendingClaim,
+      status: "failed",
+      failureReason
+    });
+  });
+}
+
+function replaceFaucetClaim(ledger: FaucetLedger, claim: TestnetFaucetClaim) {
+  const existingIndex = ledger.claims.findIndex((entry) => entry.claimId === claim.claimId);
+  if (existingIndex >= 0) {
+    ledger.claims[existingIndex] = claim;
+    return;
+  }
+  ledger.claims.push(claim);
+}
+
 function getFaucetReadiness(config: TestnetFaucetConfig) {
   if (!config.enabled) return { ready: false, reason: "testnet_faucet_disabled" };
   if (config.chainId !== BASE_SEPOLIA_CHAIN_ID) return { ready: false, reason: "testnet_faucet_base_sepolia_required" };
@@ -273,27 +308,44 @@ function checkFaucetRateLimit(
     walletHash: string;
   }
 ) {
-  const successfulClaims = ledger.claims.filter((claim) => claim.status === "succeeded");
+  const limitableClaims = ledger.claims.filter((claim) => isLimitableClaim(claim, input.now));
   const dayStart = new Date(input.now);
   dayStart.setUTCHours(0, 0, 0, 0);
-  const dailyClaims = successfulClaims.filter((claim) => Date.parse(claim.createdAt) >= dayStart.getTime()).length;
+  const dailyClaims = limitableClaims.filter((claim) => Date.parse(claim.createdAt) >= dayStart.getTime()).length;
   if (dailyClaims >= input.config.maxDailyClaims) {
     return { ok: false as const, status: 429, error: "testnet_faucet_daily_cap_reached", resetAt: new Date(dayStart.getTime() + 24 * 60 * 60_000).toISOString() };
   }
 
-  const walletClaim = latestClaim(successfulClaims.filter((claim) => claim.walletHash === input.walletHash));
-  const walletResetAt = cooldownResetAt(walletClaim?.createdAt, input.config.cooldownHours);
+  const walletClaim = latestClaim(limitableClaims.filter((claim) => claim.walletHash === input.walletHash));
+  const walletResetAt = claimResetAt(walletClaim, input.config.cooldownHours);
   if (walletResetAt && walletResetAt.getTime() > input.now.getTime()) {
     return { ok: false as const, status: 429, error: "testnet_faucet_wallet_cooldown", resetAt: walletResetAt.toISOString() };
   }
 
-  const ipClaim = latestClaim(successfulClaims.filter((claim) => claim.ipHash === input.ipHash));
-  const ipResetAt = cooldownResetAt(ipClaim?.createdAt, input.config.ipCooldownHours);
+  const ipClaim = latestClaim(limitableClaims.filter((claim) => claim.ipHash === input.ipHash));
+  const ipResetAt = claimResetAt(ipClaim, input.config.ipCooldownHours);
   if (ipResetAt && ipResetAt.getTime() > input.now.getTime()) {
     return { ok: false as const, status: 429, error: "testnet_faucet_ip_cooldown", resetAt: ipResetAt.toISOString() };
   }
 
   return { ok: true as const };
+}
+
+function isLimitableClaim(claim: TestnetFaucetClaim, now: Date) {
+  if (claim.status === "succeeded") {
+    return true;
+  }
+  return claim.status === "pending" && Date.parse(claim.createdAt) + PENDING_CLAIM_TTL_MS > now.getTime();
+}
+
+function claimResetAt(claim: TestnetFaucetClaim | null, cooldownHours: number) {
+  if (!claim) {
+    return null;
+  }
+  if (claim.status === "pending") {
+    return new Date(Date.parse(claim.createdAt) + PENDING_CLAIM_TTL_MS);
+  }
+  return cooldownResetAt(claim.createdAt, cooldownHours);
 }
 
 async function submitFaucetTransfers(config: TestnetFaucetConfig, walletAddress: string) {
@@ -391,6 +443,51 @@ async function readFaucetBalances(config: TestnetFaucetConfig) {
   }
 }
 
+async function withFaucetLedgerLock<T>(claimsPath: string | undefined, callback: (ledger: FaucetLedger) => T | Promise<T>) {
+  const ledgerPath = claimsPath ?? DEFAULT_FAUCET_CLAIMS_PATH;
+  const release = await acquireFaucetLedgerLock(ledgerPath);
+  try {
+    const ledger = await readFaucetLedger(ledgerPath);
+    const result = await callback(ledger);
+    await writeFaucetLedger(ledger, ledgerPath);
+    return result;
+  } finally {
+    await release();
+  }
+}
+
+async function acquireFaucetLedgerLock(claimsPath: string) {
+  const lockPath = `${claimsPath}.lock`;
+  const startedAt = Date.now();
+  await mkdir(path.dirname(claimsPath), { recursive: true });
+
+  while (true) {
+    try {
+      await mkdir(lockPath);
+      return async () => {
+        await rm(lockPath, { force: true, recursive: true });
+      };
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") {
+        throw error;
+      }
+      const lockStats = await stat(lockPath).catch(() => null);
+      if (lockStats && Date.now() - lockStats.mtimeMs >= FAUCET_LOCK_TIMEOUT_MS) {
+        await rm(lockPath, { force: true, recursive: true });
+        continue;
+      }
+      if (Date.now() - startedAt >= FAUCET_LOCK_TIMEOUT_MS) {
+        throw new Error("testnet_faucet_ledger_busy");
+      }
+      await sleep(FAUCET_LOCK_RETRY_MS);
+    }
+  }
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function readFaucetLedger(claimsPath = DEFAULT_FAUCET_CLAIMS_PATH): Promise<FaucetLedger> {
   try {
     const raw = await readFile(claimsPath, "utf8");
@@ -408,7 +505,9 @@ async function readFaucetLedger(claimsPath = DEFAULT_FAUCET_CLAIMS_PATH): Promis
 
 async function writeFaucetLedger(ledger: FaucetLedger, claimsPath = DEFAULT_FAUCET_CLAIMS_PATH) {
   await mkdir(path.dirname(claimsPath), { recursive: true });
-  await writeFile(claimsPath, `${JSON.stringify(ledger, null, 2)}\n`);
+  const tempPath = `${claimsPath}.${process.pid}.${Date.now()}.tmp`;
+  await writeFile(tempPath, `${JSON.stringify(ledger, null, 2)}\n`);
+  await rename(tempPath, claimsPath);
 }
 
 function createBaseSepoliaChain(config: TestnetFaucetConfig): Chain {
