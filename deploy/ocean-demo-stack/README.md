@@ -154,7 +154,7 @@ scripts/smoke-fish-runner.sh
 If those scripts run from the host, export:
 
 ```text
-FISH_VLLM_BASE_URL=http://127.0.0.1:8000/v1
+FISH_VLLM_BASE_URL=http://127.0.0.1:8001/v1
 FISH_VLLM_API_KEY=<FISH_VLLM_API_KEY>
 FISH_VLLM_MODEL=<FISH_VLLM_SERVED_MODEL_NAME>
 FISH_RUNNER_BASE_URL=http://127.0.0.1:8088
