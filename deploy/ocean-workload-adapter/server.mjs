@@ -11,6 +11,8 @@ import { createRequire } from "node:module";
 const DEFAULT_PORT = 8787;
 const MAX_BODY_BYTES = 1024 * 64;
 const MAX_CAPTURE_BYTES = 1024 * 512;
+const MAX_RESULT_BYTES = readPositiveInt(process.env.FISH_OCEAN_RESULT_MAX_BYTES, 1024 * 1024);
+const MAX_RESULT_FILES = readPositiveInt(process.env.FISH_OCEAN_RESULT_MAX_FILES, 128);
 const require = createRequire(import.meta.url);
 
 loadEnvFileFromArgs();
@@ -124,6 +126,10 @@ function configPayload() {
     mode: config.mode,
     liveReady: isExecutableMode(config.mode) && config.missing.length === 0,
     selected: publicSelection(config),
+    resultLimits: {
+      maxBytes: MAX_RESULT_BYTES,
+      maxFiles: MAX_RESULT_FILES
+    },
     cli: {
       commandMode: config.mode === "local_ocean_node" ? "direct-ocean-node-http" : config.cliBin ? "direct-binary" : "ocean-cli-repo",
       oceanCliDir: config.oceanCliDir ? redactPath(config.oceanCliDir) : null,
@@ -190,7 +196,12 @@ async function runAdapterJob(job) {
     return failedOutcome(job, download.errorCode, { providerJobId });
   }
 
-  const resultHash = await hashDirectory(localResultDir);
+  let resultHash;
+  try {
+    resultHash = await hashDirectory(localResultDir, { maxBytes: MAX_RESULT_BYTES, maxFiles: MAX_RESULT_FILES });
+  } catch (error) {
+    return failedOutcome(job, resultHashErrorCode(error), { providerJobId });
+  }
   const elapsedSeconds = Math.max(1, Math.ceil((Date.now() - startedAt) / 1000));
   const outputTokens = Math.min(job.maxOutputTokens, Math.max(1, Math.ceil(resultHash.bytes / 4)));
   const outputRef = parseOutputRef(download.lastOutput) || `sha256:${resultHash.hash}`;
@@ -990,10 +1001,10 @@ async function directoryHasFiles(dir) {
   }
 }
 
-async function hashDirectory(dir) {
-  const files = await listFiles(dir);
+async function hashDirectory(dir, limits = null) {
+  const files = await listFiles(dir, limits);
   if (!files.length) {
-    throw new Error("result directory is empty");
+    throw new Error("ocean_results_empty");
   }
   const hash = createHash("sha256");
   let bytes = 0;
@@ -1009,21 +1020,39 @@ async function hashDirectory(dir) {
   return { hash: hash.digest("hex"), bytes };
 }
 
-async function listFiles(dir) {
+async function listFiles(dir, limits = null, state = { fileCount: 0, bytes: 0 }) {
   const entries = await readdir(dir, { withFileTypes: true });
   const files = [];
   for (const entry of entries) {
     const fullPath = path.join(dir, entry.name);
     if (entry.isDirectory()) {
-      files.push(...(await listFiles(fullPath)));
+      files.push(...(await listFiles(fullPath, limits, state)));
     } else if (entry.isFile()) {
       const fileStat = await stat(fullPath);
       if (fileStat.size > 0) {
+        if (limits) {
+          state.fileCount += 1;
+          state.bytes += fileStat.size;
+          if (state.fileCount > limits.maxFiles) {
+            throw new Error("ocean_results_file_limit_exceeded");
+          }
+          if (state.bytes > limits.maxBytes) {
+            throw new Error("ocean_results_size_limit_exceeded");
+          }
+        }
         files.push(fullPath);
       }
     }
   }
   return files;
+}
+
+function resultHashErrorCode(error) {
+  const message = error instanceof Error ? error.message : "";
+  if (message === "ocean_results_file_limit_exceeded" || message === "ocean_results_size_limit_exceeded" || message === "ocean_results_empty") {
+    return message;
+  }
+  return "ocean_results_hash_failed";
 }
 
 async function writeJobArtifact(dir, fileName, value) {

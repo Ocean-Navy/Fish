@@ -7,8 +7,14 @@ import { runFishChatGateway } from "@/lib/fishChatGateway";
 import { getFishFeaturePolicy } from "@/lib/fishFeaturePolicy";
 import { getFishRouterConfig } from "@/lib/fishRouter";
 import { anonymousGuestId } from "@/lib/guestIdentity";
+import { readJsonRequestBody } from "@/lib/requestBody";
 
 export const dynamic = "force-dynamic";
+
+const DISH_METADATA_MAX_KEYS = 32;
+const dishMetadataSchema = z.record(z.unknown()).refine((metadata) => Object.keys(metadata).length <= DISH_METADATA_MAX_KEYS, {
+  message: `metadata cannot contain more than ${DISH_METADATA_MAX_KEYS} keys`
+});
 
 const dishRunSchema = z.object({
   prompt: z.string().trim().min(1).max(20000),
@@ -16,7 +22,7 @@ const dishRunSchema = z.object({
   max_tokens: z.number().int().min(1).max(4096).optional(),
   temperature: z.number().min(0).max(2).optional(),
   stream: z.boolean().optional().default(false),
-  metadata: z.record(z.unknown()).optional()
+  metadata: dishMetadataSchema.optional()
 });
 
 export async function POST(request: Request, { params }: { params: Promise<{ dishId: string }> }) {
@@ -29,7 +35,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ dis
     return NextResponse.json({ error: { message: "fish_dish_not_enabled", type: "feature_not_enabled", dishId: dish.id } }, { status: 501 });
   }
 
-  const parsed = dishRunSchema.safeParse(await request.json().catch(() => ({})));
+  const body = await readJsonRequestBody(request);
+  if (!body.ok) {
+    return NextResponse.json({ error: { message: body.error, type: "invalid_request_error", maxBytes: body.maxBytes } }, { status: body.status });
+  }
+
+  const parsed = dishRunSchema.safeParse(body.body);
   if (!parsed.success) {
     return NextResponse.json(
       {

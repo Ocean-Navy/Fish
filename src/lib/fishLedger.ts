@@ -24,6 +24,14 @@ const FISH_DISH_MODEL_IDS = FISH_DISH_MODELS.map((model) => model.id);
 const FISH_OCEAN_DEMO_MODEL_IDS = compactIds([process.env.FISH_OCEAN_DEMO_VLLM_MODEL]);
 const FISH_OCEAN_PROVIDER_MODEL_IDS = compactIds([process.env.FISH_OCEAN_PROVIDER_MODEL]);
 const FISH_EXTERNAL_MODEL_IDS = compactIds([process.env.FISH_EXTERNAL_CHAT_MODEL]);
+const CHAT_MAX_MESSAGES = 64;
+const CHAT_MAX_TEXT_CONTENT_CHARS = 20_000;
+const CHAT_MAX_ARRAY_CONTENT_ITEMS = 64;
+const CHAT_MAX_METADATA_KEYS = 32;
+const chatMessageContentSchema = z.union([z.string().max(CHAT_MAX_TEXT_CONTENT_CHARS), z.array(z.unknown()).max(CHAT_MAX_ARRAY_CONTENT_ITEMS)]);
+const chatMetadataSchema = z.record(z.unknown()).refine((metadata) => Object.keys(metadata).length <= CHAT_MAX_METADATA_KEYS, {
+  message: `metadata cannot contain more than ${CHAT_MAX_METADATA_KEYS} keys`
+});
 
 export const FISH_MODELS = uniqueModels([
   {
@@ -134,14 +142,15 @@ export const chatCompletionSchema = z.object({
     .array(
       z.object({
         role: z.enum(["system", "user", "assistant", "tool"]).catch("user"),
-        content: z.union([z.string(), z.array(z.unknown())]).optional().default("")
+        content: chatMessageContentSchema.optional().default("")
       })
     )
-    .min(1),
+    .min(1)
+    .max(CHAT_MAX_MESSAGES),
   stream: z.boolean().optional().default(false),
   temperature: z.number().min(0).max(2).optional(),
   max_tokens: z.number().int().min(1).max(4096).optional(),
-  metadata: z.record(z.unknown()).optional().transform(stripPublicChatMetadata)
+  metadata: chatMetadataSchema.optional().transform(stripPublicChatMetadata)
 });
 
 function stripPublicChatMetadata(metadata: Record<string, unknown> | undefined) {

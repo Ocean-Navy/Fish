@@ -11,9 +11,18 @@ const PAYMENT_ENV_KEYS = [
   "FISH_USDC_RECEIVE_ADDRESS"
 ] as const;
 
+const originalPublicAppUrl = process.env.FISH_PUBLIC_APP_URL;
+const TEST_PAYER_ADDRESS = "0x1111111111111111111111111111111111111111";
+
 afterEach(() => {
   for (const key of PAYMENT_ENV_KEYS) {
     delete process.env[key];
+  }
+
+  if (originalPublicAppUrl === undefined) {
+    delete process.env.FISH_PUBLIC_APP_URL;
+  } else {
+    process.env.FISH_PUBLIC_APP_URL = originalPublicAppUrl;
   }
 });
 
@@ -76,7 +85,7 @@ test("payment amount normalization rejects mixed USD and credit amounts", () => 
 });
 
 test("paid topups require an explicit prepaid liability cap", async () => {
-  const result = await createUsdcPayment(testAccount(), { amountUsd: 5 });
+  const result = await createUsdcPayment(testAccount(), { amountUsd: 5, payerAddress: TEST_PAYER_ADDRESS });
 
   assert.equal(result.ok, false);
   if (!result.ok) {
@@ -89,12 +98,47 @@ test("paid topups can be paused before payment requests are created", async () =
   process.env.FISH_PAID_TOPUPS_PAUSED = "true";
   process.env.FISH_MAX_OUTSTANDING_PREPAID_CREDITS = "100000";
 
-  const result = await createUsdcPayment(testAccount(), { amountUsd: 5 });
+  const result = await createUsdcPayment(testAccount(), { amountUsd: 5, payerAddress: TEST_PAYER_ADDRESS });
 
   assert.equal(result.ok, false);
   if (!result.ok) {
     assert.equal(result.status, 503);
     assert.equal(result.error, "paid_topups_paused");
+  }
+});
+
+test("checkout validation rejects cross-origin redirect URLs", () => {
+  process.env.FISH_PUBLIC_APP_URL = "https://fish.example";
+  const parsed = parseStripeCheckoutRequest({
+    amountUsd: 10,
+    successUrl: "https://attacker.example/checkout/success",
+    cancelUrl: "https://fish.example/account?fish_payment=cancel"
+  });
+
+  assert.equal(parsed.success, false);
+  if (!parsed.success) {
+    assert.deepEqual(parsed.error.flatten().fieldErrors.successUrl, ["successUrl must stay on the Fish app origin"]);
+  }
+});
+
+test("checkout validation accepts same-origin redirect URLs", () => {
+  process.env.FISH_PUBLIC_APP_URL = "https://fish.example";
+  assert.equal(
+    parseStripeCheckoutRequest({
+      amountUsd: 10,
+      successUrl: "https://fish.example/account?fish_payment=success",
+      cancelUrl: "https://fish.example/account?fish_payment=cancel"
+    }).success,
+    true
+  );
+});
+
+test("USDC checkout validation requires a payer address", () => {
+  const parsed = parseUsdcCheckoutRequest({ amountUsd: 10 });
+
+  assert.equal(parsed.success, false);
+  if (!parsed.success) {
+    assert.deepEqual(parsed.error.flatten().fieldErrors.payerAddress, ["Required"]);
   }
 });
 

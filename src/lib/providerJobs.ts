@@ -5,6 +5,7 @@ import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { isIP } from "node:net";
 import path from "node:path";
 import { z } from "zod";
+import { toCsv } from "@/lib/csv";
 import { collectProviderPilotRegistry, isProviderAllowed, resolveProviderJobEndpoint } from "@/lib/providerPilot";
 import { recordPayoutEventForReceipt, summarizePublicPayouts } from "@/lib/providerPayouts";
 import type { PublicPayoutSummary } from "@/lib/providerPayouts";
@@ -231,7 +232,7 @@ export type ProofSummary = {
   timedOutJobs: number;
   receiptVerificationFailures: number;
   payouts: PublicPayoutSummary;
-  receipts: ProviderJobReceipt[];
+  receipts: ReceiptLedgerItem[];
   warnings: string[];
 };
 
@@ -369,7 +370,7 @@ export async function summarizeProof(): Promise<ProofSummary> {
     timedOutJobs: proofReceipts.filter((receipt) => receipt.status === "timed_out").length,
     receiptVerificationFailures: verificationFailures,
     payouts,
-    receipts: selectedReceipts,
+    receipts: selectedReceipts.map(toReceiptLedgerItem),
     warnings: [
       ...(receipts.length ? [] : ["No provider jobs have been routed yet. Run a selected provider smoke job to create the first receipt."]),
       ...(receipts.length && proofReceipts.length === 0 ? ["Only sample provider proof exists. Run a non-mock selected-provider job before claiming live Ocean proof."] : []),
@@ -1274,15 +1275,6 @@ function queryObject(searchParams: URLSearchParams) {
     }
   }
   return Object.fromEntries(entries);
-}
-
-function toCsv(headers: string[], rows: Array<Array<string | number>>) {
-  return `${headers.join(",")}\n${rows.map((row) => row.map(csvCell).join(",")).join("\n")}\n`;
-}
-
-function csvCell(value: string | number) {
-  const text = String(value);
-  return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
 }
 
 function shortHash(value: string) {

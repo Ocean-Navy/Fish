@@ -4750,7 +4750,7 @@ components:
         receipts:
           type: array
           items:
-            $ref: '#/components/schemas/ProviderJobReceipt'
+            $ref: '#/components/schemas/ReceiptLedgerItem'
         warnings:
           type: array
           items:
@@ -4974,19 +4974,22 @@ components:
         successUrl:
           type: string
           format: uri
+          description: Optional checkout success redirect. Must be on the configured Fish app origin.
         cancelUrl:
           type: string
           format: uri
+          description: Optional checkout cancel redirect. Must be on the configured Fish app origin.
     FishUsdcCheckoutRequest:
       allOf:
         - $ref: '#/components/schemas/FishCheckoutRequest'
         - type: object
           additionalProperties: false
+          required: [payerAddress]
           properties:
             payerAddress:
               type: string
               pattern: '^0x[a-fA-F0-9]{40}$'
-              description: Optional sender address to require during transfer verification.
+              description: Sender address required during transfer verification.
     FishUsdcConfirmationRequest:
       type: object
       additionalProperties: false
