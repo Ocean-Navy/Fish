@@ -105,6 +105,12 @@ export type FishBillingReadiness = {
     maxOutstandingPrepaidCredits: number | null;
     maxOutstandingPrepaidUsd: number | null;
   };
+  customerCare: {
+    supportConfigured: boolean;
+    refundPolicyConfigured: boolean;
+    supportUrl: string | null;
+    refundPolicyUrl: string | null;
+  };
   providers: {
     stripe: {
       configured: boolean;
@@ -143,17 +149,22 @@ export function summarizeBillingReadiness(): FishBillingReadiness {
   const usdcReceiveAddress = cleanEnv(process.env.FISH_USDC_RECEIVE_ADDRESS);
   const usdcRpcUrl = cleanEnv(process.env.FISH_USDC_RPC_URL);
   const usdcConfigured = Boolean(usdcReceiveAddress && isAddress(usdcReceiveAddress) && usdcRpcUrl);
+  const supportUrl = publicCareUrl(process.env.FISH_BILLING_SUPPORT_URL);
+  const refundPolicyUrl = publicCareUrl(process.env.FISH_BILLING_REFUND_POLICY_URL);
+  const customerCareConfigured = Boolean(supportUrl && refundPolicyUrl);
   const hasPaymentProvider = stripeConfigured || usdcConfigured;
-  const checkoutAvailable = !paidTopupsPaused && liabilityCapConfigured && hasPaymentProvider;
+  const checkoutAvailable = !paidTopupsPaused && liabilityCapConfigured && hasPaymentProvider && customerCareConfigured;
   const blockers = [
     ...(paidTopupsPaused ? ["paid_topups_paused"] : []),
     ...(!liabilityCapConfigured ? ["paid_credit_liability_cap_not_configured"] : []),
-    ...(!hasPaymentProvider ? ["payment_provider_not_configured"] : [])
+    ...(!hasPaymentProvider ? ["payment_provider_not_configured"] : []),
+    ...(supportUrl ? [] : ["billing_support_url_not_configured"]),
+    ...(refundPolicyUrl ? [] : ["billing_refund_policy_not_configured"])
   ];
 
   return {
     object: "fish_billing_readiness",
-    dataState: checkoutAvailable ? "live" : hasPaymentProvider || liabilityCapConfigured ? "snapshot" : "unavailable",
+    dataState: checkoutAvailable ? "live" : hasPaymentProvider || liabilityCapConfigured || customerCareConfigured ? "snapshot" : "unavailable",
     checkoutAvailable,
     paidTopupsPaused,
     creditUsd: FISH_CREDIT_USD,
@@ -163,6 +174,12 @@ export function summarizeBillingReadiness(): FishBillingReadiness {
       configured: liabilityCapConfigured,
       maxOutstandingPrepaidCredits: liabilityCapConfigured ? maxOutstandingPrepaidCredits : null,
       maxOutstandingPrepaidUsd: liabilityCapConfigured ? creditsToUsd(maxOutstandingPrepaidCredits) : null
+    },
+    customerCare: {
+      supportConfigured: Boolean(supportUrl),
+      refundPolicyConfigured: Boolean(refundPolicyUrl),
+      supportUrl,
+      refundPolicyUrl
     },
     providers: {
       stripe: {
@@ -575,6 +592,12 @@ async function assertPaidTopupCanStart(paymentLedger: FishPaymentLedger, newCred
   if (cap === null || cap <= 0) {
     return { ok: false as const, status: 503, error: "paid_credit_liability_cap_not_configured" };
   }
+  if (!publicCareUrl(process.env.FISH_BILLING_SUPPORT_URL)) {
+    return { ok: false as const, status: 503, error: "billing_support_url_not_configured" };
+  }
+  if (!publicCareUrl(process.env.FISH_BILLING_REFUND_POLICY_URL)) {
+    return { ok: false as const, status: 503, error: "billing_refund_policy_not_configured" };
+  }
 
   const analytics = await summarizeBillingUsageAnalytics();
   const now = Date.now();
@@ -807,6 +830,19 @@ function stripeErrorMessage(payload: unknown) {
 function cleanEnv(value: string | undefined) {
   const clean = value?.trim();
   return clean || undefined;
+}
+
+function publicCareUrl(value: string | undefined) {
+  const clean = cleanEnv(value);
+  if (!clean) {
+    return null;
+  }
+  try {
+    const parsed = new URL(clean);
+    return parsed.protocol === "https:" || parsed.protocol === "http:" || parsed.protocol === "mailto:" ? clean : null;
+  } catch {
+    return null;
+  }
 }
 
 function configuredSecret(value: string | undefined) {

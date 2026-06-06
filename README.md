@@ -305,6 +305,8 @@ FISH_MIN_CHECKOUT_USD=1
 FISH_MAX_CHECKOUT_USD=500
 FISH_MAX_OUTSTANDING_PREPAID_CREDITS=
 FISH_PAID_TOPUPS_PAUSED=true
+FISH_BILLING_SUPPORT_URL=
+FISH_BILLING_REFUND_POLICY_URL=
 FISH_STRIPE_SECRET_KEY=
 FISH_STRIPE_WEBHOOK_SECRET=
 FISH_STRIPE_WEBHOOK_TOLERANCE_SECONDS=300
@@ -465,7 +467,7 @@ curl -sS http://127.0.0.1:3000/api/billing/checkout/stripe \
   -d '{"amountUsd":5}'
 ```
 
-Set `FISH_STRIPE_SECRET_KEY`, `FISH_STRIPE_WEBHOOK_SECRET`, `FISH_PUBLIC_APP_URL`, and `FISH_MAX_OUTSTANDING_PREPAID_CREDITS`. Fish rejects checkout requests when paid top-ups are paused, when the cap is missing, or when the requested credits would exceed the cap. Configure Stripe to send signed webhooks to:
+Set `FISH_STRIPE_SECRET_KEY`, `FISH_STRIPE_WEBHOOK_SECRET`, `FISH_PUBLIC_APP_URL`, `FISH_MAX_OUTSTANDING_PREPAID_CREDITS`, `FISH_BILLING_SUPPORT_URL`, and `FISH_BILLING_REFUND_POLICY_URL`. Fish rejects checkout requests when paid top-ups are paused, when the cap is missing, when support/refund links are missing, or when the requested credits would exceed the cap. Configure Stripe to send signed webhooks to:
 
 ```text
 https://<your-domain>/api/billing/webhooks/stripe
@@ -473,7 +475,7 @@ https://<your-domain>/api/billing/webhooks/stripe
 
 Fish accepts `checkout.session.completed`, verifies the Stripe signature, checks the session metadata against the local payment request, and grants `prepaid` credits idempotently by checkout session.
 
-Use `GET /api/billing/readiness` to show public-safe payment state before checkout is enabled. It reports whether top-ups are paused, whether the prepaid liability cap is set in credits and USD exposure, and whether Stripe or USDC checkout is configured; it does not expose Stripe secrets, RPC URLs, or payment recipient addresses.
+Use `GET /api/billing/readiness` to show public-safe payment state before checkout is enabled. It reports whether top-ups are paused, whether the prepaid liability cap is set in credits and USD exposure, whether support/refund links are configured, and whether Stripe or USDC checkout is configured; it does not expose Stripe secrets, RPC URLs, or payment recipient addresses.
 
 USDC checkout uses Base USDC by default:
 

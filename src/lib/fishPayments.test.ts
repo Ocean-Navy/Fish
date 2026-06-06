@@ -8,6 +8,8 @@ const PAYMENT_ENV_KEYS = [
   "FISH_MAX_OUTSTANDING_PREPAID_CREDITS",
   "FISH_MIN_CHECKOUT_USD",
   "FISH_PAID_TOPUPS_PAUSED",
+  "FISH_BILLING_REFUND_POLICY_URL",
+  "FISH_BILLING_SUPPORT_URL",
   "FISH_STRIPE_SECRET_KEY",
   "FISH_STRIPE_WEBHOOK_SECRET",
   "FISH_USDC_RECEIVE_ADDRESS",
@@ -111,7 +113,9 @@ test("billing readiness is unavailable without a liability cap or provider", () 
     maxOutstandingPrepaidCredits: null,
     maxOutstandingPrepaidUsd: null
   });
-  assert.deepEqual(readiness.blockers, ["paid_credit_liability_cap_not_configured", "payment_provider_not_configured"]);
+  assert.equal(readiness.customerCare.supportConfigured, false);
+  assert.equal(readiness.customerCare.refundPolicyConfigured, false);
+  assert.deepEqual(readiness.blockers, ["paid_credit_liability_cap_not_configured", "payment_provider_not_configured", "billing_support_url_not_configured", "billing_refund_policy_not_configured"]);
 });
 
 test("billing readiness keeps providers disabled while paid topups are paused", () => {
@@ -119,6 +123,8 @@ test("billing readiness keeps providers disabled while paid topups are paused", 
   process.env.FISH_MAX_OUTSTANDING_PREPAID_CREDITS = "100000";
   process.env.FISH_USDC_RECEIVE_ADDRESS = "0x1111111111111111111111111111111111111111";
   process.env.FISH_USDC_RPC_URL = "https://base-mainnet.example";
+  process.env.FISH_BILLING_SUPPORT_URL = "mailto:support@op.fish";
+  process.env.FISH_BILLING_REFUND_POLICY_URL = "https://op.fish/refunds";
 
   const readiness = summarizeBillingReadiness();
 
@@ -136,6 +142,8 @@ test("billing readiness keeps providers disabled while paid topups are paused", 
 
 test("billing readiness enables configured providers only after caps are set and topups are unpaused", () => {
   process.env.FISH_MAX_OUTSTANDING_PREPAID_CREDITS = "100000";
+  process.env.FISH_BILLING_SUPPORT_URL = "mailto:support@op.fish";
+  process.env.FISH_BILLING_REFUND_POLICY_URL = "https://op.fish/refunds";
   process.env.FISH_STRIPE_SECRET_KEY = "sk_test_configured";
   process.env.FISH_STRIPE_WEBHOOK_SECRET = "whsec_configured";
 
@@ -153,6 +161,37 @@ test("billing readiness enables configured providers only after caps are set and
   assert.deepEqual(readiness.blockers, []);
 });
 
+test("billing readiness blocks checkout without support and refund links", () => {
+  process.env.FISH_MAX_OUTSTANDING_PREPAID_CREDITS = "100000";
+  process.env.FISH_STRIPE_SECRET_KEY = "sk_test_configured";
+  process.env.FISH_STRIPE_WEBHOOK_SECRET = "whsec_configured";
+
+  const readiness = summarizeBillingReadiness();
+
+  assert.equal(readiness.checkoutAvailable, false);
+  assert.equal(readiness.providers.stripe.configured, true);
+  assert.equal(readiness.providers.stripe.enabled, false);
+  assert.deepEqual(readiness.customerCare, {
+    supportConfigured: false,
+    refundPolicyConfigured: false,
+    supportUrl: null,
+    refundPolicyUrl: null
+  });
+  assert.deepEqual(readiness.blockers, ["billing_support_url_not_configured", "billing_refund_policy_not_configured"]);
+});
+
+test("paid topups require support and refund links before payment requests are created", async () => {
+  process.env.FISH_MAX_OUTSTANDING_PREPAID_CREDITS = "100000";
+
+  const result = await createUsdcPayment(testAccount(), { amountUsd: 5 });
+
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.equal(result.status, 503);
+    assert.equal(result.error, "billing_support_url_not_configured");
+  }
+});
+
 test("billing readiness treats placeholder payment secrets as unconfigured", () => {
   process.env.FISH_MAX_OUTSTANDING_PREPAID_CREDITS = "100000";
   process.env.FISH_STRIPE_SECRET_KEY = "change-me-stripe";
@@ -162,7 +201,7 @@ test("billing readiness treats placeholder payment secrets as unconfigured", () 
 
   assert.equal(readiness.checkoutAvailable, false);
   assert.equal(readiness.providers.stripe.configured, false);
-  assert.deepEqual(readiness.blockers, ["payment_provider_not_configured"]);
+  assert.deepEqual(readiness.blockers, ["payment_provider_not_configured", "billing_support_url_not_configured", "billing_refund_policy_not_configured"]);
 });
 
 function testAccount(): Account {

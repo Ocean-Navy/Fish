@@ -51,6 +51,25 @@ test("paid mainnet readiness blocks while paid checkout is paused", async () => 
   assert.match(payments.findings.join("\n"), /paid checkout cannot launch/);
 });
 
+test("paid mainnet readiness blocks checkout without support and refund links", async () => {
+  const appEnv = await tempEnv(
+    [
+      "FISH_MAX_OUTSTANDING_PREPAID_CREDITS=100000",
+      "FISH_STRIPE_SECRET_KEY=sk_test_configured",
+      "FISH_STRIPE_WEBHOOK_SECRET=whsec_configured"
+    ].join("\n")
+  );
+  const result = runReadiness(["--profile", "paid-mainnet", "--env", appEnv, "--ocean-env", missingOceanEnv(), "--json"]);
+
+  assert.equal(result.status, 1);
+  const summary = JSON.parse(result.stdout);
+  const payments = summary.checks.find((check: { name: string }) => check.name === "Payments/mainnet checkout");
+
+  assert.equal(payments.state, "blocked");
+  assert.match(payments.findings.join("\n"), /FISH_BILLING_SUPPORT_URL/);
+  assert.match(payments.findings.join("\n"), /FISH_BILLING_REFUND_POLICY_URL/);
+});
+
 test("public web readiness blocks an unconfigured Ocean demo route", async () => {
   const appEnv = await tempEnv(["FISH_PAID_TOPUPS_PAUSED=true", "FISH_ADMIN_TOKEN=12345678901234567890123456789012", "FISH_CHAT_ROUTE=ocean-first"].join("\n"));
   const result = runReadiness(["--env", appEnv, "--ocean-env", missingOceanEnv(), "--json"]);

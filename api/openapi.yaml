@@ -4980,6 +4980,19 @@ components:
             maxOutstandingPrepaidUsd:
               type: number
               nullable: true
+        customerCare:
+          type: object
+          properties:
+            supportConfigured:
+              type: boolean
+            refundPolicyConfigured:
+              type: boolean
+            supportUrl:
+              type: string
+              nullable: true
+            refundPolicyUrl:
+              type: string
+              nullable: true
         providers:
           type: object
           properties:

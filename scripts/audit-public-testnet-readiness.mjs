@@ -111,6 +111,8 @@ function checkPayments(env, profile) {
   const paidTopupsPaused = truthy(env.FISH_PAID_TOPUPS_PAUSED);
   if (!env.FISH_MAX_OUTSTANDING_PREPAID_CREDITS) blockers.push("FISH_MAX_OUTSTANDING_PREPAID_CREDITS is missing; paid top-ups must stay blocked.");
   if (!hasStripe && !hasUsdc) blockers.push("Neither Stripe nor USDC checkout is fully configured.");
+  if (!publicCareUrl(env.FISH_BILLING_SUPPORT_URL)) blockers.push("FISH_BILLING_SUPPORT_URL is missing or not a public HTTP(S)/mailto URL.");
+  if (!publicCareUrl(env.FISH_BILLING_REFUND_POLICY_URL)) blockers.push("FISH_BILLING_REFUND_POLICY_URL is missing or not a public HTTP(S)/mailto URL.");
 
   if (profile === "public-testnet" && paidTopupsPaused) {
     const findings = blockers.length
@@ -553,6 +555,17 @@ function address(value) {
 function httpUrl(value) {
   const cleaned = String(value || "").trim();
   return /^https?:\/\/[^/\s]+/i.test(cleaned);
+}
+
+function publicCareUrl(value) {
+  const cleaned = String(value || "").trim();
+  if (!cleaned) return false;
+  try {
+    const parsed = new URL(cleaned);
+    return parsed.protocol === "https:" || parsed.protocol === "http:" || parsed.protocol === "mailto:";
+  } catch {
+    return false;
+  }
 }
 
 function number(value) {

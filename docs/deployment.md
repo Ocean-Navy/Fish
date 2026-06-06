@@ -322,6 +322,8 @@ FISH_MIN_CHECKOUT_USD=1
 FISH_MAX_CHECKOUT_USD=500
 FISH_MAX_OUTSTANDING_PREPAID_CREDITS=
 FISH_PAID_TOPUPS_PAUSED=true
+FISH_BILLING_SUPPORT_URL=
+FISH_BILLING_REFUND_POLICY_URL=
 FISH_STRIPE_SECRET_KEY=
 FISH_STRIPE_WEBHOOK_SECRET=
 FISH_STRIPE_WEBHOOK_TOLERANCE_SECONDS=300
@@ -379,7 +381,7 @@ Set `FISH_DOCS_BATCH_MAX_RUNTIME_SECONDS` and `FISH_DOCS_BATCH_MAX_COST_USD` to 
 Plan-based per-minute and monthly request limits come from the Fish plan table. Minute limits and concurrent request caps are in-memory MVP guards, while monthly limits and daily quotas are backed by local usage/quota JSON.
 Keep `FISH_CHAT_BACKEND=mock` for a no-secret local deployment. Set `FISH_CHAT_ROUTE=ocean-provider`, `FISH_OCEAN_PROVIDER_BASE_URL`, `FISH_OCEAN_PROVIDER_API_KEY`, and `FISH_OCEAN_PROVIDER_MODEL` only when a selected Ocean provider or Fish Runner `/v1` endpoint is ready. Set `FISH_CHAT_BACKEND=external`, `FISH_EXTERNAL_CHAT_BASE_URL`, `FISH_EXTERNAL_CHAT_API_KEY`, and `FISH_EXTERNAL_CHAT_MODEL` only when you explicitly want `/v1/chat/completions` to call an outside OpenAI-compatible backend, including as fallback from an Ocean route. External credentials alone are ignored while the backend selector stays mock.
 
-Paid credit checkout is disabled until secrets are set and `FISH_MAX_OUTSTANDING_PREPAID_CREDITS` is configured. For card checkout, set `FISH_STRIPE_SECRET_KEY`, `FISH_STRIPE_WEBHOOK_SECRET`, and `FISH_PUBLIC_APP_URL`, then configure Stripe webhooks for `/api/billing/webhooks/stripe`. For USDC checkout, set `FISH_USDC_RECEIVE_ADDRESS` and `FISH_USDC_RPC_URL`; Fish verifies Base USDC transfer logs before issuing prepaid credits. Keep `FISH_MIN_CHECKOUT_USD`, `FISH_MAX_CHECKOUT_USD`, and the prepaid liability cap conservative until support/refund handling is ready. Set `FISH_PAID_TOPUPS_PAUSED=true` to stop new paid checkout requests without disabling existing balances.
+Paid credit checkout is disabled until secrets are set, `FISH_MAX_OUTSTANDING_PREPAID_CREDITS` is configured, and `FISH_BILLING_SUPPORT_URL` plus `FISH_BILLING_REFUND_POLICY_URL` point to public-safe HTTP(S) or mailto links. For card checkout, set `FISH_STRIPE_SECRET_KEY`, `FISH_STRIPE_WEBHOOK_SECRET`, and `FISH_PUBLIC_APP_URL`, then configure Stripe webhooks for `/api/billing/webhooks/stripe`. For USDC checkout, set `FISH_USDC_RECEIVE_ADDRESS` and `FISH_USDC_RPC_URL`; Fish verifies Base USDC transfer logs before issuing prepaid credits. Keep `FISH_MIN_CHECKOUT_USD`, `FISH_MAX_CHECKOUT_USD`, and the prepaid liability cap conservative. Set `FISH_PAID_TOPUPS_PAUSED=true` to stop new paid checkout requests without disabling existing balances.
 
 Contract status is read-only by default. Set the `FISH_CONTRACT_*` addresses and `FISH_CONTRACT_RPC_URL` after deploying the prototype contracts on a testnet. Keep `FISH_CONTRACT_ACTIONS_ENABLED=false` until the addresses, chain, roles, and test wallet path are reviewed. Keep `FISH_CONTRACT_SETTLEMENT_SUBMIT_ENABLED=false` until the operator wallet, USDC funding, allowance path, and idempotency process are tested. Keep `FISH_CONTRACT_MAINNET_WRITES_ALLOWED=false` unless the contracts have passed audit, legal review, multisig ownership, monitoring, and incident-response checks.
 

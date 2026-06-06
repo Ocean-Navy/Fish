@@ -636,6 +636,7 @@ function PaymentDock({
     { label: "Checkout", value: paymentsOpen ? "Open" : "Closed" },
     { label: "Top-ups", value: topupState },
     { label: "Liability cap", value: readiness?.liabilityCap.configured ? formatUsd(readiness.liabilityCap.maxOutstandingPrepaidUsd ?? 0) : "Not set" },
+    { label: "Support", value: readiness?.customerCare.supportConfigured && readiness.customerCare.refundPolicyConfigured ? "Ready" : "Needed" },
     { label: "Providers", value: readiness?.providers.stripe.configured || readiness?.providers.usdc.configured ? "Configured" : "Not ready" }
   ];
 
@@ -661,7 +662,7 @@ function PaymentDock({
           <span>Payments are not open yet. {formatBillingBlockers(readiness?.blockers)}</span>
         )}
       </div>
-      <div className="mb-3 grid gap-2 sm:grid-cols-4">
+      <div className="mb-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
         {paymentStatusCards.map((card) => (
           <MiniMetric key={card.label} label={card.label} value={card.value} />
         ))}
@@ -925,7 +926,9 @@ function formatBillingBlockers(blockers: string[] | undefined) {
   const labels: Record<string, string> = {
     paid_topups_paused: "Top-ups are paused.",
     paid_credit_liability_cap_not_configured: "The prepaid credit cap is not set.",
-    payment_provider_not_configured: "Card or USDC checkout is not configured."
+    payment_provider_not_configured: "Card or USDC checkout is not configured.",
+    billing_support_url_not_configured: "Support contact is not configured.",
+    billing_refund_policy_not_configured: "Refund policy is not configured."
   };
   return blockers.map((blocker) => labels[blocker] ?? blocker.replaceAll("_", " ")).join(" ");
 }
