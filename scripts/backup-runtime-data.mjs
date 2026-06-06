@@ -4,7 +4,7 @@ import { execFileSync } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
-const runtimePaths = ["data/submissions", "data/forms", "data/fish", "data/ocean-batch", "data/proof", "data/staking"];
+const runtimePaths = ["data/submissions", "data/forms", "data/support", "data/fish", "data/ocean-batch", "data/proof", "data/staking"];
 const dataDir = option("--data-dir") || "data";
 const outputDir = option("--output-dir") || process.env.FISH_DATA_BACKUP_TARGET || "backups";
 const dryRun = hasFlag("--dry-run");
@@ -22,7 +22,7 @@ const manifest = {
   dryRun,
   backupTarget,
   includesSensitiveOperatorData: true,
-  warning: "Archive may include API ledgers, proof signing keys, wallet intent rows, provider payout rows, and user submissions. Keep it private.",
+  warning: "Archive may include API ledgers, proof signing keys, wallet intent rows, provider payout rows, support tickets, and user submissions. Keep it private.",
   paths: entries
 };
 
@@ -145,7 +145,7 @@ function printManifest(summary) {
     console.log(`manifest: ${summary.manifestPath}`);
   }
   console.log("");
-  console.log("Keep this archive private. It may include operator ledgers, proof signing keys, and user submissions.");
+  console.log("Keep this archive private. It may include operator ledgers, proof signing keys, support tickets, and user submissions.");
 }
 
 function option(name) {

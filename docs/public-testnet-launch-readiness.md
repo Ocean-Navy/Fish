@@ -130,6 +130,8 @@ FISH_BILLING_SUPPORT_URL and FISH_BILLING_REFUND_POLICY_URL are public-safe HTTP
 mainnet contract writes stay disabled unless explicitly reviewed
 ```
 
+The example env points those customer-care links at `/support` and `/refunds`, and keeps paid top-ups paused. Support and refund tickets are private operator records under `data/support/`.
+
 Use:
 
 ```bash
@@ -198,6 +200,7 @@ data/proof/
 data/staking/
 data/submissions/
 data/forms/
+data/support/
 ```
 
 Check the backup set before publishing:

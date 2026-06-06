@@ -69,7 +69,7 @@ backend/                     Older Python reference implementation
 issues/                      Workstream briefs
 ```
 
-Runtime data under `data/submissions/`, `data/forms/`, `data/fish/`, `data/proof/`, `data/ocean-batch/`, `data/staking/`, and `data/provider_allowlist.json` is intentionally ignored. Do not commit local ledgers, form exports, signing keys, provider allowlists, or secrets.
+Runtime data under `data/submissions/`, `data/forms/`, `data/support/`, `data/fish/`, `data/proof/`, `data/ocean-batch/`, `data/staking/`, and `data/provider_allowlist.json` is intentionally ignored. Do not commit local ledgers, form exports, support tickets, signing keys, provider allowlists, or secrets.
 
 ## Core Invariants
 

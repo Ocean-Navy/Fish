@@ -11,6 +11,7 @@ services:
     volumes:
       - fish-submissions:/app/data/submissions
       - fish-forms:/app/data/forms
+      - fish-support:/app/data/support
       - fish-ledger:/app/data/fish
       - fish-ocean-batch:/app/data/ocean-batch
       - fish-proof:/app/data/proof
@@ -44,6 +45,7 @@ services:
 volumes:
   fish-submissions:
   fish-forms:
+  fish-support:
   fish-ledger:
   fish-ocean-batch:
   fish-proof:

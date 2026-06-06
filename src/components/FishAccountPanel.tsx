@@ -1,6 +1,8 @@
 "use client";
 
 import { BadgeDollarSign, CreditCard, KeyRound, Loader2, ReceiptText, RefreshCcw, RotateCw, Save, ShieldX, Wallet } from "lucide-react";
+import type { Route } from "next";
+import Link from "next/link";
 import { useState } from "react";
 import { formatEvmAddress, parseEvmChainId } from "@/lib/evmWallet";
 import { formatDateTime, formatNumber, formatUsd } from "@/lib/format";
@@ -661,6 +663,14 @@ function PaymentDock({
         ) : (
           <span>Payments are not open yet. {formatBillingBlockers(readiness?.blockers)}</span>
         )}
+      </div>
+      <div className="mb-3 flex flex-wrap gap-3 text-xs font-black">
+        <Link className="rounded-full border border-fish-accent/30 px-4 py-2 text-fish-accent hover:bg-fish-accent/10" href={"/support" as Route}>
+          Support
+        </Link>
+        <Link className="rounded-full border border-fish-accent/30 px-4 py-2 text-fish-accent hover:bg-fish-accent/10" href={"/refunds" as Route}>
+          Refund policy
+        </Link>
       </div>
       <div className="mb-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
         {paymentStatusCards.map((card) => (

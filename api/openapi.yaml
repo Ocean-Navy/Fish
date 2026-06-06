@@ -1479,6 +1479,61 @@ paths:
                     type: string
         '400':
           description: Invalid signed wallet intent
+  /api/support:
+    post:
+      summary: Submit a support or refund ticket
+      description: Creates a private operator support ticket. Users should not include prompts, outputs, API keys, private keys, seed phrases, or full payment card details.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SupportTicketRequest'
+      responses:
+        '200':
+          description: Support ticket accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  id:
+                    type: string
+        '400':
+          description: Invalid support ticket
+  /api/support/export:
+    get:
+      summary: Admin-only support ticket export
+      description: Exports support and refund tickets for operator follow-up.
+      security:
+        - adminToken: []
+      parameters:
+        - in: query
+          name: kind
+          schema:
+            type: string
+            enum: [all, billing, refund, technical, privacy, provider, other]
+            default: all
+        - in: query
+          name: format
+          schema:
+            type: string
+            enum: [json, csv]
+            default: json
+      responses:
+        '200':
+          description: Support ticket export
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupportTicketExport'
+            text/csv:
+              schema:
+                type: string
+        '401':
+          description: Admin token required
   /api/waitlist:
     post:
       summary: Submit user/developer waitlist interest
@@ -2885,6 +2940,50 @@ components:
           type: string
         body:
           $ref: '#/components/schemas/WaitlistRequest'
+    SupportTicketRequest:
+      type: object
+      additionalProperties: false
+      required: [contact, message]
+      properties:
+        contact:
+          type: string
+          minLength: 3
+          maxLength: 240
+        kind:
+          type: string
+          enum: [billing, refund, technical, privacy, provider, other]
+          default: other
+        accountOrPaymentRef:
+          type: string
+          maxLength: 160
+        message:
+          type: string
+          minLength: 5
+          maxLength: 1200
+        company:
+          type: string
+          maxLength: 0
+          description: Honeypot field; leave empty.
+    SupportTicketExport:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        exportedAt:
+          type: string
+        rows:
+          type: array
+          items:
+            $ref: '#/components/schemas/SupportTicketExportRow'
+    SupportTicketExportRow:
+      type: object
+      properties:
+        id:
+          type: string
+        createdAt:
+          type: string
+        body:
+          $ref: '#/components/schemas/SupportTicketRequest'
     ProviderJobReceipt:
       type: object
       properties:

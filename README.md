@@ -78,6 +78,8 @@ Useful local routes:
 /proof
 /routing
 /privacy
+/support
+/refunds
 /account
 /ask
 /api/health
@@ -89,6 +91,8 @@ Useful local routes:
 /api/billing/readiness
 /api/billing/plans
 /api/billing/usage-analytics
+/api/support
+/api/support/export
 /api/routing/policy
 /api/warm/status
 /api/meal/order
@@ -141,6 +145,7 @@ docker run --rm -p 3000:3000 \
   -e FISH_ADMIN_TOKEN="$FISH_ADMIN_TOKEN" \
   -v opfish-submissions:/app/data/submissions \
   -v opfish-forms:/app/data/forms \
+  -v opfish-support:/app/data/support \
   -v opfish-ledger:/app/data/fish \
   -v opfish-ocean-batch:/app/data/ocean-batch \
   -v opfish-proof:/app/data/proof \
@@ -166,6 +171,7 @@ The container runs the Next.js standalone server as a non-root user. Form submis
 ```text
 /app/data/submissions
 /app/data/forms
+/app/data/support
 /app/data/fish
 /app/data/ocean-batch
 /app/data/proof
@@ -306,10 +312,10 @@ FISH_EXTERNAL_FALLBACK_FREE_ALLOWED=false
 FISH_PUBLIC_APP_URL=http://127.0.0.1:3000
 FISH_MIN_CHECKOUT_USD=1
 FISH_MAX_CHECKOUT_USD=500
-FISH_MAX_OUTSTANDING_PREPAID_CREDITS=
+FISH_MAX_OUTSTANDING_PREPAID_CREDITS=100000
 FISH_PAID_TOPUPS_PAUSED=true
-FISH_BILLING_SUPPORT_URL=
-FISH_BILLING_REFUND_POLICY_URL=
+FISH_BILLING_SUPPORT_URL=https://op.fish/support
+FISH_BILLING_REFUND_POLICY_URL=https://op.fish/refunds
 FISH_STRIPE_SECRET_KEY=
 FISH_STRIPE_WEBHOOK_SECRET=
 FISH_STRIPE_WEBHOOK_TOLERANCE_SECONDS=300
@@ -472,7 +478,7 @@ curl -sS http://127.0.0.1:3000/api/billing/checkout/stripe \
   -d '{"amountUsd":5}'
 ```
 
-Set `FISH_STRIPE_SECRET_KEY`, `FISH_STRIPE_WEBHOOK_SECRET`, `FISH_PUBLIC_APP_URL`, `FISH_MAX_OUTSTANDING_PREPAID_CREDITS`, `FISH_BILLING_SUPPORT_URL`, and `FISH_BILLING_REFUND_POLICY_URL`. Fish rejects checkout requests when paid top-ups are paused, when the cap is missing, when support/refund links are missing, or when the requested credits would exceed the cap. Configure Stripe to send signed webhooks to:
+Set `FISH_STRIPE_SECRET_KEY`, `FISH_STRIPE_WEBHOOK_SECRET`, `FISH_PUBLIC_APP_URL`, `FISH_MAX_OUTSTANDING_PREPAID_CREDITS`, `FISH_BILLING_SUPPORT_URL`, and `FISH_BILLING_REFUND_POLICY_URL`. The example env points customer care at `/support` and `/refunds` while paid top-ups stay paused. Fish rejects checkout requests when paid top-ups are paused, when the cap is missing, when support/refund links are missing, or when the requested credits would exceed the cap. Configure Stripe to send signed webhooks to:
 
 ```text
 https://<your-domain>/api/billing/webhooks/stripe
@@ -481,6 +487,13 @@ https://<your-domain>/api/billing/webhooks/stripe
 Fish accepts `checkout.session.completed`, verifies the Stripe signature, checks the session metadata against the local payment request, and grants `prepaid` credits idempotently by checkout session.
 
 Use `GET /api/billing/readiness` to show public-safe payment state before checkout is enabled. It reports whether top-ups are paused, whether the prepaid liability cap is set in credits and USD exposure, whether support/refund links are configured, and whether Stripe or USDC checkout is configured; it does not expose Stripe secrets, RPC URLs, or payment recipient addresses.
+
+Support and refund tickets can be created through `/support` or `POST /api/support`. They write private operator records under `data/support/`, which is ignored by git and included in runtime backups. Export them with:
+
+```bash
+curl -sS 'http://127.0.0.1:3000/api/support/export?format=csv' \
+  -H "x-fish-admin-token: $FISH_ADMIN_TOKEN"
+```
 
 USDC checkout uses Base USDC by default:
 
@@ -843,6 +856,7 @@ Ignored local runtime paths:
 ```text
 data/submissions/
 data/forms/
+data/support/
 data/fish/
 data/proof/
 data/ocean-batch/
@@ -874,5 +888,6 @@ Generated images should be text-free and used as scene assets. Render copy, butt
 - `/` is visually clear on mobile and desktop.
 - `/dashboard` loads with live data or sample fallback.
 - `data/submissions` is persisted or integrated with a real intake system.
+- `data/support` is persisted or integrated with a real support system.
 - `npm run backup:runtime -- --dry-run` shows the expected runtime paths, and a private backup target is configured before public traffic.
 - Public copy keeps the status clear: Ocean Navy-built, on Ocean Protocol, not official unless approved.

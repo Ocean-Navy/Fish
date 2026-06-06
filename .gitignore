@@ -22,6 +22,7 @@ yarn-error.log*
 *.tsbuildinfo
 data/forms/
 data/submissions/
+data/support/
 data/fish/
 data/proof/
 data/ocean-batch/

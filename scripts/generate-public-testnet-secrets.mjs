@@ -34,6 +34,8 @@ const payload = {
     FISH_OCEAN_DEMO_DAILY_BUDGET_USD: warmDailyBudgetUsd,
     FISH_MAX_OUTSTANDING_PREPAID_CREDITS: prepaidCreditCap,
     FISH_PAID_TOPUPS_PAUSED: "true",
+    FISH_BILLING_SUPPORT_URL: "https://op.fish/support",
+    FISH_BILLING_REFUND_POLICY_URL: "https://op.fish/refunds",
     FISH_RUNNER_PUBLIC_KEY_ID: runnerKeyId,
     FISH_RUNNER_PUBLIC_KEY_PEM: runnerKeys.publicPem,
     FISH_PROVIDER_PROOF_PUBLIC_KEY_ID: providerProofKeyId,

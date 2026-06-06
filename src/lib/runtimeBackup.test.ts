@@ -33,6 +33,28 @@ test("runtime backup dry run includes legacy form JSONL storage", async () => {
   assert.equal(forms.files, 1);
 });
 
+test("runtime backup dry run includes support ticket storage", async () => {
+  const dir = path.join(tmpdir(), `fish-runtime-backup-${Date.now()}-${Math.random().toString(16).slice(2)}`);
+  const dataDir = path.join(dir, "data");
+  tempDirs.push(dir);
+
+  await mkdir(path.join(dataDir, "support"), { recursive: true });
+  await writeFile(path.join(dataDir, "support", "support_test.json"), "{\"ok\":true}\n");
+
+  const result = spawnSync(process.execPath, ["scripts/backup-runtime-data.mjs", "--dry-run", "--json", "--data-dir", dataDir], {
+    cwd: process.cwd(),
+    encoding: "utf8"
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+  const manifest = JSON.parse(result.stdout);
+  const support = manifest.paths.find((entry: { path: string }) => entry.path.endsWith("/data/support"));
+
+  assert.ok(support);
+  assert.equal(support.exists, true);
+  assert.equal(support.files, 1);
+});
+
 test("runtime backup dry run flags public output targets as unsafe", async () => {
   const dir = path.join(tmpdir(), `fish-runtime-backup-${Date.now()}-${Math.random().toString(16).slice(2)}`);
   const dataDir = path.join(dir, "data");
