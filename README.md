@@ -850,7 +850,7 @@ After `make ocean-demo-smoke` passes, run one full web-to-Ocean proof smoke with
 make fish-ocean-proof-smoke
 ```
 
-That command creates a temporary API key, submits one Docs Bento order, verifies a non-sample `ocean_http` batch receipt, and checks that `/api/ocean/batch/readiness` reports `proofReady=true`. It prints only public-safe receipt ids, source labels, and hashes.
+That command creates a temporary API key, submits one Docs Bento order, verifies a non-sample `ocean_http` batch receipt, checks that `/api/ocean/batch/readiness` reports `proofReady=true`, and confirms `/proof` shows the conservative local Ocean proof boundary without rendering the raw smoke prompt. It prints only public-safe receipt ids, source labels, and hashes.
 
 ## Repository Structure
 

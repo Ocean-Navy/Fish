@@ -15,7 +15,8 @@ if (hasFlag("--help")) {
   console.log(`Usage: scripts/smoke-fish-ocean-proof.mjs [options]
 
 Runs one Fish batch dish through the web app, verifies a non-sample Ocean batch
-receipt, then verifies /api/ocean/batch/readiness reports proofReady=true.
+receipt, verifies /api/ocean/batch/readiness reports proofReady=true, then
+checks /proof for conservative public copy.
 
 Options:
   --base-url URL       Fish web base URL. Default: FISH_WEB_BASE_URL or http://127.0.0.1:3000
@@ -34,9 +35,11 @@ const key = await createTemporaryApiKey();
 const dish = await runDish(key);
 const readiness = await getJson("/api/ocean/batch/readiness");
 const batch = await getJson("/api/ocean/batch/jobs");
+const proofHtml = await getText("/proof");
 
 assertDishProof(dish);
 assertReadiness(readiness);
+assertProofPage(proofHtml);
 
 console.log("Fish Ocean proof smoke passed");
 console.log(`web: ${normalizedBaseUrl}`);
@@ -45,6 +48,7 @@ console.log(`batch receipt: ${dish.fish.batchReceiptId}`);
 console.log(`batch source: ${dish.fish.batchSourceState}/${dish.fish.batchAdapterMode}`);
 console.log(`batch output: ${dish.fish.batchOutputRef}`);
 console.log(`proof gate: dataState=${readiness.dataState}, trafficReady=${readiness.trafficReady}, proofReady=${readiness.proofReady}, nonSampleJobs=${readiness.proof.nonSampleJobs}`);
+console.log("proof page: conservative local Ocean proof copy visible");
 console.log(`batch summary: dataState=${batch.dataState}, jobs=${batch.jobs}, succeeded=${batch.succeededJobs}, storesPromptOutputText=${batch.storesPromptOutputText}`);
 
 async function createTemporaryApiKey() {
@@ -84,6 +88,17 @@ async function getJson(path) {
     signal: AbortSignal.timeout(timeoutMs)
   });
   return parseResponse(response, path);
+}
+
+async function getText(path) {
+  const response = await fetch(`${normalizedBaseUrl}${path}`, {
+    signal: AbortSignal.timeout(timeoutMs)
+  });
+  const text = await response.text();
+  if (!response.ok) {
+    throw new Error(`${path} returned ${response.status}`);
+  }
+  return text;
 }
 
 async function postJson(path, body, headers) {
@@ -144,6 +159,18 @@ function assertReadiness(payload) {
   }
   if (!payload.proof || payload.proof.hasNonSampleReceipt !== true) {
     throw new Error("Ocean proof gate does not see a non-sample receipt");
+  }
+}
+
+function assertProofPage(html) {
+  if (!html.includes("Local Ocean proof")) {
+    throw new Error("/proof does not show the local Ocean proof label");
+  }
+  if (!html.includes("External paid demand is not claimed yet.")) {
+    throw new Error("/proof does not show the external Oncompute demand boundary");
+  }
+  if (prompt && html.includes(prompt)) {
+    throw new Error("/proof rendered the raw smoke prompt");
   }
 }
 

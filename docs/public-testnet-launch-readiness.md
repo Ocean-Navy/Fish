@@ -86,7 +86,7 @@ After the web app points at the private adapter, run a full Fish order smoke:
 make fish-ocean-proof-smoke
 ```
 
-This creates a temporary Ocean-capable Fish API key, submits one Docs Bento order through `/api/dishes/docs/run`, verifies the batch receipt is non-sample `ocean_http`, and confirms `/api/ocean/batch/readiness` returns `proofReady=true`. The command prints only public-safe ids, labels, and hashes. For local development without polluting the normal runtime ledgers, start the web app with temporary paths first:
+This creates a temporary Ocean-capable Fish API key, submits one Docs Bento order through `/api/dishes/docs/run`, verifies the batch receipt is non-sample `ocean_http`, confirms `/api/ocean/batch/readiness` returns `proofReady=true`, and checks that `/proof` shows the conservative local Ocean proof boundary without rendering the raw smoke prompt. The command prints only public-safe ids, labels, and hashes. For local development without polluting the normal runtime ledgers, start the web app with temporary paths first:
 
 ```bash
 FISH_LEDGER_DIR=/tmp/fish-e2e-ledger \
