@@ -144,12 +144,15 @@ function checkBatchDishes(env) {
 
 function checkPayments(env, profile) {
   const blockers = [];
-  const hasStripe = safeSecret(env.FISH_STRIPE_SECRET_KEY) && safeSecret(env.FISH_STRIPE_WEBHOOK_SECRET);
+  const stripeSecretsConfigured = safeSecret(env.FISH_STRIPE_SECRET_KEY) && safeSecret(env.FISH_STRIPE_WEBHOOK_SECRET);
+  const stripePublicAppUrlConfigured = publicHttpsAppUrl(env.FISH_PUBLIC_APP_URL || env.NEXT_PUBLIC_FISH_APP_URL);
+  const hasStripe = stripeSecretsConfigured && stripePublicAppUrlConfigured;
   const usdcConfig = usdcCheckoutConfig(env);
   const hasUsdc = usdcConfig.configured;
   const paidTopupsPaused = truthy(env.FISH_PAID_TOPUPS_PAUSED);
   if (!env.FISH_MAX_OUTSTANDING_PREPAID_CREDITS) blockers.push("FISH_MAX_OUTSTANDING_PREPAID_CREDITS is missing; paid top-ups must stay blocked.");
   if (!hasStripe && !hasUsdc) blockers.push("Neither Stripe nor USDC checkout is fully configured.");
+  if (stripeSecretsConfigured && !stripePublicAppUrlConfigured) blockers.push("FISH_PUBLIC_APP_URL or NEXT_PUBLIC_FISH_APP_URL must be a public HTTPS origin for Stripe checkout.");
   if (usdcConfig.touched && !usdcConfig.chainConfigured) blockers.push("FISH_USDC_CHAIN_ID must be Base mainnet 8453 for paid USDC checkout.");
   if (usdcConfig.touched && !usdcConfig.tokenConfigured) blockers.push(`FISH_USDC_TOKEN_ADDRESS must be canonical Base USDC ${BASE_USDC_ADDRESS}.`);
   if (!publicCareUrl(env.FISH_BILLING_SUPPORT_URL)) blockers.push("FISH_BILLING_SUPPORT_URL is missing or not a public HTTP(S)/mailto URL.");
@@ -697,6 +700,17 @@ function publicCareUrl(value) {
   try {
     const parsed = new URL(cleaned);
     return parsed.protocol === "https:" || parsed.protocol === "http:" || parsed.protocol === "mailto:";
+  } catch {
+    return false;
+  }
+}
+
+function publicHttpsAppUrl(value) {
+  const cleaned = String(value || "").trim();
+  if (!cleaned) return false;
+  try {
+    const parsed = new URL(cleaned);
+    return parsed.protocol === "https:" && !["localhost", "127.0.0.1", "::1"].includes(parsed.hostname);
   } catch {
     return false;
   }

@@ -7,6 +7,7 @@ const PAYMENT_ENV_KEYS = [
   "FISH_MAX_CHECKOUT_USD",
   "FISH_MAX_OUTSTANDING_PREPAID_CREDITS",
   "FISH_MIN_CHECKOUT_USD",
+  "NEXT_PUBLIC_FISH_APP_URL",
   "FISH_PUBLIC_APP_URL",
   "FISH_PAID_TOPUPS_PAUSED",
   "FISH_BILLING_REFUND_POLICY_URL",
@@ -176,6 +177,7 @@ test("billing readiness enables configured providers only after caps are set and
   process.env.FISH_MAX_OUTSTANDING_PREPAID_CREDITS = "100000";
   process.env.FISH_BILLING_SUPPORT_URL = "mailto:support@op.fish";
   process.env.FISH_BILLING_REFUND_POLICY_URL = "https://op.fish/refunds";
+  process.env.FISH_PUBLIC_APP_URL = "https://op.fish";
   process.env.FISH_STRIPE_SECRET_KEY = "sk_test_configured";
   process.env.FISH_STRIPE_WEBHOOK_SECRET = "whsec_configured";
 
@@ -191,6 +193,21 @@ test("billing readiness enables configured providers only after caps are set and
   assert.equal(readiness.providers.stripe.enabled, true);
   assert.equal(readiness.providers.usdc.enabled, false);
   assert.deepEqual(readiness.blockers, []);
+});
+
+test("billing readiness rejects Stripe checkout without a public app URL", () => {
+  process.env.FISH_MAX_OUTSTANDING_PREPAID_CREDITS = "100000";
+  process.env.FISH_BILLING_SUPPORT_URL = "mailto:support@op.fish";
+  process.env.FISH_BILLING_REFUND_POLICY_URL = "https://op.fish/refunds";
+  process.env.FISH_STRIPE_SECRET_KEY = "sk_test_configured";
+  process.env.FISH_STRIPE_WEBHOOK_SECRET = "whsec_configured";
+
+  const readiness = summarizeBillingReadiness();
+
+  assert.equal(readiness.checkoutAvailable, false);
+  assert.equal(readiness.providers.stripe.configured, false);
+  assert.deepEqual(readiness.blockers, ["payment_provider_not_configured", "stripe_public_app_url_not_configured"]);
+  assert.ok(readiness.warnings.includes("Stripe checkout requires FISH_PUBLIC_APP_URL or NEXT_PUBLIC_FISH_APP_URL to be a public HTTPS origin."));
 });
 
 test("Stripe checkout rejects off-origin return URLs before contacting Stripe", async () => {
@@ -214,8 +231,25 @@ test("Stripe checkout rejects off-origin return URLs before contacting Stripe", 
   }
 });
 
+test("Stripe checkout rejects missing public app URL before contacting Stripe", async () => {
+  process.env.FISH_MAX_OUTSTANDING_PREPAID_CREDITS = "100000";
+  process.env.FISH_BILLING_SUPPORT_URL = "mailto:support@op.fish";
+  process.env.FISH_BILLING_REFUND_POLICY_URL = "https://op.fish/refunds";
+  process.env.FISH_STRIPE_SECRET_KEY = "sk_test_configured";
+  process.env.FISH_STRIPE_WEBHOOK_SECRET = "whsec_configured";
+
+  const result = await createStripeCheckoutPayment(testAccount(), { amountUsd: 5 });
+
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.equal(result.status, 503);
+    assert.equal(result.error, "stripe_public_app_url_not_configured");
+  }
+});
+
 test("billing readiness blocks checkout without support and refund links", () => {
   process.env.FISH_MAX_OUTSTANDING_PREPAID_CREDITS = "100000";
+  process.env.FISH_PUBLIC_APP_URL = "https://op.fish";
   process.env.FISH_STRIPE_SECRET_KEY = "sk_test_configured";
   process.env.FISH_STRIPE_WEBHOOK_SECRET = "whsec_configured";
 

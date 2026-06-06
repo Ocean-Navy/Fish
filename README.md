@@ -478,7 +478,7 @@ curl -sS http://127.0.0.1:3000/api/billing/checkout/stripe \
   -d '{"amountUsd":5}'
 ```
 
-Set `FISH_STRIPE_SECRET_KEY`, `FISH_STRIPE_WEBHOOK_SECRET`, `FISH_PUBLIC_APP_URL`, `FISH_MAX_OUTSTANDING_PREPAID_CREDITS`, `FISH_BILLING_SUPPORT_URL`, and `FISH_BILLING_REFUND_POLICY_URL`. The example env points customer care at `/support` and `/refunds` while paid top-ups stay paused. Fish rejects checkout requests when paid top-ups are paused, when the cap is missing, when support/refund links are missing, when the requested credits would exceed the cap, or when optional Stripe return URLs point outside the configured Fish app origin. Configure Stripe to send signed webhooks to:
+Set `FISH_STRIPE_SECRET_KEY`, `FISH_STRIPE_WEBHOOK_SECRET`, `FISH_PUBLIC_APP_URL`, `FISH_MAX_OUTSTANDING_PREPAID_CREDITS`, `FISH_BILLING_SUPPORT_URL`, and `FISH_BILLING_REFUND_POLICY_URL`. `FISH_PUBLIC_APP_URL` must be the public HTTPS Fish origin, for example `https://op.fish`. The example env points customer care at `/support` and `/refunds` while paid top-ups stay paused. Fish rejects checkout requests when paid top-ups are paused, when the cap is missing, when support/refund links are missing, when the requested credits would exceed the cap, when the public app URL is missing/local, or when optional Stripe return URLs point outside the configured Fish app origin. Configure Stripe to send signed webhooks to:
 
 ```text
 https://<your-domain>/api/billing/webhooks/stripe

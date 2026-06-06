@@ -411,7 +411,7 @@ paths:
   /api/billing/checkout/stripe:
     post:
       summary: Create a Stripe Checkout session for Fish Credits
-      description: Fish API-key route that creates a prepaid credit checkout session when paid top-ups are not paused and the prepaid liability cap has room. Optional success/cancel URLs must stay on the configured Fish app origin. Credits are issued only after the signed Stripe webhook confirms payment.
+      description: Fish API-key route that creates a prepaid credit checkout session when paid top-ups are not paused, the configured Fish app origin is public HTTPS, and the prepaid liability cap has room. Optional success/cancel URLs must stay on the configured Fish app origin. Credits are issued only after the signed Stripe webhook confirms payment.
       security:
         - bearerAuth: []
       requestBody:
@@ -5214,11 +5214,11 @@ components:
         successUrl:
           type: string
           format: uri
-          description: Optional Stripe return URL. Must use the same origin as FISH_PUBLIC_APP_URL/NEXT_PUBLIC_FISH_APP_URL.
+          description: Optional Stripe return URL. Must use the same origin as the public HTTPS FISH_PUBLIC_APP_URL/NEXT_PUBLIC_FISH_APP_URL.
         cancelUrl:
           type: string
           format: uri
-          description: Optional Stripe return URL. Must use the same origin as FISH_PUBLIC_APP_URL/NEXT_PUBLIC_FISH_APP_URL.
+          description: Optional Stripe return URL. Must use the same origin as the public HTTPS FISH_PUBLIC_APP_URL/NEXT_PUBLIC_FISH_APP_URL.
     FishUsdcCheckoutRequest:
       allOf:
         - $ref: '#/components/schemas/FishCheckoutRequest'

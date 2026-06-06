@@ -55,8 +55,9 @@ test("paid mainnet readiness blocks checkout without support and refund links", 
   const appEnv = await tempEnv(
     [
       "FISH_MAX_OUTSTANDING_PREPAID_CREDITS=100000",
-      "FISH_STRIPE_SECRET_KEY=sk_test_configured",
-      "FISH_STRIPE_WEBHOOK_SECRET=whsec_configured"
+      "FISH_PUBLIC_APP_URL=https://op.fish",
+      "FISH_STRIPE_SECRET_KEY=sk_live_12345678901234567890",
+      "FISH_STRIPE_WEBHOOK_SECRET=whsec_12345678901234567890"
     ].join("\n")
   );
   const result = runReadiness(["--profile", "paid-mainnet", "--env", appEnv, "--ocean-env", missingOceanEnv(), "--json"]);
@@ -68,6 +69,26 @@ test("paid mainnet readiness blocks checkout without support and refund links", 
   assert.equal(payments.state, "blocked");
   assert.match(payments.findings.join("\n"), /FISH_BILLING_SUPPORT_URL/);
   assert.match(payments.findings.join("\n"), /FISH_BILLING_REFUND_POLICY_URL/);
+});
+
+test("paid mainnet readiness rejects Stripe checkout without a public app URL", async () => {
+  const appEnv = await tempEnv(
+    [
+      "FISH_MAX_OUTSTANDING_PREPAID_CREDITS=100000",
+      "FISH_STRIPE_SECRET_KEY=sk_live_12345678901234567890",
+      "FISH_STRIPE_WEBHOOK_SECRET=whsec_12345678901234567890",
+      "FISH_BILLING_SUPPORT_URL=mailto:support@op.fish",
+      "FISH_BILLING_REFUND_POLICY_URL=https://op.fish/refunds"
+    ].join("\n")
+  );
+  const result = runReadiness(["--profile", "paid-mainnet", "--env", appEnv, "--ocean-env", missingOceanEnv(), "--json"]);
+
+  assert.equal(result.status, 1);
+  const summary = JSON.parse(result.stdout);
+  const payments = summary.checks.find((check: { name: string }) => check.name === "Payments/mainnet checkout");
+
+  assert.equal(payments.state, "blocked");
+  assert.match(payments.findings.join("\n"), /public HTTPS origin/);
 });
 
 test("paid mainnet readiness rejects USDC checkout on Base Sepolia", async () => {

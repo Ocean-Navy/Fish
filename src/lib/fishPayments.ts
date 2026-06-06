@@ -147,7 +147,9 @@ export function summarizeBillingReadiness(): FishBillingReadiness {
   const paidTopupsPaused = readBoolean(process.env.FISH_PAID_TOPUPS_PAUSED, false);
   const maxOutstandingPrepaidCredits = readOptionalInteger(process.env.FISH_MAX_OUTSTANDING_PREPAID_CREDITS);
   const liabilityCapConfigured = maxOutstandingPrepaidCredits !== null && maxOutstandingPrepaidCredits > 0;
-  const stripeConfigured = configuredSecret(process.env.FISH_STRIPE_SECRET_KEY) && configuredSecret(process.env.FISH_STRIPE_WEBHOOK_SECRET);
+  const stripeSecretsConfigured = configuredSecret(process.env.FISH_STRIPE_SECRET_KEY) && configuredSecret(process.env.FISH_STRIPE_WEBHOOK_SECRET);
+  const stripePublicAppUrlConfigured = publicHttpsAppUrl(process.env.FISH_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_FISH_APP_URL);
+  const stripeConfigured = stripeSecretsConfigured && stripePublicAppUrlConfigured;
   const usdcConfig = readUsdcCheckoutConfig();
   const supportUrl = publicCareUrl(process.env.FISH_BILLING_SUPPORT_URL);
   const refundPolicyUrl = publicCareUrl(process.env.FISH_BILLING_REFUND_POLICY_URL);
@@ -158,6 +160,7 @@ export function summarizeBillingReadiness(): FishBillingReadiness {
     ...(paidTopupsPaused ? ["paid_topups_paused"] : []),
     ...(!liabilityCapConfigured ? ["paid_credit_liability_cap_not_configured"] : []),
     ...(!hasPaymentProvider ? ["payment_provider_not_configured"] : []),
+    ...(stripeSecretsConfigured && !stripePublicAppUrlConfigured ? ["stripe_public_app_url_not_configured"] : []),
     ...(supportUrl ? [] : ["billing_support_url_not_configured"]),
     ...(refundPolicyUrl ? [] : ["billing_refund_policy_not_configured"])
   ];
@@ -203,7 +206,8 @@ export function summarizeBillingReadiness(): FishBillingReadiness {
       "Paid top-ups should stay paused until support and refund handling are ready.",
       "Base mainnet writes stay blocked by the contract write gates.",
       ...(usdcConfig.touched && !usdcConfig.chainConfigured ? ["USDC checkout must use Base mainnet chain id 8453."] : []),
-      ...(usdcConfig.touched && !usdcConfig.tokenConfigured ? [`USDC checkout must use canonical Base USDC ${BASE_USDC_ADDRESS}.`] : [])
+      ...(usdcConfig.touched && !usdcConfig.tokenConfigured ? [`USDC checkout must use canonical Base USDC ${BASE_USDC_ADDRESS}.`] : []),
+      ...(stripeSecretsConfigured && !stripePublicAppUrlConfigured ? ["Stripe checkout requires FISH_PUBLIC_APP_URL or NEXT_PUBLIC_FISH_APP_URL to be a public HTTPS origin."] : [])
     ]
   };
 }
@@ -237,6 +241,9 @@ export async function createStripeCheckoutPayment(account: Account, input: Check
   const now = new Date().toISOString();
   const paymentId = `pay_${randomUUID()}`;
   const publicUrl = fishPublicUrl();
+  if (!publicHttpsAppUrl(publicUrl)) {
+    return { ok: false as const, status: 503, error: "stripe_public_app_url_not_configured" };
+  }
   const successUrl = input.successUrl ?? `${publicUrl}/account?fish_payment=success&payment_id=${paymentId}`;
   const cancelUrl = input.cancelUrl ?? `${publicUrl}/account?fish_payment=cancel&payment_id=${paymentId}`;
   if (!allowedCheckoutReturnUrl(successUrl, publicUrl) || !allowedCheckoutReturnUrl(cancelUrl, publicUrl)) {
@@ -887,6 +894,19 @@ function publicCareUrl(value: string | undefined) {
     return parsed.protocol === "https:" || parsed.protocol === "http:" || parsed.protocol === "mailto:" ? clean : null;
   } catch {
     return null;
+  }
+}
+
+function publicHttpsAppUrl(value: string | undefined) {
+  const clean = cleanEnv(value);
+  if (!clean) {
+    return false;
+  }
+  try {
+    const parsed = new URL(clean);
+    return parsed.protocol === "https:" && !["localhost", "127.0.0.1", "::1"].includes(parsed.hostname);
+  } catch {
+    return false;
   }
 }
 
