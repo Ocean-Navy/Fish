@@ -29,7 +29,7 @@ This checklist covers the next Fish version work that can be finished before ren
    - Stripe or USDC secrets are set;
    - `FISH_BILLING_SUPPORT_URL` and `FISH_BILLING_REFUND_POLICY_URL` are configured;
    - public copy does not imply unlimited access.
-4. Keep `FISH_TESTNET_FAUCET_ENABLED=false` until the faucet wallet has only limited Base Sepolia ETH and test tokens.
+4. Keep `FISH_TESTNET_FAUCET_ENABLED=false` until the faucet wallet has only limited Base Sepolia ETH and test tokens, and until nginx/private proxy is configured with `FISH_PROXY_HEADER_SECRET` for trusted IP cooldown headers.
 5. Keep `FISH_CONTRACT_ACTIONS_ENABLED=false`, `FISH_CONTRACT_SETTLEMENT_SUBMIT_ENABLED=false`, and `FISH_CONTRACT_MAINNET_WRITES_ALLOWED=false` unless a testnet/mainnet deployment has been reviewed.
 6. Triage any Codex Security findings that apply to `main` or this branch. Apply only reviewed, narrow fixes.
 7. Run:

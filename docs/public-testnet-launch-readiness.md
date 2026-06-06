@@ -140,6 +140,8 @@ FISH_CONTRACT_MAINNET_WRITES_ALLOWED=false
 For testers without funds:
 
 ```text
+FISH_TRUST_PROXY_HEADERS=true
+FISH_PROXY_HEADER_SECRET=<long random secret set by nginx/private proxy>
 FISH_TESTNET_FAUCET_ENABLED=true
 FISH_TESTNET_FAUCET_CHAIN_ID=84532
 FISH_TESTNET_FAUCET_MAX_DAILY_CLAIMS=<small cap>
@@ -151,6 +153,7 @@ FISH_TESTNET_FAUCET_IP_COOLDOWN_HOURS=24
 ```
 
 Fund the faucet wallet only with limited Base Sepolia ETH, Test OCEAN, and Test USDC.
+In production, faucet claims require a trusted proxy identity. Configure nginx or the private proxy to strip any user-supplied `x-fish-proxy-secret`, then set its own `x-fish-proxy-secret: <FISH_PROXY_HEADER_SECRET>` plus the client IP header. Without that, Fish refuses faucet claims instead of trusting spoofable browser-supplied proxy headers.
 For public testing, keep the daily claim cap at or below 100 claims, the ETH grant at or below 0.001 Base Sepolia ETH, the Test OCEAN grant at or below 10,000, the Test USDC grant at or below 100, and both wallet/IP cooldowns at one hour or longer. The readiness script reports larger limits as unsafe for a public tester faucet.
 `GET /api/testnet/faucet` is public-safe and shows only readiness, grant sizes, daily remaining claims, reset time, faucet balances, and token addresses. It must not show wallet hashes, IP hashes, private keys, or raw claim rows.
 

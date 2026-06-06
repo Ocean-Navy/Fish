@@ -355,6 +355,8 @@ FISH_CONTRACT_CAPACITY_POOL_ADDRESS=
 FISH_CONTRACT_TREASURY_ADDRESS=
 FISH_CONTRACT_EMISSION_SOURCE_ADDRESS=
 FISH_CONTRACT_OPERATOR_ADDRESS=
+FISH_TRUST_PROXY_HEADERS=false
+FISH_PROXY_HEADER_SECRET=
 FISH_TESTNET_FAUCET_ENABLED=false
 FISH_TESTNET_FAUCET_PRIVATE_KEY=
 FISH_TESTNET_FAUCET_RPC_URL=https://sepolia.base.org
@@ -385,7 +387,7 @@ Paid credit checkout is disabled until secrets are set, `FISH_MAX_OUTSTANDING_PR
 
 Contract status is read-only by default. Set the `FISH_CONTRACT_*` addresses and `FISH_CONTRACT_RPC_URL` after deploying the prototype contracts on a testnet. Keep `FISH_CONTRACT_ACTIONS_ENABLED=false` until the addresses, chain, roles, and test wallet path are reviewed. Keep `FISH_CONTRACT_SETTLEMENT_SUBMIT_ENABLED=false` until the operator wallet, USDC funding, allowance path, and idempotency process are tested. Keep `FISH_CONTRACT_MAINNET_WRITES_ALLOWED=false` unless the contracts have passed audit, legal review, multisig ownership, monitoring, and incident-response checks.
 
-The testnet faucet is disabled by default. Enable it only on Base Sepolia with a dedicated low-balance faucet wallet. Do not reuse deployer, operator, treasury, or production payment wallets. Keep `FISH_TESTNET_FAUCET_MAX_DAILY_CLAIMS`, wallet cooldown, IP cooldown, and token amounts conservative.
+The testnet faucet is disabled by default. Enable it only on Base Sepolia with a dedicated low-balance faucet wallet. Do not reuse deployer, operator, treasury, or production payment wallets. Keep `FISH_TESTNET_FAUCET_MAX_DAILY_CLAIMS`, wallet cooldown, IP cooldown, and token amounts conservative. In production, faucet claims fail closed unless `FISH_TRUST_PROXY_HEADERS=true`, `FISH_PROXY_HEADER_SECRET` is set to a long random secret, and the trusted nginx/private proxy strips any incoming `x-fish-proxy-secret` header before adding its own `x-fish-proxy-secret` and client IP headers.
 
 For Base Sepolia contract testing:
 

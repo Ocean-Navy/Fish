@@ -129,6 +129,8 @@ function checkPayments(env, profile) {
 function checkTestnetFaucet(env) {
   const findings = [];
   if (!truthy(env.FISH_TESTNET_FAUCET_ENABLED)) return result("Public testnet faucet", "manual", ["Faucet is disabled, which is safe before a public test."]);
+  if (!truthy(env.FISH_TRUST_PROXY_HEADERS)) findings.push("FISH_TRUST_PROXY_HEADERS must be true before enabling the public faucet IP cooldown.");
+  if (!safeSecret(env.FISH_PROXY_HEADER_SECRET)) findings.push("FISH_PROXY_HEADER_SECRET is missing or weak; nginx/private proxy must sign trusted client IP headers.");
   if (env.FISH_TESTNET_FAUCET_CHAIN_ID !== "84532") findings.push("Faucet must stay on Base Sepolia.");
   if (!safeSecret(env.FISH_TESTNET_FAUCET_PRIVATE_KEY)) findings.push("FISH_TESTNET_FAUCET_PRIVATE_KEY is missing.");
   if (!env.FISH_TESTNET_FAUCET_RPC_URL) findings.push("FISH_TESTNET_FAUCET_RPC_URL is missing.");

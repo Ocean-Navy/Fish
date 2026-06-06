@@ -108,6 +108,8 @@ test("public testnet readiness flags oversized faucet grants", async () => {
   const appEnv = await tempEnv(
     [
       "FISH_PAID_TOPUPS_PAUSED=true",
+      "FISH_TRUST_PROXY_HEADERS=true",
+      "FISH_PROXY_HEADER_SECRET=fishproxytoken32charsabcdefghi",
       "FISH_TESTNET_FAUCET_ENABLED=true",
       "FISH_TESTNET_FAUCET_CHAIN_ID=84532",
       "FISH_TESTNET_FAUCET_PRIVATE_KEY=0x1111111111111111111111111111111111111111111111111111111111111111",
@@ -134,10 +136,41 @@ test("public testnet readiness flags oversized faucet grants", async () => {
   assert.match(faucet.findings.join("\n"), /Wallet cooldown is too low/);
 });
 
+test("public testnet readiness requires trusted proxy identity before enabling the faucet", async () => {
+  const appEnv = await tempEnv(
+    [
+      "FISH_PAID_TOPUPS_PAUSED=true",
+      "FISH_TESTNET_FAUCET_ENABLED=true",
+      "FISH_TESTNET_FAUCET_CHAIN_ID=84532",
+      "FISH_TESTNET_FAUCET_PRIVATE_KEY=0x1111111111111111111111111111111111111111111111111111111111111111",
+      "FISH_TESTNET_FAUCET_RPC_URL=https://sepolia.base.org",
+      "FISH_TESTNET_FAUCET_OCEAN_TOKEN_ADDRESS=0x1111111111111111111111111111111111111111",
+      "FISH_TESTNET_FAUCET_USDC_TOKEN_ADDRESS=0x2222222222222222222222222222222222222222",
+      "FISH_TESTNET_FAUCET_ETH_AMOUNT=0.0005",
+      "FISH_TESTNET_FAUCET_OCEAN_AMOUNT=1000",
+      "FISH_TESTNET_FAUCET_USDC_AMOUNT=25",
+      "FISH_TESTNET_FAUCET_MAX_DAILY_CLAIMS=50",
+      "FISH_TESTNET_FAUCET_WALLET_COOLDOWN_HOURS=24",
+      "FISH_TESTNET_FAUCET_IP_COOLDOWN_HOURS=24"
+    ].join("\n")
+  );
+  const result = runReadiness(["--env", appEnv, "--ocean-env", missingOceanEnv(), "--json"]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const summary = JSON.parse(result.stdout);
+  const faucet = summary.checks.find((check: { name: string }) => check.name === "Public testnet faucet");
+
+  assert.equal(faucet.state, "partial");
+  assert.match(faucet.findings.join("\n"), /FISH_TRUST_PROXY_HEADERS must be true/);
+  assert.match(faucet.findings.join("\n"), /FISH_PROXY_HEADER_SECRET is missing or weak/);
+});
+
 test("public testnet readiness accepts conservative faucet limits", async () => {
   const appEnv = await tempEnv(
     [
       "FISH_PAID_TOPUPS_PAUSED=true",
+      "FISH_TRUST_PROXY_HEADERS=true",
+      "FISH_PROXY_HEADER_SECRET=fishproxytoken32charsabcdefghi",
       "FISH_TESTNET_FAUCET_ENABLED=true",
       "FISH_TESTNET_FAUCET_CHAIN_ID=84532",
       "FISH_TESTNET_FAUCET_PRIVATE_KEY=0x1111111111111111111111111111111111111111111111111111111111111111",

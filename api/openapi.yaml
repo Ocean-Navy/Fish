@@ -1345,7 +1345,7 @@ paths:
                 $ref: '#/components/schemas/TestnetFaucetStatus'
     post:
       summary: Claim Base Sepolia test tokens
-      description: Sends a tiny Base Sepolia ETH top-up, Test OCEAN, and Test USDC from a dedicated faucet wallet when enabled and within wallet/IP/day limits.
+      description: Sends a tiny Base Sepolia ETH top-up, Test OCEAN, and Test USDC from a dedicated faucet wallet when enabled and within wallet/IP/day limits. In production, trusted proxy headers must be signed with the configured proxy secret before IP cooldowns are applied.
       requestBody:
         required: true
         content:
@@ -1363,8 +1363,10 @@ paths:
           description: Invalid wallet address
         '429':
           description: Wallet, IP, or daily faucet limit reached
+        '403':
+          description: Trusted proxy secret missing or invalid
         '503':
-          description: Faucet disabled or not configured
+          description: Faucet disabled, not configured, or trusted proxy identity unavailable
   /api/staking/summary:
     get:
       summary: Public offchain OCEAN staking credit summary

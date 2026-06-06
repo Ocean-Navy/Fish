@@ -338,6 +338,8 @@ FISH_CONTRACT_CAPACITY_POOL_ADDRESS=
 FISH_CONTRACT_TREASURY_ADDRESS=
 FISH_CONTRACT_EMISSION_SOURCE_ADDRESS=
 FISH_CONTRACT_OPERATOR_ADDRESS=
+FISH_TRUST_PROXY_HEADERS=false
+FISH_PROXY_HEADER_SECRET=
 FISH_TESTNET_FAUCET_ENABLED=false
 FISH_TESTNET_FAUCET_PRIVATE_KEY=
 FISH_TESTNET_FAUCET_RPC_URL=https://sepolia.base.org
@@ -729,7 +731,7 @@ curl -sS http://127.0.0.1:3000/api/testnet/faucet \
   -d '{"walletAddress":"0x..."}'
 ```
 
-Keep this wallet separate from deployer, operator, and treasury wallets. Fund it only with limited Base Sepolia ETH and test tokens. The faucet is disabled by default, Base Sepolia only, and capped by wallet, IP, and daily claim limits. Public status exposes safe aggregate counters only: enabled/ready state, grant sizes, wallet/IP/day limits, claims used today, remaining claims, reset time, token addresses, faucet address, and faucet balances. It does not expose wallet hashes, IP hashes, private keys, or raw claim rows.
+Keep this wallet separate from deployer, operator, and treasury wallets. Fund it only with limited Base Sepolia ETH and test tokens. The faucet is disabled by default, Base Sepolia only, and capped by wallet, IP, and daily claim limits. Public faucet claims trust proxy IP headers only when `FISH_TRUST_PROXY_HEADERS=true` and nginx/private proxy adds `x-fish-proxy-secret: <FISH_PROXY_HEADER_SECRET>` after stripping any user-supplied copy of that header. Public status exposes safe aggregate counters only: enabled/ready state, grant sizes, wallet/IP/day limits, claims used today, remaining claims, reset time, token addresses, faucet address, and faucet balances. It does not expose wallet hashes, IP hashes, private keys, or raw claim rows.
 
 Staking positions and wallet intents are written under `data/staking/`, which is ignored by git. This is not an onchain staking contract; it is a funded-budget prototype for proving OCEAN lock intent, credit issuance, and credit spend.
 

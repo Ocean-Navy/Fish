@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { resolveTestnetFaucetClientIdentity } from "@/lib/testnetFaucetIdentity";
 import { claimTestnetFaucet, parseTestnetFaucetClaim, summarizeTestnetFaucet } from "@/lib/testnetFaucet";
 
 export const dynamic = "force-dynamic";
@@ -22,8 +23,12 @@ export async function POST(request: Request) {
     );
   }
 
-  const ipAddress = request.headers.get("x-forwarded-for") ?? request.headers.get("cf-connecting-ip") ?? "unknown";
-  const result = await claimTestnetFaucet(parsed.data.walletAddress, ipAddress);
+  const identity = resolveTestnetFaucetClientIdentity(request.headers);
+  if (!identity.ok) {
+    return NextResponse.json({ error: { message: identity.error, type: "testnet_faucet_error" } }, { status: identity.status });
+  }
+
+  const result = await claimTestnetFaucet(parsed.data.walletAddress, identity.ipAddress);
   if (!result.ok) {
     return NextResponse.json({ error: { message: result.error, type: "testnet_faucet_error", resetAt: "resetAt" in result ? result.resetAt : undefined } }, { status: result.status });
   }
