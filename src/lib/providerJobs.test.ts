@@ -1,13 +1,15 @@
 import assert from "node:assert/strict";
 import { createHash, generateKeyPairSync, sign } from "node:crypto";
 import { afterEach, test } from "node:test";
-import { validateProviderJobEndpoint, verifyProviderJobReceipt, type ProviderJobReceipt } from "./providerJobs";
+import { effectiveProviderReceiptSourceState, validateProviderJobEndpoint, verifyProviderJobReceipt, type ProviderJobReceipt } from "./providerJobs";
 
 const PROVIDER_PROOF_ENV_KEYS = [
   "FISH_PROVIDER_PROOF_PUBLIC_KEY_ID",
   "FISH_PROVIDER_PROOF_PUBLIC_KEY_PEM",
   "FISH_PROVIDER_PROOF_PUBLIC_KEYS_JSON",
-  "FISH_PROVIDER_PROOF_PUBLIC_KEYS_PATH"
+  "FISH_PROVIDER_PROOF_PUBLIC_KEYS_PATH",
+  "FISH_PROVIDER_PROOF_SIGNING_KEY_ID",
+  "FISH_PROVIDER_PROOF_SIGNING_PRIVATE_KEY_PEM"
 ] as const;
 
 afterEach(() => {
@@ -79,6 +81,45 @@ test("provider receipt verification accepts signatures from configured trusted k
   assert.equal(verification.error, null);
 });
 
+test("provider proof source labels do not promote mock or rejected rows", () => {
+  const mockReceipt = buildReceipt({
+    signerKeyId: "test",
+    signerPublicKeyPem: null,
+    providerJobId: "mock_123",
+    sourceState: "live"
+  });
+  const notAllowedReceipt = buildReceipt({
+    signerKeyId: "test",
+    signerPublicKeyPem: null,
+    providerJobId: null,
+    sourceState: "live",
+    status: "not_allowed"
+  });
+  const providerReceipt = buildReceipt({
+    signerKeyId: "test",
+    signerPublicKeyPem: null,
+    providerJobId: "provider_job_123",
+    sourceState: "snapshot"
+  });
+
+  assert.equal(effectiveProviderReceiptSourceState(mockReceipt), "sample");
+  assert.equal(effectiveProviderReceiptSourceState(notAllowedReceipt), "sample");
+  assert.equal(effectiveProviderReceiptSourceState(providerReceipt), "snapshot");
+});
+
+test("provider receipt verification trusts configured signing private key", () => {
+  clearProviderProofEnv();
+  const trustedKey = generateProofKey("managed-provider-proof-key");
+  process.env.FISH_PROVIDER_PROOF_SIGNING_KEY_ID = trustedKey.keyId;
+  process.env.FISH_PROVIDER_PROOF_SIGNING_PRIVATE_KEY_PEM = trustedKey.privateKeyPem;
+  const receipt = signReceipt(buildReceipt({ signerKeyId: trustedKey.keyId, signerPublicKeyPem: trustedKey.publicKeyPem }), trustedKey.privateKeyPem);
+
+  const verification = verifyProviderJobReceipt(receipt);
+
+  assert.equal(verification.ok, true);
+  assert.equal(verification.error, null);
+});
+
 function generateProofKey(keyId: string) {
   const { privateKey, publicKey } = generateKeyPairSync("ed25519");
   return {
@@ -92,26 +133,32 @@ function buildReceipt({
   signerKeyId,
   signerAlgorithm = "ed25519",
   signerPublicKeyPem,
-  signatureStatus = "valid"
+  signatureStatus = "valid",
+  providerJobId = "provider_job_test_001",
+  sourceState = "snapshot",
+  status = "succeeded"
 }: {
   signerKeyId: string;
   signerAlgorithm?: ProviderJobReceipt["signer"]["algorithm"];
   signerPublicKeyPem: string | null;
   signatureStatus?: ProviderJobReceipt["signatureStatus"];
+  providerJobId?: ProviderJobReceipt["providerJobId"];
+  sourceState?: ProviderJobReceipt["sourceState"];
+  status?: ProviderJobReceipt["status"];
 }): ProviderJobReceipt {
   return {
     receiptVersion: 1,
     receiptType: "provider_job_receipt",
     receiptId: "receipt_test_001",
     jobId: "job_test_001",
-    providerJobId: "provider_job_test_001",
+    providerJobId,
     providerId: "provider_test",
     providerLabel: "Test Provider",
     model: "fish-demo-chat",
     workloadType: "chat_batch",
     backend: "ocean_provider",
-    status: "succeeded",
-    sourceState: "snapshot",
+    status,
+    sourceState,
     visibility: "public",
     createdAt: "2026-06-05T00:00:00.000Z",
     startedAt: "2026-06-05T00:00:00.000Z",

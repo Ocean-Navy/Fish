@@ -1,5 +1,6 @@
 import { getFishRouterConfig, type FishChatRouteId } from "@/lib/fishRouter";
 import type { OpenAiCompatibleRouteConfig } from "@/lib/openAiCompatibleChat";
+import { summarizeRunnerReceiptTrust, type RunnerReceiptTrustStatus } from "@/lib/runnerReceipts";
 import type { DataState } from "@/lib/types";
 
 type ProbeState = "ok" | "failed" | "skipped";
@@ -30,6 +31,7 @@ export type WarmInferenceStatus = {
     dailyAnonymousQuota: number;
     externalFallbackFreeAllowed: boolean;
   };
+  runnerReceiptTrust: RunnerReceiptTrustStatus;
   warnings: string[];
 };
 
@@ -39,11 +41,14 @@ export async function getWarmInferenceStatus({ probe = false, timeoutMs = 1500 }
   const warmRoute = router.routes[activeWarmRouteId];
   const routeConfig = activeWarmRouteId === "ocean-provider" ? router.selectedProvider : router.warm;
   const routeName = activeWarmRouteId === "ocean-provider" ? "Selected Ocean provider" : "Warm vLLM";
+  const runnerReceiptTrust = summarizeRunnerReceiptTrust();
   const warnings = [
     ...(routeConfig.baseUrl ? [] : [`${routeName} base URL is not configured.`]),
     ...(routeConfig.model ? [] : [`${routeName} model is not configured.`]),
     ...(routeConfig.apiKey ? [] : [`${routeName} API key is not configured.`]),
-    ...(router.activeRouteId === activeWarmRouteId && !warmRoute.configured ? [`${warmRoute.publicLabel} route is selected but not ready.`] : [])
+    ...(router.activeRouteId === activeWarmRouteId && !warmRoute.configured ? [`${warmRoute.publicLabel} route is selected but not ready.`] : []),
+    ...(runnerReceiptTrust.configured ? [] : ["Trusted runner receipt public key is not configured; runner receipts will not count as signed proof."]),
+    ...(runnerReceiptTrust.invalidKeyCount ? [`${runnerReceiptTrust.invalidKeyCount} trusted runner receipt public key${runnerReceiptTrust.invalidKeyCount === 1 ? "" : "s"} could not be parsed as Ed25519.`] : [])
   ];
   const base = baseStatus({ routeId: activeWarmRouteId, routeConfig });
 
@@ -122,6 +127,7 @@ export async function getWarmInferenceStatus({ probe = false, timeoutMs = 1500 }
         message: "Probe not run."
       },
       guardrails: router.guardrails,
+      runnerReceiptTrust,
       warnings
     };
   }

@@ -150,6 +150,16 @@ deploy/ocean-workload-adapter/algorithms/fish-document-summary/
 
 It can summarize text dataset files, but it also supports `FISH_OCEAN_DATASET_DIDS=[]` for the first no-dataset Ocean compute proof.
 
+Before publishing the algorithm asset, smoke the reviewed local bundle:
+
+```bash
+npm run proof:algorithm-smoke
+```
+
+This runs the algorithm with no dataset and with a small local text dataset, then verifies the private proof receipt, output mode, document hash, and output hash. It does not contact Ocean, use a wallet, or write public proof.
+
+The public-testnet readiness audit keeps the two proof claims separate. A local Ocean Node adapter can make the local proof path ready, but the `External Oncompute proof` check stays manual until the private adapter env is explicitly live and has a non-local `NODE_URL`, wallet, HTTP(S) RPC, dataset DID list, algorithm DID, compute environment id, and Ocean CLI checkout path or binary. Paid jobs must set both `FISH_OCEAN_PAYMENT_TOKEN` and valid JSON `FISH_OCEAN_RESOURCES`; leave both empty only for free external compute.
+
 ## Adapter Contract
 
 Fish sends:
@@ -254,11 +264,13 @@ The adapter template lives at:
 deploy/ocean-workload-adapter/env.example
 ```
 
-Copy it to an ignored private file:
+Copy the root external-proof template to an ignored private file:
 
 ```bash
-cp deploy/ocean-workload-adapter/env.example .env.ocean-proof.local
+cp .env.ocean-proof.example .env.ocean-proof.local
 ```
+
+The fuller service template remains available at `deploy/ocean-workload-adapter/env.example` when you need local Ocean Node mode or adapter defaults.
 
 Prepare the Ocean CLI checkout:
 
@@ -275,6 +287,7 @@ OCEAN_CLI_DIR=/Users/robin/Projects/opfish/.deps/ocean-cli
 Publish the first Fish algorithm after `PRIVATE_KEY`, `RPC`, and `NODE_URL` are exported:
 
 ```bash
+npm run proof:algorithm-smoke
 commit="$(git rev-parse HEAD)"
 export FISH_ALGORITHM_FILE_URL="https://raw.githubusercontent.com/Ocean-Navy/Fish/${commit}/deploy/ocean-workload-adapter/algorithms/fish-document-summary/algorithm.py"
 scripts/publish-fish-document-summary-algorithm.sh --env-file .env.ocean-proof.local
@@ -294,6 +307,15 @@ paid compute token USDC on Base
 ```
 
 For a free local Ocean Node demo, a supported testnet can be used instead if the Ocean contracts are deployed there and the proof wallet has gas on that chain. Fish's own Base Sepolia prototype contracts do not automatically make Ocean CLI asset publishing work on Base Sepolia.
+
+Preflight the private adapter env before starting the adapter or asking Fish to send a job:
+
+```bash
+npm run proof:external-preflight -- --env-file .env.ocean-proof.local
+```
+
+This exits without starting HTTP. It prints only public-safe selected values, missing fields, warnings, and booleans for whether the adapter key, proof wallet, and RPC are configured. Do not proceed to an external proof until it reports `liveReady: true`.
+The preflight treats malformed live proof settings as not ready. Use `FISH_OCEAN_DATASET_DIDS=[]` for the first self-contained algorithm or provide only `did:op:...` dataset values. Use a `did:op:...` algorithm DID, JSON-object paid resources/output settings, a non-local Ocean/Oncompute `NODE_URL` without embedded credentials, and a real chain RPC rather than a loopback RPC.
 
 5. Configure Fish:
 

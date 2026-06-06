@@ -220,6 +220,7 @@ export function FishMealCounter() {
   const featureMaxOutputTokens = routePolicy?.features?.find((feature) => feature.id === activeDish.id)?.maxOutputTokens ?? globalMaxOutputTokens;
   const orderMaxTokens = Math.min(activeDish.maxTokens, globalMaxOutputTokens, featureMaxOutputTokens);
   const oceanBatchPrivatePayload = routePolicy?.backend?.oceanBatchPrivatePayload === true;
+  const activeDishNeedsKey = Boolean(activeDish.oceanBatch && !apiKey.trim());
 
   useEffect(() => {
     Promise.resolve().then(() => {
@@ -279,6 +280,10 @@ export function FishMealCounter() {
     }
     if (!userPrompt) {
       setError("Add a prompt for this dish.");
+      return;
+    }
+    if (activeDishNeedsKey) {
+      setError("Deep dishes need a Fish API key. Add one in Details or pick Quick Catch for the free taste.");
       return;
     }
 
@@ -372,7 +377,7 @@ export function FishMealCounter() {
           <summary className="cursor-pointer text-sm font-black text-fish-primary">Details</summary>
           <div className="mt-4 space-y-4">
             <label className="block text-sm font-black text-fish-primary" htmlFor="fish-meal-api-key">
-              Fish API key <span className="text-fish-secondary">(optional)</span>
+              Fish API key <span className="text-fish-secondary">{activeDish.oceanBatch ? "(needed for deep dishes)" : "(optional)"}</span>
             </label>
             <input
               id="fish-meal-api-key"
@@ -380,7 +385,7 @@ export function FishMealCounter() {
               onChange={(event) => setApiKey(event.target.value)}
               type="password"
               autoComplete="off"
-              placeholder="Leave empty for a small demo"
+              placeholder={activeDish.oceanBatch ? "Paste your Fish API key" : "Leave empty for a small demo"}
               className="h-12 w-full rounded-2xl border border-fish-accent/25 bg-fish-navy950/70 px-4 text-sm font-bold text-white outline-none transition placeholder:text-fish-muted focus:border-fish-accent"
             />
 
@@ -436,6 +441,12 @@ export function FishMealCounter() {
           placeholder={activeDish.placeholder}
           className="mt-2 w-full resize-none rounded-[1.5rem] border border-fish-accent/25 bg-fish-navy950/70 p-4 text-base font-bold leading-7 text-white outline-none transition placeholder:text-fish-muted focus:border-fish-accent"
         />
+
+        {activeDishNeedsKey ? (
+          <div className="mt-4 rounded-2xl border border-fish-gold/25 bg-fish-gold/10 p-4 text-sm font-black leading-6 text-fish-primary">
+            Deep dishes need a Fish API key. Add one in Details, or pick Quick Catch for a free taste.
+          </div>
+        ) : null}
 
         {error ? (
           <div className="mt-4 rounded-2xl border border-fish-coral/35 bg-fish-coral/10 p-4 text-sm font-black text-fish-primary" role="alert">

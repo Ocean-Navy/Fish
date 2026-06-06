@@ -56,6 +56,7 @@ api/openapi.yaml             API contract for public and prototype routes
 docs/                        Feature plans, runbooks, and implementation contracts
 docs/codex-security-setup.md Codex Security cloud environment and scan setup
 docs/non-gpu-publish-readiness.md What can ship before a GPU VM
+docs/public-testnet-launch-readiness.md Public tester checklist for capped credits, payment gates, and Ocean proof
 contracts/                   Prototype Solidity contracts for OCEAN/FISH and capacity-pool research
 ```
 
@@ -77,6 +78,8 @@ Useful local routes:
 /proof
 /routing
 /privacy
+/support
+/refunds
 /account
 /ask
 /api/health
@@ -85,8 +88,11 @@ Useful local routes:
 /api/ocean/refresh
 /api/ocean/batch/jobs
 /api/ocean/batch/readiness
+/api/billing/readiness
 /api/billing/plans
 /api/billing/usage-analytics
+/api/support
+/api/support/export
 /api/routing/policy
 /api/warm/status
 /api/meal/order
@@ -140,7 +146,10 @@ docker build -t opfish-web:latest .
 docker run --rm -p 3000:3000 \
   -e FISH_ADMIN_TOKEN="$FISH_ADMIN_TOKEN" \
   -v opfish-submissions:/app/data/submissions \
+  -v opfish-forms:/app/data/forms \
+  -v opfish-support:/app/data/support \
   -v opfish-ledger:/app/data/fish \
+  -v opfish-ocean-batch:/app/data/ocean-batch \
   -v opfish-proof:/app/data/proof \
   -v opfish-staking:/app/data/staking \
   opfish-web:latest
@@ -171,12 +180,15 @@ The container runs the Next.js standalone server as a non-root user. Form submis
 
 ```text
 /app/data/submissions
+/app/data/forms
+/app/data/support
 /app/data/fish
+/app/data/ocean-batch
 /app/data/proof
 /app/data/staking
 ```
 
-Compose mounts those paths as named volumes named `fish-submissions`, `fish-ledger`, `fish-proof`, and `fish-staking`.
+Compose mounts those paths as named volumes named `fish-submissions`, `fish-forms`, `fish-ledger`, `fish-ocean-batch`, `fish-proof`, and `fish-staking`.
 
 The root Compose file reads `${FISH_ENV_FILE:-.env.production}` when present. Set `FISH_ADMIN_TOKEN` to a unique long random secret before using or exposing admin routes. For a public site before Fish Runner is configured, leave `FISH_CHAT_ROUTE=mock` so the meal counter labels itself as demo mode, or set `FISH_CHAT_PAUSED=true` to stop orders entirely.
 
@@ -217,13 +229,17 @@ cp deploy/ocean-demo-stack/env.example .env.ocean-demo-stack
 node scripts/generate-ocean-node-compute-env.mjs --env
 make ocean-demo-config FISH_OCEAN_DEMO_ENV=.env.ocean-demo-stack
 make ocean-demo-up FISH_OCEAN_DEMO_ENV=.env.ocean-demo-stack
+npm run ocean-demo:web-env -- --env .env.ocean-demo-stack --host <private-gpu-vm-host>
 ```
 
 Add `--profile warm` through `make ocean-demo-up-warm` when the GPU host should also run vLLM and Fish Runner.
+Use a private GPU/Ocean host IP or private DNS name for `--host` when configuring a separate web VM. Loopback hosts such as `127.0.0.1`, `localhost`, and `host.docker.internal` are only for local single-machine testing and are flagged by the readiness audit.
 
 On Apple Silicon, run `mlx_lm.server` on the macOS host and start `make ocean-demo-up-mlx` instead. Docker will run Ocean Node, the adapter, and Fish Runner; Fish Runner calls MLX at `host.docker.internal:8080`.
 
 This stack is for a testnet/free-compute demo using our own Ocean Node. It can prove that Fish dishes run through an Ocean Node we operate; it does not prove paid third-party Oncompute demand. Keep raw vLLM and the workload adapter private, and point the web VM only at the Fish Runner `/v1` surface plus the adapter `/jobs` endpoint over a private network.
+
+`npm run ocean-demo:web-env` prints the private web-host env block for the batch dish adapter, Fish Runner route, and runner receipt public key. Its output includes adapter and runner API keys, so paste it only into the private web host env.
 
 See `deploy/ocean-demo-stack/README.md`.
 
@@ -257,6 +273,7 @@ ONCOMPUTE_MAX_PAGES=3
 PORT=3000
 HOSTNAME=0.0.0.0
 FISH_ADMIN_TOKEN=
+FISH_DATA_BACKUP_TARGET=
 FISH_PROVIDER_ALLOWLIST=
 FISH_PROVIDER_JOB_ENDPOINTS=
 FISH_PROVIDER_JOB_API_KEY=
@@ -277,7 +294,7 @@ FISH_DAILY_ANONYMOUS_QUOTA=5
 FISH_RATE_LIMIT_MAX_BUCKETS=10000
 # Granted once to the shared unauthenticated guest account, not once per browser.
 FISH_GUEST_CREDIT_GRANT=25
-# Optional deployment namespace for the shared guest bucket; it is not a bearer credential.
+# Required in production for unauthenticated meal and dish routes.
 FISH_GUEST_ID_SALT=
 FISH_CHAT_PAUSED=false
 FISH_ROUTER_KILL_SWITCH=false
@@ -288,6 +305,22 @@ FISH_OCEAN_DEMO_VLLM_MODEL=
 FISH_OCEAN_DEMO_PROVIDER_ID=ocean-navy-demo-node
 FISH_OCEAN_DEMO_COST_USD_PER_1K_TOKENS=0
 FISH_OCEAN_DEMO_DAILY_BUDGET_USD=50
+FISH_OCEAN_PROVIDER_BASE_URL=
+FISH_OCEAN_PROVIDER_API_KEY=
+FISH_OCEAN_PROVIDER_MODEL=
+FISH_OCEAN_PROVIDER_ID=selected-ocean-provider
+FISH_OCEAN_PROVIDER_COST_USD_PER_1K_TOKENS=0
+FISH_OCEAN_PROVIDER_DAILY_BUDGET_USD=25
+FISH_RUNNER_PUBLIC_KEY_ID=
+FISH_RUNNER_PUBLIC_KEY_PEM=
+FISH_RUNNER_PUBLIC_KEYS_JSON=
+FISH_RUNNER_PUBLIC_KEYS_PATH=
+FISH_PROVIDER_PROOF_PUBLIC_KEY_ID=
+FISH_PROVIDER_PROOF_PUBLIC_KEY_PEM=
+FISH_PROVIDER_PROOF_PUBLIC_KEYS_JSON=
+FISH_PROVIDER_PROOF_PUBLIC_KEYS_PATH=
+FISH_PROVIDER_PROOF_SIGNING_KEY_ID=
+FISH_PROVIDER_PROOF_SIGNING_PRIVATE_KEY_PEM=
 FISH_EXTERNAL_CHAT_BASE_URL=
 FISH_EXTERNAL_CHAT_API_KEY=
 FISH_EXTERNAL_CHAT_MODEL=
@@ -298,8 +331,10 @@ FISH_EXTERNAL_FALLBACK_FREE_ALLOWED=false
 FISH_PUBLIC_APP_URL=http://127.0.0.1:3000
 FISH_MIN_CHECKOUT_USD=1
 FISH_MAX_CHECKOUT_USD=500
-FISH_MAX_OUTSTANDING_PREPAID_CREDITS=
-FISH_PAID_TOPUPS_PAUSED=false
+FISH_MAX_OUTSTANDING_PREPAID_CREDITS=100000
+FISH_PAID_TOPUPS_PAUSED=true
+FISH_BILLING_SUPPORT_URL=https://op.fish/support
+FISH_BILLING_REFUND_POLICY_URL=https://op.fish/refunds
 FISH_STRIPE_SECRET_KEY=
 FISH_STRIPE_WEBHOOK_SECRET=
 FISH_STRIPE_WEBHOOK_TOLERANCE_SECONDS=300
@@ -331,6 +366,8 @@ FISH_CONTRACT_CAPACITY_POOL_ADDRESS=
 FISH_CONTRACT_TREASURY_ADDRESS=
 FISH_CONTRACT_EMISSION_SOURCE_ADDRESS=
 FISH_CONTRACT_OPERATOR_ADDRESS=
+FISH_TRUST_PROXY_HEADERS=false
+FISH_PROXY_HEADER_SECRET=
 FISH_TESTNET_FAUCET_ENABLED=false
 FISH_TESTNET_FAUCET_PRIVATE_KEY=
 FISH_TESTNET_FAUCET_RPC_URL=https://sepolia.base.org
@@ -393,7 +430,7 @@ Fish stores usage numbers, route metadata, latency, cost estimates, and request 
 
 Feature caps are layered under the global token limits. For example, Code can have a larger cap than Ask when `FISH_MAX_OUTPUT_TOKENS` is raised, while Images remain disabled until a paid image route exists.
 
-Unauthenticated meal and dish routes use one deployment-scoped anonymous guest identity for quota and demo credit accounting. `FISH_GUEST_ID_SALT` can separate that bucket between deployments, but Fish does not trust client-supplied proxy headers such as `X-Forwarded-For` or `X-Real-IP` for guest credit grants. Guest ledger accounts are internal-only and their anonymous principal must not authenticate as a `/v1` bearer API key.
+Unauthenticated meal and dish routes use one deployment-scoped anonymous guest identity for quota and demo credit accounting. `FISH_GUEST_ID_SALT` separates that bucket between deployments and is required in production; guest routes return `503 guest_identity_salt_required` until it is set. Fish does not trust client-supplied proxy headers such as `X-Forwarded-For` or `X-Real-IP` for guest credit grants.
 
 The public route compass shows what is active without exposing secrets:
 
@@ -403,6 +440,8 @@ curl -sS http://127.0.0.1:3000/api/warm/status
 # Operator-only live probe; requires FISH_ADMIN_TOKEN outside local development.
 curl -sS -H "x-fish-admin-token: $FISH_ADMIN_TOKEN" "http://127.0.0.1:3000/api/warm/status?probe=live"
 ```
+
+`/api/warm/status` also reports whether trusted Fish Runner receipt public keys are configured. It exposes only counts and warnings, never public key material or private keys. Runner receipts do not count as signed proof until at least one trusted Ed25519 runner public key is configured.
 
 Use `/routing` for the human-friendly route view and `/dashboard` for public warm demo snapshots. Both must label mock, external fallback, selected warm demo work, and later selected Ocean provider work differently.
 
@@ -458,13 +497,24 @@ curl -sS http://127.0.0.1:3000/api/billing/checkout/stripe \
   -d '{"amountUsd":5}'
 ```
 
-Set `FISH_STRIPE_SECRET_KEY`, `FISH_STRIPE_WEBHOOK_SECRET`, `FISH_PUBLIC_APP_URL`, and `FISH_MAX_OUTSTANDING_PREPAID_CREDITS`. Fish rejects checkout requests when paid top-ups are paused, when the cap is missing, or when the requested credits would exceed the cap. Configure Stripe to send signed webhooks to:
+Set `FISH_STRIPE_SECRET_KEY`, `FISH_STRIPE_WEBHOOK_SECRET`, `FISH_PUBLIC_APP_URL`, `FISH_MAX_OUTSTANDING_PREPAID_CREDITS`, `FISH_BILLING_SUPPORT_URL`, and `FISH_BILLING_REFUND_POLICY_URL`. `FISH_PUBLIC_APP_URL` must be the public HTTPS Fish origin, for example `https://op.fish`. The example env points customer care at `/support` and `/refunds` while paid top-ups stay paused. Fish rejects checkout requests when paid top-ups are paused, when the cap is missing, when support/refund links are missing, when the requested credits would exceed the cap, when the public app URL is missing/local, or when optional Stripe return URLs point outside the configured Fish app origin. Configure Stripe to send signed webhooks to:
 
 ```text
 https://<your-domain>/api/billing/webhooks/stripe
 ```
 
 Fish accepts `checkout.session.completed`, verifies the Stripe signature, checks the session metadata against the local payment request, and grants `prepaid` credits idempotently by checkout session.
+
+Use `GET /api/billing/readiness` to show public-safe payment state before checkout is enabled. It reports whether top-ups are paused, whether the prepaid liability cap is set in credits and USD exposure, whether support/refund links are configured, and whether Stripe or USDC checkout is configured; it does not expose Stripe secrets, RPC URLs, or payment recipient addresses.
+
+Paid-mainnet readiness can be satisfied by either Stripe checkout or canonical Base mainnet USDC checkout. Both lanes require support/refund links, a prepaid liability cap, and paid top-ups intentionally unpaused. Base Sepolia is testnet-only and is rejected for paid checkout.
+
+Support and refund tickets can be created through `/support` or `POST /api/support`. They write private operator records under `data/support/`, which is ignored by git and included in runtime backups. Export them with:
+
+```bash
+curl -sS 'http://127.0.0.1:3000/api/support/export?format=csv' \
+  -H "x-fish-admin-token: $FISH_ADMIN_TOKEN"
+```
 
 USDC checkout uses Base USDC by default:
 
@@ -475,7 +525,7 @@ curl -sS http://127.0.0.1:3000/api/billing/checkout/usdc \
   -d '{"amountUsd":5,"payerAddress":"0x..."}'
 ```
 
-Set `FISH_USDC_RECEIVE_ADDRESS`, `FISH_USDC_RPC_URL`, and `FISH_MAX_OUTSTANDING_PREPAID_CREDITS`. The default token is Base USDC at `0x833589fcD6EDb6E08f4c7C32D4f71b54bdA02913`. After sending the exact amount, confirm it:
+Set `FISH_USDC_RECEIVE_ADDRESS`, `FISH_USDC_RPC_URL`, and `FISH_MAX_OUTSTANDING_PREPAID_CREDITS`. USDC checkout is intentionally limited to Base mainnet chain id `8453` and canonical Base USDC at `0x833589fcD6EDb6E08f4c7C32D4f71b54bdA02913`; Fish marks USDC checkout unconfigured if those values are changed. After sending the exact amount, confirm it:
 
 ```bash
 curl -sS http://127.0.0.1:3000/api/billing/checkout/usdc/confirm \
@@ -603,7 +653,43 @@ curl -sS 'http://127.0.0.1:3000/api/proof/receipts/export?format=json&limit=50' 
   -H "x-fish-admin-token: $FISH_ADMIN_TOKEN"
 ```
 
-Provider job receipts, payout events, payout batches, capacity-pool settlement records, and the local prototype signing key are written under `data/proof/`, which is ignored by git and should be backed up or moved to a database/secret manager before public scale-up. Receipt verification trusts the local proof signing key when present, or a pinned provider proof key configured with `FISH_PROVIDER_PROOF_PUBLIC_KEY_ID`/`FISH_PROVIDER_PROOF_PUBLIC_KEY_PEM`, `FISH_PROVIDER_PROOF_PUBLIC_KEYS_JSON`, or `FISH_PROVIDER_PROOF_PUBLIC_KEYS_PATH`; it does not trust public keys embedded in receipt files.
+Provider job receipts, payout events, payout batches, capacity-pool settlement records, and the local prototype signing key are written under `data/proof/`, which is ignored by git and should be backed up or moved to a database/secret manager before public scale-up. Receipt signing uses `FISH_PROVIDER_PROOF_SIGNING_KEY_ID` and `FISH_PROVIDER_PROOF_SIGNING_PRIVATE_KEY_PEM` when set; otherwise the first run creates a local proof signing key. Receipt verification trusts the configured signing key, the local proof signing key when present, or a pinned provider proof key configured with `FISH_PROVIDER_PROOF_PUBLIC_KEY_ID`/`FISH_PROVIDER_PROOF_PUBLIC_KEY_PEM`, `FISH_PROVIDER_PROOF_PUBLIC_KEYS_JSON`, or `FISH_PROVIDER_PROOF_PUBLIC_KEYS_PATH`; it does not trust public keys embedded in receipt files.
+
+For the public tester checklist, run:
+
+```bash
+npm run secrets:public-testnet
+npm run proof:algorithm-smoke
+npm run proof:external-preflight -- --env-file .env.ocean-proof.local
+npm run ocean-demo:web-env -- --env .env.ocean-demo-stack --host <private-gpu-vm-host>
+npm run readiness:public-testnet -- --env .env.production.example --app-env-overlay .env.production.private --derive-ocean-web-env-host <private-gpu-vm-host>
+npm run readiness:public-testnet
+npm run readiness:public-testnet:strict
+npm run readiness:paid-mainnet
+npm run backup:runtime -- --dry-run
+```
+
+Use an absolute private backup target such as `/var/backups/fish`. Do not point backups at `public/`, `data/`, a relative repository path, or temporary storage. The backup dry run and public-readiness audit report unsafe targets.
+
+`npm run readiness:public-testnet` uses the no-real-money public-testnet profile by default. It treats intentionally paused paid checkout as a manual follow-up, not as a public-testnet blocker. Each row maps back to the step numbers in `docs/public-testnet-launch-readiness.md`, including the proof UX/claim gate for steps 4 and 9. Use `npm run readiness:public-testnet:strict` when every manual and partial item must be resolved. `--app-env-overlay <private-env>` lets the audit merge private host settings such as admin tokens, guest salts, backup targets, and proof signing keys without printing their values. `--derive-ocean-web-env-host <private-gpu-vm-host>` lets the audit evaluate the private Ocean adapter/Fish Runner web-env block without printing its keys. Before paid Stripe/USDC launch, run `npm run readiness:paid-mainnet`. `npm run secrets:public-testnet` prints generated starter values for private env files; it includes secrets and should not be committed or pasted into public notes. See `docs/public-testnet-launch-readiness.md`.
+
+The readiness audit also checks repository hygiene. Runtime ledgers, private env files, local contract deployment artifacts, backups, nginx password files, provider allowlists, and proof signing keys must stay ignored and untracked before a public link or security scan.
+
+`npm run proof:algorithm-smoke` checks the prepared Fish Docs Bento Ocean algorithm locally with no wallet, RPC, or Ocean CLI. Run it before publishing the algorithm DID for the first real Ocean/Oncompute proof.
+
+Create the private external-proof env from `.env.ocean-proof.example`, then run `npm run proof:external-preflight -- --env-file .env.ocean-proof.local`. The preflight checks the private Ocean workload adapter env without starting HTTP and without printing adapter keys, wallet secrets, mnemonics, or RPC URLs. It should report `liveReady: true` before Fish sends an external Ocean/Oncompute proof job.
+
+To open the public tester faucet after Base Sepolia test token contracts exist, generate a private web-app overlay instead of editing the public example env:
+
+```bash
+npm run secrets:public-testnet -- \
+  --include-wallets \
+  --include-faucet \
+  --contract-deployment contracts/deployments/<base-sepolia>.local.json \
+  --faucet-rpc-url https://sepolia.base.org
+```
+
+When `--contract-deployment` is present, the faucet token addresses can be omitted because they are read from the ignored deployment artifact. Paste the app env block into a private web-host env file. The faucet key belongs only to the web app. Keep it separate from deployer, operator, treasury, Ocean proof, and payment wallets, then fund it only with limited Base Sepolia ETH, Test OCEAN, and Test USDC.
 
 ## OCEAN Staking Credits
 
@@ -656,6 +742,17 @@ npm run contracts:deploy:testnet
 
 If no `FISH_CONTRACT_OCEAN_TOKEN_ADDRESS` or `FISH_CONTRACT_USDC_TOKEN_ADDRESS` is set, the deploy script creates test OCEAN and test USDC tokens so the full flow can be tested without real assets. The script prints a web-app env block and writes a local ignored artifact under `contracts/deployments/`.
 
+After deployment, regenerate the private web-app overlay from that artifact:
+
+```bash
+npm run secrets:public-testnet -- \
+  --contract-deployment contracts/deployments/<base-sepolia>.local.json \
+  --include-wallets \
+  --include-faucet
+```
+
+This adds the `FISH_CONTRACT_*` addresses and, when faucet is included, uses the deployed test OCEAN/Test USDC addresses for the public tester faucet. Contract wallet actions stay disabled unless `--enable-contract-actions` is explicitly added. The generator refuses to enable actions for Base mainnet.
+
 Paid demand that is settled into the FISH Capacity Pool can be recorded by an operator:
 
 ```bash
@@ -705,7 +802,9 @@ curl -sS http://127.0.0.1:3000/api/testnet/faucet \
   -d '{"walletAddress":"0x..."}'
 ```
 
-Keep this wallet separate from deployer, operator, and treasury wallets. Fund it only with limited Base Sepolia ETH and test tokens. The faucet is disabled by default, Base Sepolia only, and capped by wallet, IP, and daily claim limits.
+Keep this wallet separate from deployer, operator, treasury, Ocean proof, and payment wallets. Fund it only with limited Base Sepolia ETH and test tokens. The faucet is disabled by default, Base Sepolia only, and capped by wallet, IP, and daily claim limits. Public faucet claims trust proxy IP headers only when `FISH_TRUST_PROXY_HEADERS=true` and nginx/private proxy adds `x-fish-proxy-secret: <FISH_PROXY_HEADER_SECRET>` after stripping any user-supplied copy of that header. Public status exposes safe aggregate counters only: enabled/ready state, plain-language claim state, grant sizes, wallet/IP/day limits, claims used today, remaining claims, reset time, token addresses, faucet address, and faucet balances. It does not expose wallet hashes, IP hashes, private keys, or raw claim rows.
+
+Use `npm run secrets:public-testnet -- --include-wallets --include-faucet --contract-deployment contracts/deployments/<base-sepolia>.local.json` to generate a private faucet overlay from the deployed test token addresses. The command intentionally places `FISH_TESTNET_FAUCET_PRIVATE_KEY` in the web-app env block, not the Ocean demo stack env block, because `/api/testnet/faucet` signs from the web app.
 
 Staking positions and wallet intents are written under `data/staking/`, which is ignored by git. This is not an onchain staking contract; it is a funded-budget prototype for proving OCEAN lock intent, credit issuance, and credit spend.
 
@@ -771,9 +870,17 @@ Batch dishes sent through `/v1/chat/completions` or `/api/dishes/:dishId/run` us
 
 Per-dish runtime and cost caps can be set with `FISH_DOCS_BATCH_MAX_RUNTIME_SECONDS`, `FISH_DOCS_BATCH_MAX_COST_USD`, `FISH_REPO_BATCH_MAX_RUNTIME_SECONDS`, `FISH_REPO_BATCH_MAX_COST_USD`, `FISH_EVAL_BATCH_MAX_RUNTIME_SECONDS`, `FISH_EVAL_BATCH_MAX_COST_USD`, `FISH_DATA_BATCH_MAX_RUNTIME_SECONDS`, and `FISH_DATA_BATCH_MAX_COST_USD`.
 
-Batch receipts are written under `data/ocean-batch/`, and successful jobs also write Fish usage receipts so the public dashboard can count them as Ocean-backed usage. For public testing without external Oncompute payments, run the GPU-side Ocean demo stack and use free compute on our own Ocean Node. See `docs/ocean-batch-jobs-plan.md` for the adapter contract.
+Batch receipts are written under `data/ocean-batch/`, and successful jobs also write Fish usage receipts so the public dashboard can count them as Ocean-backed usage. Set `FISH_OCEAN_BATCH_DIR` only for isolated local smoke tests that should not touch the normal runtime receipt ledger. For public testing without external Oncompute payments, run the GPU-side Ocean demo stack and use free compute on our own Ocean Node. See `docs/ocean-batch-jobs-plan.md` for the adapter contract.
 
-`/api/ocean/batch/readiness` and `/proof` show whether the private adapter is configured, reachable, live-ready, and backed by at least one successful non-sample Ocean batch receipt. The readiness response exposes booleans and blockers only; it does not expose adapter URLs, wallet secrets, API keys, prompt text, or output text.
+`/api/ocean/batch/readiness` and `/proof` show whether the private adapter is configured, reachable, live-ready, and backed by at least one successful non-sample Ocean batch receipt. The readiness response includes a plain-language `claim` object so the API and proof page agree on the current boundary: setup, route connected, local Ocean Node proof, or Ocean CLI proof. It exposes booleans, blockers, and public claim text only; it does not expose adapter URLs, wallet secrets, API keys, prompt text, output text, node URLs, or DIDs.
+
+After `make ocean-demo-smoke` passes, run one full web-to-Ocean proof smoke with the web app pointed at the private adapter:
+
+```bash
+make fish-ocean-proof-smoke
+```
+
+That command creates a temporary API key, submits one Docs Bento order, verifies a non-sample `ocean_http` batch receipt, checks that `/api/ocean/batch/readiness` reports `proofReady=true`, and confirms `/proof` shows the conservative local Ocean proof boundary without rendering the raw smoke prompt. It prints only public-safe receipt ids, source labels, and hashes.
 
 ## Repository Structure
 
@@ -804,6 +911,7 @@ Ignored local runtime paths:
 ```text
 data/submissions/
 data/forms/
+data/support/
 data/fish/
 data/proof/
 data/ocean-batch/
@@ -835,4 +943,7 @@ Generated images should be text-free and used as scene assets. Render copy, butt
 - `/` is visually clear on mobile and desktop.
 - `/dashboard` loads with live data or sample fallback.
 - `data/submissions` is persisted or integrated with a real intake system.
+- `data/support` is persisted or integrated with a real support system.
+- `npm run backup:runtime -- --dry-run` shows the expected runtime paths, and a private backup target is configured before public traffic.
+- `npm run readiness:public-testnet` reports repository hygiene as ready, with private runtime paths ignored and untracked.
 - Public copy keeps the status clear: Ocean Navy-built, on Ocean Protocol, not official unless approved.

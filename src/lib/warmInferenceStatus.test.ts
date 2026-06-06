@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { generateKeyPairSync } from "node:crypto";
 import { afterEach, test } from "node:test";
 import { getWarmInferenceStatus } from "@/lib/warmInferenceStatus";
 
@@ -25,6 +26,12 @@ test("warm status skips live backend probes by default", async () => {
   assert.equal(status.probe.state, "skipped");
   assert.equal(status.probe.statusCode, null);
   assert.equal(status.probe.latencyMs, null);
+  assert.deepEqual(status.runnerReceiptTrust, {
+    configured: false,
+    trustedKeyCount: 0,
+    invalidKeyCount: 0
+  });
+  assert.match(status.warnings.join("\n"), /Trusted runner receipt public key is not configured/);
 });
 
 test("warm status only calls the warm backend when a live probe is requested", async () => {
@@ -44,6 +51,38 @@ test("warm status only calls the warm backend when a live probe is requested", a
   assert.equal(status.probe.state, "ok");
   assert.equal(status.probe.statusCode, 200);
   assert.equal(status.probe.modelVisible, true);
+});
+
+test("warm status exposes trusted runner receipt key readiness without key material", async () => {
+  configureWarmRoute();
+  const { publicKey } = generateKeyPairSync("ed25519");
+  process.env.FISH_RUNNER_PUBLIC_KEY_ID = "runner-test-key";
+  process.env.FISH_RUNNER_PUBLIC_KEY_PEM = publicKey.export({ type: "spki", format: "pem" }).toString();
+
+  const status = await getWarmInferenceStatus();
+
+  assert.deepEqual(status.runnerReceiptTrust, {
+    configured: true,
+    trustedKeyCount: 1,
+    invalidKeyCount: 0
+  });
+  assert.doesNotMatch(JSON.stringify(status), /BEGIN PUBLIC KEY/);
+  assert.doesNotMatch(status.warnings.join("\n"), /Trusted runner receipt public key is not configured/);
+});
+
+test("warm status warns about invalid runner receipt keys", async () => {
+  configureWarmRoute();
+  process.env.FISH_RUNNER_PUBLIC_KEY_ID = "runner-bad-key";
+  process.env.FISH_RUNNER_PUBLIC_KEY_PEM = "not a pem";
+
+  const status = await getWarmInferenceStatus();
+
+  assert.deepEqual(status.runnerReceiptTrust, {
+    configured: false,
+    trustedKeyCount: 0,
+    invalidKeyCount: 1
+  });
+  assert.match(status.warnings.join("\n"), /could not be parsed/);
 });
 
 function configureWarmRoute() {

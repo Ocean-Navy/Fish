@@ -21,6 +21,8 @@ The first website should do five jobs:
 /providers              Provider pilot page
 /credits                OCEAN staking / Fish Credits explainer
 /privacy                Plain-language data handling and privacy modes
+/support                Billing, refund, privacy, provider, and account support intake
+/refunds                Plain-language launch refund policy for paid credits
 /docs                   Developer docs placeholder
 /api                    API status and future docs placeholder
 ```

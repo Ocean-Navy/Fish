@@ -285,6 +285,15 @@ FISH_CONTRACT_DEPLOYER_PRIVATE_KEY=0x... \
 npm run contracts:deploy:testnet
 ```
 
+The deploy helper writes an ignored artifact under `contracts/deployments/`. Convert that artifact into a private web-app env overlay with:
+
+```bash
+npm run secrets:public-testnet -- \
+  --contract-deployment contracts/deployments/<base-sepolia>.local.json
+```
+
+Add `--include-wallets --include-faucet` when opening the public tester faucet from the deployed test OCEAN/Test USDC addresses. Add `--enable-contract-actions` only for Base Sepolia wallet testing after the deployed roles and test wallet path are reviewed.
+
 ## Current Test Coverage
 
 The local tests cover:

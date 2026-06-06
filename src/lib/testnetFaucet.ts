@@ -54,6 +54,12 @@ export type TestnetFaucetStatus = {
   enabled: boolean;
   ready: boolean;
   reason: string;
+  claiming: {
+    available: boolean;
+    state: "ready" | "closed" | "setup";
+    message: string;
+    action: string;
+  };
   chain: {
     chainId: number;
     chainName: string;
@@ -74,6 +80,12 @@ export type TestnetFaucetStatus = {
     walletCooldownHours: number;
     ipCooldownHours: number;
     maxDailyClaims: number;
+  };
+  usage: {
+    claimsToday: number;
+    remainingToday: number;
+    resetAt: string;
+    latestClaimAt: string | null;
   };
   balances: {
     eth: string | null;
@@ -113,16 +125,30 @@ export function parseTestnetFaucetClaim(body: unknown) {
   return faucetClaimSchema.safeParse(body);
 }
 
-export async function summarizeTestnetFaucet(): Promise<TestnetFaucetStatus> {
+export async function summarizeTestnetFaucet(options: TestnetFaucetOptions = {}): Promise<TestnetFaucetStatus> {
   const config = getTestnetFaucetConfig();
+  const now = options.now ?? new Date();
   const readiness = getFaucetReadiness(config);
   const balances = readiness.ready ? await readFaucetBalances(config) : { eth: null, testOcean: null, testUsdc: null };
+  const warnings = [
+    "Testnet tokens have no real value.",
+    "The faucet is only for Base Sepolia playground testing.",
+    "Mainnet contract writes stay blocked by the normal contract gates."
+  ];
+  let ledger: FaucetLedger = { claims: [] };
+  try {
+    ledger = await readFaucetLedger(options.claimsPath);
+  } catch {
+    warnings.push("Faucet claim counters are temporarily unavailable.");
+  }
+  const usage = summarizeFaucetUsage(ledger, config, now);
 
   return {
     dataState: readiness.ready ? "live" : config.enabled ? "snapshot" : "unavailable",
     enabled: config.enabled,
     ready: readiness.ready,
     reason: readiness.reason,
+    claiming: publicClaimingState(readiness, config),
     chain: {
       chainId: config.chainId,
       chainName: config.chainName,
@@ -144,12 +170,9 @@ export async function summarizeTestnetFaucet(): Promise<TestnetFaucetStatus> {
       ipCooldownHours: config.ipCooldownHours,
       maxDailyClaims: config.maxDailyClaims
     },
+    usage,
     balances,
-    warnings: [
-      "Testnet tokens have no real value.",
-      "The faucet is only for Base Sepolia playground testing.",
-      "Mainnet contract writes stay blocked by the normal contract gates."
-    ]
+    warnings
   };
 }
 
@@ -227,6 +250,33 @@ export async function claimTestnetFaucet(walletAddress: string, ipAddress: strin
       error: failureReason
     };
   }
+}
+
+function publicClaimingState(readiness: { ready: boolean; reason: string }, config: TestnetFaucetConfig): TestnetFaucetStatus["claiming"] {
+  if (readiness.ready) {
+    return {
+      available: true,
+      state: "ready",
+      message: "Playground refills are open.",
+      action: "Connect a wallet, switch to Base Sepolia, and claim a small refill."
+    };
+  }
+
+  if (!config.enabled || readiness.reason === "testnet_faucet_disabled") {
+    return {
+      available: false,
+      state: "closed",
+      message: "Playground refills are closed right now.",
+      action: "You can still connect a wallet and explore the testnet pages."
+    };
+  }
+
+  return {
+    available: false,
+    state: "setup",
+    message: "Playground refills are being prepared.",
+    action: "The faucet needs funding or operator setup before claims open."
+  };
 }
 
 export function getTestnetFaucetConfig(): TestnetFaucetConfig {
@@ -308,22 +358,21 @@ function checkFaucetRateLimit(
     walletHash: string;
   }
 ) {
-  const limitableClaims = ledger.claims.filter((claim) => isLimitableClaim(claim, input.now));
-  const dayStart = new Date(input.now);
-  dayStart.setUTCHours(0, 0, 0, 0);
-  const dailyClaims = limitableClaims.filter((claim) => Date.parse(claim.createdAt) >= dayStart.getTime()).length;
+  const limitedClaims = claimsThatCountTowardLimits(ledger.claims, input.now);
+  const dayStart = startOfUtcDay(input.now);
+  const dailyClaims = limitedClaims.filter((claim) => Date.parse(claim.createdAt) >= dayStart.getTime()).length;
   if (dailyClaims >= input.config.maxDailyClaims) {
     return { ok: false as const, status: 429, error: "testnet_faucet_daily_cap_reached", resetAt: new Date(dayStart.getTime() + 24 * 60 * 60_000).toISOString() };
   }
 
-  const walletClaim = latestClaim(limitableClaims.filter((claim) => claim.walletHash === input.walletHash));
-  const walletResetAt = claimResetAt(walletClaim, input.config.cooldownHours);
+  const walletClaim = latestClaim(limitedClaims.filter((claim) => claim.walletHash === input.walletHash));
+  const walletResetAt = limitResetAt(walletClaim, input.config.cooldownHours);
   if (walletResetAt && walletResetAt.getTime() > input.now.getTime()) {
     return { ok: false as const, status: 429, error: "testnet_faucet_wallet_cooldown", resetAt: walletResetAt.toISOString() };
   }
 
-  const ipClaim = latestClaim(limitableClaims.filter((claim) => claim.ipHash === input.ipHash));
-  const ipResetAt = claimResetAt(ipClaim, input.config.ipCooldownHours);
+  const ipClaim = latestClaim(limitedClaims.filter((claim) => claim.ipHash === input.ipHash));
+  const ipResetAt = limitResetAt(ipClaim, input.config.ipCooldownHours);
   if (ipResetAt && ipResetAt.getTime() > input.now.getTime()) {
     return { ok: false as const, status: 429, error: "testnet_faucet_ip_cooldown", resetAt: ipResetAt.toISOString() };
   }
@@ -331,21 +380,18 @@ function checkFaucetRateLimit(
   return { ok: true as const };
 }
 
-function isLimitableClaim(claim: TestnetFaucetClaim, now: Date) {
-  if (claim.status === "succeeded") {
-    return true;
-  }
-  return claim.status === "pending" && Date.parse(claim.createdAt) + PENDING_CLAIM_TTL_MS > now.getTime();
-}
-
-function claimResetAt(claim: TestnetFaucetClaim | null, cooldownHours: number) {
-  if (!claim) {
-    return null;
-  }
-  if (claim.status === "pending") {
-    return new Date(Date.parse(claim.createdAt) + PENDING_CLAIM_TTL_MS);
-  }
-  return cooldownResetAt(claim.createdAt, cooldownHours);
+function summarizeFaucetUsage(ledger: FaucetLedger, config: TestnetFaucetConfig, now: Date) {
+  const limitedClaims = claimsThatCountTowardLimits(ledger.claims, now);
+  const dayStart = startOfUtcDay(now);
+  const resetAt = new Date(dayStart.getTime() + 24 * 60 * 60_000).toISOString();
+  const claimsToday = limitedClaims.filter((claim) => Date.parse(claim.createdAt) >= dayStart.getTime()).length;
+  const latestClaimAt = latestClaim(limitedClaims)?.createdAt ?? null;
+  return {
+    claimsToday,
+    remainingToday: Math.max(0, config.maxDailyClaims - claimsToday),
+    resetAt,
+    latestClaimAt
+  };
 }
 
 async function submitFaucetTransfers(config: TestnetFaucetConfig, walletAddress: string) {
@@ -365,20 +411,11 @@ async function submitFaucetTransfers(config: TestnetFaucetConfig, walletAddress:
   const recipient = walletAddress as Address;
   const ethThreshold = parseEther(config.ethLowBalanceThreshold);
   const ethGrant = parseEther(config.ethAmount);
-  const recipientEthBalance = await publicClient.getBalance({ address: recipient });
-  const faucetEthBalance = await publicClient.getBalance({ address: account.address });
-  let ethTxHash: Hex | null = null;
-  let ethSent = false;
-  if (recipientEthBalance < ethThreshold) {
-    if (faucetEthBalance < ethGrant) throw new Error("testnet_faucet_eth_balance_low");
-    ethTxHash = await walletClient.sendTransaction({ to: recipient, value: ethGrant });
-    await publicClient.waitForTransactionReceipt({ hash: ethTxHash, confirmations: config.confirmations });
-    ethSent = true;
-  }
-
   const oceanAddress = config.oceanTokenAddress as Address;
   const usdcAddress = config.usdcTokenAddress as Address;
-  const [oceanDecimals, usdcDecimals] = await Promise.all([
+  const [recipientEthBalance, faucetEthBalance, oceanDecimals, usdcDecimals] = await Promise.all([
+    publicClient.getBalance({ address: recipient }),
+    publicClient.getBalance({ address: account.address }),
     publicClient.readContract({ address: oceanAddress, abi: ERC20_TRANSFER_ABI, functionName: "decimals" }),
     publicClient.readContract({ address: usdcAddress, abi: ERC20_TRANSFER_ABI, functionName: "decimals" })
   ]);
@@ -388,8 +425,18 @@ async function submitFaucetTransfers(config: TestnetFaucetConfig, walletAddress:
     publicClient.readContract({ address: oceanAddress, abi: ERC20_TRANSFER_ABI, functionName: "balanceOf", args: [account.address] }),
     publicClient.readContract({ address: usdcAddress, abi: ERC20_TRANSFER_ABI, functionName: "balanceOf", args: [account.address] })
   ]);
+  const ethTopUpNeeded = recipientEthBalance < ethThreshold;
+  if (ethTopUpNeeded && faucetEthBalance < ethGrant) throw new Error("testnet_faucet_eth_balance_low");
   if ((faucetOceanBalance as bigint) < oceanAmount) throw new Error("testnet_faucet_ocean_balance_low");
   if ((faucetUsdcBalance as bigint) < usdcAmount) throw new Error("testnet_faucet_usdc_balance_low");
+
+  let ethTxHash: Hex | null = null;
+  let ethSent = false;
+  if (ethTopUpNeeded) {
+    ethTxHash = await walletClient.sendTransaction({ to: recipient, value: ethGrant });
+    await publicClient.waitForTransactionReceipt({ hash: ethTxHash, confirmations: config.confirmations });
+    ethSent = true;
+  }
 
   const oceanTxHash = await walletClient.writeContract({
     address: oceanAddress,
@@ -537,11 +584,40 @@ function latestClaim(claims: TestnetFaucetClaim[]) {
   return claims.sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt))[0] ?? null;
 }
 
+function claimsThatCountTowardLimits(claims: TestnetFaucetClaim[], now: Date) {
+  return claims.filter((claim) => {
+    const createdAt = Date.parse(claim.createdAt);
+    if (!Number.isFinite(createdAt)) {
+      return false;
+    }
+    if (claim.status === "succeeded" || claim.status === "failed") {
+      return true;
+    }
+    return claim.status === "pending" && createdAt + PENDING_CLAIM_TTL_MS > now.getTime();
+  });
+}
+
+function startOfUtcDay(value: Date) {
+  const dayStart = new Date(value);
+  dayStart.setUTCHours(0, 0, 0, 0);
+  return dayStart;
+}
+
 function cooldownResetAt(createdAt: string | undefined, hours: number) {
   if (!createdAt) {
     return null;
   }
   return new Date(Date.parse(createdAt) + hours * 60 * 60_000);
+}
+
+function limitResetAt(claim: TestnetFaucetClaim | null, hours: number) {
+  if (!claim) {
+    return null;
+  }
+  if (claim.status === "pending") {
+    return new Date(Date.parse(claim.createdAt) + PENDING_CLAIM_TTL_MS);
+  }
+  return cooldownResetAt(claim.createdAt, hours);
 }
 
 function hashValue(value: string) {

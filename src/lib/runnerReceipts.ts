@@ -7,6 +7,12 @@ type TrustedRunnerKey = {
   publicKeyPem: string;
 };
 
+export type RunnerReceiptTrustStatus = {
+  configured: boolean;
+  trustedKeyCount: number;
+  invalidKeyCount: number;
+};
+
 export type RunnerReceiptValidationContext = {
   routeId?: string | null;
   providerId?: string | null;
@@ -23,6 +29,30 @@ export type RunnerReceiptValidationContext = {
 
 export function runnerReceiptSha256(value: string) {
   return `sha256:${sha256(value)}`;
+}
+
+export function summarizeRunnerReceiptTrust(): RunnerReceiptTrustStatus {
+  const keys = collectTrustedRunnerKeys();
+  let trustedKeyCount = 0;
+  let invalidKeyCount = 0;
+
+  for (const key of keys) {
+    try {
+      const publicKey = createPublicKey(key.publicKeyPem);
+      if (publicKey.asymmetricKeyType !== "ed25519") {
+        throw new Error("unsupported_runner_public_key_type");
+      }
+      trustedKeyCount += 1;
+    } catch {
+      invalidKeyCount += 1;
+    }
+  }
+
+  return {
+    configured: trustedKeyCount > 0,
+    trustedKeyCount,
+    invalidKeyCount
+  };
 }
 
 export function readAndVerifyRunnerReceipt(payload: unknown, expected?: RunnerReceiptValidationContext): RunnerReceiptSummary | null {

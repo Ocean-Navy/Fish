@@ -93,11 +93,14 @@ For a private first test, keep these endpoints bound to localhost:
 
 ```text
 OCEAN_NODE_HTTP_BIND=127.0.0.1
+OCEAN_NODE_P2P_BIND=127.0.0.1
 OCEAN_WORKLOAD_ADAPTER_BIND=127.0.0.1
 FISH_VLLM_BIND=127.0.0.1
 FISH_RUNNER_BIND=127.0.0.1
 FISH_MLX_BASE_URL=http://host.docker.internal:8080/v1
 ```
+
+Only change `OCEAN_NODE_P2P_BIND` to a public or private-network interface when the node is intentionally joining a reachable P2P network. For the local proof stack, keep it on localhost.
 
 The template stores Ocean Node localfs payloads under `/tmp/ocean-node-persistent-storage` inside the container. This is intentionally local-demo friendly because Docker Desktop named volumes mounted under `/data` can be unwritable for the Ocean Node process. For a persistent production node, set `OCEAN_NODE_PERSISTENT_STORAGE` to a writable mounted path and verify the node stays up before exposing it.
 
@@ -108,6 +111,7 @@ The free compute guard is layered:
 ```text
 free.access.addresses=<only the Ocean proof wallet address>
 OCEAN_NODE_HTTP_BIND=127.0.0.1 or private network only
+OCEAN_NODE_P2P_BIND=127.0.0.1 or intentionally selected P2P interface only
 OCEAN_WORKLOAD_ADAPTER_API_KEY=<secret>
 OCEAN_WORKLOAD_ADAPTER_BIND=127.0.0.1 or private network only
 ```
@@ -270,7 +274,25 @@ The script validates Compose config, checks Ocean compute environments, checks a
 
 ## Point The Web VM At The GPU Stack
 
-On the public Fish web VM:
+Generate the matching web-host env block from the private Ocean stack env:
+
+```bash
+npm run ocean-demo:web-env -- \
+  --env .env.ocean-demo-stack \
+  --host <private-gpu-vm-host> \
+  --profile warm
+```
+
+For the Apple Silicon MLX profile, use:
+
+```bash
+npm run ocean-demo:web-env -- \
+  --env .env.ocean-demo-stack \
+  --host <private-host-or-127.0.0.1> \
+  --profile mlx
+```
+
+The generated block contains adapter and runner API keys. Paste it only into the private Fish web host env. It is equivalent to setting:
 
 ```text
 FISH_OCEAN_BATCH_ENDPOINT=http://<private-gpu-vm-host>:8787/jobs
@@ -286,6 +308,18 @@ FISH_OCEAN_DEMO_VLLM_MODEL=fish-warm-chat
 FISH_OCEAN_DEMO_PROVIDER_ID=ocean-navy-demo-node
 FISH_OCEAN_DEMO_COST_USD_PER_1K_TOKENS=<operator estimate>
 FISH_OCEAN_DEMO_DAILY_BUDGET_USD=<small cap>
+FISH_RUNNER_PUBLIC_KEY_ID=<FISH_RUNNER_SIGNING_KEY_ID>
+FISH_RUNNER_PUBLIC_KEY_PEM=<derived public key>
+```
+
+Before pasting the block into the web host, audit the effective web env without printing secrets:
+
+```bash
+npm run readiness:public-testnet -- \
+  --env .env.production \
+  --ocean-env .env.ocean-demo-stack \
+  --derive-ocean-web-env-host <private-gpu-vm-host> \
+  --derive-ocean-web-env-profile warm
 ```
 
 `FISH_OCEAN_BATCH_PRIVATE_PAYLOAD=true` makes batch dishes useful by sending short order text to the private adapter so the Ocean job can write a returned Markdown/HTML artifact. Use it only when the adapter and Ocean Node are private and operated by us. Public proof still stores tickets and hashes, not raw order text.

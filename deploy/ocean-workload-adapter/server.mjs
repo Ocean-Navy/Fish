@@ -24,6 +24,12 @@ const dataDir = path.resolve(process.env.OCEAN_WORKLOAD_ADAPTER_DATA_DIR || path
 const jobDir = path.join(dataDir, "jobs");
 const resultRootDir = path.join(dataDir, "results");
 
+if (hasProcessFlag("--preflight") || hasProcessFlag("--check-config")) {
+  const payload = preflightPayload();
+  console.log(JSON.stringify(payload, null, 2));
+  process.exit(payload.liveReady ? 0 : 1);
+}
+
 const server = createServer(async (request, response) => {
   try {
     const url = new URL(request.url || "/", `http://${request.headers.host || "127.0.0.1"}`);
@@ -143,7 +149,7 @@ function configPayload() {
 
 function publicSelection(config) {
   return {
-    nodeUrl: config.nodeUrl || null,
+    nodeUrl: publicNodeUrl(config.nodeUrl),
     computeEnvId: config.computeEnvId || null,
     datasetDids: config.datasetDids || null,
     algoDid: config.algoDid ? shortDid(config.algoDid) : null,
@@ -380,9 +386,9 @@ function oceanCliEnv() {
   return {
     ...process.env,
     AVOID_LOOP_RUN: process.env.AVOID_LOOP_RUN || "true",
-    PRIVATE_KEY: process.env.PRIVATE_KEY,
-    MNEMONIC: process.env.MNEMONIC,
-    RPC: process.env.RPC,
+    PRIVATE_KEY: readProofPrivateKey(),
+    MNEMONIC: readProofMnemonic(),
+    RPC: readProofRpc(),
     NODE_URL: process.env.NODE_URL
   };
 }
@@ -484,11 +490,91 @@ function isExecutableMode(mode) {
   return mode === "live" || mode === "local_ocean_node";
 }
 
+function oceanDatasetDidList(value) {
+  const cleaned = String(value || "").trim();
+  if (cleaned === "[]") {
+    return true;
+  }
+  if (cleaned.startsWith("[")) {
+    const parsed = readJson(cleaned);
+    return parsed.ok && Array.isArray(parsed.value) && parsed.value.every((entry) => oceanDid(entry));
+  }
+  return cleaned
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .every((entry) => oceanDid(entry));
+}
+
+function oceanDid(value) {
+  return /^did:op:[^\s,]+$/i.test(String(value || "").trim());
+}
+
+function oceanNodeLocator(value) {
+  const cleaned = String(value || "").trim();
+  return httpUrl(cleaned) || /^\/(p2p|ip4|ip6)\//i.test(cleaned);
+}
+
+function localNodeLocator(value) {
+  const cleaned = String(value || "").trim();
+  if (!cleaned) {
+    return false;
+  }
+  if (/^\/p2p\//i.test(cleaned)) {
+    return false;
+  }
+  try {
+    const parsed = new URL(cleaned);
+    const host = parsed.hostname.toLowerCase();
+    return (
+      host === "localhost" ||
+      host === "127.0.0.1" ||
+      host === "::1" ||
+      host === "0.0.0.0" ||
+      host === "ocean-node" ||
+      host === "host.docker.internal" ||
+      host.endsWith(".local") ||
+      /^10\./.test(host) ||
+      /^192\.168\./.test(host) ||
+      /^172\.(1[6-9]|2\d|3[0-1])\./.test(host)
+    );
+  } catch {
+    return /(^|[/:])(localhost|127\.0\.0\.1|0\.0\.0\.0|ocean-node|host\.docker\.internal)([/:]|$)/i.test(cleaned);
+  }
+}
+
+function loopbackHttpUrl(value) {
+  try {
+    const parsed = new URL(String(value || "").trim());
+    const host = parsed.hostname.toLowerCase();
+    return host === "localhost" || host === "127.0.0.1" || host === "::1" || host === "0.0.0.0";
+  } catch {
+    return false;
+  }
+}
+
+function jsonObject(value) {
+  const parsed = readJson(String(value || "").trim());
+  return parsed.ok && parsed.value !== null && typeof parsed.value === "object" && !Array.isArray(parsed.value);
+}
+
+function readJson(value) {
+  try {
+    return { ok: true, value: JSON.parse(value) };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "parse_failed" };
+  }
+}
+
+function httpUrl(value) {
+  return /^https?:\/\/[^/\s]+/i.test(String(value || "").trim());
+}
+
 function readAdapterConfig() {
   const mode = process.env.OCEAN_WORKLOAD_ADAPTER_MODE?.trim() || "dry_run";
   const nodeUrl = process.env.NODE_URL?.trim() || "";
-  const rpc = process.env.RPC?.trim() || "";
-  const walletConfigured = Boolean(process.env.PRIVATE_KEY?.trim() || process.env.MNEMONIC?.trim());
+  const rpc = readProofRpc();
+  const walletConfigured = Boolean(readProofPrivateKey() || readProofMnemonic());
   const datasetDids = process.env.FISH_OCEAN_DATASET_DIDS?.trim() || "";
   const algoDid = process.env.FISH_OCEAN_ALGO_DID?.trim() || "";
   const computeEnvId = process.env.FISH_OCEAN_COMPUTE_ENV_ID?.trim() || "";
@@ -507,7 +593,7 @@ function readAdapterConfig() {
     warnings.push("Unknown OCEAN_WORKLOAD_ADAPTER_MODE; dry_run is safest until live or local_ocean_node is selected explicitly.");
   }
   if (mode === "local_ocean_node") {
-    if (!walletConfigured) missing.push("PRIVATE_KEY or MNEMONIC");
+    if (!walletConfigured) missing.push("proof wallet private key or mnemonic");
     if (!nodeUrl) missing.push("NODE_URL");
     if (!computeEnvId) missing.push("FISH_OCEAN_COMPUTE_ENV_ID");
     if (!oceanCliDir) missing.push("OCEAN_CLI_DIR");
@@ -515,16 +601,25 @@ function readAdapterConfig() {
   }
   if (mode === "live") {
     if (!adapterApiKeySafe) missing.push("strong OCEAN_WORKLOAD_ADAPTER_API_KEY");
-    if (!walletConfigured) missing.push("PRIVATE_KEY or MNEMONIC");
+    if (!walletConfigured) missing.push("proof wallet private key or mnemonic");
     if (!rpc) missing.push("RPC");
+    if (rpc && !httpUrl(rpc)) missing.push("HTTP(S) RPC");
+    if (rpc && loopbackHttpUrl(rpc)) missing.push("non-loopback RPC");
     if (!nodeUrl) missing.push("NODE_URL");
+    if (nodeUrl && !oceanNodeLocator(nodeUrl)) missing.push("valid NODE_URL");
+    if (nodeUrl && localNodeLocator(nodeUrl)) missing.push("external NODE_URL");
+    if (nodeUrl && urlHasCredentials(nodeUrl)) missing.push("NODE_URL without embedded credentials");
     if (!datasetDids) missing.push("FISH_OCEAN_DATASET_DIDS");
+    if (datasetDids && !oceanDatasetDidList(datasetDids)) missing.push("valid FISH_OCEAN_DATASET_DIDS");
     if (!algoDid) missing.push("FISH_OCEAN_ALGO_DID");
+    if (algoDid && !oceanDid(algoDid)) missing.push("valid FISH_OCEAN_ALGO_DID");
     if (!computeEnvId) missing.push("FISH_OCEAN_COMPUTE_ENV_ID");
     if (!cliBin && !oceanCliDir) missing.push("OCEAN_CLI_DIR or FISH_OCEAN_CLI_BIN");
     if (!cliBin && oceanCliDir && !existsSync(oceanCliDir)) missing.push("existing OCEAN_CLI_DIR");
     if (!cliBin && oceanCliDir && existsSync(oceanCliDir) && !existsSync(path.join(oceanCliDir, "package.json"))) missing.push("valid OCEAN_CLI_DIR with package.json");
     if (!freeCompute && (!paymentToken || !resources)) missing.push("FISH_OCEAN_PAYMENT_TOKEN and FISH_OCEAN_RESOURCES");
+    if (resources && !jsonObject(resources)) missing.push("valid JSON object FISH_OCEAN_RESOURCES");
+    if (output && !jsonObject(output)) missing.push("valid JSON object FISH_OCEAN_OUTPUT");
   }
   if (!adapterApiKeySafe) {
     warnings.push("Set OCEAN_WORKLOAD_ADAPTER_API_KEY to a unique secret with at least 32 characters before exposing /jobs or /config.");
@@ -534,6 +629,9 @@ function readAdapterConfig() {
   }
   if (datasetDids === "[]" && process.env.FISH_OCEAN_STATUS_DATASET_DID?.trim()) {
     warnings.push("Dataset list is empty; status checks may need FISH_OCEAN_STATUS_DATASET_DID if the CLI requires a dataset DID.");
+  }
+  if (urlHasCredentials(nodeUrl)) {
+    warnings.push("NODE_URL contains URL credentials; remove credentials from NODE_URL and pass secrets through private infrastructure instead.");
   }
 
   return {
@@ -562,8 +660,8 @@ function readAdapterConfig() {
 
 async function buildOceanNodeSigner(config) {
   const ethers = require(path.join(config.oceanCliDir, "node_modules", "ethers"));
-  const privateKey = process.env.PRIVATE_KEY?.trim();
-  const mnemonic = process.env.MNEMONIC?.trim();
+  const privateKey = readProofPrivateKey();
+  const mnemonic = readProofMnemonic();
   if (privateKey) {
     const wallet = new ethers.Wallet(privateKey);
     return { ethers, wallet, address: wallet.address };
@@ -632,7 +730,12 @@ title = {
     "eval_scorecard": "Eval Platter Scorecard",
     "data_card": "Data Sushi Card",
     "summary_card": "Docs Bento Brief",
-}.get(artifact_kind, "Fish Batch Artifact")
+}.get(artifact_kind) or {
+    "document_summary": "Docs Bento Brief",
+    "structured_extraction": "Repo Roll Map",
+    "batch_chat": "Eval Platter Scorecard",
+    "embeddings": "Data Sushi Card",
+}.get(task_type, "Fish Batch Artifact")
 lines = [line.strip() for line in payload_text.splitlines() if line.strip()]
 compact = " ".join(lines) if lines else os.getenv("FISH_INPUT_REF", "")
 compact = compact[:1200]
@@ -709,6 +812,15 @@ function artifactTitle(kind, taskType) {
   }
   if (kind === "summary_card" || taskType === "document_summary") {
     return "Docs Bento Brief";
+  }
+  if (taskType === "structured_extraction") {
+    return "Repo Roll Map";
+  }
+  if (taskType === "batch_chat") {
+    return "Eval Platter Scorecard";
+  }
+  if (taskType === "embeddings") {
+    return "Data Sushi Card";
   }
   return "Fish Batch Artifact";
 }
@@ -1078,15 +1190,66 @@ function shortDid(value) {
   return `${value.slice(0, 14)}...${value.slice(-8)}`;
 }
 
+function preflightPayload() {
+  const config = readAdapterConfig();
+  const executable = isExecutableMode(config.mode);
+  const liveReady = executable && config.missing.length === 0;
+  return {
+    ok: liveReady,
+    adapterVersion,
+    mode: config.mode,
+    liveReady,
+    configuredForFreeCompute: config.freeCompute,
+    selected: publicSelection(config),
+    cli: {
+      commandMode: config.mode === "local_ocean_node" ? "direct-ocean-node-http" : config.cliBin ? "direct-binary" : "ocean-cli-repo",
+      oceanCliDir: config.oceanCliDir ? redactPath(config.oceanCliDir) : null,
+      startCommand: config.freeCompute ? config.startFreeCommand : config.startPaidCommand,
+      downloadCommand: config.downloadCommand
+    },
+    missing: config.missing,
+    warnings: config.warnings,
+    secrets: {
+      adapterApiKeyConfigured: config.adapterApiKeyConfigured,
+      proofWalletConfigured: config.walletConfigured,
+      rpcConfigured: Boolean(config.rpc)
+    }
+  };
+}
+
+function readProofPrivateKey() {
+  return process.env.PRIVATE_KEY?.trim() || process.env.OCEAN_PROOF_PRIVATE_KEY?.trim() || "";
+}
+
+function readProofMnemonic() {
+  return process.env.MNEMONIC?.trim() || process.env.OCEAN_PROOF_MNEMONIC?.trim() || "";
+}
+
+function readProofRpc() {
+  return process.env.RPC?.trim() || process.env.OCEAN_PROOF_RPC?.trim() || "";
+}
+
 function redactArg(value) {
   const text = String(value);
-  const privateKey = process.env.PRIVATE_KEY?.trim();
-  const mnemonic = process.env.MNEMONIC?.trim();
+  const privateKey = readProofPrivateKey();
+  const mnemonic = readProofMnemonic();
+  const rpc = readProofRpc();
+  const adapterApiKey = process.env.OCEAN_WORKLOAD_ADAPTER_API_KEY?.trim();
+  const nodeUrl = process.env.NODE_URL?.trim();
   if (privateKey && text.includes(privateKey)) {
-    return text.replaceAll(privateKey, "[redacted-private-key]");
+    return redactArg(text.replaceAll(privateKey, "[redacted-private-key]"));
   }
   if (mnemonic && text.includes(mnemonic)) {
-    return text.replaceAll(mnemonic, "[redacted-mnemonic]");
+    return redactArg(text.replaceAll(mnemonic, "[redacted-mnemonic]"));
+  }
+  if (rpc && text.includes(rpc)) {
+    return redactArg(text.replaceAll(rpc, "[redacted-rpc]"));
+  }
+  if (adapterApiKey && text.includes(adapterApiKey)) {
+    return redactArg(text.replaceAll(adapterApiKey, "[redacted-adapter-key]"));
+  }
+  if (nodeUrl && urlHasCredentials(nodeUrl) && text.includes(nodeUrl)) {
+    return redactArg(text.replaceAll(nodeUrl, "[redacted-node-url]"));
   }
   return text;
 }
@@ -1097,6 +1260,41 @@ function redactText(value) {
 
 function redactPath(value) {
   return value.replace(process.env.HOME || "", "~");
+}
+
+function publicNodeUrl(value) {
+  const text = String(value || "").trim();
+  if (!text) {
+    return null;
+  }
+  if (text.startsWith("/p2p/") || text.startsWith("/ip4/") || text.startsWith("/ip6/")) {
+    return text;
+  }
+  try {
+    const parsed = new URL(text);
+    parsed.username = "";
+    parsed.password = "";
+    return parsed.toString();
+  } catch {
+    return "[configured-non-url-node]";
+  }
+}
+
+function urlHasCredentials(value) {
+  const text = String(value || "").trim();
+  if (!text || !text.includes("://")) {
+    return false;
+  }
+  try {
+    const parsed = new URL(text);
+    return Boolean(parsed.username || parsed.password);
+  } catch {
+    return false;
+  }
+}
+
+function hasProcessFlag(flag) {
+  return process.argv.slice(2).includes(flag);
 }
 
 function sleep(ms) {

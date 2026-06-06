@@ -18,10 +18,10 @@ services:
       - ocean-typesense
     ports:
       - "${OCEAN_NODE_HTTP_BIND:-127.0.0.1}:${OCEAN_NODE_HTTP_PORT:-8000}:8000"
-      - "${OCEAN_NODE_P2P_BIND:-0.0.0.0}:${OCEAN_NODE_P2P_TCP_PORT:-9000}:9000"
-      - "${OCEAN_NODE_P2P_BIND:-0.0.0.0}:${OCEAN_NODE_P2P_WS_PORT:-9001}:9001"
-      - "${OCEAN_NODE_P2P_BIND:-0.0.0.0}:${OCEAN_NODE_P2P_V6_TCP_PORT:-9002}:9002"
-      - "${OCEAN_NODE_P2P_BIND:-0.0.0.0}:${OCEAN_NODE_P2P_V6_WS_PORT:-9003}:9003"
+      - "${OCEAN_NODE_P2P_BIND:-127.0.0.1}:${OCEAN_NODE_P2P_TCP_PORT:-9000}:9000"
+      - "${OCEAN_NODE_P2P_BIND:-127.0.0.1}:${OCEAN_NODE_P2P_WS_PORT:-9001}:9001"
+      - "${OCEAN_NODE_P2P_BIND:-127.0.0.1}:${OCEAN_NODE_P2P_V6_TCP_PORT:-9002}:9002"
+      - "${OCEAN_NODE_P2P_BIND:-127.0.0.1}:${OCEAN_NODE_P2P_V6_WS_PORT:-9003}:9003"
     environment:
       PRIVATE_KEY: ${OCEAN_NODE_PRIVATE_KEY:-}
       RPCS: ${OCEAN_NODE_RPCS:-{"8453":{"rpc":"https://mainnet.base.org","chainId":8453,"network":"base","chunkSize":100},"84532":{"rpc":"https://sepolia.base.org","chainId":84532,"network":"base-sepolia","chunkSize":100}}}

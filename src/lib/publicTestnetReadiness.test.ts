@@ -1,0 +1,820 @@
+import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { generateKeyPairSync } from "node:crypto";
+import { mkdir, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { afterEach, test } from "node:test";
+
+const tempDirs: string[] = [];
+
+afterEach(async () => {
+  await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { force: true, recursive: true })));
+});
+
+test("public testnet readiness treats paused paid checkout as manual", async () => {
+  const appEnv = await tempEnv("FISH_PAID_TOPUPS_PAUSED=true\n");
+  const result = runReadiness(["--env", appEnv, "--ocean-env", missingOceanEnv(), "--json"]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const summary = JSON.parse(result.stdout);
+  const payments = summary.checks.find((check: { name: string }) => check.name === "Payments/mainnet checkout");
+  const proofUx = summary.checks.find((check: { name: string }) => check.name === "Proof UX and claims");
+
+  assert.equal(summary.profile, "public-testnet");
+  assert.equal(summary.strict, false);
+  assert.deepEqual(payments.steps, [5]);
+  assert.equal(payments.milestone, "Payments/mainnet readiness");
+  assert.equal(payments.state, "manual");
+  assert.match(payments.findings.join("\n"), /do not block a no-real-money public testnet/);
+  assert.deepEqual(proofUx.steps, [4, 9]);
+  assert.equal(proofUx.milestone, "Conservative proof claims and proof UX");
+  assert.equal(proofUx.state, "ready");
+  assert.deepEqual(proofUx.findings, []);
+});
+
+test("strict public testnet readiness fails on unresolved manual or partial checks", async () => {
+  const appEnv = await tempEnv("FISH_PAID_TOPUPS_PAUSED=true\n");
+  const result = runReadiness(["--env", appEnv, "--ocean-env", missingOceanEnv(), "--strict", "--json"]);
+
+  assert.equal(result.status, 1);
+  const summary = JSON.parse(result.stdout);
+
+  assert.equal(summary.profile, "public-testnet");
+  assert.equal(summary.strict, true);
+  assert.equal(summary.checks.some((check: { state: string }) => check.state !== "ready"), true);
+});
+
+test("paid mainnet readiness blocks while paid checkout is paused", async () => {
+  const appEnv = await tempEnv("FISH_PAID_TOPUPS_PAUSED=true\n");
+  const result = runReadiness(["--profile", "paid-mainnet", "--env", appEnv, "--ocean-env", missingOceanEnv(), "--json"]);
+
+  assert.equal(result.status, 1);
+  const summary = JSON.parse(result.stdout);
+  const payments = summary.checks.find((check: { name: string }) => check.name === "Payments/mainnet checkout");
+
+  assert.equal(summary.profile, "paid-mainnet");
+  assert.equal(payments.state, "blocked");
+  assert.match(payments.findings.join("\n"), /paid checkout cannot launch/);
+});
+
+test("paid mainnet readiness blocks checkout without support and refund links", async () => {
+  const appEnv = await tempEnv(
+    [
+      "FISH_MAX_OUTSTANDING_PREPAID_CREDITS=100000",
+      "FISH_PUBLIC_APP_URL=https://op.fish",
+      "FISH_STRIPE_SECRET_KEY=sk_live_12345678901234567890",
+      "FISH_STRIPE_WEBHOOK_SECRET=whsec_12345678901234567890"
+    ].join("\n")
+  );
+  const result = runReadiness(["--profile", "paid-mainnet", "--env", appEnv, "--ocean-env", missingOceanEnv(), "--json"]);
+
+  assert.equal(result.status, 1);
+  const summary = JSON.parse(result.stdout);
+  const payments = summary.checks.find((check: { name: string }) => check.name === "Payments/mainnet checkout");
+
+  assert.equal(payments.state, "blocked");
+  assert.match(payments.findings.join("\n"), /FISH_BILLING_SUPPORT_URL/);
+  assert.match(payments.findings.join("\n"), /FISH_BILLING_REFUND_POLICY_URL/);
+});
+
+test("paid mainnet readiness accepts complete Stripe checkout config", async () => {
+  const appEnv = await tempEnv(
+    [
+      "FISH_MAX_OUTSTANDING_PREPAID_CREDITS=100000",
+      "FISH_PUBLIC_APP_URL=https://op.fish",
+      "FISH_STRIPE_SECRET_KEY=sk_live_12345678901234567890",
+      "FISH_STRIPE_WEBHOOK_SECRET=whsec_12345678901234567890",
+      "FISH_BILLING_SUPPORT_URL=mailto:support@op.fish",
+      "FISH_BILLING_REFUND_POLICY_URL=https://op.fish/refunds"
+    ].join("\n")
+  );
+  const result = runReadiness(["--profile", "paid-mainnet", "--env", appEnv, "--ocean-env", missingOceanEnv(), "--json"]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const summary = JSON.parse(result.stdout);
+  const payments = summary.checks.find((check: { name: string }) => check.name === "Payments/mainnet checkout");
+
+  assert.equal(payments.state, "ready");
+  assert.deepEqual(payments.findings, []);
+});
+
+test("paid mainnet readiness accepts a live restricted Stripe key", async () => {
+  const appEnv = await tempEnv(
+    [
+      "FISH_MAX_OUTSTANDING_PREPAID_CREDITS=100000",
+      "FISH_PUBLIC_APP_URL=https://op.fish",
+      "FISH_STRIPE_SECRET_KEY=rk_live_12345678901234567890",
+      "FISH_STRIPE_WEBHOOK_SECRET=whsec_12345678901234567890",
+      "FISH_BILLING_SUPPORT_URL=mailto:support@op.fish",
+      "FISH_BILLING_REFUND_POLICY_URL=https://op.fish/refunds"
+    ].join("\n")
+  );
+  const result = runReadiness(["--profile", "paid-mainnet", "--env", appEnv, "--ocean-env", missingOceanEnv(), "--json"]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const summary = JSON.parse(result.stdout);
+  const payments = summary.checks.find((check: { name: string }) => check.name === "Payments/mainnet checkout");
+
+  assert.equal(payments.state, "ready");
+  assert.deepEqual(payments.findings, []);
+});
+
+test("paid mainnet readiness rejects Stripe test-mode keys", async () => {
+  const appEnv = await tempEnv(
+    [
+      "FISH_MAX_OUTSTANDING_PREPAID_CREDITS=100000",
+      "FISH_PUBLIC_APP_URL=https://op.fish",
+      "FISH_STRIPE_SECRET_KEY=sk_test_12345678901234567890",
+      "FISH_STRIPE_WEBHOOK_SECRET=whsec_12345678901234567890",
+      "FISH_BILLING_SUPPORT_URL=mailto:support@op.fish",
+      "FISH_BILLING_REFUND_POLICY_URL=https://op.fish/refunds"
+    ].join("\n")
+  );
+  const result = runReadiness(["--profile", "paid-mainnet", "--env", appEnv, "--ocean-env", missingOceanEnv(), "--json"]);
+
+  assert.equal(result.status, 1);
+  const summary = JSON.parse(result.stdout);
+  const payments = summary.checks.find((check: { name: string }) => check.name === "Payments/mainnet checkout");
+
+  assert.equal(payments.state, "blocked");
+  assert.match(payments.findings.join("\n"), /live-mode Stripe secret or restricted key/);
+});
+
+test("paid mainnet readiness accepts complete Base USDC checkout config", async () => {
+  const appEnv = await tempEnv(
+    [
+      "FISH_MAX_OUTSTANDING_PREPAID_CREDITS=100000",
+      "FISH_USDC_RECEIVE_ADDRESS=0x1111111111111111111111111111111111111111",
+      "FISH_USDC_RPC_URL=https://mainnet.base.org",
+      "FISH_USDC_CHAIN_ID=8453",
+      "FISH_USDC_TOKEN_ADDRESS=0x833589fcD6EDb6E08f4c7C32D4f71b54bdA02913",
+      "FISH_BILLING_SUPPORT_URL=mailto:support@op.fish",
+      "FISH_BILLING_REFUND_POLICY_URL=https://op.fish/refunds"
+    ].join("\n")
+  );
+  const result = runReadiness(["--profile", "paid-mainnet", "--env", appEnv, "--ocean-env", missingOceanEnv(), "--json"]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const summary = JSON.parse(result.stdout);
+  const payments = summary.checks.find((check: { name: string }) => check.name === "Payments/mainnet checkout");
+
+  assert.equal(payments.state, "ready");
+  assert.deepEqual(payments.findings, []);
+});
+
+test("paid mainnet readiness rejects the private Stripe test-mode override", async () => {
+  const appEnv = await tempEnv(
+    [
+      "FISH_MAX_OUTSTANDING_PREPAID_CREDITS=100000",
+      "FISH_USDC_RECEIVE_ADDRESS=0x1111111111111111111111111111111111111111",
+      "FISH_USDC_RPC_URL=https://mainnet.base.org",
+      "FISH_USDC_CHAIN_ID=8453",
+      "FISH_USDC_TOKEN_ADDRESS=0x833589fcD6EDb6E08f4c7C32D4f71b54bdA02913",
+      "FISH_BILLING_SUPPORT_URL=mailto:support@op.fish",
+      "FISH_BILLING_REFUND_POLICY_URL=https://op.fish/refunds",
+      "FISH_STRIPE_TEST_MODE_ALLOWED=true"
+    ].join("\n")
+  );
+  const result = runReadiness(["--profile", "paid-mainnet", "--env", appEnv, "--ocean-env", missingOceanEnv(), "--json"]);
+
+  assert.equal(result.status, 1);
+  const summary = JSON.parse(result.stdout);
+  const payments = summary.checks.find((check: { name: string }) => check.name === "Payments/mainnet checkout");
+
+  assert.equal(payments.state, "blocked");
+  assert.match(payments.findings.join("\n"), /FISH_STRIPE_TEST_MODE_ALLOWED must be false/);
+});
+
+test("paid mainnet readiness names missing USDC receive address and RPC", async () => {
+  const appEnv = await tempEnv(
+    [
+      "FISH_MAX_OUTSTANDING_PREPAID_CREDITS=100000",
+      "FISH_USDC_CHAIN_ID=8453",
+      "FISH_USDC_TOKEN_ADDRESS=0x833589fcD6EDb6E08f4c7C32D4f71b54bdA02913",
+      "FISH_BILLING_SUPPORT_URL=mailto:support@op.fish",
+      "FISH_BILLING_REFUND_POLICY_URL=https://op.fish/refunds"
+    ].join("\n")
+  );
+  const result = runReadiness(["--profile", "paid-mainnet", "--env", appEnv, "--ocean-env", missingOceanEnv(), "--json"]);
+
+  assert.equal(result.status, 1);
+  const summary = JSON.parse(result.stdout);
+  const payments = summary.checks.find((check: { name: string }) => check.name === "Payments/mainnet checkout");
+
+  assert.equal(payments.state, "blocked");
+  assert.match(payments.findings.join("\n"), /FISH_USDC_RECEIVE_ADDRESS must be a valid non-zero Base mainnet receive address/);
+  assert.match(payments.findings.join("\n"), /FISH_USDC_RPC_URL must be an HTTP\(S\) Base mainnet RPC URL/);
+});
+
+test("paid mainnet readiness rejects invalid USDC RPC and zero receive address", async () => {
+  const appEnv = await tempEnv(
+    [
+      "FISH_MAX_OUTSTANDING_PREPAID_CREDITS=100000",
+      "FISH_USDC_RECEIVE_ADDRESS=0x0000000000000000000000000000000000000000",
+      "FISH_USDC_RPC_URL=base-mainnet",
+      "FISH_USDC_CHAIN_ID=8453",
+      "FISH_USDC_TOKEN_ADDRESS=0x833589fcD6EDb6E08f4c7C32D4f71b54bdA02913",
+      "FISH_BILLING_SUPPORT_URL=mailto:support@op.fish",
+      "FISH_BILLING_REFUND_POLICY_URL=https://op.fish/refunds"
+    ].join("\n")
+  );
+  const result = runReadiness(["--profile", "paid-mainnet", "--env", appEnv, "--ocean-env", missingOceanEnv(), "--json"]);
+
+  assert.equal(result.status, 1);
+  const summary = JSON.parse(result.stdout);
+  const payments = summary.checks.find((check: { name: string }) => check.name === "Payments/mainnet checkout");
+
+  assert.equal(payments.state, "blocked");
+  assert.match(payments.findings.join("\n"), /valid non-zero Base mainnet receive address/);
+  assert.match(payments.findings.join("\n"), /HTTP\(S\) Base mainnet RPC URL/);
+});
+
+test("paid mainnet readiness rejects Stripe checkout without a public app URL", async () => {
+  const appEnv = await tempEnv(
+    [
+      "FISH_MAX_OUTSTANDING_PREPAID_CREDITS=100000",
+      "FISH_STRIPE_SECRET_KEY=sk_live_12345678901234567890",
+      "FISH_STRIPE_WEBHOOK_SECRET=whsec_12345678901234567890",
+      "FISH_BILLING_SUPPORT_URL=mailto:support@op.fish",
+      "FISH_BILLING_REFUND_POLICY_URL=https://op.fish/refunds"
+    ].join("\n")
+  );
+  const result = runReadiness(["--profile", "paid-mainnet", "--env", appEnv, "--ocean-env", missingOceanEnv(), "--json"]);
+
+  assert.equal(result.status, 1);
+  const summary = JSON.parse(result.stdout);
+  const payments = summary.checks.find((check: { name: string }) => check.name === "Payments/mainnet checkout");
+
+  assert.equal(payments.state, "blocked");
+  assert.match(payments.findings.join("\n"), /public HTTPS origin/);
+});
+
+test("paid mainnet readiness rejects USDC checkout on Base Sepolia", async () => {
+  const appEnv = await tempEnv(
+    [
+      "FISH_MAX_OUTSTANDING_PREPAID_CREDITS=100000",
+      "FISH_USDC_RECEIVE_ADDRESS=0x1111111111111111111111111111111111111111",
+      "FISH_USDC_RPC_URL=https://sepolia.base.org",
+      "FISH_USDC_CHAIN_ID=84532",
+      "FISH_BILLING_SUPPORT_URL=mailto:support@op.fish",
+      "FISH_BILLING_REFUND_POLICY_URL=https://op.fish/refunds"
+    ].join("\n")
+  );
+  const result = runReadiness(["--profile", "paid-mainnet", "--env", appEnv, "--ocean-env", missingOceanEnv(), "--json"]);
+
+  assert.equal(result.status, 1);
+  const summary = JSON.parse(result.stdout);
+  const payments = summary.checks.find((check: { name: string }) => check.name === "Payments/mainnet checkout");
+
+  assert.equal(payments.state, "blocked");
+  assert.match(payments.findings.join("\n"), /FISH_USDC_CHAIN_ID must be Base mainnet 8453/);
+});
+
+test("paid mainnet readiness rejects non-canonical USDC token config", async () => {
+  const appEnv = await tempEnv(
+    [
+      "FISH_MAX_OUTSTANDING_PREPAID_CREDITS=100000",
+      "FISH_USDC_RECEIVE_ADDRESS=0x1111111111111111111111111111111111111111",
+      "FISH_USDC_RPC_URL=https://mainnet.base.org",
+      "FISH_USDC_TOKEN_ADDRESS=0x2222222222222222222222222222222222222222",
+      "FISH_BILLING_SUPPORT_URL=mailto:support@op.fish",
+      "FISH_BILLING_REFUND_POLICY_URL=https://op.fish/refunds"
+    ].join("\n")
+  );
+  const result = runReadiness(["--profile", "paid-mainnet", "--env", appEnv, "--ocean-env", missingOceanEnv(), "--json"]);
+
+  assert.equal(result.status, 1);
+  const summary = JSON.parse(result.stdout);
+  const payments = summary.checks.find((check: { name: string }) => check.name === "Payments/mainnet checkout");
+
+  assert.equal(payments.state, "blocked");
+  assert.match(payments.findings.join("\n"), /FISH_USDC_TOKEN_ADDRESS must be canonical Base USDC/);
+});
+
+test("public web readiness blocks an unconfigured Ocean demo route", async () => {
+  const appEnv = await tempEnv(["FISH_PAID_TOPUPS_PAUSED=true", "FISH_ADMIN_TOKEN=12345678901234567890123456789012", "FISH_CHAT_ROUTE=ocean-first"].join("\n"));
+  const result = runReadiness(["--env", appEnv, "--ocean-env", missingOceanEnv(), "--json"]);
+
+  assert.equal(result.status, 1);
+  const summary = JSON.parse(result.stdout);
+  const web = summary.checks.find((check: { name: string }) => check.name === "Public web env");
+
+  assert.equal(web.state, "blocked");
+  assert.match(web.findings.join("\n"), /Selected chat route ocean-demo-vllm is not ready/);
+});
+
+test("public web readiness accepts a configured Ocean demo route", async () => {
+  const appEnv = await tempEnv(
+    [
+      "FISH_PAID_TOPUPS_PAUSED=true",
+      "FISH_ADMIN_TOKEN=12345678901234567890123456789012",
+      "FISH_CHAT_ROUTE=ocean-first",
+      "FISH_OCEAN_DEMO_VLLM_BASE_URL=http://127.0.0.1:8088/v1",
+      "FISH_OCEAN_DEMO_VLLM_API_KEY=12345678901234567890123456789012",
+      "FISH_OCEAN_DEMO_VLLM_MODEL=fish-warm-chat",
+      "FISH_OCEAN_DEMO_DAILY_BUDGET_USD=5"
+    ].join("\n")
+  );
+  const result = runReadiness(["--env", appEnv, "--ocean-env", missingOceanEnv(), "--json"]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const summary = JSON.parse(result.stdout);
+  const web = summary.checks.find((check: { name: string }) => check.name === "Public web env");
+
+  assert.notEqual(web.state, "blocked");
+  assert.doesNotMatch(web.findings.join("\n"), /Selected chat route/);
+});
+
+test("contract readiness requires addresses even when RPC is set", async () => {
+  const appEnv = await tempEnv(["FISH_PAID_TOPUPS_PAUSED=true", "FISH_CONTRACT_RPC_URL=https://sepolia.base.org"].join("\n"));
+  const result = runReadiness(["--env", appEnv, "--ocean-env", missingOceanEnv(), "--json"]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const summary = JSON.parse(result.stdout);
+  const contracts = summary.checks.find((check: { name: string }) => check.name === "Contract status and staking pages");
+
+  assert.equal(contracts.state, "manual");
+  assert.match(contracts.findings.join("\n"), /Required contract addresses are missing or invalid/);
+  assert.match(contracts.findings.join("\n"), /FISH_CONTRACT_FISH_TOKEN_ADDRESS/);
+});
+
+test("contract readiness accepts a Base Sepolia read-only deployment env", async () => {
+  const appEnv = await tempEnv(
+    [
+      "FISH_PAID_TOPUPS_PAUSED=true",
+      "FISH_CONTRACT_CHAIN_ID=84532",
+      "FISH_CONTRACT_CHAIN_NAME=Base Sepolia",
+      "FISH_CONTRACT_EXPLORER_URL=https://sepolia.basescan.org",
+      "FISH_CONTRACT_RPC_URL=https://sepolia.base.org",
+      "FISH_CONTRACT_OCEAN_TOKEN_ADDRESS=0x1111111111111111111111111111111111111111",
+      "FISH_CONTRACT_USDC_TOKEN_ADDRESS=0x2222222222222222222222222222222222222222",
+      "FISH_CONTRACT_FISH_TOKEN_ADDRESS=0x3333333333333333333333333333333333333333",
+      "FISH_CONTRACT_OCEAN_STAKING_ADDRESS=0x4444444444444444444444444444444444444444",
+      "FISH_CONTRACT_CAPACITY_POOL_ADDRESS=0x5555555555555555555555555555555555555555"
+    ].join("\n")
+  );
+  const result = runReadiness(["--env", appEnv, "--ocean-env", missingOceanEnv(), "--json"]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const summary = JSON.parse(result.stdout);
+  const contracts = summary.checks.find((check: { name: string }) => check.name === "Contract status and staking pages");
+
+  assert.equal(contracts.state, "ready");
+  assert.deepEqual(contracts.findings, []);
+});
+
+test("public testnet readiness can derive web env from the Ocean demo stack", async () => {
+  const { keyId, privateKeyPem } = runnerSigningKey();
+  const appEnv = await tempEnv(["FISH_PAID_TOPUPS_PAUSED=true", "FISH_ADMIN_TOKEN=12345678901234567890123456789012", "FISH_GUEST_ID_SALT=12345678901234567890123456789012"].join("\n"));
+  const oceanEnv = await tempEnv(
+    oceanEnvWithComputeAccess([PROOF_WALLET_ADDRESS], {
+      runnerSigningKeyId: keyId,
+      runnerSigningPrivateKeyPem: privateKeyPem,
+      runnerApiKey: "runner-key-12345678901234567890"
+    })
+  );
+  const result = runReadiness(["--env", appEnv, "--ocean-env", oceanEnv, "--derive-ocean-web-env-host", "10.0.0.7", "--json"]);
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.doesNotMatch(result.stdout, /BEGIN PRIVATE KEY/);
+  assert.doesNotMatch(result.stdout, /BEGIN PUBLIC KEY/);
+  assert.doesNotMatch(result.stdout, /runner-key-12345678901234567890/);
+  const summary = JSON.parse(result.stdout);
+  const web = summary.checks.find((check: { name: string }) => check.name === "Public web env");
+  const batch = summary.checks.find((check: { name: string }) => check.name === "Ocean batch dishes");
+  const operations = summary.checks.find((check: { name: string }) => check.name === "Operational hardening");
+
+  assert.deepEqual(summary.env.oceanWebEnv, {
+    derived: true,
+    host: "10.0.0.7",
+    profile: "warm"
+  });
+  assert.doesNotMatch(web.findings.join("\n"), /Selected chat route/);
+  assert.equal(batch.state, "ready");
+  assert.doesNotMatch(operations.findings.join("\n"), /missing trusted runner public key/);
+  assert.doesNotMatch(operations.findings.join("\n"), /signing key id/);
+});
+
+test("public testnet readiness flags loopback derived Ocean web env hosts", async () => {
+  const { keyId, privateKeyPem } = runnerSigningKey();
+  const appEnv = await tempEnv(["FISH_PAID_TOPUPS_PAUSED=true", "FISH_ADMIN_TOKEN=12345678901234567890123456789012", "FISH_GUEST_ID_SALT=12345678901234567890123456789012"].join("\n"));
+  const oceanEnv = await tempEnv(
+    oceanEnvWithComputeAccess([PROOF_WALLET_ADDRESS], {
+      runnerSigningKeyId: keyId,
+      runnerSigningPrivateKeyPem: privateKeyPem,
+      runnerApiKey: "runner-key-12345678901234567890"
+    })
+  );
+  const result = runReadiness(["--env", appEnv, "--ocean-env", oceanEnv, "--derive-ocean-web-env-host", "127.0.0.1", "--json"]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const summary = JSON.parse(result.stdout);
+  const operations = summary.checks.find((check: { name: string }) => check.name === "Operational hardening");
+
+  assert.equal(operations.state, "partial");
+  assert.match(operations.findings.join("\n"), /loopback\/local host/);
+  assert.match(operations.findings.join("\n"), /GPU\/Ocean host private IP or DNS name/);
+});
+
+test("public testnet readiness accepts a private app env overlay without exposing secrets", async () => {
+  const { keyId, privateKeyPem } = runnerSigningKey();
+  const { publicKeyPem, privateKeyPem: providerProofPrivateKeyPem } = providerProofSigningKey();
+  const appEnv = await tempEnv("FISH_PAID_TOPUPS_PAUSED=true\n");
+  const appEnvOverlay = await tempEnv(
+    [
+      "FISH_ADMIN_TOKEN=admin-token-12345678901234567890",
+      "FISH_GUEST_ID_SALT=guest-salt-123456789012345678901",
+      "FISH_DATA_BACKUP_TARGET=/var/backups/fish",
+      `FISH_PROVIDER_PROOF_PUBLIC_KEY_ID=proof-key-private-overlay`,
+      `FISH_PROVIDER_PROOF_PUBLIC_KEY_PEM=${JSON.stringify(publicKeyPem.replaceAll("\n", "\\n"))}`,
+      `FISH_PROVIDER_PROOF_SIGNING_KEY_ID=proof-key-private-overlay`,
+      `FISH_PROVIDER_PROOF_SIGNING_PRIVATE_KEY_PEM=${JSON.stringify(providerProofPrivateKeyPem.replaceAll("\n", "\\n"))}`
+    ].join("\n")
+  );
+  const oceanEnv = await tempEnv(
+    oceanEnvWithComputeAccess([PROOF_WALLET_ADDRESS], {
+      runnerSigningKeyId: keyId,
+      runnerSigningPrivateKeyPem: privateKeyPem,
+      runnerApiKey: "runner-key-12345678901234567890"
+    })
+  );
+  const result = runReadiness(["--env", appEnv, "--app-env-overlay", appEnvOverlay, "--ocean-env", oceanEnv, "--derive-ocean-web-env-host", "10.0.0.7", "--json"]);
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.doesNotMatch(result.stdout, /admin-token-12345678901234567890/);
+  assert.doesNotMatch(result.stdout, /guest-salt-123456789012345678901/);
+  assert.doesNotMatch(result.stdout, /BEGIN PRIVATE KEY/);
+  assert.doesNotMatch(result.stdout, /BEGIN PUBLIC KEY/);
+
+  const summary = JSON.parse(result.stdout);
+  const web = summary.checks.find((check: { name: string }) => check.name === "Public web env");
+  const dataHygiene = summary.checks.find((check: { name: string }) => check.name === "Data retention and backups");
+  const operations = summary.checks.find((check: { name: string }) => check.name === "Operational hardening");
+
+  assert.deepEqual(summary.env.appOverlay, {
+    configured: true,
+    path: appEnvOverlay
+  });
+  assert.doesNotMatch(web.findings.join("\n"), /FISH_ADMIN_TOKEN/);
+  assert.equal(dataHygiene.state, "ready");
+  assert.doesNotMatch(operations.findings.join("\n"), /FISH_GUEST_ID_SALT/);
+});
+
+test("public testnet readiness flags oversized faucet grants", async () => {
+  const appEnv = await tempEnv(
+    [
+      "FISH_PAID_TOPUPS_PAUSED=true",
+      "FISH_TRUST_PROXY_HEADERS=true",
+      "FISH_PROXY_HEADER_SECRET=fishproxytoken32charsabcdefghi",
+      "FISH_TESTNET_FAUCET_ENABLED=true",
+      "FISH_TESTNET_FAUCET_CHAIN_ID=84532",
+      "FISH_TESTNET_FAUCET_PRIVATE_KEY=0x1111111111111111111111111111111111111111111111111111111111111111",
+      "FISH_TESTNET_FAUCET_RPC_URL=https://sepolia.base.org",
+      "FISH_TESTNET_FAUCET_OCEAN_TOKEN_ADDRESS=0x1111111111111111111111111111111111111111",
+      "FISH_TESTNET_FAUCET_USDC_TOKEN_ADDRESS=0x2222222222222222222222222222222222222222",
+      "FISH_TESTNET_FAUCET_ETH_AMOUNT=0.01",
+      "FISH_TESTNET_FAUCET_OCEAN_AMOUNT=1000000",
+      "FISH_TESTNET_FAUCET_USDC_AMOUNT=1000",
+      "FISH_TESTNET_FAUCET_MAX_DAILY_CLAIMS=1000",
+      "FISH_TESTNET_FAUCET_WALLET_COOLDOWN_HOURS=0",
+      "FISH_TESTNET_FAUCET_IP_COOLDOWN_HOURS=0"
+    ].join("\n")
+  );
+  const result = runReadiness(["--env", appEnv, "--ocean-env", missingOceanEnv(), "--json"]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const summary = JSON.parse(result.stdout);
+  const faucet = summary.checks.find((check: { name: string }) => check.name === "Public testnet faucet");
+
+  assert.equal(faucet.state, "partial");
+  assert.match(faucet.findings.join("\n"), /ETH grant is too high/);
+  assert.match(faucet.findings.join("\n"), /daily claim cap is too high/);
+  assert.match(faucet.findings.join("\n"), /Wallet cooldown is too low/);
+});
+
+test("public testnet readiness requires trusted proxy identity before enabling the faucet", async () => {
+  const appEnv = await tempEnv(
+    [
+      "FISH_PAID_TOPUPS_PAUSED=true",
+      "FISH_TESTNET_FAUCET_ENABLED=true",
+      "FISH_TESTNET_FAUCET_CHAIN_ID=84532",
+      "FISH_TESTNET_FAUCET_PRIVATE_KEY=0x1111111111111111111111111111111111111111111111111111111111111111",
+      "FISH_TESTNET_FAUCET_RPC_URL=https://sepolia.base.org",
+      "FISH_TESTNET_FAUCET_OCEAN_TOKEN_ADDRESS=0x1111111111111111111111111111111111111111",
+      "FISH_TESTNET_FAUCET_USDC_TOKEN_ADDRESS=0x2222222222222222222222222222222222222222",
+      "FISH_TESTNET_FAUCET_ETH_AMOUNT=0.0005",
+      "FISH_TESTNET_FAUCET_OCEAN_AMOUNT=1000",
+      "FISH_TESTNET_FAUCET_USDC_AMOUNT=25",
+      "FISH_TESTNET_FAUCET_MAX_DAILY_CLAIMS=50",
+      "FISH_TESTNET_FAUCET_WALLET_COOLDOWN_HOURS=24",
+      "FISH_TESTNET_FAUCET_IP_COOLDOWN_HOURS=24"
+    ].join("\n")
+  );
+  const result = runReadiness(["--env", appEnv, "--ocean-env", missingOceanEnv(), "--json"]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const summary = JSON.parse(result.stdout);
+  const faucet = summary.checks.find((check: { name: string }) => check.name === "Public testnet faucet");
+
+  assert.equal(faucet.state, "partial");
+  assert.match(faucet.findings.join("\n"), /FISH_TRUST_PROXY_HEADERS must be true/);
+  assert.match(faucet.findings.join("\n"), /FISH_PROXY_HEADER_SECRET is missing or weak/);
+});
+
+test("public testnet readiness accepts conservative faucet limits", async () => {
+  const appEnv = await tempEnv(
+    [
+      "FISH_PAID_TOPUPS_PAUSED=true",
+      "FISH_TRUST_PROXY_HEADERS=true",
+      "FISH_PROXY_HEADER_SECRET=fishproxytoken32charsabcdefghi",
+      "FISH_TESTNET_FAUCET_ENABLED=true",
+      "FISH_TESTNET_FAUCET_CHAIN_ID=84532",
+      "FISH_TESTNET_FAUCET_PRIVATE_KEY=0x1111111111111111111111111111111111111111111111111111111111111111",
+      "FISH_TESTNET_FAUCET_RPC_URL=https://sepolia.base.org",
+      "FISH_TESTNET_FAUCET_OCEAN_TOKEN_ADDRESS=0x1111111111111111111111111111111111111111",
+      "FISH_TESTNET_FAUCET_USDC_TOKEN_ADDRESS=0x2222222222222222222222222222222222222222",
+      "FISH_TESTNET_FAUCET_ETH_AMOUNT=0.0005",
+      "FISH_TESTNET_FAUCET_OCEAN_AMOUNT=1000",
+      "FISH_TESTNET_FAUCET_USDC_AMOUNT=25",
+      "FISH_TESTNET_FAUCET_MAX_DAILY_CLAIMS=50",
+      "FISH_TESTNET_FAUCET_WALLET_COOLDOWN_HOURS=24",
+      "FISH_TESTNET_FAUCET_IP_COOLDOWN_HOURS=24"
+    ].join("\n")
+  );
+  const result = runReadiness(["--env", appEnv, "--ocean-env", missingOceanEnv(), "--json"]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const summary = JSON.parse(result.stdout);
+  const faucet = summary.checks.find((check: { name: string }) => check.name === "Public testnet faucet");
+
+  assert.equal(faucet.state, "ready");
+  assert.deepEqual(faucet.findings, []);
+});
+
+test("public testnet readiness flags unsafe backup targets", async () => {
+  const appEnv = await tempEnv(["FISH_PAID_TOPUPS_PAUSED=true", "FISH_DATA_BACKUP_TARGET=public/backups"].join("\n"));
+  const result = runReadiness(["--env", appEnv, "--ocean-env", missingOceanEnv(), "--json"]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const summary = JSON.parse(result.stdout);
+  const dataHygiene = summary.checks.find((check: { name: string }) => check.name === "Data retention and backups");
+
+  assert.equal(dataHygiene.state, "manual");
+  assert.match(dataHygiene.findings.join("\n"), /must not point inside public/);
+});
+
+test("public testnet readiness includes repository hygiene gate", async () => {
+  const appEnv = await tempEnv("FISH_PAID_TOPUPS_PAUSED=true\n");
+  const result = runReadiness(["--env", appEnv, "--ocean-env", missingOceanEnv(), "--json"]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const summary = JSON.parse(result.stdout);
+  const repository = summary.checks.find((check: { name: string }) => check.name === "Repository hygiene");
+
+  assert.equal(repository.state, "ready");
+  assert.deepEqual(repository.findings, []);
+});
+
+test("Ocean demo readiness flags free compute without a wallet allowlist", async () => {
+  const appEnv = await tempEnv("FISH_PAID_TOPUPS_PAUSED=true\n");
+  const oceanEnv = await tempEnv(oceanEnvWithComputeAccess([]));
+  const result = runReadiness(["--env", appEnv, "--ocean-env", oceanEnv, "--json"]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const summary = JSON.parse(result.stdout);
+  const ocean = summary.checks.find((check: { name: string }) => check.name === "GPU/Ocean demo stack");
+
+  assert.equal(ocean.state, "partial");
+  assert.match(ocean.findings.join("\n"), /empty free\.access\.addresses/);
+});
+
+test("Ocean demo readiness accepts free compute restricted to the proof wallet", async () => {
+  const appEnv = await tempEnv("FISH_PAID_TOPUPS_PAUSED=true\n");
+  const oceanEnv = await tempEnv(oceanEnvWithComputeAccess([PROOF_WALLET_ADDRESS]));
+  const result = runReadiness(["--env", appEnv, "--ocean-env", oceanEnv, "--json"]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const summary = JSON.parse(result.stdout);
+  const ocean = summary.checks.find((check: { name: string }) => check.name === "GPU/Ocean demo stack");
+
+  assert.doesNotMatch(ocean.findings.join("\n"), /free\.access\.addresses/);
+  assert.doesNotMatch(ocean.findings.join("\n"), /proof wallet/);
+});
+
+test("external Oncompute readiness keeps local Ocean Node proof manual", async () => {
+  const appEnv = await tempEnv("FISH_PAID_TOPUPS_PAUSED=true\n");
+  const oceanEnv = await tempEnv(
+    [
+      oceanEnvWithComputeAccess([PROOF_WALLET_ADDRESS]),
+      "OCEAN_WORKLOAD_ADAPTER_MODE=local_ocean_node",
+      "OCEAN_PROOF_RPC=http://127.0.0.1:8545",
+      "NODE_URL=http://ocean-node:8000",
+      "FISH_OCEAN_DATASET_DIDS=[]",
+      "FISH_OCEAN_ALGO_DID=did:op:fish-local-demo",
+      "OCEAN_CLI_DIR=/opt/ocean-cli"
+    ].join("\n")
+  );
+  const result = runReadiness(["--env", appEnv, "--ocean-env", oceanEnv, "--json"]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const summary = JSON.parse(result.stdout);
+  const externalProof = summary.checks.find((check: { name: string }) => check.name === "External Oncompute proof");
+
+  assert.equal(externalProof.state, "manual");
+  assert.match(externalProof.findings.join("\n"), /must be live/);
+  assert.match(externalProof.findings.join("\n"), /local Ocean Node/);
+});
+
+test("external Oncompute readiness accepts a complete live free-compute env", async () => {
+  const appEnv = await tempEnv("FISH_PAID_TOPUPS_PAUSED=true\n");
+  const oceanEnv = await tempEnv(
+    [
+      oceanEnvWithComputeAccess([PROOF_WALLET_ADDRESS]),
+      "OCEAN_WORKLOAD_ADAPTER_MODE=live",
+      "OCEAN_PROOF_RPC=https://mainnet.base.org",
+      "NODE_URL=https://node.oncompute.example",
+      "FISH_OCEAN_DATASET_DIDS=[]",
+      "FISH_OCEAN_ALGO_DID=did:op:fish-no-dataset-proof",
+      "OCEAN_CLI_DIR=/opt/ocean-cli"
+    ].join("\n")
+  );
+  const result = runReadiness(["--env", appEnv, "--ocean-env", oceanEnv, "--json"]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const summary = JSON.parse(result.stdout);
+  const externalProof = summary.checks.find((check: { name: string }) => check.name === "External Oncompute proof");
+
+  assert.equal(externalProof.state, "ready");
+  assert.deepEqual(externalProof.findings, []);
+});
+
+test("external Oncompute readiness requires paired paid resources and valid JSON", async () => {
+  const appEnv = await tempEnv("FISH_PAID_TOPUPS_PAUSED=true\n");
+  const oceanEnv = await tempEnv(
+    [
+      oceanEnvWithComputeAccess([PROOF_WALLET_ADDRESS]),
+      "OCEAN_WORKLOAD_ADAPTER_MODE=live",
+      "OCEAN_PROOF_RPC=https://mainnet.base.org",
+      "NODE_URL=https://node.oncompute.example",
+      "FISH_OCEAN_DATASET_DIDS=[]",
+      "FISH_OCEAN_ALGO_DID=did:op:fish-no-dataset-proof",
+      "FISH_OCEAN_RESOURCES={cpu:1}",
+      "OCEAN_CLI_DIR=/opt/ocean-cli"
+    ].join("\n")
+  );
+  const result = runReadiness(["--env", appEnv, "--ocean-env", oceanEnv, "--json"]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const summary = JSON.parse(result.stdout);
+  const externalProof = summary.checks.find((check: { name: string }) => check.name === "External Oncompute proof");
+
+  assert.equal(externalProof.state, "manual");
+  assert.match(externalProof.findings.join("\n"), /both FISH_OCEAN_PAYMENT_TOKEN and FISH_OCEAN_RESOURCES/);
+  assert.match(externalProof.findings.join("\n"), /FISH_OCEAN_RESOURCES must be valid JSON/);
+});
+
+test("external Oncompute readiness rejects malformed live proof values", async () => {
+  const appEnv = await tempEnv("FISH_PAID_TOPUPS_PAUSED=true\n");
+  const oceanEnv = await tempEnv(
+    [
+      oceanEnvWithComputeAccess([PROOF_WALLET_ADDRESS]),
+      "OCEAN_WORKLOAD_ADAPTER_MODE=live",
+      "OCEAN_PROOF_RPC=http://127.0.0.1:8545",
+      "NODE_URL=https://operator:secret@node.oncompute.example",
+      "FISH_OCEAN_DATASET_DIDS=not-a-did",
+      "FISH_OCEAN_ALGO_DID=fish-no-dataset-proof",
+      "FISH_OCEAN_PAYMENT_TOKEN=0x1111111111111111111111111111111111111111",
+      "FISH_OCEAN_RESOURCES={cpu:1}",
+      "FISH_OCEAN_OUTPUT=[]",
+      "OCEAN_CLI_DIR=/opt/ocean-cli"
+    ].join("\n")
+  );
+  const result = runReadiness(["--env", appEnv, "--ocean-env", oceanEnv, "--json"]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const summary = JSON.parse(result.stdout);
+  const externalProof = summary.checks.find((check: { name: string }) => check.name === "External Oncompute proof");
+
+  assert.equal(externalProof.state, "manual");
+  assert.match(externalProof.findings.join("\n"), /loopback host/);
+  assert.match(externalProof.findings.join("\n"), /NODE_URL contains credentials/);
+  assert.match(externalProof.findings.join("\n"), /FISH_OCEAN_DATASET_DIDS must be \[\]/);
+  assert.match(externalProof.findings.join("\n"), /FISH_OCEAN_ALGO_DID must be a did:op/);
+  assert.match(externalProof.findings.join("\n"), /FISH_OCEAN_RESOURCES must be valid JSON/);
+  assert.match(externalProof.findings.join("\n"), /FISH_OCEAN_OUTPUT must be valid JSON/);
+});
+
+test("operational readiness accepts trusted runner public keys from JSON without exposing key material", async () => {
+  const { envLine, keyId } = runnerPublicKeysJsonEnv();
+  const appEnv = await tempEnv(["FISH_PAID_TOPUPS_PAUSED=true", "FISH_GUEST_ID_SALT=12345678901234567890123456789012", envLine].join("\n"));
+  const oceanEnv = await tempEnv(oceanEnvWithComputeAccess([PROOF_WALLET_ADDRESS], { runnerSigningKeyId: keyId }));
+  const result = runReadiness(["--env", appEnv, "--ocean-env", oceanEnv, "--json"]);
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.doesNotMatch(result.stdout, /BEGIN PUBLIC KEY/);
+  const summary = JSON.parse(result.stdout);
+  const operations = summary.checks.find((check: { name: string }) => check.name === "Operational hardening");
+
+  assert.doesNotMatch(operations.findings.join("\n"), /missing trusted runner public key/);
+  assert.doesNotMatch(operations.findings.join("\n"), /could not be parsed/);
+  assert.doesNotMatch(operations.findings.join("\n"), /signing key id/);
+});
+
+test("operational readiness flags invalid trusted runner public key configuration", async () => {
+  const appEnv = await tempEnv(
+    [
+      "FISH_PAID_TOPUPS_PAUSED=true",
+      "FISH_GUEST_ID_SALT=12345678901234567890123456789012",
+      'FISH_RUNNER_PUBLIC_KEYS_JSON=[{"keyId":"runner-test","publicKeyPem":"not a pem"}]'
+    ].join("\n")
+  );
+  const oceanEnv = await tempEnv(oceanEnvWithComputeAccess([PROOF_WALLET_ADDRESS], { runnerSigningKeyId: "runner-test" }));
+  const result = runReadiness(["--env", appEnv, "--ocean-env", oceanEnv, "--json"]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const summary = JSON.parse(result.stdout);
+  const operations = summary.checks.find((check: { name: string }) => check.name === "Operational hardening");
+
+  assert.equal(operations.state, "partial");
+  assert.match(operations.findings.join("\n"), /missing trusted runner public key/);
+  assert.match(operations.findings.join("\n"), /could not be parsed/);
+});
+
+const PROOF_PRIVATE_KEY = "0x0000000000000000000000000000000000000000000000000000000000000001";
+const PROOF_WALLET_ADDRESS = "0x7E5F4552091A69125d5DfCb7b8C2659029395Bdf";
+
+async function tempEnv(contents: string) {
+  const dir = path.join(tmpdir(), `fish-readiness-${Date.now()}-${Math.random().toString(16).slice(2)}`);
+  await mkdir(dir, { recursive: true });
+  tempDirs.push(dir);
+  const file = path.join(dir, ".env.test");
+  await writeFile(file, contents);
+  return file;
+}
+
+function missingOceanEnv() {
+  return path.join(tmpdir(), `fish-missing-ocean-env-${Date.now()}-${Math.random().toString(16).slice(2)}`);
+}
+
+function oceanEnvWithComputeAccess(addresses: string[], options: { runnerSigningKeyId?: string; runnerSigningPrivateKeyPem?: string; runnerApiKey?: string } = {}) {
+  const computeEnvironments = [
+    {
+      socketPath: "/var/run/docker.sock",
+      environments: [
+        {
+          id: "fish-local-free",
+          free: {
+            access: {
+              addresses
+            }
+          }
+        }
+      ]
+    }
+  ];
+  return [
+    "OCEAN_WORKLOAD_ADAPTER_API_KEY=12345678901234567890123456789012",
+    "OCEAN_NODE_PRIVATE_KEY=0x1111111111111111111111111111111111111111111111111111111111111111",
+    `OCEAN_PROOF_PRIVATE_KEY=${PROOF_PRIVATE_KEY}`,
+    "FISH_OCEAN_COMPUTE_ENV_ID=fish-local-free",
+    "OCEAN_NODE_HTTP_BIND=127.0.0.1",
+    "OCEAN_WORKLOAD_ADAPTER_BIND=127.0.0.1",
+    "OCEAN_NODE_P2P_BIND=127.0.0.1",
+    options.runnerApiKey ? `FISH_RUNNER_API_KEY=${options.runnerApiKey}` : "",
+    options.runnerSigningKeyId ? `FISH_RUNNER_SIGNING_KEY_ID=${options.runnerSigningKeyId}` : "",
+    options.runnerSigningKeyId ? `FISH_RUNNER_SIGNING_PRIVATE_KEY_PEM=${JSON.stringify(options.runnerSigningPrivateKeyPem ?? "12345678901234567890123456789012")}` : "",
+    `OCEAN_NODE_DOCKER_COMPUTE_ENVIRONMENTS=${JSON.stringify(computeEnvironments)}`
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+function runnerSigningKey(keyId = "runner-test") {
+  const { privateKey } = generateKeyPairSync("ed25519");
+  const privateKeyPem = privateKey.export({ type: "pkcs8", format: "pem" }).toString();
+  return { keyId, privateKeyPem };
+}
+
+function runnerPublicKeysJsonEnv(keyId = "runner-test") {
+  const { publicKey } = generateKeyPairSync("ed25519");
+  const publicKeyPem = publicKey.export({ type: "spki", format: "pem" }).toString();
+  return {
+    keyId,
+    envLine: `FISH_RUNNER_PUBLIC_KEYS_JSON=${JSON.stringify([{ keyId, publicKeyPem }])}`
+  };
+}
+
+function providerProofSigningKey() {
+  const { privateKey, publicKey } = generateKeyPairSync("ed25519");
+  const privateKeyPem = privateKey.export({ type: "pkcs8", format: "pem" }).toString();
+  const publicKeyPem = publicKey.export({ type: "spki", format: "pem" }).toString();
+  return { privateKeyPem, publicKeyPem };
+}
+
+function runReadiness(args: string[]) {
+  return spawnSync(process.execPath, ["scripts/audit-public-testnet-readiness.mjs", ...args], {
+    cwd: process.cwd(),
+    encoding: "utf8"
+  });
+}

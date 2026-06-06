@@ -403,7 +403,7 @@ nvidia-smi
 watch -n 2 nvidia-smi
 ```
 
-`/api/warm/status` reports the active warm lane from Fish configuration without live backend probing by default. With `FISH_CHAT_ROUTE=ocean-demo-vllm` it summarizes the demo vLLM config; with `FISH_CHAT_ROUTE=ocean-provider` it summarizes the selected-provider config. Add `?probe=live` with the admin token for an operator-only `/models` probe. Public dashboard and summary rendering must use the default snapshot path so unauthenticated visitors cannot trigger authenticated runner requests.
+`/api/warm/status` reports the active warm lane from Fish configuration without live backend probing by default. With `FISH_CHAT_ROUTE=ocean-demo-vllm` it summarizes the demo vLLM config; with `FISH_CHAT_ROUTE=ocean-provider` it summarizes the selected-provider config. It also reports runner receipt trust as counts only: `runnerReceiptTrust.configured`, `trustedKeyCount`, and `invalidKeyCount`. Add `?probe=live` with the admin token for an operator-only `/models` probe. Public dashboard and summary rendering must use the default snapshot path so unauthenticated visitors cannot trigger authenticated runner requests.
 
 Do not publish operator-only endpoint URLs, API keys, raw prompts, raw outputs, exact private IPs, or unreviewed provider contact details.
 
@@ -423,7 +423,7 @@ No public warm route should run without:
 - timeout and cancellation handling;
 - fallback disabled by default for anonymous users.
 
-For first public testing, keep the deployment-scoped anonymous guest bucket to a very small allowance such as 3 to 5 short messages per day and 512 output tokens per response. API-key users should use keyed quota instead of the guest bucket. Do not trust client-supplied proxy headers for guest identity; set `FISH_GUEST_ID_SALT` only to separate one deployment bucket from another. The guest bucket is internal-only and must not be usable as a `/v1` bearer API key.
+For first public testing, keep the deployment-scoped anonymous guest bucket to a very small allowance such as 3 to 5 short messages per day and 512 output tokens per response. API-key users should use keyed quota instead of the guest bucket. Do not trust client-supplied proxy headers for guest identity. Production guest routes fail closed with `guest_identity_salt_required` until `FISH_GUEST_ID_SALT` is set.
 
 ## Smoke Test From Fish Gateway
 

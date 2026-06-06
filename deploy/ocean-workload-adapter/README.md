@@ -45,8 +45,11 @@ Docker job, the job finishes, and the adapter downloads the Ocean Node
 Copy the template to a private env file:
 
 ```bash
-cp deploy/ocean-workload-adapter/env.example .env.ocean-proof.local
+cp .env.ocean-proof.example .env.ocean-proof.local
 ```
+
+Use `deploy/ocean-workload-adapter/env.example` when you need the full adapter
+service defaults or local Ocean Node mode settings.
 
 Fill in:
 
@@ -93,6 +96,25 @@ Paid compute token: Base USDC
 
 Leave `FISH_OCEAN_PAYMENT_TOKEN` and `FISH_OCEAN_RESOURCES` empty when using
 `startFreeCompute`.
+
+Preflight the private env before starting the adapter:
+
+```bash
+npm run proof:external-preflight -- --env-file .env.ocean-proof.local
+```
+
+This prints public-safe mode, selected node, compute environment, CLI command
+shape, missing fields, warnings, and booleans for secret presence. It exits
+without starting HTTP and must not print the adapter API key, proof wallet
+secret, mnemonic, or RPC URL. It exits non-zero until the selected mode is
+structurally ready.
+
+For external `live` proof, structural readiness is stricter than "a value is
+present": `FISH_OCEAN_DATASET_DIDS` must be `[]` or a JSON/comma-separated list
+of `did:op:...` values, `FISH_OCEAN_ALGO_DID` must be `did:op:...`, paid
+`FISH_OCEAN_RESOURCES` and optional `FISH_OCEAN_OUTPUT` must be JSON objects,
+`NODE_URL` must be HTTP(S) or an Ocean p2p/multiaddr locator without embedded
+credentials, and loopback RPCs do not count for external Oncompute proof.
 
 ## Discover Candidate Environments
 
@@ -144,6 +166,7 @@ kill "$adapter_pid"
 Local Ocean Node mode:
 
 ```bash
+npm run proof:external-preflight -- --env-file .env.ocean-proof.local
 OCEAN_WORKLOAD_ADAPTER_MODE=local_ocean_node \
 node deploy/ocean-workload-adapter/server.mjs --env-file .env.ocean-proof.local
 ```
@@ -151,6 +174,7 @@ node deploy/ocean-workload-adapter/server.mjs --env-file .env.ocean-proof.local
 Ocean CLI live mode:
 
 ```bash
+npm run proof:external-preflight -- --env-file .env.ocean-proof.local
 OCEAN_WORKLOAD_ADAPTER_MODE=live \
 node deploy/ocean-workload-adapter/server.mjs --env-file .env.ocean-proof.local
 ```

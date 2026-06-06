@@ -1,4 +1,4 @@
-import { CircleDollarSign, FileText, Fish, Gauge, ReceiptText, Ship, Vault } from "lucide-react";
+import { ChevronDown, EyeOff, Fish, Gauge, ReceiptText, ShieldCheck, Utensils } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -33,6 +33,43 @@ export function PublicProofPage({
   const providerRows = scorecard.rows.filter((row) => row.selected || row.jobsRouted || row.benchmarkRuns).slice(0, 4);
   const receiptRows = proof.receipts.slice(0, 5);
   const benchmarkRows = benchmarks.matrix.slice(0, 6);
+  const hasOceanBatchProof = oceanProof.proof.hasNonSampleReceipt;
+  const heroState = hasOceanBatchProof || oceanProof.trafficReady ? oceanProof.dataState : proof.dataState;
+  const heroCopy = hasOceanBatchProof
+    ? oceanProof.claim.headline
+    : hasLiveProof
+      ? "Selected provider runs have public proof."
+      : oceanProof.claim.headline;
+  const heroUpdatedAt = oceanProof.proof.latestReceiptAt ?? proof.lastUpdated;
+  const oceanNextSteps = oceanProof.blockers.map(publicOceanBlocker);
+  const verdict = proofVerdict({ hasLiveProof, oceanProof });
+  const boundaryCards = proofBoundaryCards({ hasOceanBatchProof, oceanProof });
+  const plainProofCards = [
+    {
+      icon: Utensils,
+      label: "Dish",
+      title: hasOceanBatchProof ? `${formatCompact(oceanProof.proof.nonSampleJobs)} Ocean ticket${oceanProof.proof.nonSampleJobs === 1 ? "" : "s"}` : "Waiting for first dish",
+      body: hasOceanBatchProof ? "A Fish dish has a non-sample Ocean path ticket." : "The first Ocean batch dish will make this card light up."
+    },
+    {
+      icon: ReceiptText,
+      label: "Ticket",
+      title: proof.verifiedReceipts ? `${formatCompact(proof.verifiedReceipts)} proof tickets` : "No proof tickets yet",
+      body: "Tickets show ids, hashes, usage, status, and timing."
+    },
+    {
+      icon: EyeOff,
+      label: "Privacy",
+      title: "Orders stay off proof",
+      body: "Public proof does not show raw prompts, files, or answers."
+    },
+    {
+      icon: ShieldCheck,
+      label: "Claim",
+      title: hasOceanBatchProof ? oceanProof.claim.title : "Early proof",
+      body: hasOceanBatchProof ? oceanProof.claim.boundary : "Sample and missing states stay clearly labeled."
+    }
+  ];
 
   return (
     <main className="min-h-screen overflow-hidden">
@@ -45,8 +82,8 @@ export function PublicProofPage({
             <span className="text-lg font-black text-white">Fish</span>
           </Link>
           <nav className="hidden items-center gap-6 text-sm font-black text-fish-secondary md:flex" aria-label="Proof navigation">
-            <a className="hover:text-white" href="#boats">Boats</a>
-            <a className="hover:text-white" href="#activity">Activity</a>
+            <a className="hover:text-white" href="#proof-story">What counts</a>
+            <a className="hover:text-white" href="#activity">Tickets</a>
             <Link className="hover:text-white" href={"/privacy" as Route}>Data policy</Link>
             <Link className="hover:text-white" href="/dashboard">Dashboard</Link>
           </nav>
@@ -66,76 +103,114 @@ export function PublicProofPage({
             <p className="mb-5 inline-flex rounded-full border border-fish-gold/35 bg-fish-gold/10 px-4 py-2 text-xs font-black uppercase tracking-[0.14em] text-fish-gold">
               Public proof harbor
             </p>
-            <h1 className="max-w-4xl text-5xl font-black leading-none text-white sm:text-7xl lg:text-8xl">What is live?</h1>
+            <h1 className="max-w-4xl text-5xl font-black leading-none text-white sm:text-7xl lg:text-8xl">What is proven?</h1>
             <p className="mt-6 max-w-2xl text-2xl font-black leading-tight text-fish-primary sm:text-4xl">
-              {hasLiveProof ? "Selected provider runs have public proof." : "The market is open, and proof is still early."}
+              {heroCopy}
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-3">
-              <StatusBadge state={proof.dataState} />
+              <StatusBadge state={heroState} />
               <span className="rounded-full border border-fish-accent/25 bg-fish-navy950/65 px-4 py-2 text-sm font-black text-fish-secondary">
-                Updated {formatDateTime(proof.lastUpdated)}
+                Updated {formatDateTime(heroUpdatedAt)}
               </span>
             </div>
+            <p className="mt-5 max-w-2xl rounded-[1.25rem] border border-white/10 bg-fish-navy950/65 p-4 text-base font-black leading-7 text-fish-secondary">
+              {verdict.boundary}
+            </p>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <HeroCounter icon={ReceiptText} label="Proof records" value={formatCompact(proof.verifiedReceipts)} />
-            <HeroCounter icon={Ship} label="Ocean jobs" value={formatCompact(proof.oceanJobsRouted)} />
-            <HeroCounter icon={FileText} label="Batch dishes" value={formatCompact(batch.succeededJobs)} />
-            <HeroCounter icon={Gauge} label="Ocean gate" value={oceanProof.proofReady ? "Ready" : "Not yet"} />
-            <HeroCounter icon={CircleDollarSign} label="Provider chest" value={formatUsd(proof.providerPayoutUsd)} />
-            <HeroCounter icon={Vault} label="Capacity pool" value={formatUsd(capacitySettlements.totals.netUsdcAmount)} />
+            <HeroCounter icon={Gauge} label="Current proof" value={verdict.title} />
+            <HeroCounter icon={Utensils} label="First Ocean dish" value={hasOceanBatchProof ? "Recorded" : "Waiting"} />
+            <HeroCounter icon={ReceiptText} label="Public tickets" value={formatCompact(proof.verifiedReceipts + oceanProof.proof.nonSampleJobs)} />
+            <HeroCounter icon={EyeOff} label="Raw orders" value="Hidden" />
           </div>
         </div>
       </section>
 
-      <MetricGroup title="Market Counters" eyebrow="Harbor signs" state={proof.dataState}>
+      <section id="proof-story" className="px-4 py-10 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl">
+          <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">Plain proof</p>
+              <h2 className="mt-2 text-4xl font-black text-white sm:text-5xl">What counts here?</h2>
+            </div>
+            <Link className="w-fit rounded-full border border-fish-accent/35 px-4 py-2 text-sm font-black text-fish-accent hover:bg-fish-accent/10" href={"/privacy" as Route}>
+              Data policy
+            </Link>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {plainProofCards.map((card) => {
+              const Icon = card.icon;
+              return (
+                <article key={card.label} className="rounded-[1.5rem] border border-fish-accent/20 bg-fish-surface/80 p-5 shadow-harbor">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-xs font-black uppercase tracking-[0.12em] text-fish-gold">{card.label}</p>
+                    <Icon className="h-5 w-5 text-fish-accent" aria-hidden="true" />
+                  </div>
+                  <h3 className="mt-4 text-2xl font-black leading-tight text-white">{card.title}</h3>
+                  <p className="mt-3 text-sm font-bold leading-6 text-fish-secondary">{card.body}</p>
+                </article>
+              );
+            })}
+          </div>
+          <div className="mt-3 grid gap-3 lg:grid-cols-3">
+            {boundaryCards.map((card) => (
+              <article key={card.label} className={`rounded-[1.5rem] border p-5 shadow-harbor ${card.className}`}>
+                <p className="text-xs font-black uppercase tracking-[0.12em]">{card.label}</p>
+                <h3 className="mt-3 text-2xl font-black leading-tight text-white">{card.title}</h3>
+                <p className="mt-3 text-sm font-bold leading-6">{card.body}</p>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <MetricGroup title="At A Glance" eyebrow="Harbor signs" state={proof.dataState}>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <ProofTile label="Jobs routed" value={formatCompact(proof.oceanJobsRouted)} detail={`${formatCompact(proof.failedJobs + proof.timedOutJobs)} need review`} />
-          <ProofTile label="Proof records" value={formatCompact(proof.verifiedReceipts)} detail={`${formatCompact(proof.receiptVerificationFailures)} need review`} />
+          <ProofTile label="Proof tickets" value={formatCompact(proof.verifiedReceipts)} detail={`${formatCompact(proof.receiptVerificationFailures)} need review`} />
           <ProofTile label="Batch dishes" value={formatCompact(batch.jobs)} detail={batch.dataState === "sample" ? "sample path" : "private adapter"} />
-          <ProofTile label="Providers paid" value={formatUsd(proof.payouts.totals.paid)} detail={`${formatUsd(proof.payouts.totals.outstandingUsd)} still open`} />
-          <ProofTile label="Benchmark runs" value={formatCompact(benchmarks.totals.benchmarkRuns)} detail={`${formatCompact(benchmarks.totals.untestedCells)} untested routes`} />
+          <ProofTile label="Provider payouts" value={formatUsd(proof.payouts.totals.paid)} detail={`${formatUsd(proof.payouts.totals.outstandingUsd)} open`} />
         </div>
       </MetricGroup>
 
-      <MetricGroup title="Ocean Proof Gate" eyebrow="Milestone 3" state={oceanProof.dataState}>
+      <MetricGroup title="Ocean Path" eyebrow="Proof gate" state={oceanProof.dataState}>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <ProofTile label="Adapter" value={oceanProof.adapter.reachable ? "Reachable" : "Not ready"} detail={oceanProof.adapter.mode ? `mode ${oceanProof.adapter.mode}` : "no adapter"} />
-          <ProofTile label="Traffic gate" value={oceanProof.trafficReady ? "Ready" : "Blocked"} detail={oceanProof.adapter.liveReady ? "live adapter" : "needs live config"} />
-          <ProofTile label="Proof receipt" value={oceanProof.proof.hasNonSampleReceipt ? "Found" : "Missing"} detail={`${formatCompact(oceanProof.proof.nonSampleJobs)} non-sample jobs`} />
-          <ProofTile label="Daily budget" value={formatUsd(oceanProof.route.dailyBudgetUsd)} detail={oceanProof.route.batchEndpointConfigured ? "batch endpoint set" : "no batch endpoint"} />
+          <ProofTile label="Ocean kitchen" value={oceanProof.trafficReady ? "Connected" : "Waiting"} detail={oceanProof.trafficReady ? "Fish can send test dishes through the private Ocean path." : "The private Ocean path is not ready for testers yet."} />
+          <ProofTile label="First Ocean dish" value={hasOceanBatchProof ? "Recorded" : "Waiting"} detail={hasOceanBatchProof ? `${formatCompact(oceanProof.proof.nonSampleJobs)} public-safe ticket${oceanProof.proof.nonSampleJobs === 1 ? "" : "s"}` : "Run one successful non-sample dish first."} />
+          <ProofTile label="Proof level" value={sourceLabel(oceanProof.dataState)} detail={hasOceanBatchProof ? "Local Ocean Node evidence, not external paid demand." : "No Ocean workload claim yet."} />
+          <ProofTile label="Daily test cap" value={formatUsd(oceanProof.route.dailyBudgetUsd)} detail="Small public-test budget guard." />
         </div>
         <div className="mt-3 grid gap-3 lg:grid-cols-[1.1fr_0.9fr]">
           <div className="rounded-[1.5rem] border border-fish-accent/20 bg-fish-surface/80 p-5 shadow-harbor">
-            <p className="text-xs font-black uppercase tracking-[0.12em] text-fish-gold">What blocks live proof?</p>
-            {oceanProof.blockers.length ? (
+            <p className="text-xs font-black uppercase tracking-[0.12em] text-fish-gold">Next proof step</p>
+            {oceanNextSteps.length ? (
               <ul className="mt-4 space-y-2">
-                {oceanProof.blockers.map((blocker) => (
-                  <li key={blocker} className="rounded-2xl border border-fish-coral/25 bg-fish-coral/10 p-3 text-sm font-black leading-6 text-fish-primary">
-                    {blocker}
+                {oceanNextSteps.map((step) => (
+                  <li key={step} className="rounded-2xl border border-fish-coral/25 bg-fish-coral/10 p-3 text-sm font-black leading-6 text-fish-primary">
+                    {step}
                   </li>
                 ))}
               </ul>
             ) : (
-              <p className="mt-4 rounded-2xl border border-emerald-300/25 bg-emerald-400/10 p-3 text-sm font-black leading-6 text-emerald-100">Ocean workload proof is ready for public review.</p>
+              <p className="mt-4 rounded-2xl border border-emerald-300/25 bg-emerald-400/10 p-3 text-sm font-black leading-6 text-emerald-100">
+                Local Ocean batch proof is ready for public review. Keep it labeled snapshot until an external Oncompute job proves paid third-party demand.
+              </p>
             )}
           </div>
           <div className="rounded-[1.5rem] border border-fish-accent/20 bg-fish-surface/80 p-5 shadow-harbor">
-            <p className="text-xs font-black uppercase tracking-[0.12em] text-fish-gold">Selected pieces</p>
-            <div className="mt-4 grid grid-cols-2 gap-2">
-              <MiniStat label="Node" value={yesNo(oceanProof.adapter.selected.nodeUrlConfigured)} />
-              <MiniStat label="Env" value={yesNo(oceanProof.adapter.selected.computeEnvIdConfigured)} />
-              <MiniStat label="Algo" value={yesNo(oceanProof.adapter.selected.algoDidConfigured)} />
-              <MiniStat label="Data" value={yesNo(oceanProof.adapter.selected.datasetDidsConfigured)} />
-              <MiniStat label="Output" value={yesNo(oceanProof.adapter.selected.outputConfigured)} />
-              <MiniStat label="Free" value={oceanProof.adapter.configuredForFreeCompute === null ? "-" : yesNo(oceanProof.adapter.configuredForFreeCompute)} />
+            <p className="text-xs font-black uppercase tracking-[0.12em] text-fish-gold">What this means</p>
+            <div className="mt-4 space-y-2">
+              <MeaningRow label="For users" value={oceanProof.proofReady ? "A test dish has Ocean proof." : "Orders are still in demo or setup mode."} />
+              <MeaningRow label="For builders" value={oceanProof.trafficReady ? "The private batch path is reachable." : "Use JSON proof only as setup evidence."} />
+              <MeaningRow label="For Ocean ecosystem" value={hasOceanBatchProof ? "Fish can show local Ocean Node usage." : "Usage proof still needs the first Ocean dish."} />
+              <MeaningRow label="Not claimed" value={oceanProof.claim.notClaimed.join(" / ")} />
             </div>
           </div>
         </div>
       </MetricGroup>
 
-      <MetricGroup title="Batch Dishes" eyebrow="Ocean batch path" state={batch.dataState}>
+      <MetricGroup title="Dish Tickets" eyebrow="Ocean batch path" state={batch.dataState}>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <ProofTile label="Batch jobs" value={formatCompact(batch.jobs)} />
           <ProofTile label="Succeeded" value={formatCompact(batch.succeededJobs)} />
@@ -182,7 +257,7 @@ export function PublicProofPage({
         )}
       </MetricGroup>
 
-      <MetricGroup id="activity" title="Activity Net" eyebrow="Public proof" state={proof.dataState}>
+      <MetricGroup id="activity" title="Ticket Net" eyebrow="Public proof" state={proof.dataState}>
         {receiptRows.length ? (
           <div className="grid gap-3 lg:grid-cols-5">
             {receiptRows.map((receipt) => (
@@ -199,66 +274,81 @@ export function PublicProofPage({
         )}
       </MetricGroup>
 
-      <MetricGroup title="Payout Chest" eyebrow="Provider money" state={proof.payouts.dataState}>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
-          <ProofTile label="Accrued" value={formatUsd(proof.payouts.totals.accrued)} />
-          <ProofTile label="Review" value={formatUsd(proof.payouts.totals.review)} />
-          <ProofTile label="Approved" value={formatUsd(proof.payouts.totals.approved)} />
-          <ProofTile label="Paid" value={formatUsd(proof.payouts.totals.paid)} />
-          <ProofTile label="Disputed" value={formatUsd(proof.payouts.totals.disputed)} />
-          <ProofTile label="Voided" value={formatUsd(proof.payouts.totals.voided)} />
-        </div>
-      </MetricGroup>
-
-      <MetricGroup title="Capacity Pool" eyebrow="Paid demand" state={capacitySettlements.dataState}>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <ProofTile label="Settlements" value={formatCompact(capacitySettlements.totals.settlements)} />
-          <ProofTile label="USDC recorded" value={formatUsd(capacitySettlements.totals.grossUsdcAmount)} />
-          <ProofTile label="Net to pool" value={formatUsd(capacitySettlements.totals.netUsdcAmount)} />
-          <ProofTile label="Operator fee" value={formatUsd(capacitySettlements.totals.operatorFeeUsdc)} />
-        </div>
-        {capacitySettlements.settlements.length ? (
-          <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            {capacitySettlements.settlements.slice(0, 4).map((settlement) => (
-              <article key={settlement.settlementId} className="rounded-[1.5rem] border border-fish-accent/20 bg-fish-surface/80 p-5 shadow-harbor">
-                <p className="text-xs font-black uppercase tracking-[0.12em] text-fish-gold">{settlement.settlementSource.replaceAll("_", " ")}</p>
-                <h3 className="mt-3 text-xl font-black text-white">{formatUsd(settlement.netUsdcAmount)} net</h3>
-                <p className="mt-3 text-sm font-bold text-fish-secondary">
-                  {formatUsd(settlement.grossUsdcAmount)} recorded / {formatUsd(settlement.operatorFeeUsdc)} fee
-                </p>
-                <p className="mt-3 break-all text-xs font-bold leading-5 text-fish-secondary">{settlement.transactionHashPrefix ?? "No tx hash recorded"}</p>
-              </article>
-            ))}
-          </div>
-        ) : (
-          <div className="mt-3">
-            <EmptyHarbor text="No capacity-pool settlement records yet. Paid demand records will appear here after operator review." />
-          </div>
-        )}
-        {capacitySettlements.warnings[1] ? <p className="mt-3 rounded-2xl border border-fish-gold/25 bg-fish-gold/10 p-4 text-sm font-black leading-6 text-fish-primary">{capacitySettlements.warnings[1]}</p> : null}
-      </MetricGroup>
-
-      <MetricGroup title="Benchmark Board" eyebrow="Route tests" state={benchmarks.dataState}>
-        {benchmarkRows.length ? (
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {benchmarkRows.map((row) => (
-              <article key={`${row.providerId}-${row.benchmarkId}`} className="rounded-[1.5rem] border border-fish-accent/20 bg-fish-surface/80 p-5 shadow-harbor">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-black uppercase tracking-[0.12em] text-fish-gold">{row.title}</p>
-                    <h3 className="mt-2 text-xl font-black text-white">{row.providerLabel}</h3>
-                  </div>
-                  <span className={`rounded-full px-3 py-1 text-xs font-black ${statusClass(row.latestStatus)}`}>{row.latestStatus.replaceAll("_", " ")}</span>
+      <section className="px-4 py-10 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl">
+          <details className="group rounded-[1.75rem] border border-fish-accent/20 bg-fish-surface/80 p-5 shadow-harbor">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-left">
+              <span>
+                <span className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">Builder details</span>
+                <span className="mt-2 block text-3xl font-black text-white sm:text-4xl">Open the proof ledger</span>
+              </span>
+              <ChevronDown className="h-6 w-6 shrink-0 text-fish-accent transition group-open:rotate-180" aria-hidden="true" />
+            </summary>
+            <div className="mt-6 space-y-10 border-t border-fish-accent/15 pt-8">
+              <MetricGroup compact title="Money Details" eyebrow="Provider payouts" state={proof.payouts.dataState}>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+                  <ProofTile label="Accrued" value={formatUsd(proof.payouts.totals.accrued)} />
+                  <ProofTile label="Review" value={formatUsd(proof.payouts.totals.review)} />
+                  <ProofTile label="Approved" value={formatUsd(proof.payouts.totals.approved)} />
+                  <ProofTile label="Paid" value={formatUsd(proof.payouts.totals.paid)} />
+                  <ProofTile label="Disputed" value={formatUsd(proof.payouts.totals.disputed)} />
+                  <ProofTile label="Voided" value={formatUsd(proof.payouts.totals.voided)} />
                 </div>
-                <p className="mt-4 text-sm font-bold text-fish-secondary">{row.inputSizeBucket} to {row.outputSizeBucket} / {row.workloadType}</p>
-                <p className="mt-3 text-sm font-black text-fish-primary">{row.sampleSize ? `${formatNumber(row.sampleSize)} sample${row.sampleSize === 1 ? "" : "s"}` : "Waiting for first catch"}</p>
-              </article>
-            ))}
-          </div>
-        ) : (
-          <EmptyHarbor text="No selected benchmark board yet. Selected providers will appear here even before their first run." />
-        )}
-      </MetricGroup>
+              </MetricGroup>
+
+              <MetricGroup compact title="Capacity Details" eyebrow="Paid demand" state={capacitySettlements.dataState}>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <ProofTile label="Settlements" value={formatCompact(capacitySettlements.totals.settlements)} />
+                  <ProofTile label="USDC recorded" value={formatUsd(capacitySettlements.totals.grossUsdcAmount)} />
+                  <ProofTile label="Net to pool" value={formatUsd(capacitySettlements.totals.netUsdcAmount)} />
+                  <ProofTile label="Operator fee" value={formatUsd(capacitySettlements.totals.operatorFeeUsdc)} />
+                </div>
+                {capacitySettlements.settlements.length ? (
+                  <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                    {capacitySettlements.settlements.slice(0, 4).map((settlement) => (
+                      <article key={settlement.settlementId} className="rounded-[1.5rem] border border-fish-accent/20 bg-fish-navy950/45 p-5 shadow-harbor">
+                        <p className="text-xs font-black uppercase tracking-[0.12em] text-fish-gold">{settlement.settlementSource.replaceAll("_", " ")}</p>
+                        <h3 className="mt-3 text-xl font-black text-white">{formatUsd(settlement.netUsdcAmount)} net</h3>
+                        <p className="mt-3 text-sm font-bold text-fish-secondary">
+                          {formatUsd(settlement.grossUsdcAmount)} recorded / {formatUsd(settlement.operatorFeeUsdc)} fee
+                        </p>
+                        <p className="mt-3 break-all text-xs font-bold leading-5 text-fish-secondary">{settlement.transactionHashPrefix ?? "No tx hash recorded"}</p>
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="mt-3">
+                    <EmptyHarbor text="No capacity-pool settlement records yet. Paid demand records will appear here after operator review." />
+                  </div>
+                )}
+                {capacitySettlements.warnings[1] ? <p className="mt-3 rounded-2xl border border-fish-gold/25 bg-fish-gold/10 p-4 text-sm font-black leading-6 text-fish-primary">{capacitySettlements.warnings[1]}</p> : null}
+              </MetricGroup>
+
+              <MetricGroup compact title="Route Tests" eyebrow="Deep proof" state={benchmarks.dataState}>
+                {benchmarkRows.length ? (
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                    {benchmarkRows.map((row) => (
+                      <article key={`${row.providerId}-${row.benchmarkId}`} className="rounded-[1.5rem] border border-fish-accent/20 bg-fish-navy950/45 p-5 shadow-harbor">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-xs font-black uppercase tracking-[0.12em] text-fish-gold">{row.title}</p>
+                            <h3 className="mt-2 text-xl font-black text-white">{row.providerLabel}</h3>
+                          </div>
+                          <span className={`rounded-full px-3 py-1 text-xs font-black ${statusClass(row.latestStatus)}`}>{row.latestStatus.replaceAll("_", " ")}</span>
+                        </div>
+                        <p className="mt-4 text-sm font-bold text-fish-secondary">{row.inputSizeBucket} to {row.outputSizeBucket} / {row.workloadType}</p>
+                        <p className="mt-3 text-sm font-black text-fish-primary">{row.sampleSize ? `${formatNumber(row.sampleSize)} sample${row.sampleSize === 1 ? "" : "s"}` : "Waiting for first catch"}</p>
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <EmptyHarbor text="No selected benchmark board yet. Selected providers will appear here even before their first run." />
+                )}
+              </MetricGroup>
+            </div>
+          </details>
+        </div>
+      </section>
 
       <footer className="border-t border-fish-accent/15 px-4 py-8 text-sm font-bold text-fish-secondary sm:px-6 lg:px-8">
         <div className="mx-auto flex max-w-7xl flex-col gap-2 md:flex-row md:items-center md:justify-between">
@@ -270,14 +360,14 @@ export function PublicProofPage({
   );
 }
 
-function MetricGroup({ children, eyebrow, id, state, title }: { children: ReactNode; eyebrow: string; id?: string; state: DataState; title: string }) {
+function MetricGroup({ children, compact = false, eyebrow, id, state, title }: { children: ReactNode; compact?: boolean; eyebrow: string; id?: string; state: DataState; title: string }) {
   return (
-    <section id={id} className="px-4 py-10 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-7xl">
+    <section id={id} className={compact ? "" : "px-4 py-10 sm:px-6 lg:px-8"}>
+      <div className={compact ? "" : "mx-auto max-w-7xl"}>
         <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">{eyebrow}</p>
-            <h2 className="mt-2 text-4xl font-black text-white sm:text-5xl">{title}</h2>
+            <h2 className={`mt-2 font-black text-white ${compact ? "text-2xl sm:text-3xl" : "text-4xl sm:text-5xl"}`}>{title}</h2>
           </div>
           <StatusBadge state={state} />
         </div>
@@ -318,6 +408,15 @@ function MiniStat({ label, value }: { label: string; value: string }) {
   );
 }
 
+function MeaningRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-3">
+      <p className="text-xs font-black uppercase tracking-[0.08em] text-fish-secondary">{label}</p>
+      <p className="mt-1 text-sm font-black leading-6 text-white">{value}</p>
+    </div>
+  );
+}
+
 function EmptyHarbor({ text }: { text: string }) {
   return (
     <div className="rounded-[1.5rem] border border-dashed border-fish-accent/25 bg-fish-surface/60 p-6 text-lg font-black leading-8 text-fish-primary">
@@ -336,6 +435,74 @@ function statusClass(status: string) {
   return "bg-red-500/15 text-red-100";
 }
 
-function yesNo(value: boolean) {
-  return value ? "Yes" : "No";
+function sourceLabel(state: DataState) {
+  if (state === "live") return "Live";
+  if (state === "snapshot") return "Snapshot";
+  if (state === "unavailable") return "Not ready";
+  return "Sample";
+}
+
+function publicOceanBlocker(blocker: string) {
+  if (blocker.includes("FISH_OCEAN_BATCH_ENDPOINT")) return "Connect Fish to the private Ocean batch kitchen.";
+  if (blocker.includes("not reachable")) return "Bring the private Ocean batch kitchen online.";
+  if (blocker.includes("not live-ready")) return "Finish the Ocean Node job settings in the private adapter.";
+  if (blocker.includes("No successful non-sample Ocean batch receipt")) return "Run one successful Ocean dish and record its public-safe ticket.";
+  return "Finish the next private Ocean proof setup step.";
+}
+
+function proofVerdict({
+  hasLiveProof,
+  oceanProof
+}: {
+  hasLiveProof: boolean;
+  oceanProof: OceanProofReadiness;
+}) {
+  if (oceanProof.proof.hasNonSampleReceipt || oceanProof.trafficReady) {
+    return {
+      title: oceanProof.claim.title,
+      boundary: oceanProof.claim.boundary
+    };
+  }
+
+  if (hasLiveProof) {
+    return {
+      title: "Provider",
+      boundary: "Fish has selected-provider proof tickets. Ocean batch proof still needs one successful non-sample dish."
+    };
+  }
+
+  return {
+    title: "Setup",
+    boundary: "Fish is still in setup proof mode. Sample data and missing proof stay labeled until a real Ocean dish ticket exists."
+  };
+}
+
+function proofBoundaryCards({ hasOceanBatchProof, oceanProof }: { hasOceanBatchProof: boolean; oceanProof: OceanProofReadiness }) {
+  const readyTitle = hasOceanBatchProof ? oceanProof.claim.title : oceanProof.trafficReady ? "Ocean route connected" : "Setup mode";
+  const readyBody = hasOceanBatchProof
+    ? oceanProof.claim.boundary
+    : oceanProof.trafficReady
+      ? "Run one successful dish to record the first Ocean ticket."
+      : "No Ocean workload claim yet.";
+
+  return [
+    {
+      label: "Ready",
+      title: readyTitle,
+      body: readyBody,
+      className: "border-emerald-300/25 bg-emerald-400/10 text-emerald-100"
+    },
+    {
+      label: "Not claimed",
+      title: "Paid external demand",
+      body: "This needs one real external Ocean/Oncompute job and a public-safe receipt.",
+      className: "border-fish-gold/25 bg-fish-gold/10 text-fish-primary"
+    },
+    {
+      label: "Never public",
+      title: "Raw orders and answers",
+      body: "Proof shows ticket ids, hashes, usage, status, and timing only.",
+      className: "border-fish-accent/20 bg-fish-surface/80 text-fish-secondary"
+    }
+  ];
 }

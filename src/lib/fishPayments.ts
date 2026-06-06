@@ -3,6 +3,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 import { addFishCredits, FISH_CREDIT_USD, summarizeBillingUsageAnalytics, type Account } from "@/lib/fishLedger";
+import type { DataState } from "@/lib/types";
 
 const ROOT = process.cwd();
 const PAYMENT_DIR = path.join(ROOT, "data", "fish");
@@ -10,6 +11,7 @@ const PAYMENT_REQUESTS_PATH = path.join(PAYMENT_DIR, "payment_requests.json");
 const STRIPE_API_VERSION = "2024-06-20";
 const BASE_CHAIN_ID = 8453;
 const BASE_USDC_ADDRESS = "0x833589fcD6EDb6E08f4c7C32D4f71b54bdA02913";
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 const USDC_TRANSFER_TOPIC = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
 
 const checkoutSchema = z
@@ -101,6 +103,45 @@ type PublicPaymentRequest = Omit<FishPaymentRequest, "accountId" | "providerEven
   amountUsdc?: string;
 };
 
+export type FishBillingReadiness = {
+  object: "fish_billing_readiness";
+  dataState: DataState;
+  checkoutAvailable: boolean;
+  paidTopupsPaused: boolean;
+  creditUsd: number;
+  minCheckoutUsd: number;
+  maxCheckoutUsd: number;
+  liabilityCap: {
+    configured: boolean;
+    maxOutstandingPrepaidCredits: number | null;
+    maxOutstandingPrepaidUsd: number | null;
+  };
+  customerCare: {
+    supportConfigured: boolean;
+    refundPolicyConfigured: boolean;
+    supportUrl: string | null;
+    refundPolicyUrl: string | null;
+  };
+  providers: {
+    stripe: {
+      configured: boolean;
+      enabled: boolean;
+    };
+    usdc: {
+      configured: boolean;
+      enabled: boolean;
+      chainId: number;
+      tokenAddress: string;
+      rpcConfigured: boolean;
+      receiveAddressConfigured: boolean;
+      chainConfigured: boolean;
+      tokenConfigured: boolean;
+    };
+  };
+  blockers: string[];
+  warnings: string[];
+};
+
 export function parseStripeCheckoutRequest(body: unknown) {
   return checkoutSchema.safeParse(body);
 }
@@ -111,6 +152,81 @@ export function parseUsdcCheckoutRequest(body: unknown) {
 
 export function parseUsdcConfirmRequest(body: unknown) {
   return usdcConfirmSchema.safeParse(body);
+}
+
+export function summarizeBillingReadiness(): FishBillingReadiness {
+  const paidTopupsPaused = readBoolean(process.env.FISH_PAID_TOPUPS_PAUSED, false);
+  const maxOutstandingPrepaidCredits = readOptionalInteger(process.env.FISH_MAX_OUTSTANDING_PREPAID_CREDITS);
+  const liabilityCapConfigured = maxOutstandingPrepaidCredits !== null && maxOutstandingPrepaidCredits > 0;
+  const stripeSecretKey = process.env.FISH_STRIPE_SECRET_KEY;
+  const stripeSecretsConfigured = configuredSecret(stripeSecretKey) && configuredSecret(process.env.FISH_STRIPE_WEBHOOK_SECRET);
+  const stripeTestModeBlocked = stripeProductionTestModeBlocked(stripeSecretKey);
+  const stripePublicAppUrlConfigured = publicHttpsAppUrl(process.env.FISH_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_FISH_APP_URL);
+  const stripeConfigured = stripeSecretsConfigured && !stripeTestModeBlocked && stripePublicAppUrlConfigured;
+  const usdcConfig = readUsdcCheckoutConfig();
+  const supportUrl = publicCareUrl(process.env.FISH_BILLING_SUPPORT_URL);
+  const refundPolicyUrl = publicCareUrl(process.env.FISH_BILLING_REFUND_POLICY_URL);
+  const customerCareConfigured = Boolean(supportUrl && refundPolicyUrl);
+  const hasPaymentProvider = stripeConfigured || usdcConfig.configured;
+  const checkoutAvailable = !paidTopupsPaused && liabilityCapConfigured && hasPaymentProvider && customerCareConfigured;
+  const blockers = [
+    ...(paidTopupsPaused ? ["paid_topups_paused"] : []),
+    ...(!liabilityCapConfigured ? ["paid_credit_liability_cap_not_configured"] : []),
+    ...(!hasPaymentProvider ? ["payment_provider_not_configured"] : []),
+    ...(stripeTestModeBlocked ? ["stripe_test_mode_not_allowed"] : []),
+    ...(stripeSecretsConfigured && !stripePublicAppUrlConfigured ? ["stripe_public_app_url_not_configured"] : []),
+    ...(supportUrl ? [] : ["billing_support_url_not_configured"]),
+    ...(refundPolicyUrl ? [] : ["billing_refund_policy_not_configured"])
+  ];
+
+  return {
+    object: "fish_billing_readiness",
+    dataState: checkoutAvailable ? "live" : hasPaymentProvider || liabilityCapConfigured || customerCareConfigured ? "snapshot" : "unavailable",
+    checkoutAvailable,
+    paidTopupsPaused,
+    creditUsd: FISH_CREDIT_USD,
+    minCheckoutUsd: readNumber(process.env.FISH_MIN_CHECKOUT_USD, 1),
+    maxCheckoutUsd: readNumber(process.env.FISH_MAX_CHECKOUT_USD, 500),
+    liabilityCap: {
+      configured: liabilityCapConfigured,
+      maxOutstandingPrepaidCredits: liabilityCapConfigured ? maxOutstandingPrepaidCredits : null,
+      maxOutstandingPrepaidUsd: liabilityCapConfigured ? creditsToUsd(maxOutstandingPrepaidCredits) : null
+    },
+    customerCare: {
+      supportConfigured: Boolean(supportUrl),
+      refundPolicyConfigured: Boolean(refundPolicyUrl),
+      supportUrl,
+      refundPolicyUrl
+    },
+    providers: {
+      stripe: {
+        configured: stripeConfigured,
+        enabled: checkoutAvailable && stripeConfigured
+      },
+      usdc: {
+        configured: usdcConfig.configured,
+        enabled: checkoutAvailable && usdcConfig.configured,
+        chainId: usdcConfig.chainId,
+        tokenAddress: usdcConfig.tokenAddress,
+        rpcConfigured: usdcConfig.rpcConfigured,
+        receiveAddressConfigured: usdcConfig.receiveAddressConfigured,
+        chainConfigured: usdcConfig.chainConfigured,
+        tokenConfigured: usdcConfig.tokenConfigured
+      }
+    },
+    blockers,
+    warnings: [
+      "Credits are issued only after payment confirmation.",
+      "Paid top-ups should stay paused until support and refund handling are ready.",
+      "Base mainnet writes stay blocked by the contract write gates.",
+      ...(usdcConfig.touched && !usdcConfig.receiveAddressConfigured ? ["USDC checkout requires a valid non-zero Base mainnet receive address."] : []),
+      ...(usdcConfig.touched && !usdcConfig.rpcConfigured ? ["USDC checkout requires an HTTP(S) Base mainnet RPC URL."] : []),
+      ...(usdcConfig.touched && !usdcConfig.chainConfigured ? ["USDC checkout must use Base mainnet chain id 8453."] : []),
+      ...(usdcConfig.touched && !usdcConfig.tokenConfigured ? [`USDC checkout must use canonical Base USDC ${BASE_USDC_ADDRESS}.`] : []),
+      ...(stripeTestModeBlocked ? ["Stripe test-mode keys are disabled in production checkout unless FISH_STRIPE_TEST_MODE_ALLOWED=true is set for a private test."] : []),
+      ...(stripeSecretsConfigured && !stripePublicAppUrlConfigured ? ["Stripe checkout requires FISH_PUBLIC_APP_URL or NEXT_PUBLIC_FISH_APP_URL to be a public HTTPS origin."] : [])
+    ]
+  };
 }
 
 export async function createStripeCheckoutPayment(account: Account, input: CheckoutInput) {
@@ -138,12 +254,21 @@ export async function createStripeCheckoutPayment(account: Account, input: Check
   if (!secretKey) {
     return { ok: false as const, status: 503, error: "stripe_checkout_not_configured" };
   }
+  if (stripeProductionTestModeBlocked(secretKey)) {
+    return { ok: false as const, status: 503, error: "stripe_test_mode_not_allowed" };
+  }
 
   const now = new Date().toISOString();
   const paymentId = `pay_${randomUUID()}`;
   const publicUrl = fishPublicUrl();
+  if (!publicHttpsAppUrl(publicUrl)) {
+    return { ok: false as const, status: 503, error: "stripe_public_app_url_not_configured" };
+  }
   const successUrl = input.successUrl ?? `${publicUrl}/account?fish_payment=success&payment_id=${paymentId}`;
   const cancelUrl = input.cancelUrl ?? `${publicUrl}/account?fish_payment=cancel&payment_id=${paymentId}`;
+  if (!allowedCheckoutReturnUrl(successUrl, publicUrl) || !allowedCheckoutReturnUrl(cancelUrl, publicUrl)) {
+    return { ok: false as const, status: 400, error: "checkout_return_url_not_allowed" };
+  }
   const params = new URLSearchParams();
   params.set("mode", "payment");
   params.set("success_url", successUrl);
@@ -228,6 +353,10 @@ export async function handleStripeWebhook(rawBody: string, signatureHeader: stri
   const event = parseStripeEvent(rawBody);
   if (!event) {
     return { ok: false as const, status: 400, error: "invalid_stripe_event_json" };
+  }
+
+  if (stripeProductionEventModeBlocked(event)) {
+    return { ok: false as const, status: 400, error: "stripe_test_mode_not_allowed" };
   }
 
   if (event.type !== "checkout.session.completed") {
@@ -330,6 +459,10 @@ export async function createUsdcPayment(account: Account, input: UsdcCheckoutInp
   const ledger = await readPaymentLedger();
   const existing = input.idempotencyKey ? findReusablePayment(ledger, account.id, "usdc_base", input.idempotencyKey) : null;
   if (existing) {
+    const existingConfigError = canonicalBaseUsdcPaymentError(existing);
+    if (existingConfigError) {
+      return existingConfigError;
+    }
     return {
       ok: true as const,
       idempotent: true,
@@ -342,9 +475,18 @@ export async function createUsdcPayment(account: Account, input: UsdcCheckoutInp
     return gate;
   }
 
-  const receiveAddress = cleanEnv(process.env.FISH_USDC_RECEIVE_ADDRESS);
-  if (!receiveAddress || !isAddress(receiveAddress)) {
+  const usdcConfig = readUsdcCheckoutConfig();
+  if (!usdcConfig.receiveAddressConfigured || !usdcConfig.receiveAddress) {
     return { ok: false as const, status: 503, error: "usdc_checkout_not_configured" };
+  }
+  if (!usdcConfig.rpcConfigured) {
+    return { ok: false as const, status: 503, error: "usdc_rpc_not_configured" };
+  }
+  if (!usdcConfig.chainConfigured) {
+    return { ok: false as const, status: 503, error: "usdc_checkout_chain_not_base_mainnet" };
+  }
+  if (!usdcConfig.tokenConfigured) {
+    return { ok: false as const, status: 503, error: "usdc_checkout_token_not_canonical_base_usdc" };
   }
 
   const now = new Date().toISOString();
@@ -368,9 +510,9 @@ export async function createUsdcPayment(account: Account, input: UsdcCheckoutInp
     providerPaymentIntentId: null,
     providerEventIds: [],
     checkoutUrl: null,
-    chainId: readInteger(process.env.FISH_USDC_CHAIN_ID, BASE_CHAIN_ID),
-    tokenAddress: cleanEnv(process.env.FISH_USDC_TOKEN_ADDRESS) ?? BASE_USDC_ADDRESS,
-    receiveAddress,
+    chainId: usdcConfig.chainId,
+    tokenAddress: usdcConfig.tokenAddress,
+    receiveAddress: usdcConfig.receiveAddress,
     payerAddress: normalizeAddress(input.payerAddress),
     amountAtomic: amountAtomic.toString(),
     transactionHash: null,
@@ -388,7 +530,7 @@ export async function createUsdcPayment(account: Account, input: UsdcCheckoutInp
 
 export async function confirmUsdcPayment(account: Account, input: UsdcConfirmInput) {
   const rpcUrl = cleanEnv(process.env.FISH_USDC_RPC_URL);
-  if (!rpcUrl) {
+  if (!rpcUrl || !httpUrl(rpcUrl)) {
     return { ok: false as const, status: 503, error: "usdc_rpc_not_configured" };
   }
 
@@ -402,6 +544,10 @@ export async function confirmUsdcPayment(account: Account, input: UsdcConfirmInp
   }
   if (payment.status === "paid" && payment.creditEntryId) {
     return { ok: true as const, idempotent: true, payment: publicPayment(payment) };
+  }
+  const paymentConfigError = canonicalBaseUsdcPaymentError(payment);
+  if (paymentConfigError) {
+    return paymentConfigError;
   }
   if (!payment.payerAddress || !isAddress(payment.payerAddress)) {
     return { ok: false as const, status: 400, error: "usdc_payer_address_required" };
@@ -503,6 +649,12 @@ async function assertPaidTopupCanStart(paymentLedger: FishPaymentLedger, newCred
   const cap = readOptionalInteger(process.env.FISH_MAX_OUTSTANDING_PREPAID_CREDITS);
   if (cap === null || cap <= 0) {
     return { ok: false as const, status: 503, error: "paid_credit_liability_cap_not_configured" };
+  }
+  if (!publicCareUrl(process.env.FISH_BILLING_SUPPORT_URL)) {
+    return { ok: false as const, status: 503, error: "billing_support_url_not_configured" };
+  }
+  if (!publicCareUrl(process.env.FISH_BILLING_REFUND_POLICY_URL)) {
+    return { ok: false as const, status: 503, error: "billing_refund_policy_not_configured" };
   }
 
   const analytics = await summarizeBillingUsageAnalytics();
@@ -649,6 +801,17 @@ function findReusablePayment(ledger: FishPaymentLedger, accountId: string, provi
   );
 }
 
+function canonicalBaseUsdcPaymentError(payment: FishPaymentRequest) {
+  if ((payment.chainId ?? BASE_CHAIN_ID) !== BASE_CHAIN_ID) {
+    return { ok: false as const, status: 400, error: "usdc_checkout_chain_not_base_mainnet" };
+  }
+  const tokenAddress = payment.tokenAddress ?? BASE_USDC_ADDRESS;
+  if (!isAddress(tokenAddress) || normalizeAddress(tokenAddress) !== normalizeAddress(BASE_USDC_ADDRESS)) {
+    return { ok: false as const, status: 400, error: "usdc_checkout_token_not_canonical_base_usdc" };
+  }
+  return null;
+}
+
 async function appendPayment(payment: FishPaymentRequest, ledger?: FishPaymentLedger) {
   ledger ??= await readPaymentLedger();
   ledger.payments.push(payment);
@@ -688,10 +851,14 @@ function fishPublicUrl() {
 }
 
 function isSameAppOriginRedirect(value: string) {
+  return allowedCheckoutReturnUrl(value, fishPublicUrl());
+}
+
+function allowedCheckoutReturnUrl(value: string, publicUrl: string) {
   try {
-    const url = new URL(value);
-    const appUrl = new URL(fishPublicUrl());
-    return !url.username && !url.password && url.origin === appUrl.origin;
+    const parsed = new URL(value);
+    const base = new URL(publicUrl);
+    return !parsed.username && !parsed.password && parsed.origin === base.origin;
   } catch {
     return false;
   }
@@ -710,6 +877,10 @@ function amountCentsToAtomic(amountCents: number, decimals: number) {
 
 function creditsToCents(credits: number) {
   return Math.ceil(credits * FISH_CREDIT_USD * 100);
+}
+
+function creditsToUsd(credits: number) {
+  return Number((credits * FISH_CREDIT_USD).toFixed(6));
 }
 
 function atomicToDecimal(value: string, decimals: number) {
@@ -735,6 +906,10 @@ function isAddress(value: string) {
   return /^0x[a-fA-F0-9]{40}$/.test(value);
 }
 
+function isNonZeroAddress(value: string) {
+  return isAddress(value) && normalizeAddress(value) !== ZERO_ADDRESS;
+}
+
 function stripeErrorMessage(payload: unknown) {
   if (isRecord(payload) && isRecord(payload.error)) {
     return stringValue(payload.error.message) ?? stringValue(payload.error.type) ?? "stripe_error";
@@ -745,6 +920,86 @@ function stripeErrorMessage(payload: unknown) {
 function cleanEnv(value: string | undefined) {
   const clean = value?.trim();
   return clean || undefined;
+}
+
+function publicCareUrl(value: string | undefined) {
+  const clean = cleanEnv(value);
+  if (!clean) {
+    return null;
+  }
+  try {
+    const parsed = new URL(clean);
+    return parsed.protocol === "https:" || parsed.protocol === "http:" || parsed.protocol === "mailto:" ? clean : null;
+  } catch {
+    return null;
+  }
+}
+
+function publicHttpsAppUrl(value: string | undefined) {
+  const clean = cleanEnv(value);
+  if (!clean) {
+    return false;
+  }
+  try {
+    const parsed = new URL(clean);
+    return parsed.protocol === "https:" && !["localhost", "127.0.0.1", "::1"].includes(parsed.hostname);
+  } catch {
+    return false;
+  }
+}
+
+function httpUrl(value: string | undefined) {
+  const clean = cleanEnv(value);
+  if (!clean) {
+    return false;
+  }
+  try {
+    const parsed = new URL(clean);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function stripeProductionTestModeBlocked(value: string | undefined) {
+  const clean = cleanEnv(value);
+  return Boolean(clean && process.env.NODE_ENV === "production" && !readBoolean(process.env.FISH_STRIPE_TEST_MODE_ALLOWED, false) && /^(sk|rk)_test_/i.test(clean));
+}
+
+function stripeProductionEventModeBlocked(event: { livemode?: boolean }) {
+  return Boolean(process.env.NODE_ENV === "production" && !readBoolean(process.env.FISH_STRIPE_TEST_MODE_ALLOWED, false) && event.livemode !== true);
+}
+
+function configuredSecret(value: string | undefined) {
+  const clean = cleanEnv(value);
+  return Boolean(clean && clean.length >= 8 && !/change-me|replace-with|placeholder/i.test(clean));
+}
+
+function readUsdcCheckoutConfig() {
+  const receiveAddress = cleanEnv(process.env.FISH_USDC_RECEIVE_ADDRESS);
+  const rpcUrl = cleanEnv(process.env.FISH_USDC_RPC_URL);
+  const chainIdRaw = cleanEnv(process.env.FISH_USDC_CHAIN_ID);
+  const tokenAddressRaw = cleanEnv(process.env.FISH_USDC_TOKEN_ADDRESS);
+  const parsedChainId = chainIdRaw ? Number(chainIdRaw) : BASE_CHAIN_ID;
+  const chainId = Number.isInteger(parsedChainId) ? parsedChainId : BASE_CHAIN_ID;
+  const tokenAddress = tokenAddressRaw ?? BASE_USDC_ADDRESS;
+  const receiveAddressConfigured = Boolean(receiveAddress && isNonZeroAddress(receiveAddress));
+  const rpcConfigured = httpUrl(rpcUrl);
+  const chainConfigured = Number.isInteger(parsedChainId) && parsedChainId === BASE_CHAIN_ID;
+  const tokenConfigured = isAddress(tokenAddress) && normalizeAddress(tokenAddress) === normalizeAddress(BASE_USDC_ADDRESS);
+
+  return {
+    receiveAddress,
+    rpcUrl,
+    chainId,
+    tokenAddress,
+    receiveAddressConfigured,
+    rpcConfigured,
+    chainConfigured,
+    tokenConfigured,
+    configured: receiveAddressConfigured && rpcConfigured && chainConfigured && tokenConfigured,
+    touched: Boolean(receiveAddress || rpcUrl || chainIdRaw || tokenAddressRaw)
+  };
 }
 
 function readNumber(value: string | undefined, fallback: number) {
@@ -787,6 +1042,7 @@ function parseStripeEvent(rawBody: string):
   | {
       id?: string;
       type?: string;
+      livemode?: boolean;
       data?: { object?: Record<string, unknown> };
     }
   | null {

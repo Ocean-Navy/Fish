@@ -1,9 +1,12 @@
 "use client";
 
 import { BadgeDollarSign, CreditCard, KeyRound, Loader2, ReceiptText, RefreshCcw, RotateCw, Save, ShieldX, Wallet } from "lucide-react";
+import type { Route } from "next";
+import Link from "next/link";
 import { useState } from "react";
 import { formatEvmAddress, parseEvmChainId } from "@/lib/evmWallet";
 import { formatDateTime, formatNumber, formatUsd } from "@/lib/format";
+import type { FishBillingReadiness } from "@/lib/fishPayments";
 
 type AccountPayload = {
   account: {
@@ -107,7 +110,7 @@ function getErrorMessage(payload: unknown) {
   return "request_failed";
 }
 
-export function FishAccountPanel() {
+export function FishAccountPanel({ initialBillingReadiness }: { initialBillingReadiness: FishBillingReadiness }) {
   const [apiKey, setApiKey] = useState("");
   const [account, setAccount] = useState<AccountPayload | null>(null);
   const [receipts, setReceipts] = useState<Receipt[]>([]);
@@ -572,6 +575,7 @@ export function FishAccountPanel() {
               isConnectingPaymentWallet={isConnectingPaymentWallet}
               onConnectPaymentWallet={connectPaymentWallet}
               disabled={account.account.status === "revoked"}
+              readiness={initialBillingReadiness}
             />
             <CreditLaneNet lanes={account.creditLanes} />
             <ReceiptNet receipts={receipts} />
@@ -602,7 +606,8 @@ function PaymentDock({
   paymentWalletChainId,
   isConnectingPaymentWallet,
   onConnectPaymentWallet,
-  disabled
+  disabled,
+  readiness
 }: {
   amountUsd: string;
   onAmountChange: (value: string) => void;
@@ -620,22 +625,57 @@ function PaymentDock({
   isConnectingPaymentWallet: boolean;
   onConnectPaymentWallet: () => void;
   disabled: boolean;
+  readiness: FishBillingReadiness | null;
 }) {
   const numericAmount = Number(amountUsd);
-  const estimatedCredits = Number.isFinite(numericAmount) && numericAmount > 0 ? Math.floor(numericAmount / 0.001) : 0;
+  const creditUsd = readiness?.creditUsd && readiness.creditUsd > 0 ? readiness.creditUsd : 0.001;
+  const estimatedCredits = Number.isFinite(numericAmount) && numericAmount > 0 ? Math.floor(numericAmount / creditUsd) : 0;
+  const stripeDisabled = disabled || isStartingStripe || readiness?.providers.stripe.enabled !== true;
+  const usdcDisabled = disabled || isStartingUsdc || readiness?.providers.usdc.enabled !== true;
+  const paymentsOpen = readiness?.checkoutAvailable === true;
+  const topupState = paymentsOpen ? "Ready" : readiness?.paidTopupsPaused ? "Paused" : "Waiting";
+  const paymentStatusCards = [
+    { label: "Checkout", value: paymentsOpen ? "Open" : "Closed" },
+    { label: "Top-ups", value: topupState },
+    { label: "Liability cap", value: readiness?.liabilityCap.configured ? formatUsd(readiness.liabilityCap.maxOutstandingPrepaidUsd ?? 0) : "Not set" },
+    { label: "Support", value: readiness?.customerCare.supportConfigured && readiness.customerCare.refundPolicyConfigured ? "Ready" : "Needed" },
+    { label: "Providers", value: readiness?.providers.stripe.configured || readiness?.providers.usdc.configured ? "Configured" : "Not ready" }
+  ];
 
   return (
     <div className="rounded-3xl border border-fish-accent/15 bg-fish-navy950/55 p-4">
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="text-sm font-black uppercase tracking-[0.1em] text-fish-gold">Add credits</p>
-          <h3 className="mt-2 text-2xl font-black text-white">Pay for AI dishes.</h3>
-          <p className="mt-1 text-sm font-bold leading-6 text-fish-secondary">Credits are issued only after payment confirms.</p>
+          <h3 className="mt-2 text-2xl font-black text-white">{paymentsOpen ? "Pay for AI dishes." : "Checkout is closed."}</h3>
+          <p className="mt-1 text-sm font-bold leading-6 text-fish-secondary">
+            {paymentsOpen ? "Credits are issued only after payment confirms." : "Use pilot credits for now. Paid top-ups open only after caps, support, and payment providers are ready."}
+          </p>
         </div>
         <div className="rounded-2xl border border-fish-accent/15 bg-white/[0.035] p-3 text-right">
           <p className="text-xs font-black uppercase tracking-[0.08em] text-fish-secondary">Estimate</p>
           <p className="mt-1 text-lg font-black text-white">{formatNumber(estimatedCredits)} credits</p>
         </div>
+      </div>
+      <div className={`mb-3 rounded-2xl border p-3 text-sm font-bold leading-6 ${paymentsOpen ? "border-emerald-300/25 bg-emerald-400/10 text-emerald-100" : "border-fish-gold/25 bg-fish-gold/10 text-fish-primary"}`}>
+        {paymentsOpen ? (
+          <span>Payments are open. Card and USDC credits settle only after confirmation.</span>
+        ) : (
+          <span>Payments are not open yet. {formatBillingBlockers(readiness?.blockers)}</span>
+        )}
+      </div>
+      <div className="mb-3 flex flex-wrap gap-3 text-xs font-black">
+        <Link className="rounded-full border border-fish-accent/30 px-4 py-2 text-fish-accent hover:bg-fish-accent/10" href={"/support" as Route}>
+          Support
+        </Link>
+        <Link className="rounded-full border border-fish-accent/30 px-4 py-2 text-fish-accent hover:bg-fish-accent/10" href={"/refunds" as Route}>
+          Refund policy
+        </Link>
+      </div>
+      <div className="mb-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+        {paymentStatusCards.map((card) => (
+          <MiniMetric key={card.label} label={card.label} value={card.value} />
+        ))}
       </div>
       <div className="grid gap-3 lg:grid-cols-[1fr_auto_auto] lg:items-end">
         <label className="block">
@@ -650,7 +690,7 @@ function PaymentDock({
         <button
           type="button"
           onClick={onStripeCheckout}
-          disabled={disabled || isStartingStripe}
+          disabled={stripeDisabled}
           className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-fish-accent to-fish-aqua px-5 text-xs font-black text-fish-navy950 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {isStartingStripe ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <CreditCard className="h-4 w-4" aria-hidden="true" />}
@@ -659,7 +699,7 @@ function PaymentDock({
         <button
           type="button"
           onClick={onUsdcCheckout}
-          disabled={disabled || isStartingUsdc}
+          disabled={usdcDisabled}
           className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-fish-accent/35 px-5 text-xs font-black text-fish-accent transition hover:bg-fish-accent/10 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {isStartingUsdc ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Wallet className="h-4 w-4" aria-hidden="true" />}
@@ -887,4 +927,19 @@ function formatPlanSource(source: AccountPayload["account"]["planSource"]) {
     return "pilot subscription";
   }
   return "pilot key";
+}
+
+function formatBillingBlockers(blockers: string[] | undefined) {
+  if (!blockers?.length) {
+    return "Setup is still being checked.";
+  }
+  const labels: Record<string, string> = {
+    paid_topups_paused: "Top-ups are paused.",
+    paid_credit_liability_cap_not_configured: "The prepaid credit cap is not set.",
+    payment_provider_not_configured: "Card or USDC checkout is not configured.",
+    stripe_test_mode_not_allowed: "Stripe test mode is disabled for production checkout.",
+    billing_support_url_not_configured: "Support contact is not configured.",
+    billing_refund_policy_not_configured: "Refund policy is not configured."
+  };
+  return blockers.map((blocker) => labels[blocker] ?? blocker.replaceAll("_", " ")).join(" ");
 }

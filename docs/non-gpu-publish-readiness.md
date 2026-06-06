@@ -27,17 +27,23 @@ This checklist covers the next Fish version work that can be finished before ren
 3. Keep paid checkout paused unless all of these are true:
    - `FISH_MAX_OUTSTANDING_PREPAID_CREDITS` is set;
    - Stripe or USDC secrets are set;
-   - support/refund handling is ready;
+   - `FISH_BILLING_SUPPORT_URL` and `FISH_BILLING_REFUND_POLICY_URL` are configured, for example to `/support` and `/refunds`;
    - public copy does not imply unlimited access.
-4. Keep `FISH_TESTNET_FAUCET_ENABLED=false` until the faucet wallet has only limited Base Sepolia ETH and test tokens.
+4. Keep `FISH_TESTNET_FAUCET_ENABLED=false` until the faucet wallet has only limited Base Sepolia ETH and test tokens, and until nginx/private proxy is configured with `FISH_PROXY_HEADER_SECRET` for trusted IP cooldown headers.
 5. Keep `FISH_CONTRACT_ACTIONS_ENABLED=false`, `FISH_CONTRACT_SETTLEMENT_SUBMIT_ENABLED=false`, and `FISH_CONTRACT_MAINNET_WRITES_ALLOWED=false` unless a testnet/mainnet deployment has been reviewed.
 6. Triage any Codex Security findings that apply to `main` or this branch. Apply only reviewed, narrow fixes.
 7. Run:
 
 ```bash
 npm run verify
+npm run readiness:public-testnet
+npm run readiness:public-testnet -- --strict
+npm run readiness:public-testnet -- --profile paid-mainnet
+npm run backup:runtime -- --dry-run
 docker compose config >/tmp/fish-compose.yml
 ```
+
+The default readiness profile is for a no-real-money public testnet and allows intentionally paused paid checkout. Add `--strict` when every manual and partial item must be resolved. The `paid-mainnet` profile must stay blocked until the payment provider, liability cap, and support/refund path are ready.
 
 8. Browser-check:
    - `/`
@@ -64,4 +70,3 @@ Use this framing if the next public version ships before the GPU VM:
 ```text
 Fish is a visual product preview and playground for simple AI access on Ocean infrastructure. The meal counter is in demo mode until Fish Runner or a selected provider is connected. Public proof labels show whether data is sample, snapshot, or live.
 ```
-

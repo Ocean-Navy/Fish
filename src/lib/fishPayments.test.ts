@@ -1,14 +1,27 @@
 import assert from "node:assert/strict";
+import { createHmac, randomUUID } from "node:crypto";
 import { afterEach, test } from "node:test";
-import { createUsdcPayment, normalizeFishPaymentAmount, parseStripeCheckoutRequest, parseUsdcCheckoutRequest } from "./fishPayments";
+import { createStripeCheckoutPayment, createUsdcPayment, handleStripeWebhook, normalizeFishPaymentAmount, parseStripeCheckoutRequest, parseUsdcCheckoutRequest, summarizeBillingReadiness } from "./fishPayments";
 import type { Account } from "./fishLedger";
 
+const ORIGINAL_NODE_ENV = process.env.NODE_ENV;
 const PAYMENT_ENV_KEYS = [
   "FISH_MAX_CHECKOUT_USD",
   "FISH_MAX_OUTSTANDING_PREPAID_CREDITS",
   "FISH_MIN_CHECKOUT_USD",
+  "NEXT_PUBLIC_FISH_APP_URL",
+  "FISH_PUBLIC_APP_URL",
   "FISH_PAID_TOPUPS_PAUSED",
-  "FISH_USDC_RECEIVE_ADDRESS"
+  "FISH_BILLING_REFUND_POLICY_URL",
+  "FISH_BILLING_SUPPORT_URL",
+  "FISH_STRIPE_SECRET_KEY",
+  "FISH_STRIPE_WEBHOOK_SECRET",
+  "FISH_STRIPE_TEST_MODE_ALLOWED",
+  "FISH_USDC_RECEIVE_ADDRESS",
+  "FISH_USDC_RPC_URL",
+  "FISH_USDC_CHAIN_ID",
+  "FISH_USDC_TOKEN_ADDRESS",
+  "FISH_USDC_DECIMALS"
 ] as const;
 
 const originalPublicAppUrl = process.env.FISH_PUBLIC_APP_URL;
@@ -24,6 +37,7 @@ afterEach(() => {
   } else {
     process.env.FISH_PUBLIC_APP_URL = originalPublicAppUrl;
   }
+  setNodeEnv(ORIGINAL_NODE_ENV);
 });
 
 test("payment amount normalization derives credits from dollars", () => {
@@ -141,6 +155,407 @@ test("USDC checkout validation requires a payer address", () => {
     assert.deepEqual(parsed.error.flatten().fieldErrors.payerAddress, ["Required"]);
   }
 });
+
+test("billing readiness is unavailable without a liability cap or provider", () => {
+  const readiness = summarizeBillingReadiness();
+
+  assert.equal(readiness.checkoutAvailable, false);
+  assert.equal(readiness.dataState, "unavailable");
+  assert.deepEqual(readiness.liabilityCap, {
+    configured: false,
+    maxOutstandingPrepaidCredits: null,
+    maxOutstandingPrepaidUsd: null
+  });
+  assert.equal(readiness.customerCare.supportConfigured, false);
+  assert.equal(readiness.customerCare.refundPolicyConfigured, false);
+  assert.deepEqual(readiness.blockers, ["paid_credit_liability_cap_not_configured", "payment_provider_not_configured", "billing_support_url_not_configured", "billing_refund_policy_not_configured"]);
+});
+
+test("billing readiness keeps providers disabled while paid topups are paused", () => {
+  process.env.FISH_PAID_TOPUPS_PAUSED = "true";
+  process.env.FISH_MAX_OUTSTANDING_PREPAID_CREDITS = "100000";
+  process.env.FISH_USDC_RECEIVE_ADDRESS = "0x1111111111111111111111111111111111111111";
+  process.env.FISH_USDC_RPC_URL = "https://base-mainnet.example";
+  process.env.FISH_BILLING_SUPPORT_URL = "mailto:support@op.fish";
+  process.env.FISH_BILLING_REFUND_POLICY_URL = "https://op.fish/refunds";
+
+  const readiness = summarizeBillingReadiness();
+
+  assert.equal(readiness.checkoutAvailable, false);
+  assert.equal(readiness.dataState, "snapshot");
+  assert.deepEqual(readiness.liabilityCap, {
+    configured: true,
+    maxOutstandingPrepaidCredits: 100000,
+    maxOutstandingPrepaidUsd: 100
+  });
+  assert.equal(readiness.providers.usdc.configured, true);
+  assert.equal(readiness.providers.usdc.enabled, false);
+  assert.deepEqual(readiness.blockers, ["paid_topups_paused"]);
+});
+
+test("billing readiness rejects USDC checkout on a non-base-mainnet chain", () => {
+  configureUsdcCheckoutEnv();
+  process.env.FISH_USDC_CHAIN_ID = "84532";
+
+  const readiness = summarizeBillingReadiness();
+
+  assert.equal(readiness.checkoutAvailable, false);
+  assert.equal(readiness.providers.usdc.configured, false);
+  assert.equal(readiness.providers.usdc.chainConfigured, false);
+  assert.equal(readiness.providers.usdc.tokenConfigured, true);
+  assert.deepEqual(readiness.blockers, ["payment_provider_not_configured"]);
+  assert.ok(readiness.warnings.includes("USDC checkout must use Base mainnet chain id 8453."));
+});
+
+test("billing readiness rejects USDC checkout with a non-canonical token", () => {
+  configureUsdcCheckoutEnv();
+  process.env.FISH_USDC_TOKEN_ADDRESS = "0x2222222222222222222222222222222222222222";
+
+  const readiness = summarizeBillingReadiness();
+
+  assert.equal(readiness.checkoutAvailable, false);
+  assert.equal(readiness.providers.usdc.configured, false);
+  assert.equal(readiness.providers.usdc.chainConfigured, true);
+  assert.equal(readiness.providers.usdc.tokenConfigured, false);
+  assert.deepEqual(readiness.blockers, ["payment_provider_not_configured"]);
+  assert.ok(readiness.warnings.includes("USDC checkout must use canonical Base USDC 0x833589fcD6EDb6E08f4c7C32D4f71b54bdA02913."));
+});
+
+test("billing readiness rejects USDC checkout with an invalid RPC URL", () => {
+  configureUsdcCheckoutEnv();
+  process.env.FISH_USDC_RPC_URL = "base-mainnet";
+
+  const readiness = summarizeBillingReadiness();
+
+  assert.equal(readiness.checkoutAvailable, false);
+  assert.equal(readiness.providers.usdc.configured, false);
+  assert.equal(readiness.providers.usdc.rpcConfigured, false);
+  assert.deepEqual(readiness.blockers, ["payment_provider_not_configured"]);
+  assert.ok(readiness.warnings.includes("USDC checkout requires an HTTP(S) Base mainnet RPC URL."));
+});
+
+test("billing readiness rejects USDC checkout with a zero receive address", () => {
+  configureUsdcCheckoutEnv();
+  process.env.FISH_USDC_RECEIVE_ADDRESS = "0x0000000000000000000000000000000000000000";
+
+  const readiness = summarizeBillingReadiness();
+
+  assert.equal(readiness.checkoutAvailable, false);
+  assert.equal(readiness.providers.usdc.configured, false);
+  assert.equal(readiness.providers.usdc.receiveAddressConfigured, false);
+  assert.deepEqual(readiness.blockers, ["payment_provider_not_configured"]);
+  assert.ok(readiness.warnings.includes("USDC checkout requires a valid non-zero Base mainnet receive address."));
+});
+
+test("billing readiness enables configured providers only after caps are set and topups are unpaused", () => {
+  process.env.FISH_MAX_OUTSTANDING_PREPAID_CREDITS = "100000";
+  process.env.FISH_BILLING_SUPPORT_URL = "mailto:support@op.fish";
+  process.env.FISH_BILLING_REFUND_POLICY_URL = "https://op.fish/refunds";
+  process.env.FISH_PUBLIC_APP_URL = "https://op.fish";
+  process.env.FISH_STRIPE_SECRET_KEY = "sk_test_configured";
+  process.env.FISH_STRIPE_WEBHOOK_SECRET = "whsec_configured";
+
+  const readiness = summarizeBillingReadiness();
+
+  assert.equal(readiness.checkoutAvailable, true);
+  assert.equal(readiness.dataState, "live");
+  assert.deepEqual(readiness.liabilityCap, {
+    configured: true,
+    maxOutstandingPrepaidCredits: 100000,
+    maxOutstandingPrepaidUsd: 100
+  });
+  assert.equal(readiness.providers.stripe.enabled, true);
+  assert.equal(readiness.providers.usdc.enabled, false);
+  assert.deepEqual(readiness.blockers, []);
+});
+
+test("billing readiness rejects Stripe test-mode keys in production", () => {
+  setNodeEnv("production");
+  process.env.FISH_MAX_OUTSTANDING_PREPAID_CREDITS = "100000";
+  process.env.FISH_BILLING_SUPPORT_URL = "mailto:support@op.fish";
+  process.env.FISH_BILLING_REFUND_POLICY_URL = "https://op.fish/refunds";
+  process.env.FISH_PUBLIC_APP_URL = "https://op.fish";
+  process.env.FISH_STRIPE_SECRET_KEY = "sk_test_configured";
+  process.env.FISH_STRIPE_WEBHOOK_SECRET = "whsec_configured";
+
+  const readiness = summarizeBillingReadiness();
+
+  assert.equal(readiness.checkoutAvailable, false);
+  assert.equal(readiness.providers.stripe.configured, false);
+  assert.deepEqual(readiness.blockers, ["payment_provider_not_configured", "stripe_test_mode_not_allowed"]);
+  assert.ok(readiness.warnings.includes("Stripe test-mode keys are disabled in production checkout unless FISH_STRIPE_TEST_MODE_ALLOWED=true is set for a private test."));
+});
+
+test("billing readiness allows Stripe test-mode keys in production only with explicit override", () => {
+  setNodeEnv("production");
+  process.env.FISH_STRIPE_TEST_MODE_ALLOWED = "true";
+  process.env.FISH_MAX_OUTSTANDING_PREPAID_CREDITS = "100000";
+  process.env.FISH_BILLING_SUPPORT_URL = "mailto:support@op.fish";
+  process.env.FISH_BILLING_REFUND_POLICY_URL = "https://op.fish/refunds";
+  process.env.FISH_PUBLIC_APP_URL = "https://op.fish";
+  process.env.FISH_STRIPE_SECRET_KEY = "sk_test_configured";
+  process.env.FISH_STRIPE_WEBHOOK_SECRET = "whsec_configured";
+
+  const readiness = summarizeBillingReadiness();
+
+  assert.equal(readiness.checkoutAvailable, true);
+  assert.equal(readiness.providers.stripe.configured, true);
+  assert.deepEqual(readiness.blockers, []);
+});
+
+test("billing readiness rejects Stripe checkout without a public app URL", () => {
+  process.env.FISH_MAX_OUTSTANDING_PREPAID_CREDITS = "100000";
+  process.env.FISH_BILLING_SUPPORT_URL = "mailto:support@op.fish";
+  process.env.FISH_BILLING_REFUND_POLICY_URL = "https://op.fish/refunds";
+  process.env.FISH_STRIPE_SECRET_KEY = "sk_test_configured";
+  process.env.FISH_STRIPE_WEBHOOK_SECRET = "whsec_configured";
+
+  const readiness = summarizeBillingReadiness();
+
+  assert.equal(readiness.checkoutAvailable, false);
+  assert.equal(readiness.providers.stripe.configured, false);
+  assert.deepEqual(readiness.blockers, ["payment_provider_not_configured", "stripe_public_app_url_not_configured"]);
+  assert.ok(readiness.warnings.includes("Stripe checkout requires FISH_PUBLIC_APP_URL or NEXT_PUBLIC_FISH_APP_URL to be a public HTTPS origin."));
+});
+
+test("Stripe checkout rejects production test-mode keys before contacting Stripe", async () => {
+  setNodeEnv("production");
+  process.env.FISH_MAX_OUTSTANDING_PREPAID_CREDITS = "100000";
+  process.env.FISH_BILLING_SUPPORT_URL = "mailto:support@op.fish";
+  process.env.FISH_BILLING_REFUND_POLICY_URL = "https://op.fish/refunds";
+  process.env.FISH_PUBLIC_APP_URL = "https://op.fish";
+  process.env.FISH_STRIPE_SECRET_KEY = "sk_test_configured";
+  process.env.FISH_STRIPE_WEBHOOK_SECRET = "whsec_configured";
+
+  const result = await createStripeCheckoutPayment(testAccount(), { amountUsd: 5 });
+
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.equal(result.status, 503);
+    assert.equal(result.error, "stripe_test_mode_not_allowed");
+  }
+});
+
+test("Stripe webhook rejects test-mode events in production before crediting", async () => {
+  setNodeEnv("production");
+  process.env.FISH_STRIPE_WEBHOOK_SECRET = "whsec_test_webhook_secret";
+  const rawBody = JSON.stringify(stripeCheckoutCompletedEvent({ livemode: false }));
+
+  const result = await handleStripeWebhook(rawBody, stripeSignature(rawBody, process.env.FISH_STRIPE_WEBHOOK_SECRET));
+
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.equal(result.status, 400);
+    assert.equal(result.error, "stripe_test_mode_not_allowed");
+  }
+});
+
+test("Stripe webhook rejects events without livemode in production before crediting", async () => {
+  setNodeEnv("production");
+  process.env.FISH_STRIPE_WEBHOOK_SECRET = "whsec_test_webhook_secret";
+  const event = stripeCheckoutCompletedEvent({});
+  delete event.livemode;
+  const rawBody = JSON.stringify(event);
+
+  const result = await handleStripeWebhook(rawBody, stripeSignature(rawBody, process.env.FISH_STRIPE_WEBHOOK_SECRET));
+
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.equal(result.status, 400);
+    assert.equal(result.error, "stripe_test_mode_not_allowed");
+  }
+});
+
+test("Stripe webhook test-mode override only bypasses the production livemode guard", async () => {
+  setNodeEnv("production");
+  process.env.FISH_STRIPE_TEST_MODE_ALLOWED = "true";
+  process.env.FISH_STRIPE_WEBHOOK_SECRET = "whsec_test_webhook_secret";
+  const rawBody = JSON.stringify(stripeCheckoutCompletedEvent({ livemode: false }));
+
+  const result = await handleStripeWebhook(rawBody, stripeSignature(rawBody, process.env.FISH_STRIPE_WEBHOOK_SECRET));
+
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.equal(result.status, 404);
+    assert.equal(result.error, "fish_payment_not_found");
+  }
+});
+
+test("Stripe checkout rejects off-origin return URLs before contacting Stripe", async () => {
+  process.env.FISH_MAX_OUTSTANDING_PREPAID_CREDITS = "100000";
+  process.env.FISH_BILLING_SUPPORT_URL = "mailto:support@op.fish";
+  process.env.FISH_BILLING_REFUND_POLICY_URL = "https://op.fish/refunds";
+  process.env.FISH_PUBLIC_APP_URL = "https://op.fish";
+  process.env.FISH_STRIPE_SECRET_KEY = "sk_test_configured";
+  process.env.FISH_STRIPE_WEBHOOK_SECRET = "whsec_configured";
+
+  const result = await createStripeCheckoutPayment(testAccount(), {
+    amountUsd: 5,
+    successUrl: "https://evil.example/thanks",
+    cancelUrl: "https://op.fish/account"
+  });
+
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.equal(result.status, 400);
+    assert.equal(result.error, "checkout_return_url_not_allowed");
+  }
+});
+
+test("Stripe checkout rejects missing public app URL before contacting Stripe", async () => {
+  process.env.FISH_MAX_OUTSTANDING_PREPAID_CREDITS = "100000";
+  process.env.FISH_BILLING_SUPPORT_URL = "mailto:support@op.fish";
+  process.env.FISH_BILLING_REFUND_POLICY_URL = "https://op.fish/refunds";
+  process.env.FISH_STRIPE_SECRET_KEY = "sk_test_configured";
+  process.env.FISH_STRIPE_WEBHOOK_SECRET = "whsec_configured";
+
+  const result = await createStripeCheckoutPayment(testAccount(), { amountUsd: 5 });
+
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.equal(result.status, 503);
+    assert.equal(result.error, "stripe_public_app_url_not_configured");
+  }
+});
+
+test("billing readiness blocks checkout without support and refund links", () => {
+  process.env.FISH_MAX_OUTSTANDING_PREPAID_CREDITS = "100000";
+  process.env.FISH_PUBLIC_APP_URL = "https://op.fish";
+  process.env.FISH_STRIPE_SECRET_KEY = "sk_test_configured";
+  process.env.FISH_STRIPE_WEBHOOK_SECRET = "whsec_configured";
+
+  const readiness = summarizeBillingReadiness();
+
+  assert.equal(readiness.checkoutAvailable, false);
+  assert.equal(readiness.providers.stripe.configured, true);
+  assert.equal(readiness.providers.stripe.enabled, false);
+  assert.deepEqual(readiness.customerCare, {
+    supportConfigured: false,
+    refundPolicyConfigured: false,
+    supportUrl: null,
+    refundPolicyUrl: null
+  });
+  assert.deepEqual(readiness.blockers, ["billing_support_url_not_configured", "billing_refund_policy_not_configured"]);
+});
+
+test("paid topups require support and refund links before payment requests are created", async () => {
+  process.env.FISH_MAX_OUTSTANDING_PREPAID_CREDITS = "100000";
+
+  const result = await createUsdcPayment(testAccount(), { amountUsd: 5, payerAddress: TEST_PAYER_ADDRESS });
+
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.equal(result.status, 503);
+    assert.equal(result.error, "billing_support_url_not_configured");
+  }
+});
+
+test("USDC payment creation rejects non-base-mainnet chain config", async () => {
+  configureUsdcCheckoutEnv();
+  process.env.FISH_USDC_CHAIN_ID = "84532";
+
+  const result = await createUsdcPayment(testAccount(), { amountUsd: 5, payerAddress: TEST_PAYER_ADDRESS });
+
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.equal(result.status, 503);
+    assert.equal(result.error, "usdc_checkout_chain_not_base_mainnet");
+  }
+});
+
+test("USDC payment creation rejects non-canonical token config", async () => {
+  configureUsdcCheckoutEnv();
+  process.env.FISH_USDC_TOKEN_ADDRESS = "0x2222222222222222222222222222222222222222";
+
+  const result = await createUsdcPayment(testAccount(), { amountUsd: 5, payerAddress: TEST_PAYER_ADDRESS });
+
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.equal(result.status, 503);
+    assert.equal(result.error, "usdc_checkout_token_not_canonical_base_usdc");
+  }
+});
+
+test("USDC payment creation rejects invalid RPC URL config", async () => {
+  configureUsdcCheckoutEnv();
+  process.env.FISH_USDC_RPC_URL = "base-mainnet";
+
+  const result = await createUsdcPayment(testAccount(), { amountUsd: 5, payerAddress: TEST_PAYER_ADDRESS });
+
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.equal(result.status, 503);
+    assert.equal(result.error, "usdc_rpc_not_configured");
+  }
+});
+
+test("USDC payment creation rejects a zero receive address", async () => {
+  configureUsdcCheckoutEnv();
+  process.env.FISH_USDC_RECEIVE_ADDRESS = "0x0000000000000000000000000000000000000000";
+
+  const result = await createUsdcPayment(testAccount(), { amountUsd: 5, payerAddress: TEST_PAYER_ADDRESS });
+
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.equal(result.status, 503);
+    assert.equal(result.error, "usdc_checkout_not_configured");
+  }
+});
+
+test("billing readiness treats placeholder payment secrets as unconfigured", () => {
+  process.env.FISH_MAX_OUTSTANDING_PREPAID_CREDITS = "100000";
+  process.env.FISH_STRIPE_SECRET_KEY = "change-me-stripe";
+  process.env.FISH_STRIPE_WEBHOOK_SECRET = "replace-with-webhook";
+
+  const readiness = summarizeBillingReadiness();
+
+  assert.equal(readiness.checkoutAvailable, false);
+  assert.equal(readiness.providers.stripe.configured, false);
+  assert.deepEqual(readiness.blockers, ["payment_provider_not_configured", "billing_support_url_not_configured", "billing_refund_policy_not_configured"]);
+});
+
+function configureUsdcCheckoutEnv() {
+  process.env.FISH_MAX_OUTSTANDING_PREPAID_CREDITS = "1000000000";
+  process.env.FISH_BILLING_SUPPORT_URL = "mailto:support@op.fish";
+  process.env.FISH_BILLING_REFUND_POLICY_URL = "https://op.fish/refunds";
+  process.env.FISH_USDC_RECEIVE_ADDRESS = "0x1111111111111111111111111111111111111111";
+  process.env.FISH_USDC_RPC_URL = "https://base-mainnet.example";
+}
+
+function setNodeEnv(value: string | undefined) {
+  const mutableEnv = process.env as Record<string, string | undefined>;
+  if (value === undefined) {
+    delete mutableEnv["NODE_ENV"];
+    return;
+  }
+  mutableEnv["NODE_ENV"] = value;
+}
+
+function stripeCheckoutCompletedEvent({ livemode }: { livemode?: boolean }) {
+  const paymentId = `pay_missing_${randomUUID()}`;
+  return {
+    id: "evt_test_fish_webhook",
+    type: "checkout.session.completed",
+    livemode,
+    data: {
+      object: {
+        id: "cs_test_fish_webhook",
+        payment_status: "paid",
+        client_reference_id: paymentId,
+        metadata: {
+          paymentId,
+          fishAccountId: "acct_payment_test",
+          fishCredits: "5000"
+        }
+      }
+    }
+  };
+}
+
+function stripeSignature(rawBody: string, secret: string, timestamp = Math.floor(Date.now() / 1000)) {
+  const signature = createHmac("sha256", secret).update(`${timestamp}.${rawBody}`, "utf8").digest("hex");
+  return `t=${timestamp},v1=${signature}`;
+}
 
 function testAccount(): Account {
   return {

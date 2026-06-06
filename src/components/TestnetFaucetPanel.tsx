@@ -1,6 +1,6 @@
 "use client";
 
-import { Fish, Loader2, RefreshCcw, ShipWheel, Wallet } from "lucide-react";
+import { CheckCircle2, Fish, Loader2, RefreshCcw, ShipWheel, Wallet } from "lucide-react";
 import { useEffect, useState } from "react";
 import { formatEvmAddress, parseEvmChainId } from "@/lib/evmWallet";
 import { formatNumber } from "@/lib/format";
@@ -10,6 +10,12 @@ type FaucetStatus = {
   enabled: boolean;
   ready: boolean;
   reason: string;
+  claiming: {
+    available: boolean;
+    state: "ready" | "closed" | "setup";
+    message: string;
+    action: string;
+  };
   chain: {
     chainId: number;
     chainName: string;
@@ -30,6 +36,12 @@ type FaucetStatus = {
     walletCooldownHours: number;
     ipCooldownHours: number;
     maxDailyClaims: number;
+  };
+  usage: {
+    claimsToday: number;
+    remainingToday: number;
+    resetAt: string;
+    latestClaimAt: string | null;
   };
   balances: {
     eth: string | null;
@@ -205,6 +217,12 @@ export function TestnetFaucetPanel() {
   const ready = Boolean(status?.ready);
   const connected = Boolean(walletAddress);
   const onBaseSepolia = walletChainId === BASE_SEPOLIA_CHAIN_ID;
+  const canClaim = ready && connected && onBaseSepolia;
+  const setupSteps = [
+    { title: "Connect wallet", body: connected ? formatEvmAddress(walletAddress) : "Use any EVM wallet.", done: connected },
+    { title: "Pick Base Sepolia", body: onBaseSepolia ? "Network ready." : "Fish can switch it for you.", done: onBaseSepolia },
+    { title: "Claim tokens", body: status?.claiming.available ? "One small playground refill." : (status?.claiming.message ?? "Faucet opens later."), done: Boolean(claim) }
+  ];
 
   return (
     <section className="px-4 pb-14 sm:px-6 lg:px-8">
@@ -212,13 +230,13 @@ export function TestnetFaucetPanel() {
         <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">Testnet playground</p>
-            <h2 className="mt-2 text-3xl font-black text-white sm:text-5xl">Claim test tokens.</h2>
+            <h2 className="mt-2 text-3xl font-black text-white sm:text-5xl">Try Fish without real money.</h2>
             <p className="mt-3 max-w-3xl text-base font-bold leading-7 text-fish-secondary">
-              Get tiny Base Sepolia gas plus Test OCEAN and Test USDC for the Fish playground.
+              {status?.claiming.action ?? "Connect a wallet, switch to Base Sepolia, and claim a small playground refill."}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <Badge label={ready ? "ready" : formatReason(status?.reason)} tone={ready ? "ready" : "muted"} />
+            <Badge label={status?.claiming.state ?? "loading"} tone={ready ? "ready" : "muted"} />
             <button
               type="button"
               onClick={refreshStatus}
@@ -231,11 +249,10 @@ export function TestnetFaucetPanel() {
           </div>
         </div>
 
-        <div className="grid gap-3 md:grid-cols-4">
-          <Mini label="Chain" value={status ? `${status.chain.chainName} (${status.chain.chainId})` : "Base Sepolia"} />
-          <Mini label="Gas top-up" value={`${status?.grants.ethAmount ?? "0.0005"} ETH`} />
-          <Mini label="Test OCEAN" value={formatAmount(status?.grants.testOceanAmount)} />
-          <Mini label="Test USDC" value={formatAmount(status?.grants.testUsdcAmount)} />
+        <div className="grid gap-3 md:grid-cols-3">
+          {setupSteps.map((step) => (
+            <StepCard key={step.title} title={step.title} body={step.body} done={step.done} />
+          ))}
         </div>
 
         <div className="mt-5 grid gap-5 xl:grid-cols-[0.88fr_1.12fr]">
@@ -271,7 +288,7 @@ export function TestnetFaucetPanel() {
               <button
                 type="button"
                 onClick={claimTestTokens}
-                disabled={!ready || !connected || !onBaseSepolia || isClaiming}
+                disabled={!canClaim || isClaiming}
                 className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-fish-accent to-fish-aqua px-4 text-xs font-black text-fish-navy950 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {isClaiming ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Fish className="h-4 w-4" aria-hidden="true" />}
@@ -289,18 +306,18 @@ export function TestnetFaucetPanel() {
           <div className="rounded-3xl border border-fish-accent/20 bg-fish-navy950/45 p-5">
             <div className="mb-4 flex items-center gap-2">
               <ShipWheel className="h-5 w-5 text-fish-accent" aria-hidden="true" />
-              <h3 className="text-2xl font-black text-white">Faucet dock</h3>
+              <h3 className="text-2xl font-black text-white">What you get</h3>
             </div>
             <div className="grid gap-3 md:grid-cols-3">
-              <Mini label="Faucet ETH" value={formatAmount(status?.balances.eth)} />
-              <Mini label="Faucet OCEAN" value={formatAmount(status?.balances.testOcean)} />
-              <Mini label="Faucet USDC" value={formatAmount(status?.balances.testUsdc)} />
+              <Mini label="Gas top-up" value={`${status?.grants.ethAmount ?? "0.0005"} ETH`} />
+              <Mini label="Test OCEAN" value={formatAmount(status?.grants.testOceanAmount)} />
+              <Mini label="Test USDC" value={formatAmount(status?.grants.testUsdcAmount)} />
             </div>
             <div className="mt-3 grid gap-3 md:grid-cols-2">
-              <AddressMini label="Test OCEAN token" value={status?.tokenAddresses.testOcean} />
-              <AddressMini label="Test USDC token" value={status?.tokenAddresses.testUsdc} />
-              <AddressMini label="Faucet wallet" value={status?.faucetAddress} />
-              <Mini label="Daily cap" value={`${formatNumber(status?.limits.maxDailyClaims ?? 50)} claims`} />
+              <Mini label="Attempts left today" value={`${formatNumber(status?.usage.remainingToday ?? 0)} / ${formatNumber(status?.limits.maxDailyClaims ?? 50)}`} />
+              <Mini label="Cooldown" value={`${status?.limits.walletCooldownHours ?? 24}h wallet / ${status?.limits.ipCooldownHours ?? 24}h IP`} />
+              <Mini label="Resets" value={formatDateTime(status?.usage.resetAt)} />
+              <Mini label="Status" value={status?.claiming.message ?? (ready ? "Ready" : formatReason(status?.reason))} />
             </div>
             {claim ? (
               <div className="mt-4 rounded-3xl border border-fish-gold/25 bg-fish-gold/10 p-4">
@@ -315,10 +332,35 @@ export function TestnetFaucetPanel() {
             <p className="mt-4 text-sm font-bold leading-6 text-fish-secondary">
               Test tokens are only for the Base Sepolia playground and have no real value.
             </p>
+            <details className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+              <summary className="cursor-pointer text-sm font-black text-fish-accent">Operator details</summary>
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <Mini label="Chain" value={status ? `${status.chain.chainName} (${status.chain.chainId})` : "Base Sepolia"} />
+                <Mini label="Faucet ETH" value={formatAmount(status?.balances.eth)} />
+                <Mini label="Faucet OCEAN" value={formatAmount(status?.balances.testOcean)} />
+                <Mini label="Faucet USDC" value={formatAmount(status?.balances.testUsdc)} />
+                <Mini label="Last attempt" value={formatDateTime(status?.usage.latestClaimAt)} />
+                <AddressMini label="Faucet wallet" value={status?.faucetAddress} />
+                <AddressMini label="Test OCEAN token" value={status?.tokenAddresses.testOcean} />
+                <AddressMini label="Test USDC token" value={status?.tokenAddresses.testUsdc} />
+              </div>
+            </details>
           </div>
         </div>
       </div>
     </section>
+  );
+}
+
+function StepCard({ title, body, done }: { title: string; body: string; done: boolean }) {
+  return (
+    <div className={`rounded-2xl border p-4 ${done ? "border-emerald-300/30 bg-emerald-400/10" : "border-white/10 bg-white/[0.035]"}`}>
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm font-black text-white">{title}</p>
+        <CheckCircle2 className={`h-5 w-5 ${done ? "text-emerald-200" : "text-fish-secondary/50"}`} aria-hidden="true" />
+      </div>
+      <p className="mt-2 text-sm font-bold leading-6 text-fish-secondary">{body}</p>
+    </div>
   );
 }
 
@@ -371,6 +413,17 @@ function formatReason(value: string | null | undefined) {
     return "not ready";
   }
   return value.replaceAll("_", " ");
+}
+
+function formatDateTime(value: string | null | undefined) {
+  if (!value) {
+    return "-";
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "-";
+  }
+  return date.toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" });
 }
 
 function readError(payload: unknown) {

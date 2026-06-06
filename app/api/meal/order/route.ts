@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getOrCreateGuestAccount, parseChatCompletion } from "@/lib/fishLedger";
 import { runFishChatGateway } from "@/lib/fishChatGateway";
 import { getFishRouterConfig } from "@/lib/fishRouter";
-import { anonymousGuestId } from "@/lib/guestIdentity";
+import { resolveAnonymousGuestIdentity } from "@/lib/guestIdentity";
 import { readJsonRequestBody } from "@/lib/requestBody";
 
 export const dynamic = "force-dynamic";
@@ -27,13 +27,25 @@ export async function POST(request: Request) {
     );
   }
 
-  const guestId = anonymousGuestId();
-  const guest = await getOrCreateGuestAccount(guestId, Number(process.env.FISH_GUEST_CREDIT_GRANT ?? "25"));
+  const identity = resolveAnonymousGuestIdentity();
+  if (!identity.ok) {
+    return NextResponse.json(
+      {
+        error: {
+          message: identity.error,
+          type: "service_unavailable_error"
+        }
+      },
+      { status: identity.status }
+    );
+  }
+
+  const guest = await getOrCreateGuestAccount(identity.guestId, Number(process.env.FISH_GUEST_CREDIT_GRANT ?? "25"));
   const routerConfig = getFishRouterConfig();
   const result = await runFishChatGateway(parsed.data, {
     ledger: guest.ledger,
     account: guest.account,
-    principalId: `guest:${guestId}`,
+    principalId: identity.principalId,
     dailyQuotaLimit: routerConfig.guardrails.dailyAnonymousQuota,
     allowExternalFallback: false,
     authenticatedApiKey: false

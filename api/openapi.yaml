@@ -279,6 +279,8 @@ paths:
           description: Insufficient Fish Credits
         '404':
           description: Fish dish not found
+        '503':
+          description: Production guest demo is unavailable until FISH_GUEST_ID_SALT is configured
         '501':
           description: Fish dish not enabled
   /api/meal/order:
@@ -298,6 +300,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/FishChatCompletion'
+        '503':
+          description: Production guest demo is unavailable until FISH_GUEST_ID_SALT is configured
   /api/billing/plans:
     get:
       summary: Public Fish plan catalog
@@ -317,6 +321,17 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/FishPlan'
+  /api/billing/readiness:
+    get:
+      summary: Public-safe billing readiness
+      description: Shows whether paid Fish Credit top-ups are intentionally paused, capped, and provider-configured without exposing Stripe secrets, RPC URLs, or payment recipient addresses.
+      responses:
+        '200':
+          description: Billing readiness status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FishBillingReadiness'
   /api/billing/subscriptions:
     post:
       summary: Admin-only pilot subscription activation
@@ -396,7 +411,7 @@ paths:
   /api/billing/checkout/stripe:
     post:
       summary: Create a Stripe Checkout session for Fish Credits
-      description: Fish API-key route that creates a prepaid credit checkout session when paid top-ups are not paused and the prepaid liability cap has room. Credits are issued only after the signed Stripe webhook confirms payment.
+      description: Fish API-key route that creates a prepaid credit checkout session when paid top-ups are not paused, the configured Fish app origin is public HTTPS, and the prepaid liability cap has room. Optional success/cancel URLs must stay on the configured Fish app origin. Credits are issued only after the signed Stripe webhook confirms payment.
       security:
         - bearerAuth: []
       requestBody:
@@ -432,7 +447,7 @@ paths:
   /api/billing/webhooks/stripe:
     post:
       summary: Stripe webhook for paid Fish Credits
-      description: Verifies the Stripe signature and grants prepaid Fish Credits for paid `checkout.session.completed` events. The raw body must be signed by Stripe.
+      description: Verifies the Stripe signature and grants prepaid Fish Credits for paid `checkout.session.completed` events. The raw body must be signed by Stripe. In production, Stripe events must be marked `livemode=true` unless private Stripe test mode is explicitly enabled.
       responses:
         '200':
           description: Webhook processed or ignored
@@ -1331,7 +1346,7 @@ paths:
                 $ref: '#/components/schemas/TestnetFaucetStatus'
     post:
       summary: Claim Base Sepolia test tokens
-      description: Sends a tiny Base Sepolia ETH top-up, Test OCEAN, and Test USDC from a dedicated faucet wallet when enabled and within wallet/IP/day limits.
+      description: Sends a tiny Base Sepolia ETH top-up, Test OCEAN, and Test USDC from a dedicated faucet wallet when enabled and within wallet/IP/day limits. In production, trusted proxy headers must be signed with the configured proxy secret before IP cooldowns are applied.
       requestBody:
         required: true
         content:
@@ -1349,8 +1364,10 @@ paths:
           description: Invalid wallet address
         '429':
           description: Wallet, IP, or daily faucet limit reached
+        '403':
+          description: Trusted proxy secret missing or invalid
         '503':
-          description: Faucet disabled or not configured
+          description: Faucet disabled, not configured, or trusted proxy identity unavailable
   /api/staking/summary:
     get:
       summary: Public offchain OCEAN staking credit summary
@@ -1463,6 +1480,61 @@ paths:
                     type: string
         '400':
           description: Invalid signed wallet intent
+  /api/support:
+    post:
+      summary: Submit a support or refund ticket
+      description: Creates a private operator support ticket. Users should not include prompts, outputs, API keys, private keys, seed phrases, or full payment card details.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SupportTicketRequest'
+      responses:
+        '200':
+          description: Support ticket accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  id:
+                    type: string
+        '400':
+          description: Invalid support ticket
+  /api/support/export:
+    get:
+      summary: Admin-only support ticket export
+      description: Exports support and refund tickets for operator follow-up.
+      security:
+        - adminToken: []
+      parameters:
+        - in: query
+          name: kind
+          schema:
+            type: string
+            enum: [all, billing, refund, technical, privacy, provider, other]
+            default: all
+        - in: query
+          name: format
+          schema:
+            type: string
+            enum: [json, csv]
+            default: json
+      responses:
+        '200':
+          description: Support ticket export
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupportTicketExport'
+            text/csv:
+              schema:
+                type: string
+        '401':
+          description: Admin token required
   /api/waitlist:
     post:
       summary: Submit user/developer waitlist interest
@@ -2146,6 +2218,23 @@ components:
           type: boolean
         proofReady:
           type: boolean
+        claim:
+          type: object
+          description: Plain-language public claim boundary for the current Ocean proof state. Does not include adapter URLs, node URLs, DIDs, keys, prompt text, or output text.
+          properties:
+            level:
+              type: string
+              enum: [setup, route-ready, local-ocean-node, ocean-cli]
+            title:
+              type: string
+            headline:
+              type: string
+            boundary:
+              type: string
+            notClaimed:
+              type: array
+              items:
+                type: string
         route:
           type: object
           properties:
@@ -2690,6 +2779,15 @@ components:
               type: string
         guardrails:
           type: object
+        runnerReceiptTrust:
+          type: object
+          properties:
+            configured:
+              type: boolean
+            trustedKeyCount:
+              type: integer
+            invalidKeyCount:
+              type: integer
         warnings:
           type: array
           items:
@@ -2851,6 +2949,50 @@ components:
           type: string
         body:
           $ref: '#/components/schemas/WaitlistRequest'
+    SupportTicketRequest:
+      type: object
+      additionalProperties: false
+      required: [contact, message]
+      properties:
+        contact:
+          type: string
+          minLength: 3
+          maxLength: 240
+        kind:
+          type: string
+          enum: [billing, refund, technical, privacy, provider, other]
+          default: other
+        accountOrPaymentRef:
+          type: string
+          maxLength: 160
+        message:
+          type: string
+          minLength: 5
+          maxLength: 1200
+        company:
+          type: string
+          maxLength: 0
+          description: Honeypot field; leave empty.
+    SupportTicketExport:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        exportedAt:
+          type: string
+        rows:
+          type: array
+          items:
+            $ref: '#/components/schemas/SupportTicketExportRow'
+    SupportTicketExportRow:
+      type: object
+      properties:
+        id:
+          type: string
+        createdAt:
+          type: string
+        body:
+          $ref: '#/components/schemas/SupportTicketRequest'
     ProviderJobReceipt:
       type: object
       properties:
@@ -4266,6 +4408,19 @@ components:
           type: boolean
         reason:
           type: string
+        claiming:
+          type: object
+          description: Public-safe, user-facing claim state. Does not expose private keys, IP hashes, wallet hashes, or raw claim rows.
+          properties:
+            available:
+              type: boolean
+            state:
+              type: string
+              enum: [ready, closed, setup]
+            message:
+              type: string
+            action:
+              type: string
         chain:
           type: object
           properties:
@@ -4307,6 +4462,24 @@ components:
               type: integer
             maxDailyClaims:
               type: integer
+        usage:
+          type: object
+          description: Public-safe aggregate faucet usage. Successful and failed recorded claim attempts count toward daily and cooldown limits so partial payout failures cannot be retried without a cooldown.
+          properties:
+            claimsToday:
+              type: integer
+              description: Recorded faucet attempts today, including failed attempts.
+            remainingToday:
+              type: integer
+              description: Remaining recorded attempts before the daily cap is reached.
+            resetAt:
+              type: string
+              format: date-time
+            latestClaimAt:
+              type: string
+              format: date-time
+              description: Latest recorded faucet attempt time.
+              nullable: true
         balances:
           type: object
           properties:
@@ -4904,6 +5077,86 @@ components:
           type: boolean
         oceanProviderAllowed:
           type: boolean
+    FishBillingReadiness:
+      type: object
+      properties:
+        object:
+          type: string
+          example: fish_billing_readiness
+        dataState:
+          type: string
+          enum: [live, snapshot, sample, unavailable]
+        checkoutAvailable:
+          type: boolean
+        paidTopupsPaused:
+          type: boolean
+        creditUsd:
+          type: number
+        minCheckoutUsd:
+          type: number
+        maxCheckoutUsd:
+          type: number
+        liabilityCap:
+          type: object
+          properties:
+            configured:
+              type: boolean
+            maxOutstandingPrepaidCredits:
+              type: integer
+              nullable: true
+            maxOutstandingPrepaidUsd:
+              type: number
+              nullable: true
+        customerCare:
+          type: object
+          properties:
+            supportConfigured:
+              type: boolean
+            refundPolicyConfigured:
+              type: boolean
+            supportUrl:
+              type: string
+              nullable: true
+            refundPolicyUrl:
+              type: string
+              nullable: true
+        providers:
+          type: object
+          properties:
+            stripe:
+              type: object
+              properties:
+                configured:
+                  type: boolean
+                enabled:
+                  type: boolean
+            usdc:
+              type: object
+              properties:
+                configured:
+                  type: boolean
+                enabled:
+                  type: boolean
+                chainId:
+                  type: integer
+                tokenAddress:
+                  type: string
+                rpcConfigured:
+                  type: boolean
+                receiveAddressConfigured:
+                  type: boolean
+                chainConfigured:
+                  type: boolean
+                tokenConfigured:
+                  type: boolean
+        blockers:
+          type: array
+          items:
+            type: string
+        warnings:
+          type: array
+          items:
+            type: string
     FishCreditLane:
       type: object
       properties:
@@ -4974,11 +5227,11 @@ components:
         successUrl:
           type: string
           format: uri
-          description: Optional checkout success redirect. Must be on the configured Fish app origin.
+          description: Optional Stripe return URL. Must use the same origin as the public HTTPS FISH_PUBLIC_APP_URL/NEXT_PUBLIC_FISH_APP_URL.
         cancelUrl:
           type: string
           format: uri
-          description: Optional checkout cancel redirect. Must be on the configured Fish app origin.
+          description: Optional Stripe return URL. Must use the same origin as the public HTTPS FISH_PUBLIC_APP_URL/NEXT_PUBLIC_FISH_APP_URL.
     FishUsdcCheckoutRequest:
       allOf:
         - $ref: '#/components/schemas/FishCheckoutRequest'
