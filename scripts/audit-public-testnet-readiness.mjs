@@ -8,6 +8,11 @@ const oceanEnvPath = option("--ocean-env") || ".env.ocean-demo-stack";
 const profile = option("--profile") || "public-testnet";
 const json = hasFlag("--json");
 const strict = hasFlag("--strict");
+const MAX_FAUCET_DAILY_CLAIMS = 100;
+const MAX_FAUCET_ETH_GRANT = 0.001;
+const MAX_FAUCET_TEST_OCEAN_GRANT = 10000;
+const MAX_FAUCET_TEST_USDC_GRANT = 100;
+const MIN_FAUCET_COOLDOWN_HOURS = 1;
 
 if (!["public-testnet", "paid-mainnet"].includes(profile)) {
   console.error(`Unknown readiness profile: ${profile}`);
@@ -125,7 +130,22 @@ function checkTestnetFaucet(env) {
   if (!env.FISH_TESTNET_FAUCET_RPC_URL) findings.push("FISH_TESTNET_FAUCET_RPC_URL is missing.");
   if (!address(env.FISH_TESTNET_FAUCET_OCEAN_TOKEN_ADDRESS)) findings.push("Test OCEAN token address is missing.");
   if (!address(env.FISH_TESTNET_FAUCET_USDC_TOKEN_ADDRESS)) findings.push("Test USDC token address is missing.");
-  if (number(env.FISH_TESTNET_FAUCET_MAX_DAILY_CLAIMS) <= 0) findings.push("Faucet daily claim cap must be positive.");
+  const dailyClaims = number(env.FISH_TESTNET_FAUCET_MAX_DAILY_CLAIMS);
+  const ethGrant = number(env.FISH_TESTNET_FAUCET_ETH_AMOUNT);
+  const oceanGrant = number(env.FISH_TESTNET_FAUCET_OCEAN_AMOUNT);
+  const usdcGrant = number(env.FISH_TESTNET_FAUCET_USDC_AMOUNT);
+  const walletCooldownHours = number(env.FISH_TESTNET_FAUCET_WALLET_COOLDOWN_HOURS);
+  const ipCooldownHours = number(env.FISH_TESTNET_FAUCET_IP_COOLDOWN_HOURS);
+  if (dailyClaims <= 0) findings.push("Faucet daily claim cap must be positive.");
+  if (dailyClaims > MAX_FAUCET_DAILY_CLAIMS) findings.push(`Faucet daily claim cap is too high for public testing; keep FISH_TESTNET_FAUCET_MAX_DAILY_CLAIMS <= ${MAX_FAUCET_DAILY_CLAIMS}.`);
+  if (ethGrant <= 0) findings.push("Faucet ETH grant must be positive.");
+  if (ethGrant > MAX_FAUCET_ETH_GRANT) findings.push(`Faucet ETH grant is too high for public testing; keep FISH_TESTNET_FAUCET_ETH_AMOUNT <= ${MAX_FAUCET_ETH_GRANT}.`);
+  if (oceanGrant <= 0) findings.push("Faucet Test OCEAN grant must be positive.");
+  if (oceanGrant > MAX_FAUCET_TEST_OCEAN_GRANT) findings.push(`Faucet Test OCEAN grant is too high for public testing; keep FISH_TESTNET_FAUCET_OCEAN_AMOUNT <= ${MAX_FAUCET_TEST_OCEAN_GRANT}.`);
+  if (usdcGrant <= 0) findings.push("Faucet Test USDC grant must be positive.");
+  if (usdcGrant > MAX_FAUCET_TEST_USDC_GRANT) findings.push(`Faucet Test USDC grant is too high for public testing; keep FISH_TESTNET_FAUCET_USDC_AMOUNT <= ${MAX_FAUCET_TEST_USDC_GRANT}.`);
+  if (walletCooldownHours < MIN_FAUCET_COOLDOWN_HOURS) findings.push(`Wallet cooldown is too low; keep FISH_TESTNET_FAUCET_WALLET_COOLDOWN_HOURS >= ${MIN_FAUCET_COOLDOWN_HOURS}.`);
+  if (ipCooldownHours < MIN_FAUCET_COOLDOWN_HOURS) findings.push(`IP cooldown is too low; keep FISH_TESTNET_FAUCET_IP_COOLDOWN_HOURS >= ${MIN_FAUCET_COOLDOWN_HOURS}.`);
   return result("Public testnet faucet", findings.length ? "partial" : "ready", findings);
 }
 
