@@ -57,8 +57,8 @@ contract FishOceanStaking is Initializable, ERC20Upgradeable, OwnableUpgradeable
     event Claimed(address indexed user, uint256 amount);
     event FishMinted(uint256 sOceanLocked, uint256 fishMinted);
     event FishBurned(uint256 sOceanUnlocked, uint256 fishBurned);
-    event TreasuryUpdated(address newTreasury);
-    event EmissionSourceUpdated(address newEmissionSource);
+    event TreasuryUpdated(address indexed newTreasury);
+    event EmissionSourceUpdated(address indexed newEmissionSource);
     event EmissionRateUpdated(uint256 newEmissionRate);
     event CooldownDurationUpdated(uint256 newCooldownDuration);
     event ProtocolEmissionsPercentageUpdated(uint256 newPercentage);
@@ -95,6 +95,8 @@ contract FishOceanStaking is Initializable, ERC20Upgradeable, OwnableUpgradeable
         ocean = IERC20(ocean_);
         fish = FishToken(fish_);
         treasury = treasury_;
+        // Optional: address(0) explicitly disables funded OCEAN rewards.
+        // slither-disable-next-line missing-zero-check
         emissionSource = emissionSource_;
         cooldownDuration = 7 days;
         protocolEmissionsPercentageWhenLocked = 2e17;
@@ -108,6 +110,8 @@ contract FishOceanStaking is Initializable, ERC20Upgradeable, OwnableUpgradeable
     }
 
     function setEmissionSource(address newEmissionSource) external onlyOwner {
+        // Optional: address(0) explicitly disables funded OCEAN rewards.
+        // slither-disable-next-line missing-zero-check
         emissionSource = newEmissionSource;
         emit EmissionSourceUpdated(newEmissionSource);
     }
@@ -321,7 +325,6 @@ contract FishOceanStaking is Initializable, ERC20Upgradeable, OwnableUpgradeable
         if (source == address(0)) return;
 
         uint256 emitted = timeElapsed * emissionRatePerSecond;
-        if (emitted == 0) return;
 
         uint256 protocolPortion = (emitted * protocolEmissionsPercentage) / PERCENT_SCALE;
         uint256 rawStakerPortion = emitted - protocolPortion;
@@ -331,7 +334,7 @@ contract FishOceanStaking is Initializable, ERC20Upgradeable, OwnableUpgradeable
         uint256 totalUnlockedSupply = rewardSupply - totalLockedStakedOcean;
         uint256 stakerPortionLocked = (rawStakerPortion * totalLockedStakedOcean) / rewardSupply;
         uint256 stakerPortionUnlocked = rawStakerPortion - stakerPortionLocked;
-        uint256 oceanToStakers;
+        uint256 oceanToStakers = 0;
 
         if (stakerPortionUnlocked > 0 && totalUnlockedSupply > 0) {
             uint256 stakerRewardDelta = (stakerPortionUnlocked * ACC_REWARD_SCALE) / totalUnlockedSupply;

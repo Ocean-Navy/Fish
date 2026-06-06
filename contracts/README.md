@@ -88,6 +88,8 @@ npm --prefix contracts run security:static:strict
 
 The invariant suite focuses on accounting and authorization properties that should remain true across staking, FISH mint/burn, capacity-pool staking, USDC settlement, reward emissions, cooldown exits, and owner/operator controls.
 
+See `SLITHER_TRIAGE.md` for the current detector triage and the remaining mainnet-readiness follow-ups.
+
 ## Base Sepolia Deployment
 
 Set a Base Sepolia RPC URL and a funded deployer key:

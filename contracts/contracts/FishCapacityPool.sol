@@ -200,14 +200,20 @@ contract FishCapacityPool is Ownable, Pausable, ReentrancyGuard {
         batch.claimed = true;
         if (batchId == oldestUnclaimedUnstakeBatch) oldestUnclaimedUnstakeBatch = batchId + 1;
 
-        IFishStake(address(fish)).unstake();
-
         address[] storage users = unstakeBatchUsers[batchId];
         uint256 count = users.length;
+        uint128[] memory amounts = new uint128[](count);
         for (uint256 i = 0; i < count; i++) {
             address user = users[i];
-            uint128 amount = unstakeBatchUserAmount[batchId][user];
+            amounts[i] = unstakeBatchUserAmount[batchId][user];
             delete unstakeBatchUserAmount[batchId][user];
+        }
+
+        IFishStake(address(fish)).unstake();
+
+        for (uint256 i = 0; i < count; i++) {
+            address user = users[i];
+            uint128 amount = amounts[i];
             fish.safeTransfer(user, amount);
             emit Unstaked(user, amount);
         }
