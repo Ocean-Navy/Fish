@@ -20,8 +20,21 @@ test("public testnet readiness treats paused paid checkout as manual", async () 
   const payments = summary.checks.find((check: { name: string }) => check.name === "Payments/mainnet checkout");
 
   assert.equal(summary.profile, "public-testnet");
+  assert.equal(summary.strict, false);
   assert.equal(payments.state, "manual");
   assert.match(payments.findings.join("\n"), /do not block a no-real-money public testnet/);
+});
+
+test("strict public testnet readiness fails on unresolved manual or partial checks", async () => {
+  const appEnv = await tempEnv("FISH_PAID_TOPUPS_PAUSED=true\n");
+  const result = runReadiness(["--env", appEnv, "--ocean-env", missingOceanEnv(), "--strict", "--json"]);
+
+  assert.equal(result.status, 1);
+  const summary = JSON.parse(result.stdout);
+
+  assert.equal(summary.profile, "public-testnet");
+  assert.equal(summary.strict, true);
+  assert.equal(summary.checks.some((check: { state: string }) => check.state !== "ready"), true);
 });
 
 test("paid mainnet readiness blocks while paid checkout is paused", async () => {

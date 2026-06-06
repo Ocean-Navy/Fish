@@ -246,7 +246,8 @@ Optional:
 
 ```bash
 npm run readiness:public-testnet -- --env .env.production --ocean-env .env.ocean-demo-stack --json
+npm run readiness:public-testnet -- --env .env.production --ocean-env .env.ocean-demo-stack --strict
 npm run readiness:public-testnet -- --profile paid-mainnet --env .env.production --ocean-env .env.ocean-demo-stack
 ```
 
-The command prints public-safe readiness states and never prints secrets.
+The default command exits non-zero only for blocked states. Use `--strict` when every manual and partial item must be resolved before a public link or security-scan handoff. The command prints public-safe readiness states and never prints secrets.

@@ -6,6 +6,7 @@ const rootEnvPath = option("--env") || ".env.production";
 const oceanEnvPath = option("--ocean-env") || ".env.ocean-demo-stack";
 const profile = option("--profile") || "public-testnet";
 const json = hasFlag("--json");
+const strict = hasFlag("--strict");
 
 if (!["public-testnet", "paid-mainnet"].includes(profile)) {
   console.error(`Unknown readiness profile: ${profile}`);
@@ -30,6 +31,7 @@ const checks = [
 const summary = {
   checkedAt: new Date().toISOString(),
   profile,
+  strict,
   env: {
     app: rootEnvPath,
     ocean: oceanEnvPath
@@ -50,7 +52,7 @@ if (json) {
   printSummary(summary);
 }
 
-process.exitCode = checks.some((check) => check.state === "blocked") ? 1 : 0;
+process.exitCode = checks.some((check) => check.state === "blocked") || (strict && checks.some((check) => check.state !== "ready")) ? 1 : 0;
 
 function checkPublicWeb(env, path) {
   const findings = [];
@@ -188,6 +190,7 @@ function result(name, state, findings) {
 function printSummary(summary) {
   console.log(`Fish public-testnet readiness (${summary.checkedAt})`);
   console.log(`profile: ${summary.profile}`);
+  if (summary.strict) console.log("strict: true");
   console.log(`app env: ${summary.env.app}`);
   console.log(`ocean env: ${summary.env.ocean}`);
   console.log("");
