@@ -3,7 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, test } from "node:test";
-import { requireAdmin } from "./fishLedger";
+import { parseChatCompletion, requireAdmin } from "./fishLedger";
 
 const originalAdminToken = process.env.FISH_ADMIN_TOKEN;
 const originalNodeEnv = process.env.NODE_ENV;
@@ -258,6 +258,24 @@ test("guest demo accounts cannot authenticate as bearer API keys or mint repeate
   assert.equal(second.account.id, first.account.id);
   assert.equal(second.account.creditBalance, 25);
   assert.equal(second.account.totalCreditsGranted, 25);
+});
+
+test("public chat parsing drops private batch payload metadata", () => {
+  const parsed = parseChatCompletion({
+    model: "fish-docs",
+    messages: [{ role: "user", content: "ping" }],
+    metadata: {
+      fish_feature: "docs",
+      fish_order_text: "hidden oversized private payload",
+      public_trace_id: "trace_123"
+    }
+  });
+
+  assert.equal(parsed.success, true);
+  if (!parsed.success) {
+    throw new Error("expected chat completion request to parse");
+  }
+  assert.deepEqual(parsed.data.metadata, { fish_feature: "docs", public_trace_id: "trace_123" });
 });
 
 test("requireAdmin rejects public placeholder admin tokens in production", () => {

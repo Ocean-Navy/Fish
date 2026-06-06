@@ -141,8 +141,18 @@ export const chatCompletionSchema = z.object({
   stream: z.boolean().optional().default(false),
   temperature: z.number().min(0).max(2).optional(),
   max_tokens: z.number().int().min(1).max(4096).optional(),
-  metadata: z.record(z.unknown()).optional()
+  metadata: z.record(z.unknown()).optional().transform(stripPublicChatMetadata)
 });
+
+function stripPublicChatMetadata(metadata: Record<string, unknown> | undefined) {
+  if (!metadata || !("fish_order_text" in metadata)) {
+    return metadata;
+  }
+
+  const { fish_order_text: _fishOrderText, ...safeMetadata } = metadata;
+  void _fishOrderText;
+  return safeMetadata;
+}
 
 export type ChatCompletionInput = z.infer<typeof chatCompletionSchema>;
 
