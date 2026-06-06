@@ -154,6 +154,8 @@ function checkPayments(env, profile) {
   if (!env.FISH_MAX_OUTSTANDING_PREPAID_CREDITS) blockers.push("FISH_MAX_OUTSTANDING_PREPAID_CREDITS is missing; paid top-ups must stay blocked.");
   if (!hasStripe && !hasUsdc) blockers.push("Neither Stripe nor USDC checkout is fully configured.");
   if (stripeSecretsConfigured && !stripePublicAppUrlConfigured) blockers.push("FISH_PUBLIC_APP_URL or NEXT_PUBLIC_FISH_APP_URL must be a public HTTPS origin for Stripe checkout.");
+  if (usdcConfig.touched && !usdcConfig.receiveAddressConfigured) blockers.push("FISH_USDC_RECEIVE_ADDRESS must be a valid Base mainnet receive address for USDC checkout.");
+  if (usdcConfig.touched && !usdcConfig.rpcConfigured) blockers.push("FISH_USDC_RPC_URL must be configured for Base mainnet USDC checkout.");
   if (usdcConfig.touched && !usdcConfig.chainConfigured) blockers.push("FISH_USDC_CHAIN_ID must be Base mainnet 8453 for paid USDC checkout.");
   if (usdcConfig.touched && !usdcConfig.tokenConfigured) blockers.push(`FISH_USDC_TOKEN_ADDRESS must be canonical Base USDC ${BASE_USDC_ADDRESS}.`);
   if (!publicCareUrl(env.FISH_BILLING_SUPPORT_URL)) blockers.push("FISH_BILLING_SUPPORT_URL is missing or not a public HTTP(S)/mailto URL.");
@@ -782,6 +784,8 @@ function usdcCheckoutConfig(env) {
 
   return {
     touched: Boolean(receiveAddress || rpcUrl || chainIdRaw || env.FISH_USDC_TOKEN_ADDRESS),
+    receiveAddressConfigured: address(receiveAddress),
+    rpcConfigured: Boolean(rpcUrl),
     chainConfigured,
     tokenConfigured,
     configured: address(receiveAddress) && Boolean(rpcUrl) && chainConfigured && tokenConfigured
