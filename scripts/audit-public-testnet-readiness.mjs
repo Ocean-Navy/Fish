@@ -198,13 +198,34 @@ function checkTestnetFaucet(env) {
 
 function checkContracts(env) {
   const findings = [];
-  if (env.FISH_CONTRACT_CHAIN_ID === "8453" && truthy(env.FISH_CONTRACT_ACTIONS_ENABLED) && !truthy(env.FISH_CONTRACT_MAINNET_WRITES_ALLOWED)) {
+  const chainId = String(env.FISH_CONTRACT_CHAIN_ID || env.NEXT_PUBLIC_FISH_CONTRACT_CHAIN_ID || env.FISH_USDC_CHAIN_ID || "8453").trim();
+  const actionsEnabled = truthy(env.FISH_CONTRACT_ACTIONS_ENABLED) || truthy(env.NEXT_PUBLIC_FISH_CONTRACT_ACTIONS_ENABLED);
+  const settlementSubmitEnabled = truthy(env.FISH_CONTRACT_SETTLEMENT_SUBMIT_ENABLED);
+  const requiredAddresses = {
+    "FISH_CONTRACT_OCEAN_TOKEN_ADDRESS": env.FISH_CONTRACT_OCEAN_TOKEN_ADDRESS || env.NEXT_PUBLIC_FISH_CONTRACT_OCEAN_TOKEN_ADDRESS,
+    "FISH_CONTRACT_USDC_TOKEN_ADDRESS": env.FISH_CONTRACT_USDC_TOKEN_ADDRESS || env.NEXT_PUBLIC_FISH_CONTRACT_USDC_TOKEN_ADDRESS || env.FISH_USDC_TOKEN_ADDRESS,
+    "FISH_CONTRACT_FISH_TOKEN_ADDRESS": env.FISH_CONTRACT_FISH_TOKEN_ADDRESS || env.NEXT_PUBLIC_FISH_CONTRACT_FISH_TOKEN_ADDRESS,
+    "FISH_CONTRACT_OCEAN_STAKING_ADDRESS": env.FISH_CONTRACT_OCEAN_STAKING_ADDRESS || env.NEXT_PUBLIC_FISH_CONTRACT_OCEAN_STAKING_ADDRESS,
+    "FISH_CONTRACT_CAPACITY_POOL_ADDRESS": env.FISH_CONTRACT_CAPACITY_POOL_ADDRESS || env.NEXT_PUBLIC_FISH_CONTRACT_CAPACITY_POOL_ADDRESS
+  };
+  const missingAddresses = Object.entries(requiredAddresses)
+    .filter(([, value]) => !address(value))
+    .map(([key]) => key);
+
+  if (chainId === "8453" && actionsEnabled && !truthy(env.FISH_CONTRACT_MAINNET_WRITES_ALLOWED)) {
     findings.push("Mainnet contract actions are enabled but mainnet write override is not enabled.");
+  }
+  if (profile === "public-testnet" && actionsEnabled && chainId !== "84532") {
+    findings.push("Public testnet contract actions must stay on Base Sepolia.");
   }
   if (truthy(env.FISH_CONTRACT_MAINNET_WRITES_ALLOWED)) {
     findings.push("Mainnet writes are enabled; require audit, multisig ownership, and incident runbook before public use.");
   }
   if (!env.FISH_CONTRACT_RPC_URL) findings.push("FISH_CONTRACT_RPC_URL is missing; contract pages remain read-only/static.");
+  if (missingAddresses.length) findings.push(`Required contract addresses are missing or invalid: ${missingAddresses.join(", ")}.`);
+  if (settlementSubmitEnabled && !safeSecret(env.FISH_CONTRACT_OPERATOR_PRIVATE_KEY)) {
+    findings.push("FISH_CONTRACT_SETTLEMENT_SUBMIT_ENABLED is true but FISH_CONTRACT_OPERATOR_PRIVATE_KEY is missing.");
+  }
   return result("Contract status and staking pages", findings.length ? "manual" : "ready", findings);
 }
 

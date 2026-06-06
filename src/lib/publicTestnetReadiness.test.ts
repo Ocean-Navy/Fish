@@ -146,6 +146,44 @@ test("public web readiness accepts a configured Ocean demo route", async () => {
   assert.doesNotMatch(web.findings.join("\n"), /Selected chat route/);
 });
 
+test("contract readiness requires addresses even when RPC is set", async () => {
+  const appEnv = await tempEnv(["FISH_PAID_TOPUPS_PAUSED=true", "FISH_CONTRACT_RPC_URL=https://sepolia.base.org"].join("\n"));
+  const result = runReadiness(["--env", appEnv, "--ocean-env", missingOceanEnv(), "--json"]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const summary = JSON.parse(result.stdout);
+  const contracts = summary.checks.find((check: { name: string }) => check.name === "Contract status and staking pages");
+
+  assert.equal(contracts.state, "manual");
+  assert.match(contracts.findings.join("\n"), /Required contract addresses are missing or invalid/);
+  assert.match(contracts.findings.join("\n"), /FISH_CONTRACT_FISH_TOKEN_ADDRESS/);
+});
+
+test("contract readiness accepts a Base Sepolia read-only deployment env", async () => {
+  const appEnv = await tempEnv(
+    [
+      "FISH_PAID_TOPUPS_PAUSED=true",
+      "FISH_CONTRACT_CHAIN_ID=84532",
+      "FISH_CONTRACT_CHAIN_NAME=Base Sepolia",
+      "FISH_CONTRACT_EXPLORER_URL=https://sepolia.basescan.org",
+      "FISH_CONTRACT_RPC_URL=https://sepolia.base.org",
+      "FISH_CONTRACT_OCEAN_TOKEN_ADDRESS=0x1111111111111111111111111111111111111111",
+      "FISH_CONTRACT_USDC_TOKEN_ADDRESS=0x2222222222222222222222222222222222222222",
+      "FISH_CONTRACT_FISH_TOKEN_ADDRESS=0x3333333333333333333333333333333333333333",
+      "FISH_CONTRACT_OCEAN_STAKING_ADDRESS=0x4444444444444444444444444444444444444444",
+      "FISH_CONTRACT_CAPACITY_POOL_ADDRESS=0x5555555555555555555555555555555555555555"
+    ].join("\n")
+  );
+  const result = runReadiness(["--env", appEnv, "--ocean-env", missingOceanEnv(), "--json"]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const summary = JSON.parse(result.stdout);
+  const contracts = summary.checks.find((check: { name: string }) => check.name === "Contract status and staking pages");
+
+  assert.equal(contracts.state, "ready");
+  assert.deepEqual(contracts.findings, []);
+});
+
 test("public testnet readiness can derive web env from the Ocean demo stack", async () => {
   const { keyId, privateKeyPem } = runnerSigningKey();
   const appEnv = await tempEnv(["FISH_PAID_TOPUPS_PAUSED=true", "FISH_ADMIN_TOKEN=12345678901234567890123456789012", "FISH_GUEST_ID_SALT=12345678901234567890123456789012"].join("\n"));

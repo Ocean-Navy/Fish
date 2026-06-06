@@ -158,6 +158,18 @@ FISH_CONTRACT_SETTLEMENT_SUBMIT_ENABLED=false
 FISH_CONTRACT_MAINNET_WRITES_ALLOWED=false
 ```
 
+The contract/staking readiness check turns green only after the web env has a matching RPC URL plus all required deployment addresses:
+
+```text
+FISH_CONTRACT_OCEAN_TOKEN_ADDRESS
+FISH_CONTRACT_USDC_TOKEN_ADDRESS
+FISH_CONTRACT_FISH_TOKEN_ADDRESS
+FISH_CONTRACT_OCEAN_STAKING_ADDRESS
+FISH_CONTRACT_CAPACITY_POOL_ADDRESS
+```
+
+For public tester wallet actions, use Base Sepolia (`FISH_CONTRACT_CHAIN_ID=84532`). Mainnet writes remain a separate paid-mainnet milestone.
+
 ## Step 6: Public Tester UX
 
 For testers without funds:
