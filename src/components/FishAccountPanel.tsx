@@ -937,6 +937,7 @@ function formatBillingBlockers(blockers: string[] | undefined) {
     paid_topups_paused: "Top-ups are paused.",
     paid_credit_liability_cap_not_configured: "The prepaid credit cap is not set.",
     payment_provider_not_configured: "Card or USDC checkout is not configured.",
+    stripe_test_mode_not_allowed: "Stripe test mode is disabled for production checkout.",
     billing_support_url_not_configured: "Support contact is not configured.",
     billing_refund_policy_not_configured: "Refund policy is not configured."
   };

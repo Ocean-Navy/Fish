@@ -3,6 +3,7 @@ import { afterEach, test } from "node:test";
 import { createStripeCheckoutPayment, createUsdcPayment, normalizeFishPaymentAmount, parseStripeCheckoutRequest, parseUsdcCheckoutRequest, summarizeBillingReadiness } from "./fishPayments";
 import type { Account } from "./fishLedger";
 
+const ORIGINAL_NODE_ENV = process.env.NODE_ENV;
 const PAYMENT_ENV_KEYS = [
   "FISH_MAX_CHECKOUT_USD",
   "FISH_MAX_OUTSTANDING_PREPAID_CREDITS",
@@ -14,6 +15,7 @@ const PAYMENT_ENV_KEYS = [
   "FISH_BILLING_SUPPORT_URL",
   "FISH_STRIPE_SECRET_KEY",
   "FISH_STRIPE_WEBHOOK_SECRET",
+  "FISH_STRIPE_TEST_MODE_ALLOWED",
   "FISH_USDC_RECEIVE_ADDRESS",
   "FISH_USDC_RPC_URL",
   "FISH_USDC_CHAIN_ID",
@@ -25,6 +27,7 @@ afterEach(() => {
   for (const key of PAYMENT_ENV_KEYS) {
     delete process.env[key];
   }
+  setNodeEnv(ORIGINAL_NODE_ENV);
 });
 
 test("payment amount normalization derives credits from dollars", () => {
@@ -221,6 +224,40 @@ test("billing readiness enables configured providers only after caps are set and
   assert.deepEqual(readiness.blockers, []);
 });
 
+test("billing readiness rejects Stripe test-mode keys in production", () => {
+  setNodeEnv("production");
+  process.env.FISH_MAX_OUTSTANDING_PREPAID_CREDITS = "100000";
+  process.env.FISH_BILLING_SUPPORT_URL = "mailto:support@op.fish";
+  process.env.FISH_BILLING_REFUND_POLICY_URL = "https://op.fish/refunds";
+  process.env.FISH_PUBLIC_APP_URL = "https://op.fish";
+  process.env.FISH_STRIPE_SECRET_KEY = "sk_test_configured";
+  process.env.FISH_STRIPE_WEBHOOK_SECRET = "whsec_configured";
+
+  const readiness = summarizeBillingReadiness();
+
+  assert.equal(readiness.checkoutAvailable, false);
+  assert.equal(readiness.providers.stripe.configured, false);
+  assert.deepEqual(readiness.blockers, ["payment_provider_not_configured", "stripe_test_mode_not_allowed"]);
+  assert.ok(readiness.warnings.includes("Stripe test-mode keys are disabled in production checkout unless FISH_STRIPE_TEST_MODE_ALLOWED=true is set for a private test."));
+});
+
+test("billing readiness allows Stripe test-mode keys in production only with explicit override", () => {
+  setNodeEnv("production");
+  process.env.FISH_STRIPE_TEST_MODE_ALLOWED = "true";
+  process.env.FISH_MAX_OUTSTANDING_PREPAID_CREDITS = "100000";
+  process.env.FISH_BILLING_SUPPORT_URL = "mailto:support@op.fish";
+  process.env.FISH_BILLING_REFUND_POLICY_URL = "https://op.fish/refunds";
+  process.env.FISH_PUBLIC_APP_URL = "https://op.fish";
+  process.env.FISH_STRIPE_SECRET_KEY = "sk_test_configured";
+  process.env.FISH_STRIPE_WEBHOOK_SECRET = "whsec_configured";
+
+  const readiness = summarizeBillingReadiness();
+
+  assert.equal(readiness.checkoutAvailable, true);
+  assert.equal(readiness.providers.stripe.configured, true);
+  assert.deepEqual(readiness.blockers, []);
+});
+
 test("billing readiness rejects Stripe checkout without a public app URL", () => {
   process.env.FISH_MAX_OUTSTANDING_PREPAID_CREDITS = "100000";
   process.env.FISH_BILLING_SUPPORT_URL = "mailto:support@op.fish";
@@ -234,6 +271,24 @@ test("billing readiness rejects Stripe checkout without a public app URL", () =>
   assert.equal(readiness.providers.stripe.configured, false);
   assert.deepEqual(readiness.blockers, ["payment_provider_not_configured", "stripe_public_app_url_not_configured"]);
   assert.ok(readiness.warnings.includes("Stripe checkout requires FISH_PUBLIC_APP_URL or NEXT_PUBLIC_FISH_APP_URL to be a public HTTPS origin."));
+});
+
+test("Stripe checkout rejects production test-mode keys before contacting Stripe", async () => {
+  setNodeEnv("production");
+  process.env.FISH_MAX_OUTSTANDING_PREPAID_CREDITS = "100000";
+  process.env.FISH_BILLING_SUPPORT_URL = "mailto:support@op.fish";
+  process.env.FISH_BILLING_REFUND_POLICY_URL = "https://op.fish/refunds";
+  process.env.FISH_PUBLIC_APP_URL = "https://op.fish";
+  process.env.FISH_STRIPE_SECRET_KEY = "sk_test_configured";
+  process.env.FISH_STRIPE_WEBHOOK_SECRET = "whsec_configured";
+
+  const result = await createStripeCheckoutPayment(testAccount(), { amountUsd: 5 });
+
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.equal(result.status, 503);
+    assert.equal(result.error, "stripe_test_mode_not_allowed");
+  }
 });
 
 test("Stripe checkout rejects off-origin return URLs before contacting Stripe", async () => {
@@ -375,6 +430,15 @@ function configureUsdcCheckoutEnv() {
   process.env.FISH_BILLING_REFUND_POLICY_URL = "https://op.fish/refunds";
   process.env.FISH_USDC_RECEIVE_ADDRESS = "0x1111111111111111111111111111111111111111";
   process.env.FISH_USDC_RPC_URL = "https://base-mainnet.example";
+}
+
+function setNodeEnv(value: string | undefined) {
+  const mutableEnv = process.env as Record<string, string | undefined>;
+  if (value === undefined) {
+    delete mutableEnv["NODE_ENV"];
+    return;
+  }
+  mutableEnv["NODE_ENV"] = value;
 }
 
 function testAccount(): Account {
