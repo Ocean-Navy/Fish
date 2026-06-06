@@ -35,6 +35,8 @@ make ocean-demo-smoke FISH_OCEAN_DEMO_ENV=.env.ocean-demo-stack
 
 Paste the generated values into private env files only. The command prints admin tokens, adapter keys, runner signing keys, proof signing keys, salts, and optional throwaway wallet keys.
 
+The readiness script also audits the selected Ocean compute environment. `FISH_OCEAN_COMPUTE_ENV_ID` must match an environment inside `OCEAN_NODE_DOCKER_COMPUTE_ENVIRONMENTS`, and that environment must restrict `free.access.addresses` to the Ocean proof wallet used by the workload adapter.
+
 For a public tester deployment, keep sensitive services private:
 
 ```text
@@ -203,6 +205,7 @@ guest salt is set
 daily budgets are low
 adapter key is not a placeholder
 runner and proof signing keys are configured
+selected Ocean compute environment free access is restricted to the proof wallet
 all private services bind to localhost/private network
 nginx/TLS is active on the public web host
 ```

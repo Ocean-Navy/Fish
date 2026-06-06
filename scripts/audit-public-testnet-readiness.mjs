@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
+import { mnemonicToAccount, privateKeyToAccount } from "viem/accounts";
 
 const rootEnvPath = option("--env") || ".env.production";
 const oceanEnvPath = option("--ocean-env") || ".env.ocean-demo-stack";
@@ -70,6 +71,7 @@ function checkOceanDemo(env, path) {
   if (!safeSecret(env.OCEAN_NODE_PRIVATE_KEY)) findings.push("OCEAN_NODE_PRIVATE_KEY is missing.");
   if (!safeSecret(env.OCEAN_PROOF_PRIVATE_KEY) && !safeSecret(env.OCEAN_PROOF_MNEMONIC)) findings.push("OCEAN proof wallet is missing.");
   if (!env.FISH_OCEAN_COMPUTE_ENV_ID) findings.push("FISH_OCEAN_COMPUTE_ENV_ID is missing.");
+  findings.push(...checkFreeComputeAccess(env));
   if (publicBind(env.OCEAN_NODE_HTTP_BIND)) findings.push("OCEAN_NODE_HTTP_BIND is public.");
   if (publicBind(env.OCEAN_WORKLOAD_ADAPTER_BIND)) findings.push("OCEAN_WORKLOAD_ADAPTER_BIND is public.");
   if (publicBind(env.OCEAN_NODE_P2P_BIND)) findings.push("OCEAN_NODE_P2P_BIND is public; use only when intentionally joining P2P.");
@@ -234,6 +236,91 @@ function dockerComposeConfig(envPath) {
     return { ok: true };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "compose_config_failed" };
+  }
+}
+
+function checkFreeComputeAccess(env) {
+  const findings = [];
+  const raw = String(env.OCEAN_NODE_DOCKER_COMPUTE_ENVIRONMENTS || "").trim();
+  if (!raw) {
+    return ["OCEAN_NODE_DOCKER_COMPUTE_ENVIRONMENTS is missing; free compute access cannot be audited."];
+  }
+
+  const parsed = readJson(raw);
+  if (!parsed.ok) {
+    return [`OCEAN_NODE_DOCKER_COMPUTE_ENVIRONMENTS is not valid JSON: ${parsed.error}`];
+  }
+
+  const environments = extractComputeEnvironments(parsed.value);
+  if (!environments.length) {
+    return ["OCEAN_NODE_DOCKER_COMPUTE_ENVIRONMENTS has no compute environments."];
+  }
+
+  const selectedId = String(env.FISH_OCEAN_COMPUTE_ENV_ID || "").trim();
+  const selected = selectedId ? environments.filter((environment) => environment.id === selectedId) : environments;
+  if (selectedId && !selected.length) {
+    return [`FISH_OCEAN_COMPUTE_ENV_ID=${selectedId} was not found in OCEAN_NODE_DOCKER_COMPUTE_ENVIRONMENTS.`];
+  }
+
+  const proofWallet = deriveProofWalletAddress(env);
+  if (proofWallet.error) {
+    findings.push(proofWallet.error);
+  }
+
+  for (const environment of selected) {
+    const label = environment.id ? `Compute environment ${environment.id}` : "Selected compute environment";
+    const addresses = Array.isArray(environment.free?.access?.addresses) ? environment.free.access.addresses.map((value) => String(value).trim()).filter(Boolean) : [];
+    if (!addresses.length) {
+      findings.push(`${label} has empty free.access.addresses; restrict free jobs to the Ocean proof wallet.`);
+      continue;
+    }
+    const invalidAddresses = addresses.filter((value) => !address(value));
+    if (invalidAddresses.length) {
+      findings.push(`${label} has invalid free.access.addresses entries.`);
+    }
+    if (proofWallet.address && !addresses.some((value) => value.toLowerCase() === proofWallet.address.toLowerCase())) {
+      findings.push(`${label} free.access.addresses does not include the Ocean proof wallet ${proofWallet.address}.`);
+    }
+  }
+
+  return findings;
+}
+
+function extractComputeEnvironments(value) {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    if (Array.isArray(entry?.environments)) return entry.environments;
+    return entry && typeof entry === "object" && entry.id ? [entry] : [];
+  });
+}
+
+function deriveProofWalletAddress(env) {
+  const privateKey = String(env.OCEAN_PROOF_PRIVATE_KEY || "").trim();
+  if (privateKey) {
+    try {
+      return { address: privateKeyToAccount(privateKey).address, error: null };
+    } catch {
+      return { address: null, error: "OCEAN_PROOF_PRIVATE_KEY is set but cannot derive a proof wallet address for the free compute allowlist check." };
+    }
+  }
+
+  const mnemonic = String(env.OCEAN_PROOF_MNEMONIC || "").trim();
+  if (mnemonic) {
+    try {
+      return { address: mnemonicToAccount(mnemonic).address, error: null };
+    } catch {
+      return { address: null, error: "OCEAN_PROOF_MNEMONIC is set but cannot derive a proof wallet address for the free compute allowlist check." };
+    }
+  }
+
+  return { address: null, error: null };
+}
+
+function readJson(value) {
+  try {
+    return { ok: true, value: JSON.parse(value) };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "parse_failed" };
   }
 }
 
