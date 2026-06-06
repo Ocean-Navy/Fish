@@ -7,13 +7,14 @@ import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/U
 import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 import {FishToken} from "./FishToken.sol";
 
 /// @title FishOceanStaking
 /// @notice Venice StakingV2-inspired OCEAN lock and FISH minting prototype.
 /// @dev The key compatibility change from Venice is that OCEAN rewards are
-/// pulled from an optional funded emission source instead of minting OCEAN.
+/// allocated from a pre-funded reserve instead of minting OCEAN.
 contract FishOceanStaking is Initializable, ERC20Upgradeable, OwnableUpgradeable, UUPSUpgradeable {
     using SafeERC20 for IERC20;
 
@@ -33,6 +34,7 @@ contract FishOceanStaking is Initializable, ERC20Upgradeable, OwnableUpgradeable
     uint256 public protocolEmissionsPercentage;
     uint256 public protocolEmissionsPercentageWhenLocked;
     uint256 public totalLockedStakedOcean;
+    uint256 public emissionReserve;
 
     uint256[256] public fishSupply;
     uint256[256] public fishMintRates;
@@ -59,6 +61,7 @@ contract FishOceanStaking is Initializable, ERC20Upgradeable, OwnableUpgradeable
     event FishBurned(uint256 sOceanUnlocked, uint256 fishBurned);
     event TreasuryUpdated(address indexed newTreasury);
     event EmissionSourceUpdated(address indexed newEmissionSource);
+    event EmissionReserveFunded(address indexed funder, uint256 amount);
     event EmissionRateUpdated(uint256 newEmissionRate);
     event CooldownDurationUpdated(uint256 newCooldownDuration);
     event ProtocolEmissionsPercentageUpdated(uint256 newPercentage);
@@ -80,6 +83,8 @@ contract FishOceanStaking is Initializable, ERC20Upgradeable, OwnableUpgradeable
     error NoCooldown();
     error MinAmountOut();
     error NonTransferable();
+    error FundingZero();
+    error InvalidEmissionFunder();
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -100,6 +105,7 @@ contract FishOceanStaking is Initializable, ERC20Upgradeable, OwnableUpgradeable
         emissionSource = emissionSource_;
         cooldownDuration = 7 days;
         protocolEmissionsPercentageWhenLocked = 2e17;
+        // slither-disable-next-line timestamp
         lastRewardTimestamp = block.timestamp;
     }
 
@@ -114,6 +120,16 @@ contract FishOceanStaking is Initializable, ERC20Upgradeable, OwnableUpgradeable
         // slither-disable-next-line missing-zero-check
         emissionSource = newEmissionSource;
         emit EmissionSourceUpdated(newEmissionSource);
+    }
+
+    function fundEmissions(uint256 amount) external {
+        if (amount == 0) revert FundingZero();
+        address source = emissionSource;
+        if (source == address(0) || msg.sender != source) revert InvalidEmissionFunder();
+
+        ocean.safeTransferFrom(msg.sender, address(this), amount);
+        emissionReserve += amount;
+        emit EmissionReserveFunded(msg.sender, amount);
     }
 
     function setEmissionRate(uint256 newEmissionRate) external onlyOwner {
@@ -171,6 +187,7 @@ contract FishOceanStaking is Initializable, ERC20Upgradeable, OwnableUpgradeable
         _claim(msg.sender);
         _burn(msg.sender, amount);
 
+        // slither-disable-next-line timestamp
         stakeInfo.cooldownEnd = block.timestamp + cooldownDuration;
         stakeInfo.cooldownAmount = amount;
         stakeInfo.rewardDebt = _getRewardDebt(msg.sender);
@@ -181,6 +198,7 @@ contract FishOceanStaking is Initializable, ERC20Upgradeable, OwnableUpgradeable
     function finalizeUnstake() external {
         StakeInfo storage stakeInfo = stakes[msg.sender];
         if (stakeInfo.cooldownAmount == 0) revert NoCooldown();
+        // slither-disable-next-line timestamp
         if (block.timestamp < stakeInfo.cooldownEnd) revert CooldownNotOver();
 
         uint256 amount = stakeInfo.cooldownAmount;
@@ -209,10 +227,9 @@ contract FishOceanStaking is Initializable, ERC20Upgradeable, OwnableUpgradeable
         lockedStake.sOceanLockedAmount += sOceanAmountToLock;
         totalLockedStakedOcean += sOceanAmountToLock;
 
-        fish.mint(msg.sender, fishAmountOut);
         stakes[msg.sender].rewardDebt = _getRewardDebt(msg.sender);
-
         emit FishMinted(sOceanAmountToLock, fishAmountOut);
+        fish.mint(msg.sender, fishAmountOut);
     }
 
     function burnFish(uint256 fishAmountToBurn) external {
@@ -223,7 +240,8 @@ contract FishOceanStaking is Initializable, ERC20Upgradeable, OwnableUpgradeable
 
         _claim(msg.sender);
 
-        uint256 sOceanToUnlock = (fishAmountToBurn * lockedStake.sOceanLockedAmount) / lockedStake.outstandingFishAmount;
+        uint256 sOceanToUnlock =
+            Math.mulDiv(fishAmountToBurn, lockedStake.sOceanLockedAmount, lockedStake.outstandingFishAmount);
         if (lockedStake.sOceanLockedAmount < sOceanToUnlock) revert InsufficientLockedBalance();
 
         lockedStake.sOceanLockedAmount -= sOceanToUnlock;
@@ -231,10 +249,9 @@ contract FishOceanStaking is Initializable, ERC20Upgradeable, OwnableUpgradeable
         lockedStake.outstandingFishAmount -= fishAmountToBurn;
         totalLockedStakedOcean -= sOceanToUnlock;
 
-        fish.burn(msg.sender, fishAmountToBurn);
         stakes[msg.sender].rewardDebt = _getRewardDebt(msg.sender);
-
         emit FishBurned(sOceanToUnlock, fishAmountToBurn);
+        fish.burn(msg.sender, fishAmountToBurn);
     }
 
     function getFishAmountOut(uint256 sOceanAmountToLock) public view returns (uint256 fishAmountOut) {
@@ -269,35 +286,37 @@ contract FishOceanStaking is Initializable, ERC20Upgradeable, OwnableUpgradeable
         uint256 localAccRewardPerShare = accRewardPerShare;
         uint256 localAccRewardPerShareLocked = accRewardPerShareLocked;
 
+        // slither-disable-next-line timestamp
         if (block.timestamp > lastRewardTimestamp && emissionRatePerSecond > 0) {
+            // slither-disable-next-line timestamp
             uint256 timeElapsed = block.timestamp - lastRewardTimestamp;
-            uint256 emitted = timeElapsed * emissionRatePerSecond;
-            uint256 protocolPortion = (emitted * protocolEmissionsPercentage) / PERCENT_SCALE;
+            uint256 emitted = _availableEmissionForElapsed(timeElapsed);
+            uint256 protocolPortion = Math.mulDiv(emitted, protocolEmissionsPercentage, PERCENT_SCALE);
             uint256 rawStakerPortion = emitted - protocolPortion;
             uint256 rewardSupply = _rewardEligibleSupply();
 
             if (rewardSupply > 0 && rawStakerPortion > 0) {
-                uint256 stakerPortionLocked = (rawStakerPortion * totalLockedStakedOcean) / rewardSupply;
+                uint256 stakerPortionLocked = Math.mulDiv(rawStakerPortion, totalLockedStakedOcean, rewardSupply);
                 uint256 stakerPortionUnlocked = rawStakerPortion - stakerPortionLocked;
                 uint256 totalUnlockedSupply = rewardSupply - totalLockedStakedOcean;
 
                 if (stakerPortionUnlocked > 0 && totalUnlockedSupply > 0) {
-                    localAccRewardPerShare += (stakerPortionUnlocked * ACC_REWARD_SCALE) / totalUnlockedSupply;
+                    localAccRewardPerShare += Math.mulDiv(stakerPortionUnlocked, ACC_REWARD_SCALE, totalUnlockedSupply);
                 }
 
                 if (stakerPortionLocked > 0 && totalLockedStakedOcean > 0) {
                     uint256 protocolPortionLocked =
-                        (stakerPortionLocked * protocolEmissionsPercentageWhenLocked) / PERCENT_SCALE;
+                        Math.mulDiv(stakerPortionLocked, protocolEmissionsPercentageWhenLocked, PERCENT_SCALE);
                     uint256 stakerPortionLockedForRewards = stakerPortionLocked - protocolPortionLocked;
                     localAccRewardPerShareLocked +=
-                        (stakerPortionLockedForRewards * ACC_REWARD_SCALE) / totalLockedStakedOcean;
+                        Math.mulDiv(stakerPortionLockedForRewards, ACC_REWARD_SCALE, totalLockedStakedOcean);
                 }
             }
         }
 
-        uint256 userAccumulated = (balanceOfUnlocked(user) * localAccRewardPerShare) / ACC_REWARD_SCALE;
+        uint256 userAccumulated = Math.mulDiv(balanceOfUnlocked(user), localAccRewardPerShare, ACC_REWARD_SCALE);
         uint256 userAccumulatedLocked =
-            (lockedStakes[user].sOceanLockedAmount * localAccRewardPerShareLocked) / ACC_REWARD_SCALE;
+            Math.mulDiv(lockedStakes[user].sOceanLockedAmount, localAccRewardPerShareLocked, ACC_REWARD_SCALE);
         return userAccumulated + userAccumulatedLocked - stakes[user].rewardDebt;
     }
 
@@ -305,6 +324,7 @@ contract FishOceanStaking is Initializable, ERC20Upgradeable, OwnableUpgradeable
         return balanceOf(user) - lockedStakes[user].sOceanLockedAmount;
     }
 
+    // slither-disable-start timestamp
     function _claim(address user) internal {
         _updateGlobalReward();
         uint256 pending = pendingRewards(user);
@@ -313,64 +333,77 @@ contract FishOceanStaking is Initializable, ERC20Upgradeable, OwnableUpgradeable
             emit Claimed(user, pending);
         }
     }
+    // slither-disable-end timestamp
 
     function _updateGlobalReward() internal {
+        // slither-disable-next-line timestamp
         if (block.timestamp <= lastRewardTimestamp) return;
 
+        // slither-disable-next-line timestamp
         uint256 timeElapsed = block.timestamp - lastRewardTimestamp;
+        // slither-disable-next-line timestamp
         lastRewardTimestamp = block.timestamp;
 
         if (emissionRatePerSecond == 0) return;
-        address source = emissionSource;
-        if (source == address(0)) return;
+        if (emissionSource == address(0)) return;
 
-        uint256 emitted = timeElapsed * emissionRatePerSecond;
+        uint256 emitted = _availableEmissionForElapsed(timeElapsed);
 
-        uint256 protocolPortion = (emitted * protocolEmissionsPercentage) / PERCENT_SCALE;
+        uint256 protocolPortion = Math.mulDiv(emitted, protocolEmissionsPercentage, PERCENT_SCALE);
         uint256 rawStakerPortion = emitted - protocolPortion;
         uint256 rewardSupply = _rewardEligibleSupply();
         if (rewardSupply == 0) return;
 
         uint256 totalUnlockedSupply = rewardSupply - totalLockedStakedOcean;
-        uint256 stakerPortionLocked = (rawStakerPortion * totalLockedStakedOcean) / rewardSupply;
+        uint256 stakerPortionLocked = Math.mulDiv(rawStakerPortion, totalLockedStakedOcean, rewardSupply);
         uint256 stakerPortionUnlocked = rawStakerPortion - stakerPortionLocked;
         uint256 oceanToStakers = 0;
 
         if (stakerPortionUnlocked > 0 && totalUnlockedSupply > 0) {
-            uint256 stakerRewardDelta = (stakerPortionUnlocked * ACC_REWARD_SCALE) / totalUnlockedSupply;
+            uint256 stakerRewardDelta = Math.mulDiv(stakerPortionUnlocked, ACC_REWARD_SCALE, totalUnlockedSupply);
             if (stakerRewardDelta > 0) {
-                uint256 distributed = (stakerRewardDelta * totalUnlockedSupply) / ACC_REWARD_SCALE;
+                uint256 distributed = Math.mulDiv(stakerRewardDelta, totalUnlockedSupply, ACC_REWARD_SCALE);
                 accRewardPerShare += stakerRewardDelta;
                 oceanToStakers += distributed;
             }
         }
 
         if (stakerPortionLocked > 0 && totalLockedStakedOcean > 0) {
-            uint256 protocolPortionLocked = (stakerPortionLocked * protocolEmissionsPercentageWhenLocked) / PERCENT_SCALE;
+            uint256 protocolPortionLocked = Math.mulDiv(stakerPortionLocked, protocolEmissionsPercentageWhenLocked, PERCENT_SCALE);
             uint256 stakerPortionLockedForRewards = stakerPortionLocked - protocolPortionLocked;
             uint256 lockedStakerRewardDelta =
-                (stakerPortionLockedForRewards * ACC_REWARD_SCALE) / totalLockedStakedOcean;
+                Math.mulDiv(stakerPortionLockedForRewards, ACC_REWARD_SCALE, totalLockedStakedOcean);
             if (lockedStakerRewardDelta > 0) {
                 uint256 distributedToLockedStakers =
-                    (lockedStakerRewardDelta * totalLockedStakedOcean) / ACC_REWARD_SCALE;
+                    Math.mulDiv(lockedStakerRewardDelta, totalLockedStakedOcean, ACC_REWARD_SCALE);
                 accRewardPerShareLocked += lockedStakerRewardDelta;
                 oceanToStakers += distributedToLockedStakers;
             }
             protocolPortion += protocolPortionLocked;
         }
 
-        if (protocolPortion > 0) ocean.safeTransferFrom(source, treasury, protocolPortion);
-        if (oceanToStakers > 0) ocean.safeTransferFrom(source, address(this), oceanToStakers);
+        uint256 allocated = protocolPortion + oceanToStakers;
+        if (allocated > 0) emissionReserve -= allocated;
+        if (protocolPortion > 0) ocean.safeTransfer(treasury, protocolPortion);
     }
+
+    // slither-disable-start timestamp
+    function _availableEmissionForElapsed(uint256 timeElapsed) internal view returns (uint256) {
+        if (emissionSource == address(0)) return 0;
+        uint256 emitted = timeElapsed * emissionRatePerSecond;
+        uint256 reserve = emissionReserve;
+        return emitted < reserve ? emitted : reserve;
+    }
+    // slither-disable-end timestamp
 
     function _rewardEligibleSupply() internal view returns (uint256) {
         return totalSupply() - balanceOf(address(this));
     }
 
     function _getRewardDebt(address user) internal view returns (uint256) {
-        uint256 userAccumulated = (balanceOfUnlocked(user) * accRewardPerShare) / ACC_REWARD_SCALE;
+        uint256 userAccumulated = Math.mulDiv(balanceOfUnlocked(user), accRewardPerShare, ACC_REWARD_SCALE);
         uint256 userAccumulatedLocked =
-            (lockedStakes[user].sOceanLockedAmount * accRewardPerShareLocked) / ACC_REWARD_SCALE;
+            Math.mulDiv(lockedStakes[user].sOceanLockedAmount, accRewardPerShareLocked, ACC_REWARD_SCALE);
         return userAccumulated + userAccumulatedLocked;
     }
 

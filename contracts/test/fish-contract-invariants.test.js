@@ -60,35 +60,41 @@ describe("Fish contract security invariants", function () {
 
   it("does not create emissions, treasury transfers, or pending rewards without reward-eligible supply", async function () {
     const { operator, treasury, emissionSource, ocean, staking } = await deploySystem();
+    const stakingAddress = await staking.getAddress();
 
-    await ocean.connect(emissionSource).approve(await staking.getAddress(), parse("5000"));
+    await ocean.connect(emissionSource).approve(stakingAddress, parse("5000"));
+    await staking.connect(emissionSource).fundEmissions(parse("5000"));
     await staking.setEmissionRate(parse("2"));
 
     for (let i = 0; i < 5; i++) {
       await increaseTime(30);
       await staking.connect(operator).claim();
-      expect(await ocean.balanceOf(emissionSource.address)).to.equal(parse("10000"));
+      expect(await ocean.balanceOf(emissionSource.address)).to.equal(parse("5000"));
       expect(await ocean.balanceOf(treasury.address)).to.equal(0n);
-      expect(await ocean.balanceOf(await staking.getAddress())).to.equal(0n);
+      expect(await ocean.balanceOf(stakingAddress)).to.equal(parse("5000"));
+      expect(await staking.emissionReserve()).to.equal(parse("5000"));
       expect(await staking.pendingRewards(operator.address)).to.equal(0n);
     }
   });
 
   it("allows the operator to clear the optional emission source to disable funded rewards", async function () {
     const { holder, treasury, emissionSource, ocean, staking } = await deploySystem();
+    const stakingAddress = await staking.getAddress();
 
-    await ocean.connect(holder).approve(await staking.getAddress(), parse("100"));
+    await ocean.connect(holder).approve(stakingAddress, parse("100"));
     await staking.connect(holder).stake(holder.address, parse("100"));
-    await ocean.connect(emissionSource).approve(await staking.getAddress(), parse("1000"));
+    await ocean.connect(emissionSource).approve(stakingAddress, parse("1000"));
+    await staking.connect(emissionSource).fundEmissions(parse("1000"));
     await staking.setEmissionRate(parse("1"));
     await staking.setEmissionSource(ZERO_ADDRESS);
     await increaseTime(100);
 
     await staking.connect(holder).claim();
 
-    expect(await ocean.balanceOf(emissionSource.address)).to.equal(parse("10000"));
+    expect(await ocean.balanceOf(emissionSource.address)).to.equal(parse("9000"));
     expect(await ocean.balanceOf(treasury.address)).to.equal(0n);
-    expect(await ocean.balanceOf(await staking.getAddress())).to.equal(parse("100"));
+    expect(await ocean.balanceOf(stakingAddress)).to.equal(parse("1100"));
+    expect(await staking.emissionReserve()).to.equal(parse("1000"));
     expect(await staking.pendingRewards(holder.address)).to.equal(0n);
   });
 
@@ -122,12 +128,21 @@ describe("Fish contract security invariants", function () {
   });
 
   it("enforces role and operator boundaries on security-sensitive contract controls", async function () {
-    const { holder, holderTwo, operator, ocean, usdc, fish, staking, capacityPool } = await deploySystem();
+    const { holder, holderTwo, operator, emissionSource, ocean, usdc, fish, staking, capacityPool } =
+      await deploySystem();
     const poolAddress = await capacityPool.getAddress();
 
     await expect(staking.connect(holder).setEmissionRate(parse("1"))).to.be.revertedWithCustomError(
       staking,
       "OwnableUnauthorizedAccount"
+    );
+    await expect(staking.connect(emissionSource).fundEmissions(0)).to.be.revertedWithCustomError(
+      staking,
+      "FundingZero"
+    );
+    await expect(staking.connect(holder).fundEmissions(parse("1"))).to.be.revertedWithCustomError(
+      staking,
+      "InvalidEmissionFunder"
     );
     await expect(capacityPool.connect(holder).setOperator(holder.address, true)).to.be.revertedWithCustomError(
       capacityPool,

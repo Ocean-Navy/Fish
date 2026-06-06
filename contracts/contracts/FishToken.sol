@@ -68,6 +68,7 @@ contract FishToken is ERC20, AccessControl {
         StakedInfo storage stakedInfo = stakedInfos[msg.sender];
         if (stakedInfo.amountStaked < amount) revert InsufficientStakedBalance();
 
+        // slither-disable-next-line timestamp
         stakedInfo.coolDownEnd = block.timestamp + cooldownDuration;
         stakedInfo.coolDownAmount += amount;
         stakedInfo.amountStaked -= amount;
@@ -78,6 +79,7 @@ contract FishToken is ERC20, AccessControl {
     function unstake() external {
         StakedInfo storage stakedInfo = stakedInfos[msg.sender];
         if (stakedInfo.coolDownAmount == 0) revert NoCooldown();
+        // slither-disable-next-line timestamp
         if (block.timestamp < stakedInfo.coolDownEnd) revert CooldownNotOver();
 
         uint256 amount = stakedInfo.coolDownAmount;
