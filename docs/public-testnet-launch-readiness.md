@@ -228,6 +228,7 @@ Ocean batch proof is snapshot evidence from our local Ocean Node.
 ```
 
 Detailed receipts, provider payouts, benchmarks, and capacity-pool rows belong below the fold or in JSON/API links.
+Keep raw setup labels such as node URL, environment id, algorithm DID, dataset DID, adapter mode, and free-compute flags out of the first public proof surface. Public users should see whether Fish can serve a test dish through the Ocean path, whether a public-safe ticket exists, what source label applies, and what still needs to happen.
 
 ## Step 10: Real Ocean/Oncompute Proof Later
 

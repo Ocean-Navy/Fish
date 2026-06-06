@@ -43,6 +43,7 @@ export function PublicProofPage({
       ? "Selected provider runs have public proof."
       : "The market is open, and proof is still early.";
   const heroUpdatedAt = oceanProof.proof.latestReceiptAt ?? proof.lastUpdated;
+  const oceanNextSteps = oceanProof.blockers.map(publicOceanBlocker);
   const plainProofCards = [
     {
       icon: Utensils,
@@ -163,35 +164,35 @@ export function PublicProofPage({
 
       <MetricGroup title="Ocean Path" eyebrow="Proof gate" state={oceanProof.dataState}>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <ProofTile label="Adapter" value={oceanProof.adapter.reachable ? "Reachable" : "Not ready"} detail={oceanProof.adapter.mode ? `mode ${oceanProof.adapter.mode}` : "no adapter"} />
-          <ProofTile label="Traffic gate" value={oceanProof.trafficReady ? "Ready" : "Blocked"} detail={oceanProof.adapter.liveReady ? "live adapter" : "needs live config"} />
-          <ProofTile label="Proof receipt" value={oceanProof.proof.hasNonSampleReceipt ? "Found" : "Missing"} detail={`${formatCompact(oceanProof.proof.nonSampleJobs)} non-sample jobs`} />
-          <ProofTile label="Daily budget" value={formatUsd(oceanProof.route.dailyBudgetUsd)} detail={oceanProof.route.batchEndpointConfigured ? "batch endpoint set" : "no batch endpoint"} />
+          <ProofTile label="Ocean kitchen" value={oceanProof.trafficReady ? "Connected" : "Waiting"} detail={oceanProof.trafficReady ? "Fish can send test dishes through the private Ocean path." : "The private Ocean path is not ready for testers yet."} />
+          <ProofTile label="First Ocean dish" value={hasOceanBatchProof ? "Recorded" : "Waiting"} detail={hasOceanBatchProof ? `${formatCompact(oceanProof.proof.nonSampleJobs)} public-safe ticket${oceanProof.proof.nonSampleJobs === 1 ? "" : "s"}` : "Run one successful non-sample dish first."} />
+          <ProofTile label="Proof level" value={sourceLabel(oceanProof.dataState)} detail={hasOceanBatchProof ? "Local Ocean Node evidence, not external paid demand." : "No Ocean workload claim yet."} />
+          <ProofTile label="Daily test cap" value={formatUsd(oceanProof.route.dailyBudgetUsd)} detail="Small public-test budget guard." />
         </div>
         <div className="mt-3 grid gap-3 lg:grid-cols-[1.1fr_0.9fr]">
           <div className="rounded-[1.5rem] border border-fish-accent/20 bg-fish-surface/80 p-5 shadow-harbor">
-            <p className="text-xs font-black uppercase tracking-[0.12em] text-fish-gold">What blocks Ocean proof?</p>
-            {oceanProof.blockers.length ? (
+            <p className="text-xs font-black uppercase tracking-[0.12em] text-fish-gold">Next proof step</p>
+            {oceanNextSteps.length ? (
               <ul className="mt-4 space-y-2">
-                {oceanProof.blockers.map((blocker) => (
-                  <li key={blocker} className="rounded-2xl border border-fish-coral/25 bg-fish-coral/10 p-3 text-sm font-black leading-6 text-fish-primary">
-                    {blocker}
+                {oceanNextSteps.map((step) => (
+                  <li key={step} className="rounded-2xl border border-fish-coral/25 bg-fish-coral/10 p-3 text-sm font-black leading-6 text-fish-primary">
+                    {step}
                   </li>
                 ))}
               </ul>
             ) : (
-              <p className="mt-4 rounded-2xl border border-emerald-300/25 bg-emerald-400/10 p-3 text-sm font-black leading-6 text-emerald-100">Local Ocean batch proof is ready for public review.</p>
+              <p className="mt-4 rounded-2xl border border-emerald-300/25 bg-emerald-400/10 p-3 text-sm font-black leading-6 text-emerald-100">
+                Local Ocean batch proof is ready for public review. Keep it labeled snapshot until an external Oncompute job proves paid third-party demand.
+              </p>
             )}
           </div>
           <div className="rounded-[1.5rem] border border-fish-accent/20 bg-fish-surface/80 p-5 shadow-harbor">
-            <p className="text-xs font-black uppercase tracking-[0.12em] text-fish-gold">Selected pieces</p>
-            <div className="mt-4 grid grid-cols-2 gap-2">
-              <MiniStat label="Node" value={yesNo(oceanProof.adapter.selected.nodeUrlConfigured)} />
-              <MiniStat label="Env" value={yesNo(oceanProof.adapter.selected.computeEnvIdConfigured)} />
-              <MiniStat label="Algo" value={yesNo(oceanProof.adapter.selected.algoDidConfigured)} />
-              <MiniStat label="Data" value={yesNo(oceanProof.adapter.selected.datasetDidsConfigured)} />
-              <MiniStat label="Output" value={yesNo(oceanProof.adapter.selected.outputConfigured)} />
-              <MiniStat label="Free" value={oceanProof.adapter.configuredForFreeCompute === null ? "-" : yesNo(oceanProof.adapter.configuredForFreeCompute)} />
+            <p className="text-xs font-black uppercase tracking-[0.12em] text-fish-gold">What this means</p>
+            <div className="mt-4 space-y-2">
+              <MeaningRow label="For users" value={oceanProof.proofReady ? "A test dish has Ocean proof." : "Orders are still in demo or setup mode."} />
+              <MeaningRow label="For builders" value={oceanProof.trafficReady ? "The private batch path is reachable." : "Use JSON proof only as setup evidence."} />
+              <MeaningRow label="For Ocean ecosystem" value={hasOceanBatchProof ? "Fish can show local Ocean Node usage." : "Usage proof still needs the first Ocean dish."} />
+              <MeaningRow label="For Oncompute" value="External paid demand is not claimed yet." />
             </div>
           </div>
         </div>
@@ -380,6 +381,15 @@ function MiniStat({ label, value }: { label: string; value: string }) {
   );
 }
 
+function MeaningRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-3">
+      <p className="text-xs font-black uppercase tracking-[0.08em] text-fish-secondary">{label}</p>
+      <p className="mt-1 text-sm font-black leading-6 text-white">{value}</p>
+    </div>
+  );
+}
+
 function EmptyHarbor({ text }: { text: string }) {
   return (
     <div className="rounded-[1.5rem] border border-dashed border-fish-accent/25 bg-fish-surface/60 p-6 text-lg font-black leading-8 text-fish-primary">
@@ -398,6 +408,17 @@ function statusClass(status: string) {
   return "bg-red-500/15 text-red-100";
 }
 
-function yesNo(value: boolean) {
-  return value ? "Yes" : "No";
+function sourceLabel(state: DataState) {
+  if (state === "live") return "Live";
+  if (state === "snapshot") return "Snapshot";
+  if (state === "unavailable") return "Not ready";
+  return "Sample";
+}
+
+function publicOceanBlocker(blocker: string) {
+  if (blocker.includes("FISH_OCEAN_BATCH_ENDPOINT")) return "Connect Fish to the private Ocean batch kitchen.";
+  if (blocker.includes("not reachable")) return "Bring the private Ocean batch kitchen online.";
+  if (blocker.includes("not live-ready")) return "Finish the Ocean Node job settings in the private adapter.";
+  if (blocker.includes("No successful non-sample Ocean batch receipt")) return "Run one successful Ocean dish and record its public-safe ticket.";
+  return "Finish the next private Ocean proof setup step.";
 }
