@@ -640,6 +640,7 @@ For the public tester checklist, run:
 
 ```bash
 npm run secrets:public-testnet
+npm run proof:algorithm-smoke
 npm run ocean-demo:web-env -- --env .env.ocean-demo-stack --host <private-gpu-vm-host>
 npm run readiness:public-testnet -- --env .env.production.example --app-env-overlay .env.production.private --derive-ocean-web-env-host <private-gpu-vm-host>
 npm run readiness:public-testnet
@@ -652,6 +653,8 @@ Use an absolute private backup target such as `/var/backups/fish`. Do not point 
 `npm run readiness:public-testnet` uses the no-real-money public-testnet profile by default. It treats intentionally paused paid checkout as a manual follow-up, not as a public-testnet blocker. Add `--strict` when every manual and partial item must be resolved. `--app-env-overlay <private-env>` lets the audit merge private host settings such as admin tokens, guest salts, backup targets, and proof signing keys without printing their values. `--derive-ocean-web-env-host <private-gpu-vm-host>` lets the audit evaluate the private Ocean adapter/Fish Runner web-env block without printing its keys. Before paid Stripe/USDC launch, run `npm run readiness:public-testnet -- --profile paid-mainnet`. `npm run secrets:public-testnet` prints generated starter values for private env files; it includes secrets and should not be committed or pasted into public notes. See `docs/public-testnet-launch-readiness.md`.
 
 The readiness audit also checks repository hygiene. Runtime ledgers, private env files, local contract deployment artifacts, backups, nginx password files, provider allowlists, and proof signing keys must stay ignored and untracked before a public link or security scan.
+
+`npm run proof:algorithm-smoke` checks the prepared Fish Docs Bento Ocean algorithm locally with no wallet, RPC, or Ocean CLI. Run it before publishing the algorithm DID for the first real Ocean/Oncompute proof.
 
 To open the public tester faucet after Base Sepolia test token contracts exist, generate a private web-app overlay instead of editing the public example env:
 

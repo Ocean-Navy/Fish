@@ -19,6 +19,14 @@ The metadata template is based on the official Ocean CLI `pythonAlgo.json` examp
 
 ## Local Test
 
+Run the full local smoke:
+
+```bash
+npm run proof:algorithm-smoke
+```
+
+That command verifies the no-dataset proof path and the local text-dataset summary path, including the output hash and private proof receipt.
+
 No dataset:
 
 ```bash

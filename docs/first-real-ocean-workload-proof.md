@@ -150,6 +150,14 @@ deploy/ocean-workload-adapter/algorithms/fish-document-summary/
 
 It can summarize text dataset files, but it also supports `FISH_OCEAN_DATASET_DIDS=[]` for the first no-dataset Ocean compute proof.
 
+Before publishing the algorithm asset, smoke the reviewed local bundle:
+
+```bash
+npm run proof:algorithm-smoke
+```
+
+This runs the algorithm with no dataset and with a small local text dataset, then verifies the private proof receipt, output mode, document hash, and output hash. It does not contact Ocean, use a wallet, or write public proof.
+
 The public-testnet readiness audit keeps the two proof claims separate. A local Ocean Node adapter can make the local proof path ready, but the `External Oncompute proof` check stays manual until the private adapter env is explicitly live and has a non-local `NODE_URL`, wallet, HTTP(S) RPC, dataset DID list, algorithm DID, compute environment id, and Ocean CLI checkout path or binary. Paid jobs must set both `FISH_OCEAN_PAYMENT_TOKEN` and valid JSON `FISH_OCEAN_RESOURCES`; leave both empty only for free external compute.
 
 ## Adapter Contract
@@ -277,6 +285,7 @@ OCEAN_CLI_DIR=/Users/robin/Projects/opfish/.deps/ocean-cli
 Publish the first Fish algorithm after `PRIVATE_KEY`, `RPC`, and `NODE_URL` are exported:
 
 ```bash
+npm run proof:algorithm-smoke
 commit="$(git rev-parse HEAD)"
 export FISH_ALGORITHM_FILE_URL="https://raw.githubusercontent.com/Ocean-Navy/Fish/${commit}/deploy/ocean-workload-adapter/algorithms/fish-document-summary/algorithm.py"
 scripts/publish-fish-document-summary-algorithm.sh --env-file .env.ocean-proof.local

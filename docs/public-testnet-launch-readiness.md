@@ -278,6 +278,7 @@ Before a public tester link goes out:
 ```bash
 npm run secrets:public-testnet
 npm run verify
+npm run proof:algorithm-smoke
 npm run readiness:public-testnet
 docker compose config >/tmp/fish-compose.yml
 make ocean-demo-smoke FISH_OCEAN_DEMO_ENV=.env.ocean-demo-stack
@@ -328,6 +329,14 @@ non-sample Fish receipt
 ```
 
 Until then, keep the claim at local Ocean Node snapshot proof.
+
+Before publishing the first algorithm DID, verify the prepared Docs Bento algorithm locally:
+
+```bash
+npm run proof:algorithm-smoke
+```
+
+This checks the no-dataset proof mode and a local text-dataset summary mode without using a wallet, RPC, Ocean CLI, or public proof ledger.
 
 The readiness audit has a separate `External Oncompute proof` gate for this. It remains manual for `local_ocean_node` mode or local/private `NODE_URL` values, even when the local demo stack is healthy. It turns ready only when the private workload adapter is in `live` mode with a strong adapter key, proof wallet, HTTP(S) RPC, non-local Ocean/Oncompute node URL, `FISH_OCEAN_DATASET_DIDS` (use `[]` for a self-contained first algorithm), `FISH_OCEAN_ALGO_DID`, `FISH_OCEAN_COMPUTE_ENV_ID`, and either `OCEAN_CLI_DIR` or `FISH_OCEAN_CLI_BIN`.
 

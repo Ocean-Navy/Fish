@@ -12,6 +12,7 @@
     "backup:runtime": "node scripts/backup-runtime-data.mjs",
     "secrets:public-testnet": "node scripts/generate-public-testnet-secrets.mjs",
     "ocean-demo:web-env": "node scripts/print-ocean-demo-web-env.mjs",
+    "proof:algorithm-smoke": "node scripts/smoke-fish-document-summary-algorithm.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "eslint app src",
     "smoke": "npm run typecheck && npm run build",
