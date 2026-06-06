@@ -7,7 +7,9 @@ const PROVIDER_PROOF_ENV_KEYS = [
   "FISH_PROVIDER_PROOF_PUBLIC_KEY_ID",
   "FISH_PROVIDER_PROOF_PUBLIC_KEY_PEM",
   "FISH_PROVIDER_PROOF_PUBLIC_KEYS_JSON",
-  "FISH_PROVIDER_PROOF_PUBLIC_KEYS_PATH"
+  "FISH_PROVIDER_PROOF_PUBLIC_KEYS_PATH",
+  "FISH_PROVIDER_PROOF_SIGNING_KEY_ID",
+  "FISH_PROVIDER_PROOF_SIGNING_PRIVATE_KEY_PEM"
 ] as const;
 
 afterEach(() => {
@@ -71,6 +73,19 @@ test("provider receipt verification accepts signatures from configured trusted k
   const trustedKey = generateProofKey("trusted-provider-proof-key");
   process.env.FISH_PROVIDER_PROOF_PUBLIC_KEY_ID = trustedKey.keyId;
   process.env.FISH_PROVIDER_PROOF_PUBLIC_KEY_PEM = trustedKey.publicKeyPem;
+  const receipt = signReceipt(buildReceipt({ signerKeyId: trustedKey.keyId, signerPublicKeyPem: trustedKey.publicKeyPem }), trustedKey.privateKeyPem);
+
+  const verification = verifyProviderJobReceipt(receipt);
+
+  assert.equal(verification.ok, true);
+  assert.equal(verification.error, null);
+});
+
+test("provider receipt verification trusts configured signing private key", () => {
+  clearProviderProofEnv();
+  const trustedKey = generateProofKey("managed-provider-proof-key");
+  process.env.FISH_PROVIDER_PROOF_SIGNING_KEY_ID = trustedKey.keyId;
+  process.env.FISH_PROVIDER_PROOF_SIGNING_PRIVATE_KEY_PEM = trustedKey.privateKeyPem;
   const receipt = signReceipt(buildReceipt({ signerKeyId: trustedKey.keyId, signerPublicKeyPem: trustedKey.publicKeyPem }), trustedKey.privateKeyPem);
 
   const verification = verifyProviderJobReceipt(receipt);

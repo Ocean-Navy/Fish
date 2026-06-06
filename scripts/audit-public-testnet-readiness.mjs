@@ -114,9 +114,20 @@ function checkContracts(env) {
 
 function checkDataHygiene(env) {
   const findings = [];
+  const hasPinnedProofPublicKey = env.FISH_PROVIDER_PROOF_PUBLIC_KEYS_JSON || env.FISH_PROVIDER_PROOF_PUBLIC_KEYS_PATH || env.FISH_PROVIDER_PROOF_PUBLIC_KEY_PEM;
+  const hasManagedProofSigningKey = env.FISH_PROVIDER_PROOF_SIGNING_KEY_ID && safeSecret(env.FISH_PROVIDER_PROOF_SIGNING_PRIVATE_KEY_PEM);
   if (!env.FISH_DATA_BACKUP_TARGET) findings.push("No FISH_DATA_BACKUP_TARGET configured; run npm run backup:runtime with a private output path or move ledgers to a database before public scale.");
-  if (!env.FISH_PROVIDER_PROOF_PUBLIC_KEYS_JSON && !env.FISH_PROVIDER_PROOF_PUBLIC_KEYS_PATH && !env.FISH_PROVIDER_PROOF_PUBLIC_KEY_PEM) {
-    findings.push("No pinned provider proof public key configured; local prototype signing key is acceptable only for private tests.");
+  if (!hasPinnedProofPublicKey && !hasManagedProofSigningKey) {
+    findings.push("No secret-managed provider proof signing key or pinned provider proof public key configured; local prototype signing key is acceptable only for private tests.");
+  }
+  if (env.FISH_PROVIDER_PROOF_SIGNING_KEY_ID && !safeSecret(env.FISH_PROVIDER_PROOF_SIGNING_PRIVATE_KEY_PEM)) {
+    findings.push("FISH_PROVIDER_PROOF_SIGNING_KEY_ID is set but FISH_PROVIDER_PROOF_SIGNING_PRIVATE_KEY_PEM is missing or weak.");
+  }
+  if (env.FISH_PROVIDER_PROOF_SIGNING_PRIVATE_KEY_PEM && !env.FISH_PROVIDER_PROOF_SIGNING_KEY_ID) {
+    findings.push("FISH_PROVIDER_PROOF_SIGNING_PRIVATE_KEY_PEM is set but FISH_PROVIDER_PROOF_SIGNING_KEY_ID is missing.");
+  }
+  if (env.FISH_PROVIDER_PROOF_PUBLIC_KEY_ID && env.FISH_PROVIDER_PROOF_SIGNING_KEY_ID && env.FISH_PROVIDER_PROOF_PUBLIC_KEY_ID !== env.FISH_PROVIDER_PROOF_SIGNING_KEY_ID) {
+    findings.push("Provider proof public key id does not match provider proof signing key id.");
   }
   return result("Data retention and backups", findings.length ? "manual" : "ready", findings);
 }
@@ -136,6 +147,11 @@ function checkOperations(appEnv, oceanEnv) {
     findings.push("HOSTNAME is unusual for Next standalone; verify nginx/systemd routing.");
   }
   if (!safeSecret(appEnv.FISH_GUEST_ID_SALT)) findings.push("FISH_GUEST_ID_SALT is empty; set it before a public guest demo.");
+  if (!appEnv.FISH_RUNNER_PUBLIC_KEY_ID || !appEnv.FISH_RUNNER_PUBLIC_KEY_PEM) findings.push("Fish web app is missing trusted runner public key configuration.");
+  if (!oceanEnv.FISH_RUNNER_SIGNING_KEY_ID || !safeSecret(oceanEnv.FISH_RUNNER_SIGNING_PRIVATE_KEY_PEM)) findings.push("Fish Runner signing key is missing or weak.");
+  if (appEnv.FISH_RUNNER_PUBLIC_KEY_ID && oceanEnv.FISH_RUNNER_SIGNING_KEY_ID && appEnv.FISH_RUNNER_PUBLIC_KEY_ID !== oceanEnv.FISH_RUNNER_SIGNING_KEY_ID) {
+    findings.push("Fish web runner public key id does not match Fish Runner signing key id.");
+  }
   return result("Operational hardening", findings.length ? "partial" : "ready", findings);
 }
 

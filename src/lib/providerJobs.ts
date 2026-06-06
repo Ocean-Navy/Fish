@@ -1089,11 +1089,21 @@ type TrustedProviderProofKey = {
 
 function collectTrustedProviderProofKeys(): TrustedProviderProofKey[] {
   return [
+    ...trustedProviderProofKeyFromSigningEnv(),
     ...trustedProviderProofKeyFromLocalSigningKey(),
     ...trustedProviderProofKeysFromJson(cleanEnv(process.env.FISH_PROVIDER_PROOF_PUBLIC_KEYS_JSON)),
     ...trustedProviderProofKeysFromPath(cleanEnv(process.env.FISH_PROVIDER_PROOF_PUBLIC_KEYS_PATH)),
     ...trustedProviderProofKeyFromSingleEnv()
   ];
+}
+
+function trustedProviderProofKeyFromSigningEnv(): TrustedProviderProofKey[] {
+  try {
+    const signingKey = providerProofSigningKeyFromEnv();
+    return signingKey ? [{ keyId: signingKey.keyId, publicKeyPem: signingKey.publicKeyPem }] : [];
+  } catch {
+    return [];
+  }
 }
 
 function trustedProviderProofKeyFromLocalSigningKey(): TrustedProviderProofKey[] {
@@ -1164,6 +1174,11 @@ function cleanEnv(value: string | undefined) {
 }
 
 async function readOrCreateSigningKey(): Promise<ProofSigningKey> {
+  const envSigningKey = providerProofSigningKeyFromEnv();
+  if (envSigningKey) {
+    return envSigningKey;
+  }
+
   try {
     const raw = await readFile(SIGNING_KEY_PATH, "utf8");
     const parsed = signingKeySchema.safeParse(JSON.parse(raw));
@@ -1178,6 +1193,35 @@ async function readOrCreateSigningKey(): Promise<ProofSigningKey> {
   await mkdir(PROOF_DIR, { recursive: true });
   await writeFile(SIGNING_KEY_PATH, JSON.stringify(generated, null, 2), { mode: 0o600 });
   return generated;
+}
+
+function providerProofSigningKeyFromEnv(): ProofSigningKey | null {
+  const keyId = cleanEnv(process.env.FISH_PROVIDER_PROOF_SIGNING_KEY_ID);
+  const privateKeyPem = normalizePem(cleanEnv(process.env.FISH_PROVIDER_PROOF_SIGNING_PRIVATE_KEY_PEM));
+
+  if (!keyId && !privateKeyPem) {
+    return null;
+  }
+  if (!keyId || !privateKeyPem) {
+    throw new Error("provider_proof_signing_key_env_incomplete");
+  }
+
+  try {
+    const privateKey = createPrivateKey(privateKeyPem);
+    const publicKeyPem = normalizePem(createPublicKey(privateKey).export({ type: "spki", format: "pem" }).toString());
+    if (!publicKeyPem) {
+      throw new Error("provider_proof_signing_key_env_invalid");
+    }
+    return {
+      keyId,
+      algorithm: "ed25519",
+      publicKeyPem,
+      privateKeyPem,
+      createdAt: "env"
+    };
+  } catch {
+    throw new Error("provider_proof_signing_key_env_invalid");
+  }
 }
 
 function generateSigningKey(): ProofSigningKey {

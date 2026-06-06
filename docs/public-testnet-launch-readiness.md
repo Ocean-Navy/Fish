@@ -28,9 +28,12 @@ Use:
 
 ```bash
 cp deploy/ocean-demo-stack/env.example .env.ocean-demo-stack
+npm run secrets:public-testnet
 make ocean-demo-up-mlx FISH_OCEAN_DEMO_ENV=.env.ocean-demo-stack
 make ocean-demo-smoke FISH_OCEAN_DEMO_ENV=.env.ocean-demo-stack
 ```
+
+Paste the generated values into private env files only. The command prints admin tokens, adapter keys, runner signing keys, proof signing keys, salts, and optional throwaway wallet keys.
 
 For a public tester deployment, keep sensitive services private:
 
@@ -138,6 +141,10 @@ Before public testing, configure a backup target or move ledgers to a managed da
 
 ```text
 FISH_DATA_BACKUP_TARGET=<operator backup target or runbook reference>
+FISH_PROVIDER_PROOF_SIGNING_KEY_ID=<stable proof key id>
+FISH_PROVIDER_PROOF_SIGNING_PRIVATE_KEY_PEM=<stable proof signing private key>
+FISH_PROVIDER_PROOF_PUBLIC_KEY_ID=<same stable proof key id>
+FISH_PROVIDER_PROOF_PUBLIC_KEY_PEM=<stable proof public key>
 ```
 
 Back up:
@@ -171,6 +178,7 @@ Keep raw prompts and outputs out of public proof, dashboards, billing rows, and 
 Before a public tester link goes out:
 
 ```bash
+npm run secrets:public-testnet
 npm run verify
 npm run readiness:public-testnet
 docker compose config >/tmp/fish-compose.yml
@@ -184,6 +192,7 @@ admin token is not a placeholder
 guest salt is set
 daily budgets are low
 adapter key is not a placeholder
+runner and proof signing keys are configured
 all private services bind to localhost/private network
 nginx/TLS is active on the public web host
 ```
@@ -219,6 +228,7 @@ Until then, keep the claim at local Ocean Node snapshot proof.
 Run:
 
 ```bash
+npm run secrets:public-testnet
 npm run readiness:public-testnet
 ```
 

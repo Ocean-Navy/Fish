@@ -285,6 +285,8 @@ FISH_PROVIDER_PROOF_PUBLIC_KEY_ID=
 FISH_PROVIDER_PROOF_PUBLIC_KEY_PEM=
 FISH_PROVIDER_PROOF_PUBLIC_KEYS_JSON=
 FISH_PROVIDER_PROOF_PUBLIC_KEYS_PATH=
+FISH_PROVIDER_PROOF_SIGNING_KEY_ID=
+FISH_PROVIDER_PROOF_SIGNING_PRIVATE_KEY_PEM=
 FISH_EXTERNAL_CHAT_BASE_URL=
 FISH_EXTERNAL_CHAT_API_KEY=
 FISH_EXTERNAL_CHAT_MODEL=
@@ -600,16 +602,17 @@ curl -sS 'http://127.0.0.1:3000/api/proof/receipts/export?format=json&limit=50' 
   -H "x-fish-admin-token: $FISH_ADMIN_TOKEN"
 ```
 
-Provider job receipts, payout events, payout batches, capacity-pool settlement records, and the local prototype signing key are written under `data/proof/`, which is ignored by git and should be backed up or moved to a database/secret manager before public scale-up. Receipt verification trusts the local proof signing key when present, or a pinned provider proof key configured with `FISH_PROVIDER_PROOF_PUBLIC_KEY_ID`/`FISH_PROVIDER_PROOF_PUBLIC_KEY_PEM`, `FISH_PROVIDER_PROOF_PUBLIC_KEYS_JSON`, or `FISH_PROVIDER_PROOF_PUBLIC_KEYS_PATH`; it does not trust public keys embedded in receipt files.
+Provider job receipts, payout events, payout batches, capacity-pool settlement records, and the local prototype signing key are written under `data/proof/`, which is ignored by git and should be backed up or moved to a database/secret manager before public scale-up. Receipt signing uses `FISH_PROVIDER_PROOF_SIGNING_KEY_ID` and `FISH_PROVIDER_PROOF_SIGNING_PRIVATE_KEY_PEM` when set; otherwise the first run creates a local proof signing key. Receipt verification trusts the configured signing key, the local proof signing key when present, or a pinned provider proof key configured with `FISH_PROVIDER_PROOF_PUBLIC_KEY_ID`/`FISH_PROVIDER_PROOF_PUBLIC_KEY_PEM`, `FISH_PROVIDER_PROOF_PUBLIC_KEYS_JSON`, or `FISH_PROVIDER_PROOF_PUBLIC_KEYS_PATH`; it does not trust public keys embedded in receipt files.
 
 For the public tester checklist, run:
 
 ```bash
+npm run secrets:public-testnet
 npm run readiness:public-testnet
 npm run backup:runtime -- --dry-run
 ```
 
-See `docs/public-testnet-launch-readiness.md`.
+`npm run secrets:public-testnet` prints generated starter values for private env files; it includes secrets and should not be committed or pasted into public notes. See `docs/public-testnet-launch-readiness.md`.
 
 ## OCEAN Staking Credits
 

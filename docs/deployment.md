@@ -199,7 +199,7 @@ The V0 form sink, prototype API ledger, Ocean batch receipts, provider proof rec
 /app/data/staking
 ```
 
-Back up these volumes or replace the sinks with a database/email/CRM integration and secret-managed signing key before running a public campaign. Provider proof receipt verification trusts the local `data/proof/signing-key.json` public key when present; external verifiers or rotated deployments should pin provider proof public keys with `FISH_PROVIDER_PROOF_PUBLIC_KEY_ID`/`FISH_PROVIDER_PROOF_PUBLIC_KEY_PEM`, `FISH_PROVIDER_PROOF_PUBLIC_KEYS_JSON`, or `FISH_PROVIDER_PROOF_PUBLIC_KEYS_PATH` instead of trusting key material embedded in receipt JSON.
+Back up these volumes or replace the sinks with a database/email/CRM integration and a secret-managed signing key before running a public campaign. Provider proof receipt signing uses `FISH_PROVIDER_PROOF_SIGNING_KEY_ID` and `FISH_PROVIDER_PROOF_SIGNING_PRIVATE_KEY_PEM` when set; otherwise the first run creates `data/proof/signing-key.json`. Receipt verification trusts the configured signing key, the local signing key when present, or pinned provider proof keys configured with `FISH_PROVIDER_PROOF_PUBLIC_KEY_ID`/`FISH_PROVIDER_PROOF_PUBLIC_KEY_PEM`, `FISH_PROVIDER_PROOF_PUBLIC_KEYS_JSON`, or `FISH_PROVIDER_PROOF_PUBLIC_KEYS_PATH`; it does not trust public keys embedded in receipt JSON.
 
 On a host with the runtime `data/` directory mounted, create a private archive with:
 
@@ -303,6 +303,8 @@ FISH_PROVIDER_PROOF_PUBLIC_KEY_ID=
 FISH_PROVIDER_PROOF_PUBLIC_KEY_PEM=
 FISH_PROVIDER_PROOF_PUBLIC_KEYS_JSON=
 FISH_PROVIDER_PROOF_PUBLIC_KEYS_PATH=
+FISH_PROVIDER_PROOF_SIGNING_KEY_ID=
+FISH_PROVIDER_PROOF_SIGNING_PRIVATE_KEY_PEM=
 FISH_EXTERNAL_CHAT_BASE_URL=
 FISH_EXTERNAL_CHAT_API_KEY=
 FISH_EXTERNAL_CHAT_MODEL=
@@ -445,10 +447,13 @@ Expose Fish Runner and the adapter only through a private network, WireGuard, SS
 After the stack is running:
 
 ```bash
+npm run secrets:public-testnet
 scripts/smoke-ocean-demo-stack.sh .env.ocean-demo-stack
 npm run readiness:public-testnet
 npm run backup:runtime -- --dry-run
 ```
+
+`npm run secrets:public-testnet` prints generated starter values for private env files. Keep the output out of git, tickets, and public chat.
 
 Then point the public web VM at the private GPU stack:
 
