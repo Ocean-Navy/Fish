@@ -389,6 +389,27 @@ test("public testnet readiness can derive web env from the Ocean demo stack", as
   assert.doesNotMatch(operations.findings.join("\n"), /signing key id/);
 });
 
+test("public testnet readiness flags loopback derived Ocean web env hosts", async () => {
+  const { keyId, privateKeyPem } = runnerSigningKey();
+  const appEnv = await tempEnv(["FISH_PAID_TOPUPS_PAUSED=true", "FISH_ADMIN_TOKEN=12345678901234567890123456789012", "FISH_GUEST_ID_SALT=12345678901234567890123456789012"].join("\n"));
+  const oceanEnv = await tempEnv(
+    oceanEnvWithComputeAccess([PROOF_WALLET_ADDRESS], {
+      runnerSigningKeyId: keyId,
+      runnerSigningPrivateKeyPem: privateKeyPem,
+      runnerApiKey: "runner-key-12345678901234567890"
+    })
+  );
+  const result = runReadiness(["--env", appEnv, "--ocean-env", oceanEnv, "--derive-ocean-web-env-host", "127.0.0.1", "--json"]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const summary = JSON.parse(result.stdout);
+  const operations = summary.checks.find((check: { name: string }) => check.name === "Operational hardening");
+
+  assert.equal(operations.state, "partial");
+  assert.match(operations.findings.join("\n"), /loopback\/local host/);
+  assert.match(operations.findings.join("\n"), /GPU\/Ocean host private IP or DNS name/);
+});
+
 test("public testnet readiness accepts a private app env overlay without exposing secrets", async () => {
   const { keyId, privateKeyPem } = runnerSigningKey();
   const { publicKeyPem, privateKeyPem: providerProofPrivateKeyPem } = providerProofSigningKey();

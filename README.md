@@ -215,6 +215,7 @@ npm run ocean-demo:web-env -- --env .env.ocean-demo-stack --host <private-gpu-vm
 ```
 
 Add `--profile warm` through `make ocean-demo-up-warm` when the GPU host should also run vLLM and Fish Runner.
+Use a private GPU/Ocean host IP or private DNS name for `--host` when configuring a separate web VM. Loopback hosts such as `127.0.0.1`, `localhost`, and `host.docker.internal` are only for local single-machine testing and are flagged by the readiness audit.
 
 On Apple Silicon, run `mlx_lm.server` on the macOS host and start `make ocean-demo-up-mlx` instead. Docker will run Ocean Node, the adapter, and Fish Runner; Fish Runner calls MLX at `host.docker.internal:8080`.
 

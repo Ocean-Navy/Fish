@@ -297,8 +297,11 @@ function checkRepositoryHygiene() {
   return result("Repository hygiene", findings.length ? "manual" : "ready", findings);
 }
 
-function checkOperations(appEnv, oceanEnv) {
+function checkOperations(appEnv, oceanEnv, derivedOceanWebEnv) {
   const findings = [];
+  if (derivedOceanWebEnv?.host && loopbackHost(derivedOceanWebEnv.host)) {
+    findings.push("--derive-ocean-web-env-host points at a loopback/local host; use the GPU/Ocean host private IP or DNS name for a separate web VM.");
+  }
   for (const [key, value] of Object.entries({
     HOSTNAME: appEnv.HOSTNAME,
     OCEAN_NODE_HTTP_BIND: oceanEnv.OCEAN_NODE_HTTP_BIND,
@@ -393,6 +396,9 @@ function buildOceanWebEnv(oceanEnv, host, profile, scheme) {
   const runnerPublicKey = deriveRunnerPublicKeyFromOceanEnv(oceanEnv);
 
   return {
+    host,
+    profile,
+    scheme,
     env: {
       FISH_OCEAN_BATCH_ENDPOINT: `${scheme}://${host}:${adapterPort}/jobs`,
       FISH_OCEAN_BATCH_API_KEY: oceanEnv.OCEAN_WORKLOAD_ADAPTER_API_KEY || "",
@@ -779,6 +785,11 @@ function truthy(value) {
 function publicBind(value) {
   const cleaned = String(value || "").trim();
   return cleaned === "0.0.0.0" || cleaned === "::";
+}
+
+function loopbackHost(value) {
+  const cleaned = String(value || "").trim().toLowerCase().replace(/^\[/, "").replace(/\]$/, "");
+  return cleaned === "localhost" || cleaned === "127.0.0.1" || cleaned === "::1" || cleaned === "0.0.0.0" || cleaned === "host.docker.internal";
 }
 
 function address(value) {
