@@ -212,6 +212,8 @@ npm run backup:runtime -- --output-dir /var/backups/fish
 
 The archive and manifest are written with owner-only permissions. They may include API ledgers, provider proof signing keys, wallet intent rows, payout rows, and user submissions, so keep them off public storage. Restore by stopping Fish, extracting the archive from the repository root or deployed app root, checking ownership, then restarting Fish:
 
+Use an absolute private target such as `/var/backups/fish`. Do not write runtime backups into `public/`, `data/`, a relative repository path, or temporary storage. The backup dry run includes a target safety section, and public-readiness checks flag unsafe targets.
+
 ```bash
 systemctl stop fish-web
 tar -xzf /var/backups/fish/fish-runtime-data-....tar.gz -C /opt/fish-web

@@ -2,6 +2,7 @@
 import { execFileSync } from "node:child_process";
 import { createPublicKey } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
+import path from "node:path";
 import { mnemonicToAccount, privateKeyToAccount } from "viem/accounts";
 
 const rootEnvPath = option("--env") || ".env.production";
@@ -167,6 +168,7 @@ function checkDataHygiene(env) {
   const hasPinnedProofPublicKey = env.FISH_PROVIDER_PROOF_PUBLIC_KEYS_JSON || env.FISH_PROVIDER_PROOF_PUBLIC_KEYS_PATH || env.FISH_PROVIDER_PROOF_PUBLIC_KEY_PEM;
   const hasManagedProofSigningKey = env.FISH_PROVIDER_PROOF_SIGNING_KEY_ID && safeSecret(env.FISH_PROVIDER_PROOF_SIGNING_PRIVATE_KEY_PEM);
   if (!env.FISH_DATA_BACKUP_TARGET) findings.push("No FISH_DATA_BACKUP_TARGET configured; run npm run backup:runtime with a private output path or move ledgers to a database before public scale.");
+  if (env.FISH_DATA_BACKUP_TARGET) findings.push(...backupTargetFindings(env.FISH_DATA_BACKUP_TARGET));
   if (!hasPinnedProofPublicKey && !hasManagedProofSigningKey) {
     findings.push("No secret-managed provider proof signing key or pinned provider proof public key configured; local prototype signing key is acceptable only for private tests.");
   }
@@ -407,6 +409,41 @@ function readJson(value) {
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "parse_failed" };
   }
+}
+
+function backupTargetFindings(value) {
+  const target = String(value || "").trim();
+  if (!target) return [];
+  if (/^(managed-db|runbook):/i.test(target)) return [];
+
+  const findings = [];
+  if (!path.isAbsolute(target)) {
+    findings.push("FISH_DATA_BACKUP_TARGET should be an absolute private path or managed-db:/runbook: reference; relative paths can be committed or exposed accidentally.");
+  }
+
+  const resolved = path.resolve(target);
+  const repoRoot = path.resolve(process.cwd());
+  const publicDir = path.join(repoRoot, "public");
+  const dataDir = path.join(repoRoot, "data");
+
+  if (isInsidePath(resolved, publicDir)) {
+    findings.push("FISH_DATA_BACKUP_TARGET must not point inside public/.");
+  } else if (isInsidePath(resolved, dataDir)) {
+    findings.push("FISH_DATA_BACKUP_TARGET must not point inside data/.");
+  } else if (isInsidePath(resolved, repoRoot)) {
+    findings.push("FISH_DATA_BACKUP_TARGET should not point inside the repository checkout.");
+  }
+
+  if (isInsidePath(resolved, "/tmp") || isInsidePath(resolved, "/var/tmp")) {
+    findings.push("FISH_DATA_BACKUP_TARGET points at a temporary directory; use durable private storage before public traffic.");
+  }
+
+  return findings;
+}
+
+function isInsidePath(child, parent) {
+  const relative = path.relative(path.resolve(parent), path.resolve(child));
+  return relative === "" || (relative && !relative.startsWith("..") && !path.isAbsolute(relative));
 }
 
 function trustedRunnerKeyStatus(env) {

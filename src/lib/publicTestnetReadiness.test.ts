@@ -143,6 +143,18 @@ test("public testnet readiness accepts conservative faucet limits", async () => 
   assert.deepEqual(faucet.findings, []);
 });
 
+test("public testnet readiness flags unsafe backup targets", async () => {
+  const appEnv = await tempEnv(["FISH_PAID_TOPUPS_PAUSED=true", "FISH_DATA_BACKUP_TARGET=public/backups"].join("\n"));
+  const result = runReadiness(["--env", appEnv, "--ocean-env", missingOceanEnv(), "--json"]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const summary = JSON.parse(result.stdout);
+  const dataHygiene = summary.checks.find((check: { name: string }) => check.name === "Data retention and backups");
+
+  assert.equal(dataHygiene.state, "manual");
+  assert.match(dataHygiene.findings.join("\n"), /must not point inside public/);
+});
+
 test("Ocean demo readiness flags free compute without a wallet allowlist", async () => {
   const appEnv = await tempEnv("FISH_PAID_TOPUPS_PAUSED=true\n");
   const oceanEnv = await tempEnv(oceanEnvWithComputeAccess([]));

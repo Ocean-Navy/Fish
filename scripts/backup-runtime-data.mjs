@@ -14,17 +14,22 @@ const archivePath = path.resolve(outputDir, `fish-runtime-data-${timestamp}.tar.
 const root = process.cwd();
 
 const entries = runtimePaths.map((runtimePath) => inspectPath(runtimePath.replace(/^data\b/, dataDir)));
+const backupTarget = analyzeBackupTarget(outputDir);
 const manifest = {
   createdAt: new Date().toISOString(),
   dataDir,
   outputDir,
   dryRun,
+  backupTarget,
   includesSensitiveOperatorData: true,
   warning: "Archive may include API ledgers, proof signing keys, wallet intent rows, provider payout rows, and user submissions. Keep it private.",
   paths: entries
 };
 
 if (!dryRun) {
+  if (backupTarget.failures.length) {
+    fail(`Unsafe backup target: ${backupTarget.failures.join(" ")}`);
+  }
   mkdirSync(outputDir, { recursive: true, mode: 0o700 });
   const existingPaths = entries.filter((entry) => entry.exists).map((entry) => entry.path);
   if (!existingPaths.length) {
@@ -80,10 +85,53 @@ function sha256File(filePath) {
   return createHash("sha256").update(readFileSync(filePath)).digest("hex");
 }
 
+function analyzeBackupTarget(value) {
+  const target = String(value || "").trim();
+  const resolvedPath = path.resolve(target || "backups");
+  const repoRoot = path.resolve(root);
+  const publicDir = path.join(repoRoot, "public");
+  const dataRoot = path.resolve(dataDir);
+  const warnings = [];
+  const failures = [];
+
+  if (!path.isAbsolute(target)) {
+    warnings.push("Backup target is relative; use an absolute private path for public deployments.");
+  }
+  if (isInsidePath(resolvedPath, publicDir)) {
+    failures.push("Backup target must not be inside public/.");
+  } else if (isInsidePath(resolvedPath, dataRoot)) {
+    failures.push("Backup target must not be inside the runtime data directory.");
+  } else if (isInsidePath(resolvedPath, repoRoot)) {
+    warnings.push("Backup target is inside the repository checkout; avoid paths that can be committed or served accidentally.");
+  }
+  if (isInsidePath(resolvedPath, "/tmp") || isInsidePath(resolvedPath, "/var/tmp")) {
+    warnings.push("Backup target is temporary storage; use durable private storage before public traffic.");
+  }
+
+  return {
+    value: target,
+    resolvedPath,
+    ok: failures.length === 0,
+    warnings,
+    failures
+  };
+}
+
+function isInsidePath(child, parent) {
+  const relative = path.relative(path.resolve(parent), path.resolve(child));
+  return relative === "" || (relative && !relative.startsWith("..") && !path.isAbsolute(relative));
+}
+
 function printManifest(summary) {
   console.log(`Fish runtime backup${summary.dryRun ? " dry run" : ""}`);
   console.log(`data dir: ${summary.dataDir}`);
   console.log(`output: ${summary.outputDir}`);
+  for (const warning of summary.backupTarget.warnings) {
+    console.log(`warning: ${warning}`);
+  }
+  for (const failure of summary.backupTarget.failures) {
+    console.log(`unsafe:  ${failure}`);
+  }
   console.log("");
   for (const entry of summary.paths) {
     const state = entry.exists ? "found" : "missing";

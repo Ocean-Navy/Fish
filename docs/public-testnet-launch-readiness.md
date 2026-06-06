@@ -191,6 +191,8 @@ npm run backup:runtime -- --output-dir /var/backups/fish
 
 The archive can contain proof signing keys, API ledger data, payout records, wallet intent rows, and user submissions. Keep it private and restrict filesystem permissions.
 
+Use an absolute private target such as `/var/backups/fish`. Do not point `FISH_DATA_BACKUP_TARGET` at `public/`, `data/`, a relative repository path, or temporary storage. The readiness audit and backup dry run report these target risks before public traffic.
+
 Keep raw prompts and outputs out of public proof, dashboards, billing rows, and exports.
 
 ## Step 8: Operational Hardening
