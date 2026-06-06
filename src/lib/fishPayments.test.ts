@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
-import { createUsdcPayment, normalizeFishPaymentAmount, parseStripeCheckoutRequest, parseUsdcCheckoutRequest, summarizeBillingReadiness } from "./fishPayments";
+import { createStripeCheckoutPayment, createUsdcPayment, normalizeFishPaymentAmount, parseStripeCheckoutRequest, parseUsdcCheckoutRequest, summarizeBillingReadiness } from "./fishPayments";
 import type { Account } from "./fishLedger";
 
 const PAYMENT_ENV_KEYS = [
   "FISH_MAX_CHECKOUT_USD",
   "FISH_MAX_OUTSTANDING_PREPAID_CREDITS",
   "FISH_MIN_CHECKOUT_USD",
+  "FISH_PUBLIC_APP_URL",
   "FISH_PAID_TOPUPS_PAUSED",
   "FISH_BILLING_REFUND_POLICY_URL",
   "FISH_BILLING_SUPPORT_URL",
@@ -190,6 +191,27 @@ test("billing readiness enables configured providers only after caps are set and
   assert.equal(readiness.providers.stripe.enabled, true);
   assert.equal(readiness.providers.usdc.enabled, false);
   assert.deepEqual(readiness.blockers, []);
+});
+
+test("Stripe checkout rejects off-origin return URLs before contacting Stripe", async () => {
+  process.env.FISH_MAX_OUTSTANDING_PREPAID_CREDITS = "100000";
+  process.env.FISH_BILLING_SUPPORT_URL = "mailto:support@op.fish";
+  process.env.FISH_BILLING_REFUND_POLICY_URL = "https://op.fish/refunds";
+  process.env.FISH_PUBLIC_APP_URL = "https://op.fish";
+  process.env.FISH_STRIPE_SECRET_KEY = "sk_test_configured";
+  process.env.FISH_STRIPE_WEBHOOK_SECRET = "whsec_configured";
+
+  const result = await createStripeCheckoutPayment(testAccount(), {
+    amountUsd: 5,
+    successUrl: "https://evil.example/thanks",
+    cancelUrl: "https://op.fish/account"
+  });
+
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.equal(result.status, 400);
+    assert.equal(result.error, "checkout_return_url_not_allowed");
+  }
 });
 
 test("billing readiness blocks checkout without support and refund links", () => {

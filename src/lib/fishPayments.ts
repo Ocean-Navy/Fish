@@ -239,6 +239,9 @@ export async function createStripeCheckoutPayment(account: Account, input: Check
   const publicUrl = fishPublicUrl();
   const successUrl = input.successUrl ?? `${publicUrl}/account?fish_payment=success&payment_id=${paymentId}`;
   const cancelUrl = input.cancelUrl ?? `${publicUrl}/account?fish_payment=cancel&payment_id=${paymentId}`;
+  if (!allowedCheckoutReturnUrl(successUrl, publicUrl) || !allowedCheckoutReturnUrl(cancelUrl, publicUrl)) {
+    return { ok: false as const, status: 400, error: "checkout_return_url_not_allowed" };
+  }
   const params = new URLSearchParams();
   params.set("mode", "payment");
   params.set("success_url", successUrl);
@@ -808,6 +811,16 @@ function publicPayment(payment: FishPaymentRequest): PublicPaymentRequest {
 
 function fishPublicUrl() {
   return cleanEnv(process.env.FISH_PUBLIC_APP_URL) ?? cleanEnv(process.env.NEXT_PUBLIC_FISH_APP_URL) ?? "http://127.0.0.1:3000";
+}
+
+function allowedCheckoutReturnUrl(value: string, publicUrl: string) {
+  try {
+    const parsed = new URL(value);
+    const base = new URL(publicUrl);
+    return parsed.origin === base.origin;
+  } catch {
+    return false;
+  }
 }
 
 function addMinutes(value: string, minutes: number) {
