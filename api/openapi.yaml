@@ -447,7 +447,7 @@ paths:
   /api/billing/webhooks/stripe:
     post:
       summary: Stripe webhook for paid Fish Credits
-      description: Verifies the Stripe signature and grants prepaid Fish Credits for paid `checkout.session.completed` events. The raw body must be signed by Stripe.
+      description: Verifies the Stripe signature and grants prepaid Fish Credits for paid `checkout.session.completed` events. The raw body must be signed by Stripe. In production, Stripe events must be marked `livemode=true` unless private Stripe test mode is explicitly enabled.
       responses:
         '200':
           description: Webhook processed or ignored

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
+import { createHmac, randomUUID } from "node:crypto";
 import { afterEach, test } from "node:test";
-import { createStripeCheckoutPayment, createUsdcPayment, normalizeFishPaymentAmount, parseStripeCheckoutRequest, parseUsdcCheckoutRequest, summarizeBillingReadiness } from "./fishPayments";
+import { createStripeCheckoutPayment, createUsdcPayment, handleStripeWebhook, normalizeFishPaymentAmount, parseStripeCheckoutRequest, parseUsdcCheckoutRequest, summarizeBillingReadiness } from "./fishPayments";
 import type { Account } from "./fishLedger";
 
 const ORIGINAL_NODE_ENV = process.env.NODE_ENV;
@@ -291,6 +292,51 @@ test("Stripe checkout rejects production test-mode keys before contacting Stripe
   }
 });
 
+test("Stripe webhook rejects test-mode events in production before crediting", async () => {
+  setNodeEnv("production");
+  process.env.FISH_STRIPE_WEBHOOK_SECRET = "whsec_test_webhook_secret";
+  const rawBody = JSON.stringify(stripeCheckoutCompletedEvent({ livemode: false }));
+
+  const result = await handleStripeWebhook(rawBody, stripeSignature(rawBody, process.env.FISH_STRIPE_WEBHOOK_SECRET));
+
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.equal(result.status, 400);
+    assert.equal(result.error, "stripe_test_mode_not_allowed");
+  }
+});
+
+test("Stripe webhook rejects events without livemode in production before crediting", async () => {
+  setNodeEnv("production");
+  process.env.FISH_STRIPE_WEBHOOK_SECRET = "whsec_test_webhook_secret";
+  const event = stripeCheckoutCompletedEvent({});
+  delete event.livemode;
+  const rawBody = JSON.stringify(event);
+
+  const result = await handleStripeWebhook(rawBody, stripeSignature(rawBody, process.env.FISH_STRIPE_WEBHOOK_SECRET));
+
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.equal(result.status, 400);
+    assert.equal(result.error, "stripe_test_mode_not_allowed");
+  }
+});
+
+test("Stripe webhook test-mode override only bypasses the production livemode guard", async () => {
+  setNodeEnv("production");
+  process.env.FISH_STRIPE_TEST_MODE_ALLOWED = "true";
+  process.env.FISH_STRIPE_WEBHOOK_SECRET = "whsec_test_webhook_secret";
+  const rawBody = JSON.stringify(stripeCheckoutCompletedEvent({ livemode: false }));
+
+  const result = await handleStripeWebhook(rawBody, stripeSignature(rawBody, process.env.FISH_STRIPE_WEBHOOK_SECRET));
+
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.equal(result.status, 404);
+    assert.equal(result.error, "fish_payment_not_found");
+  }
+});
+
 test("Stripe checkout rejects off-origin return URLs before contacting Stripe", async () => {
   process.env.FISH_MAX_OUTSTANDING_PREPAID_CREDITS = "100000";
   process.env.FISH_BILLING_SUPPORT_URL = "mailto:support@op.fish";
@@ -439,6 +485,32 @@ function setNodeEnv(value: string | undefined) {
     return;
   }
   mutableEnv["NODE_ENV"] = value;
+}
+
+function stripeCheckoutCompletedEvent({ livemode }: { livemode?: boolean }) {
+  const paymentId = `pay_missing_${randomUUID()}`;
+  return {
+    id: "evt_test_fish_webhook",
+    type: "checkout.session.completed",
+    livemode,
+    data: {
+      object: {
+        id: "cs_test_fish_webhook",
+        payment_status: "paid",
+        client_reference_id: paymentId,
+        metadata: {
+          paymentId,
+          fishAccountId: "acct_payment_test",
+          fishCredits: "5000"
+        }
+      }
+    }
+  };
+}
+
+function stripeSignature(rawBody: string, secret: string, timestamp = Math.floor(Date.now() / 1000)) {
+  const signature = createHmac("sha256", secret).update(`${timestamp}.${rawBody}`, "utf8").digest("hex");
+  return `t=${timestamp},v1=${signature}`;
 }
 
 function testAccount(): Account {

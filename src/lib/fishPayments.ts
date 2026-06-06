@@ -345,6 +345,10 @@ export async function handleStripeWebhook(rawBody: string, signatureHeader: stri
     return { ok: false as const, status: 400, error: "invalid_stripe_event_json" };
   }
 
+  if (stripeProductionEventModeBlocked(event)) {
+    return { ok: false as const, status: 400, error: "stripe_test_mode_not_allowed" };
+  }
+
   if (event.type !== "checkout.session.completed") {
     return {
       ok: true as const,
@@ -942,6 +946,10 @@ function stripeProductionTestModeBlocked(value: string | undefined) {
   return Boolean(clean && process.env.NODE_ENV === "production" && !readBoolean(process.env.FISH_STRIPE_TEST_MODE_ALLOWED, false) && /^(sk|rk)_test_/i.test(clean));
 }
 
+function stripeProductionEventModeBlocked(event: { livemode?: boolean }) {
+  return Boolean(process.env.NODE_ENV === "production" && !readBoolean(process.env.FISH_STRIPE_TEST_MODE_ALLOWED, false) && event.livemode !== true);
+}
+
 function configuredSecret(value: string | undefined) {
   const clean = cleanEnv(value);
   return Boolean(clean && clean.length >= 8 && !/change-me|replace-with|placeholder/i.test(clean));
@@ -1014,6 +1022,7 @@ function parseStripeEvent(rawBody: string):
   | {
       id?: string;
       type?: string;
+      livemode?: boolean;
       data?: { object?: Record<string, unknown> };
     }
   | null {
