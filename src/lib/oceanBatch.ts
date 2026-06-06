@@ -16,10 +16,6 @@ import { defaultFishPrivacyForRoute, type FishUsagePrivacy } from "@/lib/fishPri
 import { spendDailyQuota } from "@/lib/fishQuota";
 import type { DataState } from "@/lib/types";
 
-const OCEAN_BATCH_DIR = path.join(process.cwd(), "data", "ocean-batch");
-const OCEAN_BATCH_RECEIPTS_DIR = path.join(OCEAN_BATCH_DIR, "receipts");
-const OCEAN_BATCH_BUDGET_RESERVATIONS_DIR = path.join(OCEAN_BATCH_DIR, "budget-reservations");
-const OCEAN_BATCH_BUDGET_LOCK_DIR = path.join(OCEAN_BATCH_DIR, ".budget.lock");
 const OCEAN_BATCH_MODEL = "ocean-batch-placeholder";
 const OCEAN_BATCH_ARTIFACT_MAX_CHARS = 6000;
 
@@ -435,7 +431,7 @@ async function reserveOceanBatchDailyBudget(estimatedCostUsd: number) {
       createdAt: new Date().toISOString(),
       amountUsd: state.estimatedCostUsd
     };
-    await mkdir(OCEAN_BATCH_BUDGET_RESERVATIONS_DIR, { recursive: true });
+    await mkdir(oceanBatchBudgetReservationsDir(), { recursive: true });
     await writeFile(budgetReservationPath(reservation), JSON.stringify(reservation, null, 2), { flag: "wx" });
     return { ok: true as const, reservation, state: await oceanBatchBudgetState(0) };
   });
@@ -635,8 +631,8 @@ function finalizeBatchReceipt(receipt: Omit<OceanBatchReceipt, "hashes"> & { has
 }
 
 async function writeBatchReceipt(receipt: OceanBatchReceipt) {
-  await mkdir(OCEAN_BATCH_RECEIPTS_DIR, { recursive: true });
-  await writeFile(path.join(OCEAN_BATCH_RECEIPTS_DIR, `${receipt.createdAt}-${receipt.receiptId}.json`.replaceAll(":", "-")), JSON.stringify(receipt, null, 2));
+  await mkdir(oceanBatchReceiptsDir(), { recursive: true });
+  await writeFile(path.join(oceanBatchReceiptsDir(), `${receipt.createdAt}-${receipt.receiptId}.json`.replaceAll(":", "-")), JSON.stringify(receipt, null, 2));
 }
 
 async function releaseOceanBatchBudgetReservation(reservation: OceanBatchBudgetReservation) {
@@ -644,18 +640,18 @@ async function releaseOceanBatchBudgetReservation(reservation: OceanBatchBudgetR
 }
 
 function budgetReservationPath(reservation: OceanBatchBudgetReservation) {
-  return path.join(OCEAN_BATCH_BUDGET_RESERVATIONS_DIR, `${reservation.createdAt}-${reservation.reservationId}.json`.replaceAll(":", "-"));
+  return path.join(oceanBatchBudgetReservationsDir(), `${reservation.createdAt}-${reservation.reservationId}.json`.replaceAll(":", "-"));
 }
 
 async function readOceanBatchBudgetReservations(): Promise<OceanBatchBudgetReservation[]> {
   try {
-    const files = await readdir(OCEAN_BATCH_BUDGET_RESERVATIONS_DIR);
+    const files = await readdir(oceanBatchBudgetReservationsDir());
     const reservations = await Promise.all(
       files
         .filter((file) => file.endsWith(".json"))
         .map(async (file) => {
           try {
-            const raw = await readFile(path.join(OCEAN_BATCH_BUDGET_RESERVATIONS_DIR, file), "utf8");
+            const raw = await readFile(path.join(oceanBatchBudgetReservationsDir(), file), "utf8");
             const parsed = oceanBatchBudgetReservationSchema.safeParse(JSON.parse(raw));
             return parsed.success ? parsed.data : null;
           } catch {
@@ -670,11 +666,11 @@ async function readOceanBatchBudgetReservations(): Promise<OceanBatchBudgetReser
 }
 
 async function withOceanBatchBudgetLock<T>(operation: () => Promise<T>): Promise<T> {
-  await mkdir(OCEAN_BATCH_DIR, { recursive: true });
+  await mkdir(oceanBatchDir(), { recursive: true });
   const deadline = Date.now() + 10000;
   while (true) {
     try {
-      await mkdir(OCEAN_BATCH_BUDGET_LOCK_DIR);
+      await mkdir(oceanBatchBudgetLockDir());
       break;
     } catch (error) {
       if (!isNodeError(error) || error.code !== "EEXIST") {
@@ -691,15 +687,15 @@ async function withOceanBatchBudgetLock<T>(operation: () => Promise<T>): Promise
   try {
     return await operation();
   } finally {
-    await rm(OCEAN_BATCH_BUDGET_LOCK_DIR, { force: true, recursive: true });
+    await rm(oceanBatchBudgetLockDir(), { force: true, recursive: true });
   }
 }
 
 async function removeStaleOceanBatchBudgetLock() {
   try {
-    const lock = await stat(OCEAN_BATCH_BUDGET_LOCK_DIR);
+    const lock = await stat(oceanBatchBudgetLockDir());
     if (Date.now() - lock.mtimeMs > 30000) {
-      await rm(OCEAN_BATCH_BUDGET_LOCK_DIR, { force: true, recursive: true });
+      await rm(oceanBatchBudgetLockDir(), { force: true, recursive: true });
     }
   } catch {
     // If another process removed the lock, the next mkdir attempt can proceed.
@@ -716,13 +712,13 @@ function isNodeError(error: unknown): error is NodeJS.ErrnoException {
 
 async function readBatchReceipts(): Promise<OceanBatchReceipt[]> {
   try {
-    const files = await readdir(OCEAN_BATCH_RECEIPTS_DIR);
+    const files = await readdir(oceanBatchReceiptsDir());
     const receipts = await Promise.all(
       files
         .filter((file) => file.endsWith(".json"))
         .map(async (file) => {
           try {
-            const raw = await readFile(path.join(OCEAN_BATCH_RECEIPTS_DIR, file), "utf8");
+            const raw = await readFile(path.join(oceanBatchReceiptsDir(), file), "utf8");
             const parsed = oceanBatchReceiptSchema.safeParse(JSON.parse(raw));
             return parsed.success ? parsed.data : null;
           } catch {
@@ -734,6 +730,22 @@ async function readBatchReceipts(): Promise<OceanBatchReceipt[]> {
   } catch {
     return [];
   }
+}
+
+function oceanBatchDir() {
+  return process.env.FISH_OCEAN_BATCH_DIR ? path.resolve(process.env.FISH_OCEAN_BATCH_DIR) : path.join(process.cwd(), "data", "ocean-batch");
+}
+
+function oceanBatchReceiptsDir() {
+  return path.join(oceanBatchDir(), "receipts");
+}
+
+function oceanBatchBudgetReservationsDir() {
+  return path.join(oceanBatchDir(), "budget-reservations");
+}
+
+function oceanBatchBudgetLockDir() {
+  return path.join(oceanBatchDir(), ".budget.lock");
 }
 
 function batchHeaders() {
