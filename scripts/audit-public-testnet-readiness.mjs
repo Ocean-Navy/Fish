@@ -52,6 +52,7 @@ const checks = [
   checkTestnetFaucet(effectiveAppEnv),
   checkContracts(effectiveAppEnv),
   checkDataHygiene(effectiveAppEnv),
+  checkRepositoryHygiene(),
   checkOperations(effectiveAppEnv, oceanEnv, derivedOceanWebEnv),
   checkRealOncomputeProof(oceanEnv)
 ];
@@ -253,6 +254,39 @@ function checkDataHygiene(env) {
   return result("Data retention and backups", findings.length ? "manual" : "ready", findings);
 }
 
+function checkRepositoryHygiene() {
+  const findings = [];
+  const tracked = gitTrackedFiles();
+  if (!tracked.ok) {
+    return result("Repository hygiene", "manual", [`Cannot inspect git tracked files: ${tracked.error}`]);
+  }
+
+  const privateTracked = tracked.files.filter(isPrivateTrackedPath);
+  if (privateTracked.length) {
+    findings.push(`Private runtime or secret paths are tracked: ${privateTracked.slice(0, 12).join(", ")}${privateTracked.length > 12 ? ", ..." : ""}.`);
+  }
+
+  const ignoreChecks = [
+    ".env.production.private",
+    ".env.ocean-demo-stack",
+    "contracts/deployments/baseSepolia.local.json",
+    "data/fish/accounts.json",
+    "data/ocean-batch/receipts/example.json",
+    "data/proof/signing-key.json",
+    "data/staking/positions.json",
+    "data/support/tickets.jsonl",
+    "data/provider_allowlist.json",
+    "backups/fish.tar.gz",
+    "deploy/nginx/auth/.htpasswd"
+  ];
+  const notIgnored = ignoreChecks.filter((filePath) => !gitCheckIgnored(filePath));
+  if (notIgnored.length) {
+    findings.push(`Private runtime paths are not ignored: ${notIgnored.join(", ")}.`);
+  }
+
+  return result("Repository hygiene", findings.length ? "manual" : "ready", findings);
+}
+
 function checkOperations(appEnv, oceanEnv) {
   const findings = [];
   for (const [key, value] of Object.entries({
@@ -452,6 +486,42 @@ function dockerComposeConfig(envPath) {
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "compose_config_failed" };
   }
+}
+
+function gitTrackedFiles() {
+  try {
+    const stdout = execFileSync("git", ["ls-files", "-z"], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+    return { ok: true, files: stdout.split("\0").filter(Boolean) };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "git_ls_files_failed" };
+  }
+}
+
+function gitCheckIgnored(filePath) {
+  try {
+    execFileSync("git", ["check-ignore", "--quiet", filePath], {
+      stdio: "ignore"
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function isPrivateTrackedPath(filePath) {
+  const normalized = filePath.replaceAll("\\", "/");
+  if (normalized === ".env.example" || normalized === ".env.production.example") return false;
+  if (/^\.env(?:\.|$)/.test(normalized)) return true;
+  if (/^contracts\/deployments\/.*\.local\.json$/.test(normalized)) return true;
+  if (/^deploy\/nginx\/auth\/\.htpasswd$/.test(normalized)) return true;
+  if (/^backups\//.test(normalized)) return true;
+  if (/^\.deps\//.test(normalized)) return true;
+  if (/^data\/provider_allowlist\.json$/.test(normalized)) return true;
+  if (/^data\/(forms|submissions|support|fish|proof|ocean-batch|ocean-workload-adapter|staking)\//.test(normalized)) return true;
+  return false;
 }
 
 function checkFreeComputeAccess(env) {

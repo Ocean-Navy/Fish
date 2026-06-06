@@ -384,6 +384,18 @@ test("public testnet readiness flags unsafe backup targets", async () => {
   assert.match(dataHygiene.findings.join("\n"), /must not point inside public/);
 });
 
+test("public testnet readiness includes repository hygiene gate", async () => {
+  const appEnv = await tempEnv("FISH_PAID_TOPUPS_PAUSED=true\n");
+  const result = runReadiness(["--env", appEnv, "--ocean-env", missingOceanEnv(), "--json"]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const summary = JSON.parse(result.stdout);
+  const repository = summary.checks.find((check: { name: string }) => check.name === "Repository hygiene");
+
+  assert.equal(repository.state, "ready");
+  assert.deepEqual(repository.findings, []);
+});
+
 test("Ocean demo readiness flags free compute without a wallet allowlist", async () => {
   const appEnv = await tempEnv("FISH_PAID_TOPUPS_PAUSED=true\n");
   const oceanEnv = await tempEnv(oceanEnvWithComputeAccess([]));

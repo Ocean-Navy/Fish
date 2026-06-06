@@ -259,6 +259,8 @@ Use an absolute private target such as `/var/backups/fish`. Do not point `FISH_D
 
 Keep raw prompts and outputs out of public proof, dashboards, billing rows, and exports.
 
+The readiness audit also checks repository hygiene before merge or public testing. It reports a manual finding if private runtime ledgers, local deployment artifacts, private env files, backups, nginx password files, provider allowlists, or proof signing keys are tracked by git, or if representative private paths stop being ignored.
+
 ## Step 8: Operational Hardening
 
 Before a public tester link goes out:
@@ -284,6 +286,7 @@ adapter key is not a placeholder
 runner and proof signing keys are configured
 selected Ocean compute environment free access is restricted to the proof wallet
 all private services bind to localhost/private network
+repository hygiene is ready, with runtime ledgers and private env files ignored
 nginx/TLS is active on the public web host
 ```
 

@@ -649,6 +649,8 @@ Use an absolute private backup target such as `/var/backups/fish`. Do not point 
 
 `npm run readiness:public-testnet` uses the no-real-money public-testnet profile by default. It treats intentionally paused paid checkout as a manual follow-up, not as a public-testnet blocker. Add `--strict` when every manual and partial item must be resolved. `--app-env-overlay <private-env>` lets the audit merge private host settings such as admin tokens, guest salts, backup targets, and proof signing keys without printing their values. `--derive-ocean-web-env-host <private-gpu-vm-host>` lets the audit evaluate the private Ocean adapter/Fish Runner web-env block without printing its keys. Before paid Stripe/USDC launch, run `npm run readiness:public-testnet -- --profile paid-mainnet`. `npm run secrets:public-testnet` prints generated starter values for private env files; it includes secrets and should not be committed or pasted into public notes. See `docs/public-testnet-launch-readiness.md`.
 
+The readiness audit also checks repository hygiene. Runtime ledgers, private env files, local contract deployment artifacts, backups, nginx password files, provider allowlists, and proof signing keys must stay ignored and untracked before a public link or security scan.
+
 To open the public tester faucet after Base Sepolia test token contracts exist, generate a private web-app overlay instead of editing the public example env:
 
 ```bash
@@ -915,4 +917,5 @@ Generated images should be text-free and used as scene assets. Render copy, butt
 - `data/submissions` is persisted or integrated with a real intake system.
 - `data/support` is persisted or integrated with a real support system.
 - `npm run backup:runtime -- --dry-run` shows the expected runtime paths, and a private backup target is configured before public traffic.
+- `npm run readiness:public-testnet` reports repository hygiene as ready, with private runtime paths ignored and untracked.
 - Public copy keeps the status clear: Ocean Navy-built, on Ocean Protocol, not official unless approved.
