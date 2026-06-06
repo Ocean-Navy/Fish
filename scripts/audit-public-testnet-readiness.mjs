@@ -145,7 +145,8 @@ function checkBatchDishes(env) {
 
 function checkPayments(env, profile) {
   const blockers = [];
-  const stripeSecretsConfigured = safeSecret(env.FISH_STRIPE_SECRET_KEY) && safeSecret(env.FISH_STRIPE_WEBHOOK_SECRET);
+  const stripeSecretKey = String(env.FISH_STRIPE_SECRET_KEY || "").trim();
+  const stripeSecretsConfigured = safeSecret(stripeSecretKey) && safeSecret(env.FISH_STRIPE_WEBHOOK_SECRET);
   const stripePublicAppUrlConfigured = publicHttpsAppUrl(env.FISH_PUBLIC_APP_URL || env.NEXT_PUBLIC_FISH_APP_URL);
   const hasStripe = stripeSecretsConfigured && stripePublicAppUrlConfigured;
   const usdcConfig = usdcCheckoutConfig(env);
@@ -154,6 +155,9 @@ function checkPayments(env, profile) {
   if (!env.FISH_MAX_OUTSTANDING_PREPAID_CREDITS) blockers.push("FISH_MAX_OUTSTANDING_PREPAID_CREDITS is missing; paid top-ups must stay blocked.");
   if (!hasStripe && !hasUsdc) blockers.push("Neither Stripe nor USDC checkout is fully configured.");
   if (stripeSecretsConfigured && !stripePublicAppUrlConfigured) blockers.push("FISH_PUBLIC_APP_URL or NEXT_PUBLIC_FISH_APP_URL must be a public HTTPS origin for Stripe checkout.");
+  if (profile === "paid-mainnet" && stripeSecretsConfigured && !stripeLiveModeKey(stripeSecretKey)) {
+    blockers.push("FISH_STRIPE_SECRET_KEY must use a live-mode Stripe secret or restricted key for paid-mainnet readiness.");
+  }
   if (usdcConfig.touched && !usdcConfig.receiveAddressConfigured) blockers.push("FISH_USDC_RECEIVE_ADDRESS must be a valid Base mainnet receive address for USDC checkout.");
   if (usdcConfig.touched && !usdcConfig.rpcConfigured) blockers.push("FISH_USDC_RPC_URL must be configured for Base mainnet USDC checkout.");
   if (usdcConfig.touched && !usdcConfig.chainConfigured) blockers.push("FISH_USDC_CHAIN_ID must be Base mainnet 8453 for paid USDC checkout.");
@@ -758,6 +762,10 @@ function hasFlag(name) {
 function safeSecret(value) {
   const cleaned = String(value || "").trim();
   return cleaned.length >= 24 && !/change-me|replace-with|placeholder|secret/i.test(cleaned);
+}
+
+function stripeLiveModeKey(value) {
+  return /^(sk|rk)_live_/i.test(String(value || "").trim());
 }
 
 function truthy(value) {
