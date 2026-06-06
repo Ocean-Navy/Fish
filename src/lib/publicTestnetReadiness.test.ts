@@ -667,6 +667,37 @@ test("external Oncompute readiness requires paired paid resources and valid JSON
   assert.match(externalProof.findings.join("\n"), /FISH_OCEAN_RESOURCES must be valid JSON/);
 });
 
+test("external Oncompute readiness rejects malformed live proof values", async () => {
+  const appEnv = await tempEnv("FISH_PAID_TOPUPS_PAUSED=true\n");
+  const oceanEnv = await tempEnv(
+    [
+      oceanEnvWithComputeAccess([PROOF_WALLET_ADDRESS]),
+      "OCEAN_WORKLOAD_ADAPTER_MODE=live",
+      "OCEAN_PROOF_RPC=http://127.0.0.1:8545",
+      "NODE_URL=https://operator:secret@node.oncompute.example",
+      "FISH_OCEAN_DATASET_DIDS=not-a-did",
+      "FISH_OCEAN_ALGO_DID=fish-no-dataset-proof",
+      "FISH_OCEAN_PAYMENT_TOKEN=0x1111111111111111111111111111111111111111",
+      "FISH_OCEAN_RESOURCES={cpu:1}",
+      "FISH_OCEAN_OUTPUT=[]",
+      "OCEAN_CLI_DIR=/opt/ocean-cli"
+    ].join("\n")
+  );
+  const result = runReadiness(["--env", appEnv, "--ocean-env", oceanEnv, "--json"]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const summary = JSON.parse(result.stdout);
+  const externalProof = summary.checks.find((check: { name: string }) => check.name === "External Oncompute proof");
+
+  assert.equal(externalProof.state, "manual");
+  assert.match(externalProof.findings.join("\n"), /loopback host/);
+  assert.match(externalProof.findings.join("\n"), /NODE_URL contains credentials/);
+  assert.match(externalProof.findings.join("\n"), /FISH_OCEAN_DATASET_DIDS must be \[\]/);
+  assert.match(externalProof.findings.join("\n"), /FISH_OCEAN_ALGO_DID must be a did:op/);
+  assert.match(externalProof.findings.join("\n"), /FISH_OCEAN_RESOURCES must be valid JSON/);
+  assert.match(externalProof.findings.join("\n"), /FISH_OCEAN_OUTPUT must be valid JSON/);
+});
+
 test("operational readiness accepts trusted runner public keys from JSON without exposing key material", async () => {
   const { envLine, keyId } = runnerPublicKeysJsonEnv();
   const appEnv = await tempEnv(["FISH_PAID_TOPUPS_PAUSED=true", "FISH_GUEST_ID_SALT=12345678901234567890123456789012", envLine].join("\n"));

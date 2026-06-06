@@ -106,6 +106,13 @@ without starting HTTP and must not print the adapter API key, proof wallet
 secret, mnemonic, or RPC URL. It exits non-zero until the selected mode is
 structurally ready.
 
+For external `live` proof, structural readiness is stricter than "a value is
+present": `FISH_OCEAN_DATASET_DIDS` must be `[]` or a JSON/comma-separated list
+of `did:op:...` values, `FISH_OCEAN_ALGO_DID` must be `did:op:...`, paid
+`FISH_OCEAN_RESOURCES` and optional `FISH_OCEAN_OUTPUT` must be JSON objects,
+`NODE_URL` must be HTTP(S) or an Ocean p2p/multiaddr locator without embedded
+credentials, and loopback RPCs do not count for external Oncompute proof.
+
 ## Discover Candidate Environments
 
 ```bash

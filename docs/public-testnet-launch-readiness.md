@@ -350,6 +350,7 @@ npm run proof:external-preflight -- --env-file .env.ocean-proof.local
 ```
 
 The preflight exits without starting HTTP and prints public-safe selected values, missing fields, warnings, and booleans for whether secrets are configured. It must not print adapter keys, proof wallet secrets, mnemonics, or RPC URLs.
+It also rejects malformed external proof configuration before an operator can mistake it for readiness: `FISH_OCEAN_DATASET_DIDS` must be `[]` or a JSON/comma-separated list of `did:op:...` values, `FISH_OCEAN_ALGO_DID` must be `did:op:...`, paid `FISH_OCEAN_RESOURCES` and optional `FISH_OCEAN_OUTPUT` must be JSON objects, `NODE_URL` must be an HTTP(S) URL or Ocean p2p/multiaddr locator without embedded credentials, and loopback RPCs such as `http://127.0.0.1:8545` do not count for external Oncompute proof.
 
 The readiness audit has a separate `External Oncompute proof` gate for this. It remains manual for `local_ocean_node` mode or local/private `NODE_URL` values, even when the local demo stack is healthy. It turns ready only when the private workload adapter is in `live` mode with a strong adapter key, proof wallet, HTTP(S) RPC, non-local Ocean/Oncompute node URL, `FISH_OCEAN_DATASET_DIDS` (use `[]` for a self-contained first algorithm), `FISH_OCEAN_ALGO_DID`, `FISH_OCEAN_COMPUTE_ENV_ID`, and either `OCEAN_CLI_DIR` or `FISH_OCEAN_CLI_BIN`.
 

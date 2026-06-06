@@ -313,6 +313,7 @@ npm run proof:external-preflight -- --env-file .env.ocean-proof.local
 ```
 
 This exits without starting HTTP. It prints only public-safe selected values, missing fields, warnings, and booleans for whether the adapter key, proof wallet, and RPC are configured. Do not proceed to an external proof until it reports `liveReady: true`.
+The preflight treats malformed live proof settings as not ready. Use `FISH_OCEAN_DATASET_DIDS=[]` for the first self-contained algorithm or provide only `did:op:...` dataset values. Use a `did:op:...` algorithm DID, JSON-object paid resources/output settings, a non-local Ocean/Oncompute `NODE_URL` without embedded credentials, and a real chain RPC rather than a loopback RPC.
 
 5. Configure Fish:
 

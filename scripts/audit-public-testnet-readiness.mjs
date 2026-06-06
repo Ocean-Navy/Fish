@@ -344,13 +344,26 @@ function checkRealOncomputeProof(env) {
   if (!safeSecret(env.OCEAN_WORKLOAD_ADAPTER_API_KEY)) findings.push("OCEAN_WORKLOAD_ADAPTER_API_KEY is missing or weak.");
   if (!hasWallet) findings.push("Ocean proof wallet is missing; set OCEAN_PROOF_PRIVATE_KEY/OCEAN_PROOF_MNEMONIC in the private adapter env.");
   if (!httpUrl(rpc)) findings.push("OCEAN_PROOF_RPC or RPC must be an HTTP(S) RPC URL.");
+  if (httpUrl(rpc) && loopbackHttpUrl(rpc)) findings.push("OCEAN_PROOF_RPC or RPC points at a loopback host; use a real chain RPC for external Ocean/Oncompute proof.");
   if (!nodeUrl) {
     findings.push("NODE_URL is missing.");
+  } else if (!oceanNodeLocator(nodeUrl)) {
+    findings.push("NODE_URL must be an HTTP(S) URL or Ocean p2p/multiaddr locator.");
   } else if (looksLocal(nodeUrl)) {
     findings.push("NODE_URL points at a local Ocean Node; this is local proof, not third-party Oncompute demand.");
+  } else if (urlHasCredentials(nodeUrl)) {
+    findings.push("NODE_URL contains credentials; remove embedded credentials and pass secrets through private infrastructure instead.");
   }
-  if (!datasetDids) findings.push("FISH_OCEAN_DATASET_DIDS is missing; use [] when the first algorithm is self-contained.");
-  if (!env.FISH_OCEAN_ALGO_DID) findings.push("FISH_OCEAN_ALGO_DID is missing for official Ocean CLI paid/free external proofs.");
+  if (!datasetDids) {
+    findings.push("FISH_OCEAN_DATASET_DIDS is missing; use [] when the first algorithm is self-contained.");
+  } else if (!oceanDatasetDidList(datasetDids)) {
+    findings.push("FISH_OCEAN_DATASET_DIDS must be [] or a JSON/comma-separated list of did:op:... values.");
+  }
+  if (!env.FISH_OCEAN_ALGO_DID) {
+    findings.push("FISH_OCEAN_ALGO_DID is missing for official Ocean CLI paid/free external proofs.");
+  } else if (!oceanDid(env.FISH_OCEAN_ALGO_DID)) {
+    findings.push("FISH_OCEAN_ALGO_DID must be a did:op:... value.");
+  }
   if (!env.FISH_OCEAN_COMPUTE_ENV_ID) findings.push("FISH_OCEAN_COMPUTE_ENV_ID is missing.");
   if (!hasCli) findings.push("OCEAN_CLI_DIR or FISH_OCEAN_CLI_BIN is missing.");
   if (paidTouched && (!paymentToken || !resources)) findings.push("Paid external jobs require both FISH_OCEAN_PAYMENT_TOKEN and FISH_OCEAN_RESOURCES; leave both empty only for free compute.");
@@ -630,6 +643,29 @@ function jsonObject(value) {
   return parsed.ok && parsed.value !== null && typeof parsed.value === "object" && !Array.isArray(parsed.value);
 }
 
+function oceanDatasetDidList(value) {
+  const cleaned = String(value || "").trim();
+  if (cleaned === "[]") return true;
+  if (cleaned.startsWith("[")) {
+    const parsed = readJson(cleaned);
+    return parsed.ok && Array.isArray(parsed.value) && parsed.value.every((entry) => oceanDid(entry));
+  }
+  return cleaned
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .every((entry) => oceanDid(entry));
+}
+
+function oceanDid(value) {
+  return /^did:op:[^\s,]+$/i.test(String(value || "").trim());
+}
+
+function oceanNodeLocator(value) {
+  const cleaned = String(value || "").trim();
+  return httpUrl(cleaned) || /^\/(p2p|ip4|ip6)\//i.test(cleaned);
+}
+
 function backupTargetFindings(value) {
   const target = String(value || "").trim();
   if (!target) return [];
@@ -847,9 +883,30 @@ function publicHttpsAppUrl(value) {
   }
 }
 
+function urlHasCredentials(value) {
+  const cleaned = String(value || "").trim();
+  if (!cleaned.includes("://")) return false;
+  try {
+    const parsed = new URL(cleaned);
+    return Boolean(parsed.username || parsed.password);
+  } catch {
+    return false;
+  }
+}
+
 function number(value) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function loopbackHttpUrl(value) {
+  try {
+    const parsed = new URL(String(value || "").trim());
+    const host = parsed.hostname.toLowerCase();
+    return host === "localhost" || host === "127.0.0.1" || host === "::1" || host === "0.0.0.0";
+  } catch {
+    return false;
+  }
 }
 
 function looksLocal(value) {

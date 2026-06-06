@@ -479,6 +479,86 @@ function isExecutableMode(mode) {
   return mode === "live" || mode === "local_ocean_node";
 }
 
+function oceanDatasetDidList(value) {
+  const cleaned = String(value || "").trim();
+  if (cleaned === "[]") {
+    return true;
+  }
+  if (cleaned.startsWith("[")) {
+    const parsed = readJson(cleaned);
+    return parsed.ok && Array.isArray(parsed.value) && parsed.value.every((entry) => oceanDid(entry));
+  }
+  return cleaned
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .every((entry) => oceanDid(entry));
+}
+
+function oceanDid(value) {
+  return /^did:op:[^\s,]+$/i.test(String(value || "").trim());
+}
+
+function oceanNodeLocator(value) {
+  const cleaned = String(value || "").trim();
+  return httpUrl(cleaned) || /^\/(p2p|ip4|ip6)\//i.test(cleaned);
+}
+
+function localNodeLocator(value) {
+  const cleaned = String(value || "").trim();
+  if (!cleaned) {
+    return false;
+  }
+  if (/^\/p2p\//i.test(cleaned)) {
+    return false;
+  }
+  try {
+    const parsed = new URL(cleaned);
+    const host = parsed.hostname.toLowerCase();
+    return (
+      host === "localhost" ||
+      host === "127.0.0.1" ||
+      host === "::1" ||
+      host === "0.0.0.0" ||
+      host === "ocean-node" ||
+      host === "host.docker.internal" ||
+      host.endsWith(".local") ||
+      /^10\./.test(host) ||
+      /^192\.168\./.test(host) ||
+      /^172\.(1[6-9]|2\d|3[0-1])\./.test(host)
+    );
+  } catch {
+    return /(^|[/:])(localhost|127\.0\.0\.1|0\.0\.0\.0|ocean-node|host\.docker\.internal)([/:]|$)/i.test(cleaned);
+  }
+}
+
+function loopbackHttpUrl(value) {
+  try {
+    const parsed = new URL(String(value || "").trim());
+    const host = parsed.hostname.toLowerCase();
+    return host === "localhost" || host === "127.0.0.1" || host === "::1" || host === "0.0.0.0";
+  } catch {
+    return false;
+  }
+}
+
+function jsonObject(value) {
+  const parsed = readJson(String(value || "").trim());
+  return parsed.ok && parsed.value !== null && typeof parsed.value === "object" && !Array.isArray(parsed.value);
+}
+
+function readJson(value) {
+  try {
+    return { ok: true, value: JSON.parse(value) };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "parse_failed" };
+  }
+}
+
+function httpUrl(value) {
+  return /^https?:\/\/[^/\s]+/i.test(String(value || "").trim());
+}
+
 function readAdapterConfig() {
   const mode = process.env.OCEAN_WORKLOAD_ADAPTER_MODE?.trim() || "dry_run";
   const nodeUrl = process.env.NODE_URL?.trim() || "";
@@ -512,14 +592,23 @@ function readAdapterConfig() {
     if (!adapterApiKeySafe) missing.push("strong OCEAN_WORKLOAD_ADAPTER_API_KEY");
     if (!walletConfigured) missing.push("proof wallet private key or mnemonic");
     if (!rpc) missing.push("RPC");
+    if (rpc && !httpUrl(rpc)) missing.push("HTTP(S) RPC");
+    if (rpc && loopbackHttpUrl(rpc)) missing.push("non-loopback RPC");
     if (!nodeUrl) missing.push("NODE_URL");
+    if (nodeUrl && !oceanNodeLocator(nodeUrl)) missing.push("valid NODE_URL");
+    if (nodeUrl && localNodeLocator(nodeUrl)) missing.push("external NODE_URL");
+    if (nodeUrl && urlHasCredentials(nodeUrl)) missing.push("NODE_URL without embedded credentials");
     if (!datasetDids) missing.push("FISH_OCEAN_DATASET_DIDS");
+    if (datasetDids && !oceanDatasetDidList(datasetDids)) missing.push("valid FISH_OCEAN_DATASET_DIDS");
     if (!algoDid) missing.push("FISH_OCEAN_ALGO_DID");
+    if (algoDid && !oceanDid(algoDid)) missing.push("valid FISH_OCEAN_ALGO_DID");
     if (!computeEnvId) missing.push("FISH_OCEAN_COMPUTE_ENV_ID");
     if (!cliBin && !oceanCliDir) missing.push("OCEAN_CLI_DIR or FISH_OCEAN_CLI_BIN");
     if (!cliBin && oceanCliDir && !existsSync(oceanCliDir)) missing.push("existing OCEAN_CLI_DIR");
     if (!cliBin && oceanCliDir && existsSync(oceanCliDir) && !existsSync(path.join(oceanCliDir, "package.json"))) missing.push("valid OCEAN_CLI_DIR with package.json");
     if (!freeCompute && (!paymentToken || !resources)) missing.push("FISH_OCEAN_PAYMENT_TOKEN and FISH_OCEAN_RESOURCES");
+    if (resources && !jsonObject(resources)) missing.push("valid JSON object FISH_OCEAN_RESOURCES");
+    if (output && !jsonObject(output)) missing.push("valid JSON object FISH_OCEAN_OUTPUT");
   }
   if (!adapterApiKeySafe) {
     warnings.push("Set OCEAN_WORKLOAD_ADAPTER_API_KEY to a unique secret with at least 32 characters before exposing /jobs or /config.");
