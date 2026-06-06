@@ -135,6 +135,7 @@ docker run -d \
   -p 3000:3000 \
   -e FISH_ADMIN_TOKEN="$FISH_ADMIN_TOKEN" \
   -v opfish-submissions:/app/data/submissions \
+  -v opfish-forms:/app/data/forms \
   -v opfish-ledger:/app/data/fish \
   -v opfish-ocean-batch:/app/data/ocean-batch \
   -v opfish-proof:/app/data/proof \
@@ -193,6 +194,7 @@ The V0 form sink, prototype API ledger, Ocean batch receipts, provider proof rec
 
 ```text
 /app/data/submissions
+/app/data/forms
 /app/data/fish
 /app/data/ocean-batch
 /app/data/proof

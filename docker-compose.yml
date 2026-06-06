@@ -15,6 +15,7 @@ services:
       - "3000:3000"
     volumes:
       - fish-submissions:/app/data/submissions
+      - fish-forms:/app/data/forms
       - fish-ledger:/app/data/fish
       - fish-ocean-batch:/app/data/ocean-batch
       - fish-proof:/app/data/proof
@@ -29,6 +30,7 @@ services:
 
 volumes:
   fish-submissions:
+  fish-forms:
   fish-ledger:
   fish-ocean-batch:
   fish-proof:

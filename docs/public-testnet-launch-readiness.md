@@ -169,6 +169,7 @@ data/ocean-batch/
 data/proof/
 data/staking/
 data/submissions/
+data/forms/
 ```
 
 Check the backup set before publishing:

@@ -140,7 +140,9 @@ docker build -t opfish-web:latest .
 docker run --rm -p 3000:3000 \
   -e FISH_ADMIN_TOKEN="$FISH_ADMIN_TOKEN" \
   -v opfish-submissions:/app/data/submissions \
+  -v opfish-forms:/app/data/forms \
   -v opfish-ledger:/app/data/fish \
+  -v opfish-ocean-batch:/app/data/ocean-batch \
   -v opfish-proof:/app/data/proof \
   -v opfish-staking:/app/data/staking \
   opfish-web:latest
@@ -163,12 +165,14 @@ The container runs the Next.js standalone server as a non-root user. Form submis
 
 ```text
 /app/data/submissions
+/app/data/forms
 /app/data/fish
+/app/data/ocean-batch
 /app/data/proof
 /app/data/staking
 ```
 
-Compose mounts those paths as named volumes named `fish-submissions`, `fish-ledger`, `fish-proof`, and `fish-staking`.
+Compose mounts those paths as named volumes named `fish-submissions`, `fish-forms`, `fish-ledger`, `fish-ocean-batch`, `fish-proof`, and `fish-staking`.
 
 The root Compose file reads `${FISH_ENV_FILE:-.env.production}` when present. Keep `FISH_ADMIN_TOKEN` set before exposing admin routes. For a public site before Fish Runner is configured, leave `FISH_CHAT_ROUTE=mock` so the meal counter labels itself as demo mode, or set `FISH_CHAT_PAUSED=true` to stop orders entirely.
 

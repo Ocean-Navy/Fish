@@ -4,7 +4,7 @@ import { execFileSync } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
-const runtimePaths = ["data/submissions", "data/fish", "data/ocean-batch", "data/proof", "data/staking"];
+const runtimePaths = ["data/submissions", "data/forms", "data/fish", "data/ocean-batch", "data/proof", "data/staking"];
 const dataDir = option("--data-dir") || "data";
 const outputDir = option("--output-dir") || process.env.FISH_DATA_BACKUP_TARGET || "backups";
 const dryRun = hasFlag("--dry-run");
