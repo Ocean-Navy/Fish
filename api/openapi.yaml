@@ -1991,6 +1991,7 @@ components:
           type: integer
           minimum: 1
           maximum: 200000
+          description: Optional caller estimate. When inputPayload is present, it must be at least Fish's minimum estimate for the input reference plus private payload.
         maxOutputTokens:
           type: integer
           minimum: 1
