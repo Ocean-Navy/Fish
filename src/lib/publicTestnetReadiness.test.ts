@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { generateKeyPairSync } from "node:crypto";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -168,6 +169,42 @@ test("Ocean demo readiness accepts free compute restricted to the proof wallet",
   assert.doesNotMatch(ocean.findings.join("\n"), /proof wallet/);
 });
 
+test("operational readiness accepts trusted runner public keys from JSON without exposing key material", async () => {
+  const { envLine, keyId } = runnerPublicKeysJsonEnv();
+  const appEnv = await tempEnv(["FISH_PAID_TOPUPS_PAUSED=true", "FISH_GUEST_ID_SALT=12345678901234567890123456789012", envLine].join("\n"));
+  const oceanEnv = await tempEnv(oceanEnvWithComputeAccess([PROOF_WALLET_ADDRESS], { runnerSigningKeyId: keyId }));
+  const result = runReadiness(["--env", appEnv, "--ocean-env", oceanEnv, "--json"]);
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.doesNotMatch(result.stdout, /BEGIN PUBLIC KEY/);
+  const summary = JSON.parse(result.stdout);
+  const operations = summary.checks.find((check: { name: string }) => check.name === "Operational hardening");
+
+  assert.doesNotMatch(operations.findings.join("\n"), /missing trusted runner public key/);
+  assert.doesNotMatch(operations.findings.join("\n"), /could not be parsed/);
+  assert.doesNotMatch(operations.findings.join("\n"), /signing key id/);
+});
+
+test("operational readiness flags invalid trusted runner public key configuration", async () => {
+  const appEnv = await tempEnv(
+    [
+      "FISH_PAID_TOPUPS_PAUSED=true",
+      "FISH_GUEST_ID_SALT=12345678901234567890123456789012",
+      'FISH_RUNNER_PUBLIC_KEYS_JSON=[{"keyId":"runner-test","publicKeyPem":"not a pem"}]'
+    ].join("\n")
+  );
+  const oceanEnv = await tempEnv(oceanEnvWithComputeAccess([PROOF_WALLET_ADDRESS], { runnerSigningKeyId: "runner-test" }));
+  const result = runReadiness(["--env", appEnv, "--ocean-env", oceanEnv, "--json"]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const summary = JSON.parse(result.stdout);
+  const operations = summary.checks.find((check: { name: string }) => check.name === "Operational hardening");
+
+  assert.equal(operations.state, "partial");
+  assert.match(operations.findings.join("\n"), /missing trusted runner public key/);
+  assert.match(operations.findings.join("\n"), /could not be parsed/);
+});
+
 const PROOF_PRIVATE_KEY = "0x0000000000000000000000000000000000000000000000000000000000000001";
 const PROOF_WALLET_ADDRESS = "0x7E5F4552091A69125d5DfCb7b8C2659029395Bdf";
 
@@ -184,7 +221,7 @@ function missingOceanEnv() {
   return path.join(tmpdir(), `fish-missing-ocean-env-${Date.now()}-${Math.random().toString(16).slice(2)}`);
 }
 
-function oceanEnvWithComputeAccess(addresses: string[]) {
+function oceanEnvWithComputeAccess(addresses: string[], options: { runnerSigningKeyId?: string } = {}) {
   const computeEnvironments = [
     {
       socketPath: "/var/run/docker.sock",
@@ -208,8 +245,21 @@ function oceanEnvWithComputeAccess(addresses: string[]) {
     "OCEAN_NODE_HTTP_BIND=127.0.0.1",
     "OCEAN_WORKLOAD_ADAPTER_BIND=127.0.0.1",
     "OCEAN_NODE_P2P_BIND=127.0.0.1",
+    options.runnerSigningKeyId ? `FISH_RUNNER_SIGNING_KEY_ID=${options.runnerSigningKeyId}` : "",
+    options.runnerSigningKeyId ? "FISH_RUNNER_SIGNING_PRIVATE_KEY_PEM=12345678901234567890123456789012" : "",
     `OCEAN_NODE_DOCKER_COMPUTE_ENVIRONMENTS=${JSON.stringify(computeEnvironments)}`
-  ].join("\n");
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+function runnerPublicKeysJsonEnv(keyId = "runner-test") {
+  const { publicKey } = generateKeyPairSync("ed25519");
+  const publicKeyPem = publicKey.export({ type: "spki", format: "pem" }).toString();
+  return {
+    keyId,
+    envLine: `FISH_RUNNER_PUBLIC_KEYS_JSON=${JSON.stringify([{ keyId, publicKeyPem }])}`
+  };
 }
 
 function runReadiness(args: string[]) {

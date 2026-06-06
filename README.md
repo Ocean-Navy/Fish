@@ -409,6 +409,8 @@ curl -sS http://127.0.0.1:3000/api/warm/status
 curl -sS -H "x-fish-admin-token: $FISH_ADMIN_TOKEN" "http://127.0.0.1:3000/api/warm/status?probe=live"
 ```
 
+`/api/warm/status` also reports whether trusted Fish Runner receipt public keys are configured. It exposes only counts and warnings, never public key material or private keys. Runner receipts do not count as signed proof until at least one trusted Ed25519 runner public key is configured.
+
 Use `/routing` for the human-friendly route view and `/dashboard` for public warm demo snapshots. Both must label mock, external fallback, selected warm demo work, and later selected Ocean provider work differently.
 
 For the warm inference MVP, see `docs/warm-inference-runbook.md`, `docs/vllm-oncompute-runner-profiles.md`, and `deploy/ocean-demo-stack/README.md`. The practical first deployment is a GPU host with vLLM kept warm behind Fish Gateway or Fish Runner, next to an Ocean Node and private Ocean workload adapter for test dishes. Keep the vLLM endpoint private, set `FISH_RUNNER_API_KEY` for Runner protected endpoints, cap usage, and do not claim paid third-party Oncompute demand or Ocean-native live chat until selected-provider routing and proof labels support that claim.

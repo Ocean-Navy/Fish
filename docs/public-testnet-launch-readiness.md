@@ -220,6 +220,8 @@ all private services bind to localhost/private network
 nginx/TLS is active on the public web host
 ```
 
+`GET /api/warm/status` shows `runnerReceiptTrust.configured`, `trustedKeyCount`, and `invalidKeyCount` without exposing key material. Do not count Fish Runner receipts as signed proof until that status is configured and warnings are clear.
+
 ## Step 9: Proof UX
 
 The public `/proof` page should start with normal-user language:

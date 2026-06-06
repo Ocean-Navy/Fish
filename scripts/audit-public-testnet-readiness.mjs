@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { execFileSync } from "node:child_process";
+import { createPublicKey } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { mnemonicToAccount, privateKeyToAccount } from "viem/accounts";
 
@@ -195,11 +196,15 @@ function checkOperations(appEnv, oceanEnv) {
   if (appEnv.HOSTNAME && appEnv.HOSTNAME !== "0.0.0.0" && appEnv.HOSTNAME !== "127.0.0.1") {
     findings.push("HOSTNAME is unusual for Next standalone; verify nginx/systemd routing.");
   }
+  const runnerTrust = trustedRunnerKeyStatus(appEnv);
   if (!safeSecret(appEnv.FISH_GUEST_ID_SALT)) findings.push("FISH_GUEST_ID_SALT is empty; production guest routes fail closed until it is set.");
-  if (!appEnv.FISH_RUNNER_PUBLIC_KEY_ID || !appEnv.FISH_RUNNER_PUBLIC_KEY_PEM) findings.push("Fish web app is missing trusted runner public key configuration.");
+  if (!runnerTrust.configured) findings.push("Fish web app is missing trusted runner public key configuration.");
+  if (runnerTrust.invalidKeyCount) {
+    findings.push(`${runnerTrust.invalidKeyCount} Fish runner public key configuration${runnerTrust.invalidKeyCount === 1 ? "" : "s"} could not be parsed as Ed25519.`);
+  }
   if (!oceanEnv.FISH_RUNNER_SIGNING_KEY_ID || !safeSecret(oceanEnv.FISH_RUNNER_SIGNING_PRIVATE_KEY_PEM)) findings.push("Fish Runner signing key is missing or weak.");
-  if (appEnv.FISH_RUNNER_PUBLIC_KEY_ID && oceanEnv.FISH_RUNNER_SIGNING_KEY_ID && appEnv.FISH_RUNNER_PUBLIC_KEY_ID !== oceanEnv.FISH_RUNNER_SIGNING_KEY_ID) {
-    findings.push("Fish web runner public key id does not match Fish Runner signing key id.");
+  if (runnerTrust.configured && oceanEnv.FISH_RUNNER_SIGNING_KEY_ID && !runnerTrust.keyIds.includes(oceanEnv.FISH_RUNNER_SIGNING_KEY_ID)) {
+    findings.push("Fish web trusted runner public keys do not include the Fish Runner signing key id.");
   }
   return result("Operational hardening", findings.length ? "partial" : "ready", findings);
 }
@@ -402,6 +407,83 @@ function readJson(value) {
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "parse_failed" };
   }
+}
+
+function trustedRunnerKeyStatus(env) {
+  const keys = [
+    ...trustedRunnerKeysFromJson(env.FISH_RUNNER_PUBLIC_KEYS_JSON),
+    ...trustedRunnerKeysFromPath(env.FISH_RUNNER_PUBLIC_KEYS_PATH),
+    ...trustedRunnerKeyFromSingleEnv(env)
+  ];
+  const keyIds = [];
+  let trustedKeyCount = 0;
+  let invalidKeyCount = 0;
+
+  for (const key of keys) {
+    try {
+      const publicKey = createPublicKey(key.publicKeyPem);
+      if (publicKey.asymmetricKeyType !== "ed25519") {
+        throw new Error("unsupported_runner_public_key_type");
+      }
+      trustedKeyCount += 1;
+      keyIds.push(key.keyId);
+    } catch {
+      invalidKeyCount += 1;
+    }
+  }
+
+  return {
+    configured: trustedKeyCount > 0,
+    trustedKeyCount,
+    invalidKeyCount,
+    keyIds
+  };
+}
+
+function trustedRunnerKeysFromPath(filePath) {
+  const cleaned = String(filePath || "").trim();
+  if (!cleaned) return [];
+  try {
+    return trustedRunnerKeysFromJson(readFileSync(cleaned, "utf8"));
+  } catch {
+    return [];
+  }
+}
+
+function trustedRunnerKeyFromSingleEnv(env) {
+  const keyId = String(env.FISH_RUNNER_PUBLIC_KEY_ID || "").trim();
+  const publicKeyPem = normalizePem(String(env.FISH_RUNNER_PUBLIC_KEY_PEM || "").trim());
+  return keyId && publicKeyPem ? [{ keyId, publicKeyPem }] : [];
+}
+
+function trustedRunnerKeysFromJson(value) {
+  const cleaned = String(value || "").trim();
+  if (!cleaned) return [];
+
+  const parsed = readJson(cleaned);
+  if (!parsed.ok) return [];
+
+  if (Array.isArray(parsed.value)) {
+    return parsed.value.flatMap((entry) => {
+      if (!entry || typeof entry !== "object") return [];
+      const keyId = String(entry.keyId || "").trim();
+      const publicKeyPem = normalizePem(String(entry.publicKeyPem || "").trim());
+      return keyId && publicKeyPem ? [{ keyId, publicKeyPem }] : [];
+    });
+  }
+
+  if (parsed.value && typeof parsed.value === "object") {
+    return Object.entries(parsed.value).flatMap(([keyId, publicKeyValue]) => {
+      const publicKeyPem = normalizePem(typeof publicKeyValue === "string" ? publicKeyValue.trim() : "");
+      return keyId && publicKeyPem ? [{ keyId, publicKeyPem }] : [];
+    });
+  }
+
+  return [];
+}
+
+function normalizePem(value) {
+  return value.replaceAll("\\n", "\n");
 }
 
 function option(name) {

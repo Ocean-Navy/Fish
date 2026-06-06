@@ -2699,6 +2699,15 @@ components:
               type: string
         guardrails:
           type: object
+        runnerReceiptTrust:
+          type: object
+          properties:
+            configured:
+              type: boolean
+            trustedKeyCount:
+              type: integer
+            invalidKeyCount:
+              type: integer
         warnings:
           type: array
           items:
