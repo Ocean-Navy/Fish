@@ -631,14 +631,23 @@ function PaymentDock({
   const stripeDisabled = disabled || isStartingStripe || readiness?.providers.stripe.enabled !== true;
   const usdcDisabled = disabled || isStartingUsdc || readiness?.providers.usdc.enabled !== true;
   const paymentsOpen = readiness?.checkoutAvailable === true;
+  const topupState = paymentsOpen ? "Ready" : readiness?.paidTopupsPaused ? "Paused" : "Waiting";
+  const paymentStatusCards = [
+    { label: "Checkout", value: paymentsOpen ? "Open" : "Closed" },
+    { label: "Top-ups", value: topupState },
+    { label: "Liability cap", value: readiness?.liabilityCap.configured ? formatNumber(readiness.liabilityCap.maxOutstandingPrepaidCredits ?? 0) : "Not set" },
+    { label: "Providers", value: readiness?.providers.stripe.configured || readiness?.providers.usdc.configured ? "Configured" : "Not ready" }
+  ];
 
   return (
     <div className="rounded-3xl border border-fish-accent/15 bg-fish-navy950/55 p-4">
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="text-sm font-black uppercase tracking-[0.1em] text-fish-gold">Add credits</p>
-          <h3 className="mt-2 text-2xl font-black text-white">Pay for AI dishes.</h3>
-          <p className="mt-1 text-sm font-bold leading-6 text-fish-secondary">Credits are issued only after payment confirms.</p>
+          <h3 className="mt-2 text-2xl font-black text-white">{paymentsOpen ? "Pay for AI dishes." : "Checkout is closed."}</h3>
+          <p className="mt-1 text-sm font-bold leading-6 text-fish-secondary">
+            {paymentsOpen ? "Credits are issued only after payment confirms." : "Use pilot credits for now. Paid top-ups open only after caps, support, and payment providers are ready."}
+          </p>
         </div>
         <div className="rounded-2xl border border-fish-accent/15 bg-white/[0.035] p-3 text-right">
           <p className="text-xs font-black uppercase tracking-[0.08em] text-fish-secondary">Estimate</p>
@@ -651,6 +660,11 @@ function PaymentDock({
         ) : (
           <span>Payments are not open yet. {formatBillingBlockers(readiness?.blockers)}</span>
         )}
+      </div>
+      <div className="mb-3 grid gap-2 sm:grid-cols-4">
+        {paymentStatusCards.map((card) => (
+          <MiniMetric key={card.label} label={card.label} value={card.value} />
+        ))}
       </div>
       <div className="grid gap-3 lg:grid-cols-[1fr_auto_auto] lg:items-end">
         <label className="block">
