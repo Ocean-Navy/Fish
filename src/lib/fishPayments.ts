@@ -34,11 +34,21 @@ const checkoutSchema = z
         message: "amountUsd and credits cannot both be supplied"
       });
     }
+    for (const field of ["successUrl", "cancelUrl"] as const) {
+      const value = input[field];
+      if (value && !isSameAppOriginRedirect(value)) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [field],
+          message: `${field} must stay on the Fish app origin`
+        });
+      }
+    }
   });
 
 const usdcCheckoutSchema = checkoutSchema.and(
   z.object({
-    payerAddress: z.string().trim().regex(/^0x[a-fA-F0-9]{40}$/).optional()
+    payerAddress: z.string().trim().regex(/^0x[a-fA-F0-9]{40}$/)
   })
 );
 
@@ -332,7 +342,7 @@ export async function createUsdcPayment(account: Account, input: UsdcCheckoutInp
     chainId: readInteger(process.env.FISH_USDC_CHAIN_ID, BASE_CHAIN_ID),
     tokenAddress: cleanEnv(process.env.FISH_USDC_TOKEN_ADDRESS) ?? BASE_USDC_ADDRESS,
     receiveAddress,
-    payerAddress: input.payerAddress ?? null,
+    payerAddress: normalizeAddress(input.payerAddress),
     amountAtomic: amountAtomic.toString(),
     transactionHash: null,
     creditEntryId: null,
@@ -363,6 +373,9 @@ export async function confirmUsdcPayment(account: Account, input: UsdcConfirmInp
   }
   if (payment.status === "paid" && payment.creditEntryId) {
     return { ok: true as const, idempotent: true, payment: publicPayment(payment) };
+  }
+  if (!payment.payerAddress || !isAddress(payment.payerAddress)) {
+    return { ok: false as const, status: 400, error: "usdc_payer_address_required" };
   }
   const reusedTransaction = ledger.payments.find(
     (candidate) => candidate.paymentId !== payment.paymentId && candidate.provider === "usdc_base" && candidate.transactionHash?.toLowerCase() === input.transactionHash.toLowerCase()
@@ -466,7 +479,10 @@ async function verifyUsdcReceipt(rpcUrl: string, payment: FishPaymentRequest, tr
   const expectedToken = normalizeAddress(payment.tokenAddress ?? BASE_USDC_ADDRESS);
   const expectedTo = normalizeAddress(payment.receiveAddress ?? "");
   const expectedAmount = BigInt(payment.amountAtomic ?? "0");
-  const expectedFrom = payment.payerAddress ? normalizeAddress(payment.payerAddress) : null;
+  if (!payment.payerAddress || !isAddress(payment.payerAddress)) {
+    return { ok: false as const, status: 400, error: "usdc_payer_address_required" };
+  }
+  const expectedFrom = normalizeAddress(payment.payerAddress);
   const logs = Array.isArray(receipt.logs) ? receipt.logs.filter(isRecord) : [];
   const transfer = logs.find((log) => {
     const topics = Array.isArray(log.topics) ? log.topics.map(String) : [];
@@ -481,7 +497,7 @@ async function verifyUsdcReceipt(rpcUrl: string, payment: FishPaymentRequest, tr
     if (to !== expectedTo) {
       return false;
     }
-    if (expectedFrom && from !== expectedFrom) {
+    if (from !== expectedFrom) {
       return false;
     }
     const amount = BigInt(String(log.data ?? "0x0"));
@@ -594,6 +610,16 @@ function publicPayment(payment: FishPaymentRequest): PublicPaymentRequest {
 
 function fishPublicUrl() {
   return cleanEnv(process.env.FISH_PUBLIC_APP_URL) ?? cleanEnv(process.env.NEXT_PUBLIC_FISH_APP_URL) ?? "http://127.0.0.1:3000";
+}
+
+function isSameAppOriginRedirect(value: string) {
+  try {
+    const url = new URL(value);
+    const appUrl = new URL(fishPublicUrl());
+    return !url.username && !url.password && url.origin === appUrl.origin;
+  } catch {
+    return false;
+  }
 }
 
 function addMinutes(value: string, minutes: number) {

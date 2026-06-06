@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { readJsonRequestBody } from "@/lib/requestBody";
 import { createWalletIntent, parseWalletIntentRequest, summarizeWalletIntents } from "@/lib/walletIntents";
 
 export const dynamic = "force-dynamic";
@@ -15,7 +16,12 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const parsed = parseWalletIntentRequest(await request.json().catch(() => ({})));
+  const body = await readJsonRequestBody(request);
+  if (!body.ok) {
+    return NextResponse.json({ error: { message: body.error, type: "invalid_request_error", maxBytes: body.maxBytes } }, { status: body.status });
+  }
+
+  const parsed = parseWalletIntentRequest(body.body);
   if (!parsed.success) {
     return NextResponse.json(
       {
@@ -29,11 +35,15 @@ export async function POST(request: Request) {
     );
   }
 
-  const intent = await createWalletIntent(parsed.data);
+  const result = await createWalletIntent(parsed.data);
+  if (!result.ok) {
+    return NextResponse.json({ error: { message: result.error, type: "rate_limit_error", limit: result.limit } }, { status: result.status });
+  }
+
   return NextResponse.json(
     {
       ok: true,
-      intent,
+      intent: result.intent,
       notice: "Wallet intent recorded. Credits are not issued until OCEAN lock verification is available."
     },
     { status: 201 }

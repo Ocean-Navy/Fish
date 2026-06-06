@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { authenticateRequest } from "@/lib/fishLedger";
 import { confirmUsdcPayment, parseUsdcConfirmRequest } from "@/lib/fishPayments";
+import { readJsonRequestBody } from "@/lib/requestBody";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +11,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: { message: auth.error, type: "authentication_error" } }, { status: auth.status });
   }
 
-  const parsed = parseUsdcConfirmRequest(await request.json().catch(() => ({})));
+  const body = await readJsonRequestBody(request);
+  if (!body.ok) {
+    return NextResponse.json({ error: { message: body.error, type: "invalid_request_error", maxBytes: body.maxBytes } }, { status: body.status });
+  }
+
+  const parsed = parseUsdcConfirmRequest(body.body);
   if (!parsed.success) {
     return NextResponse.json(
       {

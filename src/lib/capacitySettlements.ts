@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { mkdir, open, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { setTimeout as sleep } from "node:timers/promises";
 import path from "node:path";
 import { z } from "zod";
 import { submitCapacityPoolSettlementOnchain, summarizeFishContracts } from "@/lib/fishContracts";
@@ -7,6 +8,8 @@ import type { CapacitySettlementSubmission } from "@/lib/fishContracts";
 import type { DataState } from "@/lib/types";
 
 const DEFAULT_SETTLEMENT_DIR = path.join(/*turbopackIgnore: true*/ process.cwd(), "data", "proof", "capacity-settlements");
+const SETTLEMENT_LOCK_STALE_MS = 10 * 60_000;
+const SETTLEMENT_LOCK_RETRY_MS = 25;
 const TX_PATTERN = /^0x[a-fA-F0-9]{64}$/;
 const ADDRESS_PATTERN = /^0x[a-fA-F0-9]{40}$/;
 
@@ -118,6 +121,10 @@ export function parseCapacitySettlementRequest(body: unknown) {
 }
 
 export async function createCapacitySettlement(input: CapacitySettlementRequestInput, options: CapacitySettlementStorageOptions = {}) {
+  return withSettlementLock(options, () => createCapacitySettlementLocked(input, options));
+}
+
+async function createCapacitySettlementLocked(input: CapacitySettlementRequestInput, options: CapacitySettlementStorageOptions) {
   const idempotencyHash = input.idempotencyKey ? hashValue(input.idempotencyKey) : null;
   if (idempotencyHash) {
     const existing = await findSettlementByIdempotencyHash(idempotencyHash, options);
@@ -202,6 +209,45 @@ async function writeSettlement(settlement: CapacitySettlement, options: Capacity
   const dir = options.settlementDir ?? DEFAULT_SETTLEMENT_DIR;
   await mkdir(dir, { recursive: true });
   await writeFile(path.join(/*turbopackIgnore: true*/ dir, `${settlement.occurredAt}-${settlement.settlementId}.json`.replaceAll(":", "-")), `${JSON.stringify(settlement, null, 2)}\n`);
+}
+
+async function withSettlementLock<T>(options: CapacitySettlementStorageOptions, operation: () => Promise<T>) {
+  const dir = options.settlementDir ?? DEFAULT_SETTLEMENT_DIR;
+  await mkdir(dir, { recursive: true });
+  const lockPath = path.join(/*turbopackIgnore: true*/ dir, ".capacity-settlements.lock");
+  while (true) {
+    try {
+      const handle = await open(lockPath, "wx");
+      try {
+        await handle.writeFile(`${process.pid}:${new Date().toISOString()}`);
+        return await operation();
+      } finally {
+        await handle.close();
+        await rm(lockPath, { force: true });
+      }
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") {
+        throw error;
+      }
+      if (await removeStaleSettlementLock(lockPath)) {
+        continue;
+      }
+      await sleep(SETTLEMENT_LOCK_RETRY_MS);
+    }
+  }
+}
+
+async function removeStaleSettlementLock(lockPath: string) {
+  try {
+    const fileStat = await stat(lockPath);
+    if (Date.now() - fileStat.mtimeMs <= SETTLEMENT_LOCK_STALE_MS) {
+      return false;
+    }
+    await rm(lockPath, { force: true });
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === "ENOENT";
+  }
 }
 
 async function readSettlements(options: CapacitySettlementStorageOptions) {

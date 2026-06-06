@@ -3,7 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, test } from "node:test";
-import { requireAdmin } from "./fishLedger";
+import { parseChatCompletion, requireAdmin } from "./fishLedger";
 
 const originalAdminToken = process.env.FISH_ADMIN_TOKEN;
 const originalNodeEnv = process.env.NODE_ENV;
@@ -145,6 +145,33 @@ test("requireAdmin accepts a configured non-placeholder admin token in productio
   });
 
   assert.deepEqual(requireAdmin(request), { ok: true });
+});
+
+test("chat completion validation caps messages and text content", () => {
+  const tooManyMessages = parseChatCompletion({
+    model: "fish-demo-chat",
+    messages: Array.from({ length: 65 }, () => ({ role: "user", content: "hello" }))
+  });
+  const oversizedContent = parseChatCompletion({
+    model: "fish-demo-chat",
+    messages: [{ role: "user", content: "x".repeat(20_001) }]
+  });
+
+  assert.equal(tooManyMessages.success, false);
+  assert.equal(oversizedContent.success, false);
+});
+
+test("chat completion validation caps metadata keys", () => {
+  const parsed = parseChatCompletion({
+    model: "fish-demo-chat",
+    messages: [{ role: "user", content: "hello" }],
+    metadata: Object.fromEntries(Array.from({ length: 33 }, (_, index) => [`k${index}`, index]))
+  });
+
+  assert.equal(parsed.success, false);
+  if (!parsed.success) {
+    assert.deepEqual(parsed.error.flatten().fieldErrors.metadata, ["metadata cannot contain more than 32 keys"]);
+  }
 });
 
 async function useTempFishLedger() {

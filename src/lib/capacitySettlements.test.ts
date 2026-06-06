@@ -77,6 +77,33 @@ test("capacity settlements are idempotent and stay snapshot without onchain subm
   assert.equal(summary.totals.onchainSubmittedSettlements, 0);
 });
 
+test("concurrent capacity settlements with the same idempotency key write one record", async () => {
+  const dir = await useTempSettlementDir();
+  const options = { settlementDir: dir };
+  const results = await Promise.all(
+    Array.from({ length: 5 }, (_, index) =>
+      createCapacitySettlement(
+        {
+          grossUsdcAmount: 50,
+          netUsdcAmount: 45,
+          operatorFeeUsdc: 5,
+          settlementSource: "api_subscription",
+          idempotencyKey: "capacity-settlement-race-001",
+          submitOnchain: false,
+          occurredAt: `2026-06-04T00:00:0${index}.000Z`
+        },
+        options
+      )
+    )
+  );
+  const files = await readdir(dir);
+  const settlementIds = new Set(results.map((result) => result.settlement.settlementId));
+
+  assert.equal(settlementIds.size, 1);
+  assert.equal(results.filter((result) => result.idempotent).length, 4);
+  assert.equal(files.filter((file) => file.endsWith(".json")).length, 1);
+});
+
 async function useTempSettlementDir() {
   activeTempDir = await mkdtemp(path.join(tmpdir(), "fish-capacity-settlements-"));
   return activeTempDir;

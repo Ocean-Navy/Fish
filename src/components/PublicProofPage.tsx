@@ -189,7 +189,7 @@ export function PublicProofPage({
               <Link key={receipt.receiptId} href={`/api/proof/receipts/${receipt.receiptId}` as Route} className="group rounded-[1.5rem] border border-fish-accent/20 bg-fish-surface/80 p-5 shadow-harbor hover:border-fish-accent/60">
                 <p className="text-xs font-black uppercase tracking-[0.12em] text-fish-gold">{receipt.status.replaceAll("_", " ")}</p>
                 <h3 className="mt-3 text-lg font-black text-white group-hover:text-fish-accent">{receipt.providerLabel}</h3>
-                <p className="mt-3 break-all text-xs font-bold leading-5 text-fish-secondary">{receipt.hashes.canonicalReceiptHash.slice(0, 28)}...</p>
+                <p className="mt-3 break-all text-xs font-bold leading-5 text-fish-secondary">{receipt.canonicalReceiptHash.slice(0, 28)}...</p>
                 <p className="mt-4 text-sm font-black text-fish-primary">{receipt.signatureStatus}</p>
               </Link>
             ))}

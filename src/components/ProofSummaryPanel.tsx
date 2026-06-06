@@ -2,7 +2,7 @@ import { FileCheck2, Gauge, ReceiptText, Ship } from "lucide-react";
 import Link from "next/link";
 import type { Route } from "next";
 import { formatCompact, formatDateTime, formatNumber, formatUsd } from "@/lib/format";
-import type { ProofSummary, ProviderJobReceipt } from "@/lib/providerJobs";
+import type { ProofSummary } from "@/lib/providerJobs";
 import { StatusBadge } from "@/components/StatusBadge";
 
 const cards = [
@@ -170,16 +170,16 @@ export function ProofSummaryPanel({ summary }: { summary: ProofSummary }) {
                       <td className="border-b border-white/10 px-3 py-3">{formatReceiptType(receipt.backend)}</td>
                       <td className="border-b border-white/10 px-3 py-3">{formatReceiptType(receipt.status)}</td>
                       <td className="border-b border-white/10 px-3 py-3">
-                        <span className="block font-bold">{formatNumber(receipt.usage.inputTokens + receipt.usage.outputTokens)} tokens</span>
-                        <span className="text-xs text-fish-secondary">{formatNumber(receipt.usage.gpuSeconds)} GPU sec</span>
+                        <span className="block font-bold">{formatNumber(receipt.usageSummary.totalTokens)} tokens</span>
+                        <span className="text-xs text-fish-secondary">{formatNumber(receipt.usageSummary.gpuSeconds)} GPU sec</span>
                       </td>
                       <td className="border-b border-white/10 px-3 py-3">
-                        <span className="block font-bold">{formatUsd(receipt.cost.providerCostUsd)}</span>
-                        <span className="text-xs text-fish-secondary">{formatUsd(receipt.cost.userChargeUsd)} charge</span>
+                        <span className="block font-bold">{formatUsd(receipt.costSummary.providerCostUsd)}</span>
+                        <span className="text-xs text-fish-secondary">{formatUsd(receipt.costSummary.userChargeUsd)} charge</span>
                       </td>
                       <td className="border-b border-white/10 px-3 py-3">
                         <span className={`block font-bold ${needsReview ? "text-red-100" : "text-white"}`}>{receipt.signatureStatus}</span>
-                        <span className="text-xs text-fish-secondary">{receipt.hashes.canonicalReceiptHash.slice(0, 18)}...</span>
+                        <span className="text-xs text-fish-secondary">{receipt.canonicalReceiptHash.slice(0, 18)}...</span>
                       </td>
                       <td className="border-b border-white/10 px-3 py-3">{formatDateTime(receipt.createdAt)}</td>
                     </tr>
@@ -204,7 +204,7 @@ export function ProofSummaryPanel({ summary }: { summary: ProofSummary }) {
   );
 }
 
-function formatReceiptType(value: ProviderJobReceipt["receiptType"] | ProviderJobReceipt["backend"] | ProviderJobReceipt["status"] | string) {
+function formatReceiptType(value: string) {
   return value.replaceAll("_", " ");
 }
 

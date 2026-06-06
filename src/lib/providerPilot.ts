@@ -104,8 +104,6 @@ export type ProviderAllowlistEntry = {
   noPromptOutputLogging: boolean;
   approvedContainerCount: number;
   supportReady: boolean;
-  operatorOwner: string;
-  decisionReason: string;
   startsAt: string;
   expiresAt: string | null;
 };
@@ -376,8 +374,6 @@ function buildAllowlist(providers: ProviderProfile[], candidates: AllowlistCandi
         noPromptOutputLogging: candidate.noPromptOutputLogging || provider.noLoggingPolicy,
         approvedContainerCount: candidate.approvedContainers.length || Number(provider.approvedContainerReady),
         supportReady: Boolean(candidate.supportContact?.trim()) || provider.supportReady,
-        operatorOwner: candidate.operatorOwner,
-        decisionReason: candidate.decisionReason,
         startsAt: candidate.startsAt ?? new Date().toISOString(),
         expiresAt: candidate.expiresAt ?? null
       }
