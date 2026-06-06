@@ -27,6 +27,9 @@ test("Ocean proof readiness stays sample before adapter or receipt setup", async
   assert.equal(readiness.dataState, "sample");
   assert.equal(readiness.trafficReady, false);
   assert.equal(readiness.proofReady, false);
+  assert.equal(readiness.claim.level, "setup");
+  assert.match(readiness.claim.boundary, /not claiming Ocean workload proof/);
+  assert.deepEqual(readiness.claim.notClaimed, ["Paid third-party Oncompute demand", "Raw prompts or answers in public proof", "Staking alone funds compute"]);
   assert.equal(readiness.adapter.healthState, "not_configured");
   assert.equal(readiness.proof.hasNonSampleReceipt, false);
   assert.deepEqual(readiness.blockers, ["FISH_OCEAN_BATCH_ENDPOINT is not configured.", "No successful non-sample Ocean batch receipt has been recorded yet."]);
@@ -43,6 +46,7 @@ test("Ocean proof readiness does not claim proof when the adapter is unreachable
   assert.equal(readiness.dataState, "unavailable");
   assert.equal(readiness.trafficReady, false);
   assert.equal(readiness.proofReady, false);
+  assert.equal(readiness.claim.level, "setup");
   assert.equal(readiness.adapter.configured, true);
   assert.equal(readiness.adapter.reachable, false);
   assert.equal(readiness.proof.hasNonSampleReceipt, false);
@@ -65,6 +69,10 @@ test("Ocean proof readiness is snapshot proof after adapter health and non-sampl
   assert.equal(readiness.dataState, "snapshot");
   assert.equal(readiness.trafficReady, true);
   assert.equal(readiness.proofReady, true);
+  assert.equal(readiness.claim.level, "local-ocean-node");
+  assert.equal(readiness.claim.title, "Local Ocean proof");
+  assert.match(readiness.claim.headline, /ran through our Ocean Node/);
+  assert.match(readiness.claim.boundary, /does not prove paid third-party Oncompute demand/);
   assert.equal(readiness.adapter.reachable, true);
   assert.equal(readiness.adapter.mode, "local_ocean_node");
   assert.equal(readiness.adapter.liveReady, true);
@@ -84,6 +92,38 @@ test("Ocean proof readiness is snapshot proof after adapter health and non-sampl
   assert.deepEqual(readiness.blockers, []);
 });
 
+test("Ocean proof readiness uses the latest successful non-sample receipt for public proof state", async () => {
+  const batchDir = await useTempOceanBatchDir();
+  await writeOceanBatchReceipt(batchDir, {
+    receiptId: "batch_rcpt_local_ocean_old",
+    jobId: "batch_job_local_ocean_old",
+    createdAt: "2026-06-06T00:00:00.000Z",
+    sourceState: "snapshot",
+    status: "succeeded",
+    outputHash: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  });
+  await writeOceanBatchReceipt(batchDir, {
+    receiptId: "batch_rcpt_sample_new",
+    jobId: "batch_job_sample_new",
+    createdAt: "2026-06-06T00:05:00.000Z",
+    sourceState: "sample",
+    status: "succeeded",
+    outputHash: "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+  });
+  const { server, url } = await startHealthyAdapter();
+  servers.push(server);
+  process.env.FISH_OCEAN_BATCH_ENDPOINT = `${url}/jobs`;
+  process.env.FISH_OCEAN_BATCH_API_KEY = "test-ocean-batch-key-1234567890";
+  process.env.FISH_OCEAN_BATCH_PROVIDER_ID = "ocean-navy-local-node";
+
+  const readiness = await summarizeOceanProofReadiness();
+
+  assert.equal(readiness.proofReady, true);
+  assert.equal(readiness.claim.level, "local-ocean-node");
+  assert.equal(readiness.proof.latestReceiptState, "snapshot");
+  assert.equal(readiness.proof.latestReceiptAt, "2026-06-06T00:00:00.000Z");
+});
+
 async function useTempOceanBatchDir() {
   const dir = path.join(tmpdir(), `fish-ocean-proof-${Date.now()}-${Math.random().toString(16).slice(2)}`);
   await mkdir(dir, { recursive: true });
@@ -92,26 +132,38 @@ async function useTempOceanBatchDir() {
   return dir;
 }
 
-async function writeOceanBatchReceipt(batchDir: string) {
+async function writeOceanBatchReceipt(
+  batchDir: string,
+  overrides: Partial<{
+    receiptId: string;
+    jobId: string;
+    createdAt: string;
+    sourceState: "live" | "snapshot" | "sample" | "unavailable";
+    status: "succeeded" | "failed" | "timed_out";
+    outputHash: string | null;
+  }> = {}
+) {
   const receiptsDir = path.join(batchDir, "receipts");
   await mkdir(receiptsDir, { recursive: true });
+  const createdAt = overrides.createdAt ?? "2026-06-06T00:00:00.000Z";
+  const receiptId = overrides.receiptId ?? "batch_rcpt_local_ocean_1";
   const receipt = {
     receiptVersion: 1,
     receiptType: "ocean_batch_job_receipt",
-    receiptId: "batch_rcpt_local_ocean_1",
-    jobId: "batch_job_local_ocean_1",
+    receiptId,
+    jobId: overrides.jobId ?? "batch_job_local_ocean_1",
     providerJobId: "ocean_node_job_1",
     providerId: "ocean-navy-local-node",
     taskType: "document_summary",
     model: "ocean-batch-placeholder",
     backend: "ocean_batch",
-    status: "succeeded",
-    sourceState: "snapshot",
-    adapterMode: "ocean_http",
+    status: overrides.status ?? "succeeded",
+    sourceState: overrides.sourceState ?? "snapshot",
+    adapterMode: overrides.sourceState === "sample" ? "sample_success" : "ocean_http",
     visibility: "public",
     storesPromptOutputText: false,
-    createdAt: "2026-06-06T00:00:00.000Z",
-    startedAt: "2026-06-06T00:00:00.000Z",
+    createdAt,
+    startedAt: createdAt,
     completedAt: "2026-06-06T00:00:04.000Z",
     usage: {
       inputTokens: 24,
@@ -127,12 +179,12 @@ async function writeOceanBatchReceipt(batchDir: string) {
     },
     hashes: {
       inputHash: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-      outputHash: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      outputHash: overrides.outputHash ?? "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
       canonicalReceiptHash: "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
     },
     errorCode: null
   };
-  await writeFile(path.join(receiptsDir, "2026-06-06T00-00-00.000Z-batch_rcpt_local_ocean_1.json"), JSON.stringify(receipt, null, 2));
+  await writeFile(path.join(receiptsDir, `${createdAt}-${receiptId}.json`.replaceAll(":", "-")), JSON.stringify(receipt, null, 2));
 }
 
 async function startHealthyAdapter() {

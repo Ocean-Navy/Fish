@@ -853,7 +853,7 @@ Per-dish runtime and cost caps can be set with `FISH_DOCS_BATCH_MAX_RUNTIME_SECO
 
 Batch receipts are written under `data/ocean-batch/`, and successful jobs also write Fish usage receipts so the public dashboard can count them as Ocean-backed usage. Set `FISH_OCEAN_BATCH_DIR` only for isolated local smoke tests that should not touch the normal runtime receipt ledger. For public testing without external Oncompute payments, run the GPU-side Ocean demo stack and use free compute on our own Ocean Node. See `docs/ocean-batch-jobs-plan.md` for the adapter contract.
 
-`/api/ocean/batch/readiness` and `/proof` show whether the private adapter is configured, reachable, live-ready, and backed by at least one successful non-sample Ocean batch receipt. The readiness response exposes booleans and blockers only; it does not expose adapter URLs, wallet secrets, API keys, prompt text, or output text.
+`/api/ocean/batch/readiness` and `/proof` show whether the private adapter is configured, reachable, live-ready, and backed by at least one successful non-sample Ocean batch receipt. The readiness response includes a plain-language `claim` object so the API and proof page agree on the current boundary: setup, route connected, local Ocean Node proof, or Ocean CLI proof. It exposes booleans, blockers, and public claim text only; it does not expose adapter URLs, wallet secrets, API keys, prompt text, output text, node URLs, or DIDs.
 
 After `make ocean-demo-smoke` passes, run one full web-to-Ocean proof smoke with the web app pointed at the private adapter:
 

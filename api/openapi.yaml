@@ -2216,6 +2216,23 @@ components:
           type: boolean
         proofReady:
           type: boolean
+        claim:
+          type: object
+          description: Plain-language public claim boundary for the current Ocean proof state. Does not include adapter URLs, node URLs, DIDs, keys, prompt text, or output text.
+          properties:
+            level:
+              type: string
+              enum: [setup, route-ready, local-ocean-node, ocean-cli]
+            title:
+              type: string
+            headline:
+              type: string
+            boundary:
+              type: string
+            notClaimed:
+              type: array
+              items:
+                type: string
         route:
           type: object
           properties:

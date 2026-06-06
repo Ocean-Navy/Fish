@@ -24,6 +24,13 @@ export type OceanProofReadiness = {
   generatedAt: string;
   trafficReady: boolean;
   proofReady: boolean;
+  claim: {
+    level: "setup" | "route-ready" | "local-ocean-node" | "ocean-cli";
+    title: string;
+    headline: string;
+    boundary: string;
+    notClaimed: string[];
+  };
   route: {
     batchEndpointConfigured: boolean;
     batchApiKeyConfigured: boolean;
@@ -63,9 +70,10 @@ export async function summarizeOceanProofReadiness(): Promise<OceanProofReadines
   const generatedAt = new Date().toISOString();
   const batchEndpoint = process.env.FISH_OCEAN_BATCH_ENDPOINT?.trim() || "";
   const batch = await summarizeOceanBatchJobs();
-  const latestReceipt = batch.receipts[0] ?? null;
   const nonSampleReceipts = batch.receipts.filter((receipt) => receipt.sourceState !== "sample");
-  const hasNonSampleReceipt = nonSampleReceipts.some((receipt) => receipt.status === "succeeded" && Boolean(receipt.hashes.outputHash));
+  const successfulNonSampleReceipts = nonSampleReceipts.filter((receipt) => receipt.status === "succeeded" && Boolean(receipt.hashes.outputHash));
+  const latestProofReceipt = latestReceipt(successfulNonSampleReceipts);
+  const hasNonSampleReceipt = Boolean(latestProofReceipt);
   const adapter = batchEndpoint ? await readAdapterStatus(batchEndpoint) : defaultAdapterStatus();
   const route = {
     batchEndpointConfigured: Boolean(batchEndpoint),
@@ -87,16 +95,73 @@ export async function summarizeOceanProofReadiness(): Promise<OceanProofReadines
     generatedAt,
     trafficReady,
     proofReady,
+    claim: publicClaim({ adapterMode: adapter.mode, hasNonSampleReceipt, proofReady, trafficReady }),
     route,
     adapter,
     proof: {
       hasNonSampleReceipt,
       nonSampleJobs: nonSampleReceipts.length,
-      latestReceiptState: latestReceipt?.sourceState ?? "sample",
-      latestReceiptAt: latestReceipt?.createdAt ?? null,
+      latestReceiptState: latestProofReceipt?.sourceState ?? "sample",
+      latestReceiptAt: latestProofReceipt?.createdAt ?? null,
       succeededJobs: batch.succeededJobs
     },
     blockers
+  };
+}
+
+function latestReceipt<T extends { createdAt: string }>(receipts: T[]) {
+  return receipts.reduce<T | null>((latest, receipt) => (!latest || receipt.createdAt > latest.createdAt ? receipt : latest), null);
+}
+
+function publicClaim({
+  adapterMode,
+  hasNonSampleReceipt,
+  proofReady,
+  trafficReady
+}: {
+  adapterMode: string | null;
+  hasNonSampleReceipt: boolean;
+  proofReady: boolean;
+  trafficReady: boolean;
+}): OceanProofReadiness["claim"] {
+  const notClaimed = ["Paid third-party Oncompute demand", "Raw prompts or answers in public proof", "Staking alone funds compute"];
+
+  if (proofReady && hasNonSampleReceipt && adapterMode === "local_ocean_node") {
+    return {
+      level: "local-ocean-node",
+      title: "Local Ocean proof",
+      headline: "A Fish dish ran through our Ocean Node.",
+      boundary: "This proves the local Ocean Node path operated by Ocean Navy. It does not prove paid third-party Oncompute demand yet.",
+      notClaimed
+    };
+  }
+
+  if (proofReady && hasNonSampleReceipt && adapterMode === "live") {
+    return {
+      level: "ocean-cli",
+      title: "Ocean CLI proof",
+      headline: "A Fish dish has an Ocean compute ticket.",
+      boundary: "This proves the configured Ocean compute path for the recorded ticket. Paid third-party Oncompute demand still needs a separate external proof review.",
+      notClaimed
+    };
+  }
+
+  if (trafficReady) {
+    return {
+      level: "route-ready",
+      title: "Route connected",
+      headline: "The Ocean route is connected; the first proof ticket is still waiting.",
+      boundary: "Fish can reach the private Ocean batch path, but public proof starts only after a successful non-sample dish receipt.",
+      notClaimed
+    };
+  }
+
+  return {
+    level: "setup",
+    title: "Setup",
+    headline: "Ocean proof is still in setup mode.",
+    boundary: "Fish is not claiming Ocean workload proof until the private route is ready and one successful non-sample dish ticket exists.",
+    notClaimed
   };
 }
 

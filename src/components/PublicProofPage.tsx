@@ -34,17 +34,15 @@ export function PublicProofPage({
   const receiptRows = proof.receipts.slice(0, 5);
   const benchmarkRows = benchmarks.matrix.slice(0, 6);
   const hasOceanBatchProof = oceanProof.proof.hasNonSampleReceipt;
-  const heroState = hasOceanBatchProof ? oceanProof.proof.latestReceiptState : proof.dataState;
+  const heroState = hasOceanBatchProof || oceanProof.trafficReady ? oceanProof.dataState : proof.dataState;
   const heroCopy = hasOceanBatchProof
-    ? oceanProof.proof.latestReceiptState === "live"
-      ? "Ocean batch proof has a live receipt."
-      : "Ocean batch proof is snapshot evidence from our local Ocean Node."
+    ? oceanProof.claim.headline
     : hasLiveProof
       ? "Selected provider runs have public proof."
-      : "The market is open, and proof is still early.";
+      : oceanProof.claim.headline;
   const heroUpdatedAt = oceanProof.proof.latestReceiptAt ?? proof.lastUpdated;
   const oceanNextSteps = oceanProof.blockers.map(publicOceanBlocker);
-  const verdict = proofVerdict({ hasOceanBatchProof, hasLiveProof, oceanProof });
+  const verdict = proofVerdict({ hasLiveProof, oceanProof });
   const boundaryCards = proofBoundaryCards({ hasOceanBatchProof, oceanProof });
   const plainProofCards = [
     {
@@ -68,8 +66,8 @@ export function PublicProofPage({
     {
       icon: ShieldCheck,
       label: "Claim",
-      title: hasOceanBatchProof ? "Local Ocean proof" : "Early proof",
-      body: hasOceanBatchProof ? "This proves our local Ocean Node path, not paid third-party Oncompute demand yet." : "Sample and missing states stay clearly labeled."
+      title: hasOceanBatchProof ? oceanProof.claim.title : "Early proof",
+      body: hasOceanBatchProof ? oceanProof.claim.boundary : "Sample and missing states stay clearly labeled."
     }
   ];
 
@@ -206,7 +204,7 @@ export function PublicProofPage({
               <MeaningRow label="For users" value={oceanProof.proofReady ? "A test dish has Ocean proof." : "Orders are still in demo or setup mode."} />
               <MeaningRow label="For builders" value={oceanProof.trafficReady ? "The private batch path is reachable." : "Use JSON proof only as setup evidence."} />
               <MeaningRow label="For Ocean ecosystem" value={hasOceanBatchProof ? "Fish can show local Ocean Node usage." : "Usage proof still needs the first Ocean dish."} />
-              <MeaningRow label="For Oncompute" value="External paid demand is not claimed yet." />
+              <MeaningRow label="Not claimed" value={oceanProof.claim.notClaimed.join(" / ")} />
             </div>
           </div>
         </div>
@@ -454,17 +452,15 @@ function publicOceanBlocker(blocker: string) {
 
 function proofVerdict({
   hasLiveProof,
-  hasOceanBatchProof,
   oceanProof
 }: {
   hasLiveProof: boolean;
-  hasOceanBatchProof: boolean;
   oceanProof: OceanProofReadiness;
 }) {
-  if (hasOceanBatchProof) {
+  if (oceanProof.proof.hasNonSampleReceipt || oceanProof.trafficReady) {
     return {
-      title: oceanProof.proof.latestReceiptState === "live" ? "Live" : "Local",
-      boundary: "Fish has a public-safe Ocean dish ticket. This proves the local Ocean path; it does not prove paid third-party Oncompute demand yet."
+      title: oceanProof.claim.title,
+      boundary: oceanProof.claim.boundary
     };
   }
 
@@ -482,9 +478,9 @@ function proofVerdict({
 }
 
 function proofBoundaryCards({ hasOceanBatchProof, oceanProof }: { hasOceanBatchProof: boolean; oceanProof: OceanProofReadiness }) {
-  const readyTitle = hasOceanBatchProof ? "Test dish through our Ocean Node" : oceanProof.trafficReady ? "Ocean route connected" : "Setup mode";
+  const readyTitle = hasOceanBatchProof ? oceanProof.claim.title : oceanProof.trafficReady ? "Ocean route connected" : "Setup mode";
   const readyBody = hasOceanBatchProof
-    ? "A public-safe ticket proves the local Ocean path."
+    ? oceanProof.claim.boundary
     : oceanProof.trafficReady
       ? "Run one successful dish to record the first Ocean ticket."
       : "No Ocean workload claim yet.";
@@ -498,8 +494,8 @@ function proofBoundaryCards({ hasOceanBatchProof, oceanProof }: { hasOceanBatchP
     },
     {
       label: "Not claimed",
-      title: "Paid external Oncompute demand",
-      body: "This needs a live external node, algorithm DID, compute environment, and one real receipt.",
+      title: "Paid external demand",
+      body: "This needs one real external Ocean/Oncompute job and a public-safe receipt.",
       className: "border-fish-gold/25 bg-fish-gold/10 text-fish-primary"
     },
     {
