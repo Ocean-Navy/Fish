@@ -50,6 +50,40 @@ test("paid mainnet readiness blocks while paid checkout is paused", async () => 
   assert.match(payments.findings.join("\n"), /paid checkout cannot launch/);
 });
 
+test("public web readiness blocks an unconfigured Ocean demo route", async () => {
+  const appEnv = await tempEnv(["FISH_PAID_TOPUPS_PAUSED=true", "FISH_ADMIN_TOKEN=12345678901234567890123456789012", "FISH_CHAT_ROUTE=ocean-first"].join("\n"));
+  const result = runReadiness(["--env", appEnv, "--ocean-env", missingOceanEnv(), "--json"]);
+
+  assert.equal(result.status, 1);
+  const summary = JSON.parse(result.stdout);
+  const web = summary.checks.find((check: { name: string }) => check.name === "Public web env");
+
+  assert.equal(web.state, "blocked");
+  assert.match(web.findings.join("\n"), /Selected chat route ocean-demo-vllm is not ready/);
+});
+
+test("public web readiness accepts a configured Ocean demo route", async () => {
+  const appEnv = await tempEnv(
+    [
+      "FISH_PAID_TOPUPS_PAUSED=true",
+      "FISH_ADMIN_TOKEN=12345678901234567890123456789012",
+      "FISH_CHAT_ROUTE=ocean-first",
+      "FISH_OCEAN_DEMO_VLLM_BASE_URL=http://127.0.0.1:8088/v1",
+      "FISH_OCEAN_DEMO_VLLM_API_KEY=12345678901234567890123456789012",
+      "FISH_OCEAN_DEMO_VLLM_MODEL=fish-warm-chat",
+      "FISH_OCEAN_DEMO_DAILY_BUDGET_USD=5"
+    ].join("\n")
+  );
+  const result = runReadiness(["--env", appEnv, "--ocean-env", missingOceanEnv(), "--json"]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const summary = JSON.parse(result.stdout);
+  const web = summary.checks.find((check: { name: string }) => check.name === "Public web env");
+
+  assert.notEqual(web.state, "blocked");
+  assert.doesNotMatch(web.findings.join("\n"), /Selected chat route/);
+});
+
 test("Ocean demo readiness flags free compute without a wallet allowlist", async () => {
   const appEnv = await tempEnv("FISH_PAID_TOPUPS_PAUSED=true\n");
   const oceanEnv = await tempEnv(oceanEnvWithComputeAccess([]));

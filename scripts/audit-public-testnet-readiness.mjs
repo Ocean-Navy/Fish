@@ -59,9 +59,16 @@ function checkPublicWeb(env, path) {
   const findings = [];
   if (!existsSync(path)) findings.push(`Missing ${path}; copy .env.production.example before public testing.`);
   if (!safeSecret(env.FISH_ADMIN_TOKEN)) findings.push("FISH_ADMIN_TOKEN is missing or still a placeholder.");
-  if (env.FISH_CHAT_ROUTE === "mock") findings.push("FISH_CHAT_ROUTE is still mock; this is fine for a preview but not a usable AI test.");
-  if (truthy(env.FISH_CHAT_PAUSED)) findings.push("FISH_CHAT_PAUSED is enabled.");
-  return result("Public web env", findings.length ? "partial" : "ready", findings);
+  const route = normalizeChatRoute(env.FISH_CHAT_ROUTE || env.FISH_CHAT_BACKEND);
+  const paused = truthy(env.FISH_CHAT_PAUSED) || truthy(env.FISH_ROUTER_PAUSED);
+  const killSwitch = truthy(env.FISH_ROUTER_KILL_SWITCH) || truthy(env.FISH_CHAT_KILL_SWITCH);
+
+  if (killSwitch) findings.push("FISH_ROUTER_KILL_SWITCH is enabled.");
+  if (paused) findings.push("FISH_CHAT_PAUSED is enabled.");
+  if (!paused && !killSwitch) findings.push(...checkSelectedChatRoute(env, route));
+
+  const routeBroken = findings.some((finding) => finding.startsWith("Selected chat route"));
+  return result("Public web env", routeBroken ? "blocked" : findings.length ? "partial" : "ready", findings);
 }
 
 function checkOceanDemo(env, path) {
@@ -210,6 +217,59 @@ function symbol(state) {
   return state === "ready" ? "[ok]" : state === "blocked" ? "[block]" : state === "partial" ? "[partial]" : "[manual]";
 }
 
+function checkSelectedChatRoute(env, route) {
+  if (route === "mock") {
+    return ["FISH_CHAT_ROUTE is still mock; this is fine for a preview but not a usable AI test."];
+  }
+
+  if (route === "ocean-demo-vllm") {
+    const findings = [];
+    if (!httpUrl(env.FISH_OCEAN_DEMO_VLLM_BASE_URL)) findings.push("FISH_OCEAN_DEMO_VLLM_BASE_URL is missing or not HTTP(S).");
+    if (!safeSecret(env.FISH_OCEAN_DEMO_VLLM_API_KEY)) findings.push("FISH_OCEAN_DEMO_VLLM_API_KEY is missing or weak.");
+    if (!env.FISH_OCEAN_DEMO_VLLM_MODEL) findings.push("FISH_OCEAN_DEMO_VLLM_MODEL is missing.");
+    if (number(env.FISH_OCEAN_DEMO_DAILY_BUDGET_USD) <= 0) findings.push("FISH_OCEAN_DEMO_DAILY_BUDGET_USD must be positive.");
+    return findings.map((finding) => `Selected chat route ocean-demo-vllm is not ready: ${finding}`);
+  }
+
+  if (route === "ocean-provider") {
+    const findings = [];
+    if (!httpUrl(env.FISH_OCEAN_PROVIDER_BASE_URL)) findings.push("FISH_OCEAN_PROVIDER_BASE_URL is missing or not HTTP(S).");
+    if (!safeSecret(env.FISH_OCEAN_PROVIDER_API_KEY)) findings.push("FISH_OCEAN_PROVIDER_API_KEY is missing or weak.");
+    if (!env.FISH_OCEAN_PROVIDER_MODEL) findings.push("FISH_OCEAN_PROVIDER_MODEL is missing.");
+    if (number(env.FISH_OCEAN_PROVIDER_DAILY_BUDGET_USD) <= 0) findings.push("FISH_OCEAN_PROVIDER_DAILY_BUDGET_USD must be positive.");
+    return findings.map((finding) => `Selected chat route ocean-provider is not ready: ${finding}`);
+  }
+
+  const findings = [];
+  if (!httpUrl(env.FISH_EXTERNAL_CHAT_BASE_URL)) findings.push("FISH_EXTERNAL_CHAT_BASE_URL is missing or not HTTP(S).");
+  if (!safeSecret(env.FISH_EXTERNAL_CHAT_API_KEY)) findings.push("FISH_EXTERNAL_CHAT_API_KEY is missing or weak.");
+  if (!env.FISH_EXTERNAL_CHAT_MODEL) findings.push("FISH_EXTERNAL_CHAT_MODEL is missing.");
+  if (number(env.FISH_EXTERNAL_FALLBACK_DAILY_BUDGET_USD) <= 0) findings.push("FISH_EXTERNAL_FALLBACK_DAILY_BUDGET_USD must be positive.");
+  return findings.map((finding) => `Selected chat route external-fallback is not ready: ${finding}`);
+}
+
+function normalizeChatRoute(value) {
+  const route = String(value || "").trim().toLowerCase();
+  if (
+    route === "ocean-demo-vllm" ||
+    route === "ocean_demo_vllm" ||
+    route === "vllm" ||
+    route === "ocean-first" ||
+    route === "ocean_first" ||
+    route === "hybrid" ||
+    route === "ocean-first-hybrid"
+  ) {
+    return "ocean-demo-vllm";
+  }
+  if (route === "ocean-provider" || route === "ocean_provider" || route === "selected-ocean-provider" || route === "selected_ocean_provider" || route === "selected-provider") {
+    return "ocean-provider";
+  }
+  if (route === "external" || route === "external-fallback" || route === "external_fallback") {
+    return "external-fallback";
+  }
+  return "mock";
+}
+
 function readEnvFile(path) {
   const out = {};
   if (!existsSync(path)) return out;
@@ -349,6 +409,11 @@ function publicBind(value) {
 
 function address(value) {
   return /^0x[a-fA-F0-9]{40}$/.test(String(value || "").trim());
+}
+
+function httpUrl(value) {
+  const cleaned = String(value || "").trim();
+  return /^https?:\/\/[^/\s]+/i.test(cleaned);
 }
 
 function number(value) {

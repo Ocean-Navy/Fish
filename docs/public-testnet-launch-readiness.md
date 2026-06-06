@@ -37,6 +37,8 @@ Paste the generated values into private env files only. The command prints admin
 
 The readiness script also audits the selected Ocean compute environment. `FISH_OCEAN_COMPUTE_ENV_ID` must match an environment inside `OCEAN_NODE_DOCKER_COMPUTE_ENVIRONMENTS`, and that environment must restrict `free.access.addresses` to the Ocean proof wallet used by the workload adapter.
 
+It also audits the selected public chat route. `mock` is allowed only as a clearly labeled preview. If `FISH_CHAT_ROUTE` selects `ocean-first`, `ocean-demo-vllm`, `ocean-provider`, or `external-fallback`, the matching private base URL, API key, model, and daily budget must be configured or the readiness gate blocks.
+
 For a public tester deployment, keep sensitive services private:
 
 ```text
@@ -203,6 +205,7 @@ Also verify:
 admin token is not a placeholder
 guest salt is set
 daily budgets are low
+selected chat route has its private endpoint, API key, model, and budget
 adapter key is not a placeholder
 runner and proof signing keys are configured
 selected Ocean compute environment free access is restricted to the proof wallet
