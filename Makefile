@@ -1,6 +1,6 @@
 BASIC_USER ?= fish
 
-.PHONY: install dev build typecheck lint verify serve-api smoke public-testnet-readiness backup-runtime public-testnet-secrets docker-build docker-up docker-down preview-config preview-up preview-down ocean-demo-config ocean-demo-up ocean-demo-up-warm ocean-demo-up-mlx ocean-demo-down ocean-demo-smoke nginx-password health zip
+.PHONY: install dev build typecheck lint verify serve-api smoke public-testnet-readiness backup-runtime public-testnet-secrets docker-build docker-up docker-down preview-config preview-up preview-down ocean-demo-config ocean-demo-up ocean-demo-up-warm ocean-demo-up-mlx ocean-demo-down ocean-demo-smoke fish-ocean-proof-smoke nginx-password health zip
 
 install:
 	npm ci
@@ -70,6 +70,9 @@ ocean-demo-down:
 
 ocean-demo-smoke:
 	scripts/smoke-ocean-demo-stack.sh $${FISH_OCEAN_DEMO_ENV:-.env.ocean-demo-stack}
+
+fish-ocean-proof-smoke:
+	scripts/smoke-fish-ocean-proof.mjs
 
 nginx-password:
 	@test -n "$(BASIC_PASSWORD)" || (echo "Usage: make nginx-password BASIC_USER=fish BASIC_PASSWORD='long-password'" && exit 1)

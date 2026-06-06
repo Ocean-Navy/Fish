@@ -74,6 +74,20 @@ FISH_OCEAN_BATCH_DAILY_BUDGET_USD=<small cap>
 
 Public proof still stores only hashes, ids, usage, source labels, and cost fields. The returned dish text is shown to the user but is not written into public proof.
 
+After the web app points at the private adapter, run a full Fish order smoke:
+
+```bash
+make fish-ocean-proof-smoke
+```
+
+This creates a temporary Ocean-capable Fish API key, submits one Docs Bento order through `/api/dishes/docs/run`, verifies the batch receipt is non-sample `ocean_http`, and confirms `/api/ocean/batch/readiness` returns `proofReady=true`. The command prints only public-safe ids, labels, and hashes. For local development without polluting the normal runtime ledgers, start the web app with temporary paths first:
+
+```bash
+FISH_LEDGER_DIR=/tmp/fish-e2e-ledger \
+FISH_OCEAN_BATCH_DIR=/tmp/fish-e2e-ocean-batch \
+npm run dev
+```
+
 ## Step 4: Conservative Proof Claims
 
 Allowed public claim after local Ocean Node receipts:
@@ -208,6 +222,7 @@ npm run verify
 npm run readiness:public-testnet
 docker compose config >/tmp/fish-compose.yml
 make ocean-demo-smoke FISH_OCEAN_DEMO_ENV=.env.ocean-demo-stack
+make fish-ocean-proof-smoke
 ```
 
 Also verify:

@@ -797,9 +797,17 @@ Batch dishes sent through `/v1/chat/completions` or `/api/dishes/:dishId/run` us
 
 Per-dish runtime and cost caps can be set with `FISH_DOCS_BATCH_MAX_RUNTIME_SECONDS`, `FISH_DOCS_BATCH_MAX_COST_USD`, `FISH_REPO_BATCH_MAX_RUNTIME_SECONDS`, `FISH_REPO_BATCH_MAX_COST_USD`, `FISH_EVAL_BATCH_MAX_RUNTIME_SECONDS`, `FISH_EVAL_BATCH_MAX_COST_USD`, `FISH_DATA_BATCH_MAX_RUNTIME_SECONDS`, and `FISH_DATA_BATCH_MAX_COST_USD`.
 
-Batch receipts are written under `data/ocean-batch/`, and successful jobs also write Fish usage receipts so the public dashboard can count them as Ocean-backed usage. For public testing without external Oncompute payments, run the GPU-side Ocean demo stack and use free compute on our own Ocean Node. See `docs/ocean-batch-jobs-plan.md` for the adapter contract.
+Batch receipts are written under `data/ocean-batch/`, and successful jobs also write Fish usage receipts so the public dashboard can count them as Ocean-backed usage. Set `FISH_OCEAN_BATCH_DIR` only for isolated local smoke tests that should not touch the normal runtime receipt ledger. For public testing without external Oncompute payments, run the GPU-side Ocean demo stack and use free compute on our own Ocean Node. See `docs/ocean-batch-jobs-plan.md` for the adapter contract.
 
 `/api/ocean/batch/readiness` and `/proof` show whether the private adapter is configured, reachable, live-ready, and backed by at least one successful non-sample Ocean batch receipt. The readiness response exposes booleans and blockers only; it does not expose adapter URLs, wallet secrets, API keys, prompt text, or output text.
+
+After `make ocean-demo-smoke` passes, run one full web-to-Ocean proof smoke with the web app pointed at the private adapter:
+
+```bash
+make fish-ocean-proof-smoke
+```
+
+That command creates a temporary API key, submits one Docs Bento order, verifies a non-sample `ocean_http` batch receipt, and checks that `/api/ocean/batch/readiness` reports `proofReady=true`. It prints only public-safe receipt ids, source labels, and hashes.
 
 ## Repository Structure
 
