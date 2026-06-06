@@ -36,6 +36,7 @@ This checklist covers the next Fish version work that can be finished before ren
 
 ```bash
 npm run verify
+npm run readiness:public-testnet
 docker compose config >/tmp/fish-compose.yml
 ```
 
@@ -64,4 +65,3 @@ Use this framing if the next public version ships before the GPU VM:
 ```text
 Fish is a visual product preview and playground for simple AI access on Ocean infrastructure. The meal counter is in demo mode until Fish Runner or a selected provider is connected. Public proof labels show whether data is sample, snapshot, or live.
 ```
-

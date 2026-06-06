@@ -56,6 +56,7 @@ api/openapi.yaml             API contract for public and prototype routes
 docs/                        Feature plans, runbooks, and implementation contracts
 docs/codex-security-setup.md Codex Security cloud environment and scan setup
 docs/non-gpu-publish-readiness.md What can ship before a GPU VM
+docs/public-testnet-launch-readiness.md Public tester checklist for capped credits, payment gates, and Ocean proof
 contracts/                   Prototype Solidity contracts for OCEAN/FISH and capacity-pool research
 ```
 
@@ -239,6 +240,7 @@ ONCOMPUTE_MAX_PAGES=3
 PORT=3000
 HOSTNAME=0.0.0.0
 FISH_ADMIN_TOKEN=
+FISH_DATA_BACKUP_TARGET=
 FISH_PROVIDER_ALLOWLIST=
 FISH_PROVIDER_JOB_ENDPOINTS=
 FISH_PROVIDER_JOB_API_KEY=
@@ -269,6 +271,20 @@ FISH_OCEAN_DEMO_VLLM_MODEL=
 FISH_OCEAN_DEMO_PROVIDER_ID=ocean-navy-demo-node
 FISH_OCEAN_DEMO_COST_USD_PER_1K_TOKENS=0
 FISH_OCEAN_DEMO_DAILY_BUDGET_USD=50
+FISH_OCEAN_PROVIDER_BASE_URL=
+FISH_OCEAN_PROVIDER_API_KEY=
+FISH_OCEAN_PROVIDER_MODEL=
+FISH_OCEAN_PROVIDER_ID=selected-ocean-provider
+FISH_OCEAN_PROVIDER_COST_USD_PER_1K_TOKENS=0
+FISH_OCEAN_PROVIDER_DAILY_BUDGET_USD=25
+FISH_RUNNER_PUBLIC_KEY_ID=
+FISH_RUNNER_PUBLIC_KEY_PEM=
+FISH_RUNNER_PUBLIC_KEYS_JSON=
+FISH_RUNNER_PUBLIC_KEYS_PATH=
+FISH_PROVIDER_PROOF_PUBLIC_KEY_ID=
+FISH_PROVIDER_PROOF_PUBLIC_KEY_PEM=
+FISH_PROVIDER_PROOF_PUBLIC_KEYS_JSON=
+FISH_PROVIDER_PROOF_PUBLIC_KEYS_PATH=
 FISH_EXTERNAL_CHAT_BASE_URL=
 FISH_EXTERNAL_CHAT_API_KEY=
 FISH_EXTERNAL_CHAT_MODEL=
@@ -280,7 +296,7 @@ FISH_PUBLIC_APP_URL=http://127.0.0.1:3000
 FISH_MIN_CHECKOUT_USD=1
 FISH_MAX_CHECKOUT_USD=500
 FISH_MAX_OUTSTANDING_PREPAID_CREDITS=
-FISH_PAID_TOPUPS_PAUSED=false
+FISH_PAID_TOPUPS_PAUSED=true
 FISH_STRIPE_SECRET_KEY=
 FISH_STRIPE_WEBHOOK_SECRET=
 FISH_STRIPE_WEBHOOK_TOLERANCE_SECONDS=300
@@ -585,6 +601,14 @@ curl -sS 'http://127.0.0.1:3000/api/proof/receipts/export?format=json&limit=50' 
 ```
 
 Provider job receipts, payout events, payout batches, capacity-pool settlement records, and the local prototype signing key are written under `data/proof/`, which is ignored by git and should be backed up or moved to a database/secret manager before public scale-up. Receipt verification trusts the local proof signing key when present, or a pinned provider proof key configured with `FISH_PROVIDER_PROOF_PUBLIC_KEY_ID`/`FISH_PROVIDER_PROOF_PUBLIC_KEY_PEM`, `FISH_PROVIDER_PROOF_PUBLIC_KEYS_JSON`, or `FISH_PROVIDER_PROOF_PUBLIC_KEYS_PATH`; it does not trust public keys embedded in receipt files.
+
+For the public tester checklist, run:
+
+```bash
+npm run readiness:public-testnet
+```
+
+See `docs/public-testnet-launch-readiness.md`.
 
 ## OCEAN Staking Credits
 

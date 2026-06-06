@@ -1,6 +1,6 @@
 BASIC_USER ?= fish
 
-.PHONY: install dev build typecheck lint verify serve-api smoke docker-build docker-up docker-down preview-config preview-up preview-down ocean-demo-config ocean-demo-up ocean-demo-up-warm ocean-demo-up-mlx ocean-demo-down ocean-demo-smoke nginx-password health zip
+.PHONY: install dev build typecheck lint verify serve-api smoke public-testnet-readiness docker-build docker-up docker-down preview-config preview-up preview-down ocean-demo-config ocean-demo-up ocean-demo-up-warm ocean-demo-up-mlx ocean-demo-down ocean-demo-smoke nginx-password health zip
 
 install:
 	npm ci
@@ -25,6 +25,9 @@ serve-api:
 
 smoke:
 	npm run smoke
+
+public-testnet-readiness:
+	npm run readiness:public-testnet
 
 docker-build:
 	docker build -t opfish-web:latest .

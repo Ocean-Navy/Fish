@@ -241,6 +241,7 @@ ONCOMPUTE_MAX_PAGES=3
 PORT=3000
 HOSTNAME=0.0.0.0
 FISH_ADMIN_TOKEN=
+FISH_DATA_BACKUP_TARGET=
 FISH_PROVIDER_ALLOWLIST=
 FISH_PROVIDER_JOB_ENDPOINTS=
 FISH_PROVIDER_JOB_API_KEY=
@@ -429,6 +430,7 @@ After the stack is running:
 
 ```bash
 scripts/smoke-ocean-demo-stack.sh .env.ocean-demo-stack
+npm run readiness:public-testnet
 ```
 
 Then point the public web VM at the private GPU stack:

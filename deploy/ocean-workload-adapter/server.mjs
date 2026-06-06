@@ -621,7 +621,12 @@ title = {
     "eval_scorecard": "Eval Platter Scorecard",
     "data_card": "Data Sushi Card",
     "summary_card": "Docs Bento Brief",
-}.get(artifact_kind, "Fish Batch Artifact")
+}.get(artifact_kind) or {
+    "document_summary": "Docs Bento Brief",
+    "structured_extraction": "Repo Roll Map",
+    "batch_chat": "Eval Platter Scorecard",
+    "embeddings": "Data Sushi Card",
+}.get(task_type, "Fish Batch Artifact")
 lines = [line.strip() for line in payload_text.splitlines() if line.strip()]
 compact = " ".join(lines) if lines else os.getenv("FISH_INPUT_REF", "")
 compact = compact[:1200]
@@ -698,6 +703,15 @@ function artifactTitle(kind, taskType) {
   }
   if (kind === "summary_card" || taskType === "document_summary") {
     return "Docs Bento Brief";
+  }
+  if (taskType === "structured_extraction") {
+    return "Repo Roll Map";
+  }
+  if (taskType === "batch_chat") {
+    return "Eval Platter Scorecard";
+  }
+  if (taskType === "embeddings") {
+    return "Data Sushi Card";
   }
   return "Fish Batch Artifact";
 }

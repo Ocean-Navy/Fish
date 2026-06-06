@@ -76,7 +76,7 @@ export function PublicProofPage({
             <p className="mb-5 inline-flex rounded-full border border-fish-gold/35 bg-fish-gold/10 px-4 py-2 text-xs font-black uppercase tracking-[0.14em] text-fish-gold">
               Public proof harbor
             </p>
-            <h1 className="max-w-4xl text-5xl font-black leading-none text-white sm:text-7xl lg:text-8xl">What is live?</h1>
+            <h1 className="max-w-4xl text-5xl font-black leading-none text-white sm:text-7xl lg:text-8xl">What is proven?</h1>
             <p className="mt-6 max-w-2xl text-2xl font-black leading-tight text-fish-primary sm:text-4xl">
               {heroCopy}
             </p>
@@ -118,7 +118,7 @@ export function PublicProofPage({
         </div>
         <div className="mt-3 grid gap-3 lg:grid-cols-[1.1fr_0.9fr]">
           <div className="rounded-[1.5rem] border border-fish-accent/20 bg-fish-surface/80 p-5 shadow-harbor">
-            <p className="text-xs font-black uppercase tracking-[0.12em] text-fish-gold">What blocks live proof?</p>
+            <p className="text-xs font-black uppercase tracking-[0.12em] text-fish-gold">What blocks Ocean proof?</p>
             {oceanProof.blockers.length ? (
               <ul className="mt-4 space-y-2">
                 {oceanProof.blockers.map((blocker) => (
@@ -128,7 +128,7 @@ export function PublicProofPage({
                 ))}
               </ul>
             ) : (
-              <p className="mt-4 rounded-2xl border border-emerald-300/25 bg-emerald-400/10 p-3 text-sm font-black leading-6 text-emerald-100">Ocean workload proof is ready for public review.</p>
+              <p className="mt-4 rounded-2xl border border-emerald-300/25 bg-emerald-400/10 p-3 text-sm font-black leading-6 text-emerald-100">Local Ocean batch proof is ready for public review.</p>
             )}
           </div>
           <div className="rounded-[1.5rem] border border-fish-accent/20 bg-fish-surface/80 p-5 shadow-harbor">
