@@ -31,9 +31,11 @@ cp deploy/ocean-demo-stack/env.example .env.ocean-demo-stack
 npm run secrets:public-testnet
 make ocean-demo-up-mlx FISH_OCEAN_DEMO_ENV=.env.ocean-demo-stack
 make ocean-demo-smoke FISH_OCEAN_DEMO_ENV=.env.ocean-demo-stack
+npm run ocean-demo:web-env -- --env .env.ocean-demo-stack --host <private-gpu-vm-host> --profile mlx
 ```
 
 Paste the generated values into private env files only. The command prints admin tokens, adapter keys, runner signing keys, proof signing keys, salts, and optional throwaway wallet keys.
+`npm run ocean-demo:web-env` prints the matching web-host env block for the private adapter, Fish Runner route, and runner receipt public key. Its output includes adapter and runner API keys, so paste it only into the private web host env.
 
 The readiness script also audits the selected Ocean compute environment. `FISH_OCEAN_COMPUTE_ENV_ID` must match an environment inside `OCEAN_NODE_DOCKER_COMPUTE_ENVIRONMENTS`, and that environment must restrict `free.access.addresses` to the Ocean proof wallet used by the workload adapter.
 

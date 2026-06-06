@@ -1,6 +1,6 @@
 BASIC_USER ?= fish
 
-.PHONY: install dev build typecheck lint verify serve-api smoke public-testnet-readiness backup-runtime public-testnet-secrets docker-build docker-up docker-down preview-config preview-up preview-down ocean-demo-config ocean-demo-up ocean-demo-up-warm ocean-demo-up-mlx ocean-demo-down ocean-demo-smoke fish-ocean-proof-smoke nginx-password health zip
+.PHONY: install dev build typecheck lint verify serve-api smoke public-testnet-readiness backup-runtime public-testnet-secrets ocean-demo-web-env docker-build docker-up docker-down preview-config preview-up preview-down ocean-demo-config ocean-demo-up ocean-demo-up-warm ocean-demo-up-mlx ocean-demo-down ocean-demo-smoke fish-ocean-proof-smoke nginx-password health zip
 
 install:
 	npm ci
@@ -34,6 +34,9 @@ backup-runtime:
 
 public-testnet-secrets:
 	npm run secrets:public-testnet
+
+ocean-demo-web-env:
+	npm run ocean-demo:web-env -- --env $${FISH_OCEAN_DEMO_ENV:-.env.ocean-demo-stack} --host $${FISH_OCEAN_PRIVATE_HOST:-127.0.0.1} --profile $${FISH_OCEAN_DEMO_PROFILE:-warm}
 
 docker-build:
 	docker build -t opfish-web:latest .

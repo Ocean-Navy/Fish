@@ -205,6 +205,7 @@ cp deploy/ocean-demo-stack/env.example .env.ocean-demo-stack
 node scripts/generate-ocean-node-compute-env.mjs --env
 make ocean-demo-config FISH_OCEAN_DEMO_ENV=.env.ocean-demo-stack
 make ocean-demo-up FISH_OCEAN_DEMO_ENV=.env.ocean-demo-stack
+npm run ocean-demo:web-env -- --env .env.ocean-demo-stack --host <private-gpu-vm-host>
 ```
 
 Add `--profile warm` through `make ocean-demo-up-warm` when the GPU host should also run vLLM and Fish Runner.
@@ -212,6 +213,8 @@ Add `--profile warm` through `make ocean-demo-up-warm` when the GPU host should 
 On Apple Silicon, run `mlx_lm.server` on the macOS host and start `make ocean-demo-up-mlx` instead. Docker will run Ocean Node, the adapter, and Fish Runner; Fish Runner calls MLX at `host.docker.internal:8080`.
 
 This stack is for a testnet/free-compute demo using our own Ocean Node. It can prove that Fish dishes run through an Ocean Node we operate; it does not prove paid third-party Oncompute demand. Keep raw vLLM and the workload adapter private, and point the web VM only at the Fish Runner `/v1` surface plus the adapter `/jobs` endpoint over a private network.
+
+`npm run ocean-demo:web-env` prints the private web-host env block for the batch dish adapter, Fish Runner route, and runner receipt public key. Its output includes adapter and runner API keys, so paste it only into the private web host env.
 
 See `deploy/ocean-demo-stack/README.md`.
 
@@ -622,6 +625,7 @@ For the public tester checklist, run:
 
 ```bash
 npm run secrets:public-testnet
+npm run ocean-demo:web-env -- --env .env.ocean-demo-stack --host <private-gpu-vm-host>
 npm run readiness:public-testnet
 npm run readiness:public-testnet -- --strict
 npm run backup:runtime -- --dry-run
