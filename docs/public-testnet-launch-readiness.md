@@ -149,6 +149,16 @@ Before a paid launch, use the stricter profile:
 npm run readiness:public-testnet -- --profile paid-mainnet
 ```
 
+Paid-mainnet readiness can pass through either lane:
+
+```text
+Stripe lane: Stripe secret key + webhook secret + public HTTPS app URL
+USDC lane: Base mainnet receive address + Base mainnet RPC + canonical Base USDC
+Both lanes: prepaid liability cap + support URL + refund policy URL + paid top-ups intentionally unpaused
+```
+
+Do not use Base Sepolia for paid checkout. Base Sepolia belongs only to public tester faucet and contract playground flows.
+
 If the paid-mainnet profile reports payments as blocked, keep:
 
 ```text

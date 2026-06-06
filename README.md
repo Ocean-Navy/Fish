@@ -488,6 +488,8 @@ Fish accepts `checkout.session.completed`, verifies the Stripe signature, checks
 
 Use `GET /api/billing/readiness` to show public-safe payment state before checkout is enabled. It reports whether top-ups are paused, whether the prepaid liability cap is set in credits and USD exposure, whether support/refund links are configured, and whether Stripe or USDC checkout is configured; it does not expose Stripe secrets, RPC URLs, or payment recipient addresses.
 
+Paid-mainnet readiness can be satisfied by either Stripe checkout or canonical Base mainnet USDC checkout. Both lanes require support/refund links, a prepaid liability cap, and paid top-ups intentionally unpaused. Base Sepolia is testnet-only and is rejected for paid checkout.
+
 Support and refund tickets can be created through `/support` or `POST /api/support`. They write private operator records under `data/support/`, which is ignored by git and included in runtime backups. Export them with:
 
 ```bash

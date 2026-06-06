@@ -71,6 +71,49 @@ test("paid mainnet readiness blocks checkout without support and refund links", 
   assert.match(payments.findings.join("\n"), /FISH_BILLING_REFUND_POLICY_URL/);
 });
 
+test("paid mainnet readiness accepts complete Stripe checkout config", async () => {
+  const appEnv = await tempEnv(
+    [
+      "FISH_MAX_OUTSTANDING_PREPAID_CREDITS=100000",
+      "FISH_PUBLIC_APP_URL=https://op.fish",
+      "FISH_STRIPE_SECRET_KEY=sk_live_12345678901234567890",
+      "FISH_STRIPE_WEBHOOK_SECRET=whsec_12345678901234567890",
+      "FISH_BILLING_SUPPORT_URL=mailto:support@op.fish",
+      "FISH_BILLING_REFUND_POLICY_URL=https://op.fish/refunds"
+    ].join("\n")
+  );
+  const result = runReadiness(["--profile", "paid-mainnet", "--env", appEnv, "--ocean-env", missingOceanEnv(), "--json"]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const summary = JSON.parse(result.stdout);
+  const payments = summary.checks.find((check: { name: string }) => check.name === "Payments/mainnet checkout");
+
+  assert.equal(payments.state, "ready");
+  assert.deepEqual(payments.findings, []);
+});
+
+test("paid mainnet readiness accepts complete Base USDC checkout config", async () => {
+  const appEnv = await tempEnv(
+    [
+      "FISH_MAX_OUTSTANDING_PREPAID_CREDITS=100000",
+      "FISH_USDC_RECEIVE_ADDRESS=0x1111111111111111111111111111111111111111",
+      "FISH_USDC_RPC_URL=https://mainnet.base.org",
+      "FISH_USDC_CHAIN_ID=8453",
+      "FISH_USDC_TOKEN_ADDRESS=0x833589fcD6EDb6E08f4c7C32D4f71b54bdA02913",
+      "FISH_BILLING_SUPPORT_URL=mailto:support@op.fish",
+      "FISH_BILLING_REFUND_POLICY_URL=https://op.fish/refunds"
+    ].join("\n")
+  );
+  const result = runReadiness(["--profile", "paid-mainnet", "--env", appEnv, "--ocean-env", missingOceanEnv(), "--json"]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const summary = JSON.parse(result.stdout);
+  const payments = summary.checks.find((check: { name: string }) => check.name === "Payments/mainnet checkout");
+
+  assert.equal(payments.state, "ready");
+  assert.deepEqual(payments.findings, []);
+});
+
 test("paid mainnet readiness rejects Stripe checkout without a public app URL", async () => {
   const appEnv = await tempEnv(
     [
