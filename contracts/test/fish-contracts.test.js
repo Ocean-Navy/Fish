@@ -1,4 +1,5 @@
 const { expect } = require("chai");
+const { ethers } = require("hardhat");
 const { deploySystem, increaseTime, parse, parseUsdc } = require("./helpers/fishSystem");
 
 describe("Fish OCEAN staking and capacity pool", function () {
@@ -29,6 +30,23 @@ describe("Fish OCEAN staking and capacity pool", function () {
     await increaseTime(61);
     await staking.connect(holder).finalizeUnstake();
     expect(await ocean.balanceOf(holder.address)).to.equal(parse("10000"));
+  });
+
+  it("keeps emissionReserve appended after legacy staking storage slots", async function () {
+    const { emissionSource, ocean, staking } = await deploySystem();
+    const stakingAddress = await staking.getAddress();
+
+    expect(await ethers.provider.getStorage(stakingAddress, 12)).to.equal(ethers.toBeHex(parse("1000"), 32));
+    expect(await ethers.provider.getStorage(stakingAddress, 268)).to.equal(ethers.toBeHex(parse("10"), 32));
+    expect(await ethers.provider.getStorage(stakingAddress, 526)).to.equal(ethers.ZeroHash);
+
+    await ocean.connect(emissionSource).approve(stakingAddress, parse("42"));
+    await staking.connect(emissionSource).fundEmissions(parse("42"));
+
+    expect(await staking.emissionReserve()).to.equal(parse("42"));
+    expect(await ethers.provider.getStorage(stakingAddress, 12)).to.equal(ethers.toBeHex(parse("1000"), 32));
+    expect(await ethers.provider.getStorage(stakingAddress, 268)).to.equal(ethers.toBeHex(parse("10"), 32));
+    expect(await ethers.provider.getStorage(stakingAddress, 526)).to.equal(ethers.toBeHex(parse("42"), 32));
   });
 
   it("does not allocate pre-funded emissions when no user has staked", async function () {
