@@ -100,12 +100,33 @@ test("public testnet readiness accepts generated contract and faucet overlay", a
   assert.deepEqual(contracts.findings, []);
 });
 
-test("public testnet secret generator refuses contract actions for Base mainnet", async () => {
-  const deployment = await tempDeployment({ chainId: 8453, network: "base" });
-  const result = runSecrets(["--contract-deployment", deployment, "--enable-contract-actions", "--contract-rpc-url", "https://mainnet.base.org", "--json"]);
+test("public testnet secret generator refuses contract actions outside Base Sepolia", async () => {
+  const deployment = await tempDeployment({ chainId: 1, network: "ethereum" });
+  const result = runSecrets(["--contract-deployment", deployment, "--enable-contract-actions", "--contract-rpc-url", "https://ethereum.example", "--json"]);
 
   assert.equal(result.status, 2);
-  assert.match(result.stderr, /refused for Base mainnet/);
+  assert.match(result.stderr, /Base Sepolia deployment artifact with chainId 84532/);
+});
+
+test("public testnet secret generator refuses settlement and faucet derivation outside Base Sepolia", async () => {
+  const deployment = await tempDeployment({ chainId: 137, network: "polygon" });
+  const result = runSecrets([
+    "--include-wallets",
+    "--include-faucet",
+    "--contract-deployment",
+    deployment,
+    "--enable-contract-settlement",
+    "--contract-rpc-url",
+    "https://polygon.example",
+    "--contract-operator-private-key",
+    "0x9999999999999999999999999999999999999999999999999999999999999999",
+    "--json"
+  ]);
+
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /--enable-contract-settlement/);
+  assert.match(result.stderr, /--include-faucet with --contract-deployment/);
+  assert.match(result.stderr, /Base Sepolia deployment artifact with chainId 84532/);
 });
 
 test("public testnet readiness accepts a generated private faucet overlay without exposing secrets", async () => {

@@ -761,7 +761,7 @@ The `/credits` page also exposes the contract prototype status from:
 /api/contracts/status
 ```
 
-By default this is read-only. Configure `FISH_CONTRACT_*` addresses and `FISH_CONTRACT_RPC_URL` after a testnet deployment. The status endpoint reads live totals from the configured contracts when RPC is available. Wallet write buttons remain disabled unless `FISH_CONTRACT_ACTIONS_ENABLED=true`, and Base mainnet writes stay blocked unless `FISH_CONTRACT_MAINNET_WRITES_ALLOWED=true`. Do not enable mainnet writes before audit, legal review, multisig ownership, and an incident-response runbook.
+By default this is read-only. Configure `FISH_CONTRACT_*` addresses and `FISH_CONTRACT_RPC_URL` after a testnet deployment. The status endpoint reads live totals from the configured contracts when RPC is available. Wallet write buttons remain disabled unless `FISH_CONTRACT_ACTIONS_ENABLED=true`, and any non-Base-Sepolia chain stays blocked unless `FISH_CONTRACT_MAINNET_WRITES_ALLOWED=true`. Do not enable writes outside Base Sepolia before audit, legal review, multisig ownership, and an incident-response runbook.
 
 Deploy a Base Sepolia test system with:
 
@@ -782,7 +782,7 @@ npm run secrets:public-testnet -- \
   --include-faucet
 ```
 
-This adds the `FISH_CONTRACT_*` addresses and, when faucet is included, uses the deployed test OCEAN/Test USDC addresses for the public tester faucet. Contract wallet actions stay disabled unless `--enable-contract-actions` is explicitly added. The generator refuses to enable actions for Base mainnet.
+This adds the `FISH_CONTRACT_*` addresses and, when faucet is included, uses the deployed test OCEAN/Test USDC addresses for the public tester faucet. Contract wallet actions stay disabled unless `--enable-contract-actions` is explicitly added. The public-testnet generator only enables actions, settlement submission, or deployment-derived faucet addresses when the artifact is Base Sepolia (`chainId=84532`).
 
 Paid demand that is settled into the FISH Capacity Pool can be recorded by an operator:
 

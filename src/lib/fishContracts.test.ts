@@ -86,7 +86,24 @@ test("Base mainnet writes stay blocked unless the explicit mainnet override is s
   assert.equal(status.deployment.requiredConfigured, true);
   assert.equal(status.mode, "mainnet_read_only");
   assert.equal(status.walletActionGate.writesAllowed, false);
-  assert.match(status.walletActionGate.reason, /mainnet/i);
+  assert.match(status.walletActionGate.reason, /Non-Base-Sepolia/i);
+});
+
+test("non-Base-Sepolia writes stay blocked unless the explicit audited override is set", async () => {
+  configureRequiredContracts({ chainId: "1", actionsEnabled: "true" });
+
+  const blocked = await summarizeFishContracts();
+
+  assert.equal(blocked.deployment.requiredConfigured, true);
+  assert.equal(blocked.mode, "mainnet_read_only");
+  assert.equal(blocked.walletActionGate.writesAllowed, false);
+  assert.match(blocked.walletActionGate.reason, /Non-Base-Sepolia/i);
+
+  process.env.FISH_CONTRACT_MAINNET_WRITES_ALLOWED = "true";
+
+  const allowed = await summarizeFishContracts();
+
+  assert.equal(allowed.walletActionGate.writesAllowed, true);
 });
 
 function configureRequiredContracts({ actionsEnabled, chainId }: { actionsEnabled: string; chainId: string }) {

@@ -171,12 +171,13 @@ export async function summarizeFishContracts(): Promise<FishContractStatus> {
   const required = config.addresses.filter((address) => address.required);
   const missingRequired = required.filter((address) => !address.configured).map((address) => address.label);
   const requiredConfigured = missingRequired.length === 0;
-  const mainnet = config.chainId === BASE_CHAIN_ID;
-  const writesAllowed = config.actionsEnabled && requiredConfigured && (!mainnet || config.mainnetWritesAllowed);
-  const submitAllowed = config.settlementSubmitEnabled && requiredConfigured && Boolean(config.rpcUrl) && Boolean(config.operatorPrivateKey) && (!mainnet || config.mainnetWritesAllowed);
+  const publicTestnet = config.chainId === BASE_SEPOLIA_CHAIN_ID;
+  const productionChain = !publicTestnet;
+  const writesAllowed = config.actionsEnabled && requiredConfigured && (publicTestnet || config.mainnetWritesAllowed);
+  const submitAllowed = config.settlementSubmitEnabled && requiredConfigured && Boolean(config.rpcUrl) && Boolean(config.operatorPrivateKey) && (publicTestnet || config.mainnetWritesAllowed);
   const onchain = await readFishContractOnchainStatus(config, requiredConfigured);
   const dataState = resolveDataState({ onchainState: onchain.sourceState, requiredConfigured });
-  const mode = resolveMode({ actionsEnabled: config.actionsEnabled, mainnet, requiredConfigured, writesAllowed });
+  const mode = resolveMode({ actionsEnabled: config.actionsEnabled, productionChain, requiredConfigured, writesAllowed });
 
   return {
     dataState,
@@ -200,13 +201,13 @@ export async function summarizeFishContracts(): Promise<FishContractStatus> {
     walletActionGate: {
       actionsEnabled: config.actionsEnabled,
       writesAllowed,
-      reason: resolveWalletGateReason({ actionsEnabled: config.actionsEnabled, mainnet, requiredConfigured, writesAllowed })
+      reason: resolveWalletGateReason({ actionsEnabled: config.actionsEnabled, productionChain, requiredConfigured, writesAllowed })
     },
     settlementSubmitGate: {
       submitEnabled: config.settlementSubmitEnabled,
       submitAllowed,
       reason: resolveSettlementGateReason({
-        mainnet,
+        productionChain,
         requiredConfigured,
         rpcConfigured: Boolean(config.rpcUrl),
         submitAllowed,
@@ -239,8 +240,8 @@ export async function summarizeFishContracts(): Promise<FishContractStatus> {
       ...(onchain.error ? [onchain.error] : []),
       ...(config.actionsEnabled ? [] : ["Wallet write actions are disabled until FISH_CONTRACT_ACTIONS_ENABLED=true."]),
       ...(config.settlementSubmitEnabled ? [] : ["Automatic capacity settlement submission is disabled until FISH_CONTRACT_SETTLEMENT_SUBMIT_ENABLED=true."]),
-      ...(config.actionsEnabled && mainnet && !config.mainnetWritesAllowed ? ["Base mainnet write actions are blocked unless FISH_CONTRACT_MAINNET_WRITES_ALLOWED=true."] : []),
-      ...(config.settlementSubmitEnabled && mainnet && !config.mainnetWritesAllowed ? ["Base mainnet settlement submission is blocked unless FISH_CONTRACT_MAINNET_WRITES_ALLOWED=true."] : [])
+      ...(config.actionsEnabled && productionChain && !config.mainnetWritesAllowed ? ["Non-Base-Sepolia contract write actions are blocked unless FISH_CONTRACT_MAINNET_WRITES_ALLOWED=true."] : []),
+      ...(config.settlementSubmitEnabled && productionChain && !config.mainnetWritesAllowed ? ["Non-Base-Sepolia settlement submission is blocked unless FISH_CONTRACT_MAINNET_WRITES_ALLOWED=true."] : [])
     ]
   };
 }
@@ -248,10 +249,10 @@ export async function summarizeFishContracts(): Promise<FishContractStatus> {
 export async function submitCapacityPoolSettlementOnchain(grossUsdcAmount: number): Promise<CapacitySettlementSubmission> {
   const config = getFishContractConfig();
   const addresses = addressMap(config.addresses);
-  const mainnet = config.chainId === BASE_CHAIN_ID;
+  const publicTestnet = config.chainId === BASE_SEPOLIA_CHAIN_ID;
 
   if (!config.settlementSubmitEnabled) throw new Error("contract_settlement_submit_disabled");
-  if (mainnet && !config.mainnetWritesAllowed) throw new Error("mainnet_settlement_submit_blocked");
+  if (!publicTestnet && !config.mainnetWritesAllowed) throw new Error("non_testnet_settlement_submit_blocked");
   if (!config.rpcUrl) throw new Error("fish_contract_rpc_url_required");
   if (!config.operatorPrivateKey) throw new Error("fish_contract_operator_private_key_required");
   if (!addresses.usdcToken || !addresses.capacityPool) throw new Error("fish_contract_settlement_addresses_required");
@@ -629,31 +630,31 @@ function resolveDataState({ onchainState, requiredConfigured }: { onchainState: 
   return "unavailable";
 }
 
-function resolveMode({ actionsEnabled, mainnet, requiredConfigured, writesAllowed }: { actionsEnabled: boolean; mainnet: boolean; requiredConfigured: boolean; writesAllowed: boolean }): FishContractStatus["mode"] {
+function resolveMode({ actionsEnabled, productionChain, requiredConfigured, writesAllowed }: { actionsEnabled: boolean; productionChain: boolean; requiredConfigured: boolean; writesAllowed: boolean }): FishContractStatus["mode"] {
   if (!requiredConfigured) return "local_prototype";
-  if (writesAllowed && !mainnet) return "testnet_actions";
-  if (mainnet) return "mainnet_read_only";
+  if (writesAllowed && !productionChain) return "testnet_actions";
+  if (productionChain) return "mainnet_read_only";
   return actionsEnabled ? "testnet_actions" : "configured_read_only";
 }
 
-function resolveWalletGateReason({ actionsEnabled, mainnet, requiredConfigured, writesAllowed }: { actionsEnabled: boolean; mainnet: boolean; requiredConfigured: boolean; writesAllowed: boolean }) {
+function resolveWalletGateReason({ actionsEnabled, productionChain, requiredConfigured, writesAllowed }: { actionsEnabled: boolean; productionChain: boolean; requiredConfigured: boolean; writesAllowed: boolean }) {
   if (writesAllowed) return "Wallet writes are enabled for the configured chain.";
   if (!requiredConfigured) return "Required contract addresses are missing.";
   if (!actionsEnabled) return "Wallet writes are disabled by environment.";
-  if (mainnet) return "Base mainnet writes are blocked by default.";
+  if (productionChain) return "Non-Base-Sepolia writes are blocked by default.";
   return "Wallet writes are not enabled.";
 }
 
 function resolveSettlementGateReason({
   hasOperatorPrivateKey,
-  mainnet,
+  productionChain,
   requiredConfigured,
   rpcConfigured,
   submitAllowed,
   submitEnabled
 }: {
   hasOperatorPrivateKey: boolean;
-  mainnet: boolean;
+  productionChain: boolean;
   requiredConfigured: boolean;
   rpcConfigured: boolean;
   submitAllowed: boolean;
@@ -664,7 +665,7 @@ function resolveSettlementGateReason({
   if (!rpcConfigured) return "FISH_CONTRACT_RPC_URL is not configured.";
   if (!submitEnabled) return "Automatic settlement submission is disabled by environment.";
   if (!hasOperatorPrivateKey) return "Operator settlement signer is not configured.";
-  if (mainnet) return "Base mainnet settlement submission is blocked by default.";
+  if (productionChain) return "Non-Base-Sepolia settlement submission is blocked by default.";
   return "Automatic settlement submission is not enabled.";
 }
 
