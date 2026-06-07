@@ -97,7 +97,7 @@ test("Ocean batch credit reservation includes private payload tokens", async () 
   }
 });
 
-test("failed provider-cost Ocean batch receipts do not consume daily budget", async () => {
+test("failed provider-cost Ocean batch receipts consume daily budget", async () => {
   await rm(path.join(process.cwd(), "data", "ocean-batch"), { recursive: true, force: true });
 
   const previousEndpoint = process.env.FISH_OCEAN_BATCH_ENDPOINT;
@@ -171,10 +171,10 @@ test("failed provider-cost Ocean batch receipts do not consume daily budget", as
     }
     assert.equal(account.creditBalance, 100000);
 
-    const succeeded = await runOceanBatchJob(
+    const rejected = await runOceanBatchJob(
       {
         taskType: "document_summary",
-        inputRef: "sha256:succeeded-provider-budget-test",
+        inputRef: "sha256:rejected-provider-budget-test",
         estimatedInputTokens: 10,
         maxOutputTokens: 20,
         maxRuntimeSeconds: 60,
@@ -184,11 +184,13 @@ test("failed provider-cost Ocean batch receipts do not consume daily budget", as
       { account, ledger }
     );
 
-    assert.equal(succeeded.ok, true);
-    assert.equal(succeeded.status, 200);
-    assert.equal(backendHits, 2);
-    if (succeeded.ok) {
-      assert.equal(succeeded.budget.spentUsd, 0.05);
+    assert.equal(rejected.ok, false);
+    assert.equal(rejected.status, 429);
+    assert.equal(backendHits, 1);
+    if (!rejected.ok && "budget" in rejected) {
+      assert.ok(rejected.budget);
+      assert.equal(rejected.budget.spentUsd, 0.06);
+      assert.equal(rejected.budget.estimatedCostUsd, 0.05);
     }
   } finally {
     await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
