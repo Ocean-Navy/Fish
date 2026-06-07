@@ -154,7 +154,8 @@ function runSecrets(args: string[]) {
 }
 
 function runReadiness(args: string[]) {
-  return spawnSync(process.execPath, ["scripts/audit-public-testnet-readiness.mjs", ...args], {
+  const hasExitMode = args.includes("--strict") || args.includes("--advisory");
+  return spawnSync(process.execPath, ["scripts/audit-public-testnet-readiness.mjs", ...(hasExitMode ? [] : ["--advisory"]), ...args], {
     cwd: process.cwd(),
     encoding: "utf8"
   });

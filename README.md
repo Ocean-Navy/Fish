@@ -37,11 +37,11 @@ The repository now has a public-testnet readiness gate for steps 2-10:
 
 ```bash
 npm run readiness:public-testnet
-npm run readiness:public-testnet:strict
+npm run readiness:public-testnet:advisory
 npm run readiness:paid-mainnet
 ```
 
-With only `.env.production.example`, the audit is expected to show partial/manual items because private operator secrets are absent. With a generated private public-testnet overlay and a private Ocean demo host, the current target state is:
+With only `.env.production.example`, the audit is expected to show partial/manual items because private operator secrets are absent and to exit non-zero. With a generated private public-testnet overlay and a private Ocean demo host, the current advisory target state is:
 
 ```text
 ready=9 partial=0 blocked=0 manual=2
@@ -695,14 +695,14 @@ npm run proof:external-preflight -- --env-file .env.ocean-proof.local
 npm run ocean-demo:web-env -- --env .env.ocean-demo-stack --host <private-gpu-vm-host>
 npm run readiness:public-testnet -- --env .env.production.example --app-env-overlay .env.production.private --derive-ocean-web-env-host <private-gpu-vm-host>
 npm run readiness:public-testnet
-npm run readiness:public-testnet:strict
+npm run readiness:public-testnet:advisory
 npm run readiness:paid-mainnet
 npm run backup:runtime -- --dry-run
 ```
 
 Use an absolute private backup target such as `/var/backups/fish`. Do not point backups at `public/`, `data/`, a relative repository path, or temporary storage. The backup dry run and public-readiness audit report unsafe targets.
 
-`npm run readiness:public-testnet` uses the no-real-money public-testnet profile by default. It treats intentionally paused paid checkout as a manual follow-up, not as a public-testnet blocker. Each row maps back to the step numbers in `docs/public-testnet-launch-readiness.md`, including the proof UX/claim gate for steps 4 and 9. Use `npm run readiness:public-testnet:strict` when every manual and partial item must be resolved. `--app-env-overlay <private-env>` lets the audit merge private host settings such as admin tokens, guest salts, backup targets, and proof signing keys without printing their values. `--derive-ocean-web-env-host <private-gpu-vm-host>` lets the audit evaluate the private Ocean adapter/Fish Runner web-env block without printing its keys. Before paid Stripe/USDC launch, run `npm run readiness:paid-mainnet`. `npm run secrets:public-testnet` prints generated starter values for private env files; it includes secrets and should not be committed or pasted into public notes. See `docs/public-testnet-launch-readiness.md`.
+`npm run readiness:public-testnet` uses the no-real-money public-testnet profile by default and exits non-zero for any `blocked`, `partial`, or `manual` row so CI and operators cannot treat unresolved hardening work as a passed gate. It still treats intentionally paused paid checkout as a manual follow-up rather than a public-testnet blocker in the report. Each row maps back to the step numbers in `docs/public-testnet-launch-readiness.md`, including the proof UX/claim gate for steps 4 and 9. Use `npm run readiness:public-testnet:advisory` only when you need a report that exits non-zero for `blocked` rows but does not gate on `partial` or `manual` rows. `--app-env-overlay <private-env>` lets the audit merge private host settings such as admin tokens, guest salts, backup targets, and proof signing keys without printing their values. `--derive-ocean-web-env-host <private-gpu-vm-host>` lets the audit evaluate the private Ocean adapter/Fish Runner web-env block without printing its keys. Before paid Stripe/USDC launch, run `npm run readiness:paid-mainnet`. `npm run secrets:public-testnet` prints generated starter values for private env files; it includes secrets and should not be committed or pasted into public notes. See `docs/public-testnet-launch-readiness.md`.
 
 The readiness audit also checks repository hygiene. Runtime ledgers, private env files, local contract deployment artifacts, backups, nginx password files, provider allowlists, and proof signing keys must stay ignored and untracked before a public link or security scan.
 

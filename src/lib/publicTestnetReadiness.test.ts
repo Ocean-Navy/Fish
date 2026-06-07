@@ -12,7 +12,7 @@ afterEach(async () => {
   await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { force: true, recursive: true })));
 });
 
-test("public testnet readiness treats paused paid checkout as manual", async () => {
+test("advisory public testnet readiness treats paused paid checkout as manual", async () => {
   const appEnv = await tempEnv("FISH_PAID_TOPUPS_PAUSED=true\n");
   const result = runReadiness(["--env", appEnv, "--ocean-env", missingOceanEnv(), "--json"]);
 
@@ -23,6 +23,7 @@ test("public testnet readiness treats paused paid checkout as manual", async () 
 
   assert.equal(summary.profile, "public-testnet");
   assert.equal(summary.strict, false);
+  assert.equal(summary.advisory, true);
   assert.deepEqual(payments.steps, [5]);
   assert.equal(payments.milestone, "Payments/mainnet readiness");
   assert.equal(payments.state, "manual");
@@ -32,6 +33,20 @@ test("public testnet readiness treats paused paid checkout as manual", async () 
   assert.equal(proofUx.state, "ready");
   assert.deepEqual(proofUx.findings, []);
 });
+
+test("default public testnet readiness fails on unresolved manual or partial checks", async () => {
+  const appEnv = await tempEnv("FISH_PAID_TOPUPS_PAUSED=true\n");
+  const result = runReadinessDefault(["--env", appEnv, "--ocean-env", missingOceanEnv(), "--json"]);
+
+  assert.equal(result.status, 1);
+  const summary = JSON.parse(result.stdout);
+
+  assert.equal(summary.profile, "public-testnet");
+  assert.equal(summary.strict, true);
+  assert.equal(summary.advisory, false);
+  assert.equal(summary.checks.some((check: { state: string }) => check.state !== "ready"), true);
+});
+
 
 test("strict public testnet readiness fails on unresolved manual or partial checks", async () => {
   const appEnv = await tempEnv("FISH_PAID_TOPUPS_PAUSED=true\n");
@@ -813,6 +828,11 @@ function providerProofSigningKey() {
 }
 
 function runReadiness(args: string[]) {
+  const hasExitMode = args.includes("--strict") || args.includes("--advisory");
+  return runReadinessDefault([...(hasExitMode ? [] : ["--advisory"]), ...args]);
+}
+
+function runReadinessDefault(args: string[]) {
   return spawnSync(process.execPath, ["scripts/audit-public-testnet-readiness.mjs", ...args], {
     cwd: process.cwd(),
     encoding: "utf8"
