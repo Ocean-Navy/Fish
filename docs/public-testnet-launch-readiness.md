@@ -157,7 +157,7 @@ curl -sS http://127.0.0.1:3000/api/billing/readiness
 ```
 
 The default readiness profile is `public-testnet`. In that profile, intentionally paused paid checkout is acceptable because public testers are not using real money. It still reports the missing Stripe/USDC/liability-cap work as manual follow-up.
-`GET /api/billing/readiness` exposes the prepaid liability cap in both credits and USD exposure, plus support/refund readiness and public-safe USDC chain/token checks. Use the USD field for launch review because it is the real maximum prepaid liability if checkout is opened.
+`GET /api/billing/readiness` exposes only public-safe billing status: whether the prepaid liability cap is configured, whether support/refund links are ready, and whether checkout methods are enabled. It intentionally does not expose the exact cap in credits or USD, detailed payment-provider configuration, RPC URLs, or payment recipient addresses; operators should review private env values directly for launch liability decisions.
 
 Before a paid launch, use the stricter profile:
 

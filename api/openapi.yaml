@@ -324,7 +324,7 @@ paths:
   /api/billing/readiness:
     get:
       summary: Public-safe billing readiness
-      description: Shows whether paid Fish Credit top-ups are intentionally paused, capped, and provider-configured without exposing Stripe secrets, RPC URLs, or payment recipient addresses.
+      description: Shows whether paid Fish Credit top-ups are intentionally paused, capped, and checkout-enabled without exposing internal liability limits, Stripe secrets, RPC URLs, detailed provider configuration, or payment recipient addresses.
       responses:
         '200':
           description: Billing readiness status
@@ -5101,12 +5101,6 @@ components:
           properties:
             configured:
               type: boolean
-            maxOutstandingPrepaidCredits:
-              type: integer
-              nullable: true
-            maxOutstandingPrepaidUsd:
-              type: number
-              nullable: true
         customerCare:
           type: object
           properties:
@@ -5126,28 +5120,12 @@ components:
             stripe:
               type: object
               properties:
-                configured:
-                  type: boolean
                 enabled:
                   type: boolean
             usdc:
               type: object
               properties:
-                configured:
-                  type: boolean
                 enabled:
-                  type: boolean
-                chainId:
-                  type: integer
-                tokenAddress:
-                  type: string
-                rpcConfigured:
-                  type: boolean
-                receiveAddressConfigured:
-                  type: boolean
-                chainConfigured:
-                  type: boolean
-                tokenConfigured:
                   type: boolean
         blockers:
           type: array

@@ -637,9 +637,9 @@ function PaymentDock({
   const paymentStatusCards = [
     { label: "Checkout", value: paymentsOpen ? "Open" : "Closed" },
     { label: "Top-ups", value: topupState },
-    { label: "Liability cap", value: readiness?.liabilityCap.configured ? formatUsd(readiness.liabilityCap.maxOutstandingPrepaidUsd ?? 0) : "Not set" },
+    { label: "Liability cap", value: readiness?.liabilityCap.configured ? "Set" : "Not set" },
     { label: "Support", value: readiness?.customerCare.supportConfigured && readiness.customerCare.refundPolicyConfigured ? "Ready" : "Needed" },
-    { label: "Providers", value: readiness?.providers.stripe.configured || readiness?.providers.usdc.configured ? "Configured" : "Not ready" }
+    { label: "Providers", value: paymentsOpen ? "Ready" : "Checked" }
   ];
 
   return (
