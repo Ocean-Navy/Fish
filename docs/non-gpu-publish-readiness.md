@@ -1,6 +1,6 @@
 # Non-GPU Publish Readiness
 
-This checklist covers the next Fish version work that can be finished before renting or configuring a GPU VM.
+This checklist covers Fish work that can ship on the small web VM or as a no-real-money public tester environment before renting or configuring a public GPU VM.
 
 ## Can Ship On The Small Web VM
 
@@ -37,13 +37,13 @@ This checklist covers the next Fish version work that can be finished before ren
 ```bash
 npm run verify
 npm run readiness:public-testnet
-npm run readiness:public-testnet -- --strict
-npm run readiness:public-testnet -- --profile paid-mainnet
+npm run readiness:public-testnet:strict
+npm run readiness:paid-mainnet
 npm run backup:runtime -- --dry-run
 docker compose config >/tmp/fish-compose.yml
 ```
 
-The default readiness profile is for a no-real-money public testnet and allows intentionally paused paid checkout. Add `--strict` when every manual and partial item must be resolved. The `paid-mainnet` profile must stay blocked until the payment provider, liability cap, and support/refund path are ready.
+The default readiness profile is for a no-real-money public testnet and allows intentionally paused paid checkout. Use `npm run readiness:public-testnet:strict` when every manual and partial item must be resolved. The `paid-mainnet` profile must stay blocked until the payment provider, liability cap, support/refund path, and deliberate paid-topup unpause are ready.
 
 8. Browser-check:
    - `/`
@@ -70,3 +70,16 @@ Use this framing if the next public version ships before the GPU VM:
 ```text
 Fish is a visual product preview and playground for simple AI access on Ocean infrastructure. The meal counter is in demo mode until Fish Runner or a selected provider is connected. Public proof labels show whether data is sample, snapshot, or live.
 ```
+
+## Current Main-Branch Boundary
+
+After the readiness merge, the non-GPU/web side is mostly operator-ready. With generated private env overlays, the public-testnet audit should be able to reach:
+
+```text
+ready=9 partial=0 blocked=0 manual=2
+```
+
+The two manual gates are outside the small web VM scope:
+
+- paid mainnet checkout with real Stripe or canonical Base USDC settings;
+- external Ocean/Oncompute proof with a live external node/job and non-sample receipt.

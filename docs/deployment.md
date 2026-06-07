@@ -1,13 +1,13 @@
 # Fish Deployment
 
-This document is the server handoff for the Fish V0 website.
+This document is the server handoff for the Fish web app, public tester stack, and operator-controlled preview/production deployments.
 
 ## Runtime
 
 - Node.js 22 in production Docker image.
 - Next.js standalone server.
 - Port `3000` by default.
-- Local JSON persistence for pilot submissions and prototype Fish API ledger files.
+- Local JSON persistence for pilot submissions, support tickets, prototype Fish API ledger files, proof rows, payout rows, batch receipts, faucet claims, and staking playground data.
 
 ## Build
 

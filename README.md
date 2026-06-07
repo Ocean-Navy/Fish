@@ -2,11 +2,11 @@
 
 Fish is an Ocean Navy-built product layer for turning Ocean Network / Oncompute supply into simple AI access.
 
-The public V0 is intentionally simple: a visual Venice fish-market homepage, role-based entrances, a pilot interest form, and a separate live supply dashboard for builders.
+The current `main` branch contains the public website, meal-counter prototype, proof dashboards, local Ocean Node proof stack, public testnet readiness tooling, guarded payment routes, and prototype OCEAN/FISH contract surfaces. It is ready for no-real-money public testing after private operator env is filled in. Paid mainnet checkout and external third-party Ocean/Oncompute proof remain explicit operator gates.
 
 > Built by Ocean Navy. Built on Ocean Protocol. Not official unless approved.
 
-## What Ships In V0
+## What Ships Now
 
 - Visual landing page with a Venice fork / Ocean Navy identity.
 - Role entrances for users, builders, providers, and OCEAN holders.
@@ -23,9 +23,40 @@ The public V0 is intentionally simple: a visual Venice fish-market homepage, rol
 - `/api/ocean/batch/jobs` for hash-only Ocean batch dish receipts, sample by default until a private batch adapter is configured.
 - `/api/ocean/batch/readiness` for a public-safe Milestone 3 gate before claiming real Ocean workload proof.
 - `/credits` with an EVM wallet intent flow for future OCEAN lock credits; this records interest but does not stake tokens or issue credits.
+- `/account` with API key balance, billing readiness, guarded Stripe checkout, guarded Base USDC checkout, and wallet connection for USDC payer address.
+- `/support` and `/refunds` with private support ticket storage and admin CSV export.
+- `/api/testnet/faucet` and `/credits` faucet UI for capped Base Sepolia test tokens, disabled by default and requiring trusted proxy identity in production.
+- `/api/contracts/status` plus guarded Base Sepolia contract action UI for the prototype OCEAN/FISH staking and capacity-pool contracts.
 - `/chat` remains available as the same pilot AI meal counter for chat-oriented links.
 - Production Docker image, Docker Compose service, and public nginx/systemd deployment.
-- Warm inference operator runbook and minimal Fish Runner sidecar for a private vLLM MVP path.
+- Warm inference operator runbook, local MLX option, private Fish Runner sidecar, and GPU/Ocean demo stack.
+
+## Current Readiness Status
+
+The repository now has a public-testnet readiness gate for steps 2-10:
+
+```bash
+npm run readiness:public-testnet
+npm run readiness:public-testnet:strict
+npm run readiness:paid-mainnet
+```
+
+With only `.env.production.example`, the audit is expected to show partial/manual items because private operator secrets are absent. With a generated private public-testnet overlay and a private Ocean demo host, the current target state is:
+
+```text
+ready=9 partial=0 blocked=0 manual=2
+```
+
+The two remaining manual gates are intentional:
+
+- Paid mainnet checkout: configure either live Stripe or canonical Base mainnet USDC, set the prepaid liability cap and support/refund links, then explicitly unpause paid top-ups.
+- External Ocean/Oncompute proof: run one real external Ocean/Oncompute job with a live adapter env, proof wallet/RPC, non-local `NODE_URL`, algorithm DID, compute environment id, and a non-sample Fish receipt.
+
+Until those gates are complete, public claims should stay at:
+
+```text
+Fish can run test dishes through an Ocean Node operated by Ocean Navy.
+```
 
 ## Quick Start
 
@@ -263,7 +294,7 @@ Use `kind=waitlist` or `kind=provider` to filter the export.
 
 ## Configuration
 
-All configuration is optional for V0. Defaults point at current public Oncompute endpoints and fall back to sample data when live sources are unavailable.
+Most configuration is optional for local development. Production and public tester deployments must set the private operator values called out by the readiness audit: admin token, guest salt, backup target, proof signing or pinned proof keys, private adapter keys, route budgets, and optional faucet/payment/contract settings. Public Ocean supply sources still fall back to sample data when live sources are unavailable.
 
 ```text
 ONCOMPUTE_NODES_URL=https://api.oncompute.ai/nodes

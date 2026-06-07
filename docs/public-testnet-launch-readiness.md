@@ -1,6 +1,6 @@
 # Public Testnet Launch Readiness
 
-This is the working checklist for steps 2-10 before the next merge/security-scan pass.
+This is the working checklist for steps 2-10 on `main`: public/GPU deployment preparation, user-facing batch dishes, conservative proof claims, payments/mainnet readiness, public testnet UX, data hygiene, operational hardening, proof UX simplification, and the path to real Ocean/Oncompute proof.
 
 ## Goal
 
@@ -11,6 +11,21 @@ Fish can serve public testers with capped credits, optional testnet tokens, and 
 ```
 
 Do not claim paid third-party Oncompute demand until Fish runs a paid or externally supplied Oncompute job.
+
+## Current Main-Branch State
+
+With a generated private public-testnet overlay and private Ocean demo host, the expected readiness shape is:
+
+```text
+ready=9 partial=0 blocked=0 manual=2
+```
+
+The two manual gates are expected and should remain visible:
+
+- `Payments/mainnet checkout`: waiting for real Stripe or canonical Base mainnet USDC configuration and an explicit unpause.
+- `External Oncompute proof`: waiting for a live external Ocean/Oncompute job with algorithm DID, compute environment id, proof wallet/RPC, output hash/ref, and non-sample Fish receipt.
+
+The default public example env intentionally reports more partial/manual items because it does not include private operator values.
 
 ## Step 2: Public/GPU Deployment Preparation
 

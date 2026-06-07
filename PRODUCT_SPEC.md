@@ -104,6 +104,22 @@ Fish should help Ocean become easier to understand:
 
 ## Initial scope
 
+### Current main branch implementation
+
+The repository has moved beyond a landing-only V0. Current `main` includes:
+
+- public website, visual Fish meal counter, dashboard, proof, privacy, support, refund, account, credits, routing, and docs pages;
+- prototype Fish API keys, OpenAI-compatible chat, credit ledger, usage receipts, route budgets, and model/dish limits;
+- four Ocean batch dishes: Docs Bento, Repo Roll, Eval Platter, and Data Sushi;
+- selected-provider pilot registry, provider job proof, payout ledger, benchmarks, and market-making proof surfaces;
+- public-safe Ocean batch readiness and proof claim boundaries;
+- public-testnet faucet and Base Sepolia contract playground, both disabled/gated until private env is configured;
+- guarded Stripe and canonical Base mainnet USDC checkout flows, disabled until paid-mainnet readiness passes;
+- prototype OCEAN/FISH staking and capacity-pool contracts with security triage and test coverage;
+- GPU/Ocean demo stack, local MLX option, Fish Runner, private Ocean workload adapter, and external Ocean proof preflight.
+
+Current public-testnet readiness can reach 9 ready checks with a private operator overlay. The two remaining manual gates are paid mainnet checkout and a real external Ocean/Oncompute proof receipt.
+
 ### V0: Landing + supply dashboard
 
 - Public landing page.
