@@ -162,9 +162,7 @@ test("billing readiness is unavailable without a liability cap or provider", () 
   assert.equal(readiness.checkoutAvailable, false);
   assert.equal(readiness.dataState, "unavailable");
   assert.deepEqual(readiness.liabilityCap, {
-    configured: false,
-    maxOutstandingPrepaidCredits: null,
-    maxOutstandingPrepaidUsd: null
+    configured: false
   });
   assert.equal(readiness.customerCare.supportConfigured, false);
   assert.equal(readiness.customerCare.refundPolicyConfigured, false);
@@ -184,11 +182,12 @@ test("billing readiness keeps providers disabled while paid topups are paused", 
   assert.equal(readiness.checkoutAvailable, false);
   assert.equal(readiness.dataState, "snapshot");
   assert.deepEqual(readiness.liabilityCap, {
-    configured: true,
-    maxOutstandingPrepaidCredits: 100000,
-    maxOutstandingPrepaidUsd: 100
+    configured: true
   });
-  assert.equal(readiness.providers.usdc.configured, true);
+  assert.equal(Object.hasOwn(readiness.liabilityCap, "maxOutstandingPrepaidCredits"), false);
+  assert.equal(Object.hasOwn(readiness.liabilityCap, "maxOutstandingPrepaidUsd"), false);
+  assert.equal(Object.hasOwn(readiness.providers.usdc, "configured"), false);
+  assert.equal(Object.hasOwn(readiness.providers.usdc, "rpcConfigured"), false);
   assert.equal(readiness.providers.usdc.enabled, false);
   assert.deepEqual(readiness.blockers, ["paid_topups_paused"]);
 });
@@ -200,9 +199,6 @@ test("billing readiness rejects USDC checkout on a non-base-mainnet chain", () =
   const readiness = summarizeBillingReadiness();
 
   assert.equal(readiness.checkoutAvailable, false);
-  assert.equal(readiness.providers.usdc.configured, false);
-  assert.equal(readiness.providers.usdc.chainConfigured, false);
-  assert.equal(readiness.providers.usdc.tokenConfigured, true);
   assert.deepEqual(readiness.blockers, ["payment_provider_not_configured"]);
   assert.ok(readiness.warnings.includes("USDC checkout must use Base mainnet chain id 8453."));
 });
@@ -214,9 +210,6 @@ test("billing readiness rejects USDC checkout with a non-canonical token", () =>
   const readiness = summarizeBillingReadiness();
 
   assert.equal(readiness.checkoutAvailable, false);
-  assert.equal(readiness.providers.usdc.configured, false);
-  assert.equal(readiness.providers.usdc.chainConfigured, true);
-  assert.equal(readiness.providers.usdc.tokenConfigured, false);
   assert.deepEqual(readiness.blockers, ["payment_provider_not_configured"]);
   assert.ok(readiness.warnings.includes("USDC checkout must use canonical Base USDC 0x833589fcD6EDb6E08f4c7C32D4f71b54bdA02913."));
 });
@@ -228,8 +221,6 @@ test("billing readiness rejects USDC checkout with an invalid RPC URL", () => {
   const readiness = summarizeBillingReadiness();
 
   assert.equal(readiness.checkoutAvailable, false);
-  assert.equal(readiness.providers.usdc.configured, false);
-  assert.equal(readiness.providers.usdc.rpcConfigured, false);
   assert.deepEqual(readiness.blockers, ["payment_provider_not_configured"]);
   assert.ok(readiness.warnings.includes("USDC checkout requires an HTTP(S) Base mainnet RPC URL."));
 });
@@ -241,8 +232,6 @@ test("billing readiness rejects USDC checkout with a zero receive address", () =
   const readiness = summarizeBillingReadiness();
 
   assert.equal(readiness.checkoutAvailable, false);
-  assert.equal(readiness.providers.usdc.configured, false);
-  assert.equal(readiness.providers.usdc.receiveAddressConfigured, false);
   assert.deepEqual(readiness.blockers, ["payment_provider_not_configured"]);
   assert.ok(readiness.warnings.includes("USDC checkout requires a valid non-zero Base mainnet receive address."));
 });
@@ -260,10 +249,12 @@ test("billing readiness enables configured providers only after caps are set and
   assert.equal(readiness.checkoutAvailable, true);
   assert.equal(readiness.dataState, "live");
   assert.deepEqual(readiness.liabilityCap, {
-    configured: true,
-    maxOutstandingPrepaidCredits: 100000,
-    maxOutstandingPrepaidUsd: 100
+    configured: true
   });
+  assert.equal(Object.hasOwn(readiness.liabilityCap, "maxOutstandingPrepaidCredits"), false);
+  assert.equal(Object.hasOwn(readiness.liabilityCap, "maxOutstandingPrepaidUsd"), false);
+  assert.equal(Object.hasOwn(readiness.providers.stripe, "configured"), false);
+  assert.equal(Object.hasOwn(readiness.providers.usdc, "configured"), false);
   assert.equal(readiness.providers.stripe.enabled, true);
   assert.equal(readiness.providers.usdc.enabled, false);
   assert.deepEqual(readiness.blockers, []);
@@ -281,7 +272,6 @@ test("billing readiness rejects Stripe test-mode keys in production", () => {
   const readiness = summarizeBillingReadiness();
 
   assert.equal(readiness.checkoutAvailable, false);
-  assert.equal(readiness.providers.stripe.configured, false);
   assert.deepEqual(readiness.blockers, ["payment_provider_not_configured", "stripe_test_mode_not_allowed"]);
   assert.ok(readiness.warnings.includes("Stripe test-mode keys are disabled in production checkout unless FISH_STRIPE_TEST_MODE_ALLOWED=true is set for a private test."));
 });
@@ -299,7 +289,6 @@ test("billing readiness allows Stripe test-mode keys in production only with exp
   const readiness = summarizeBillingReadiness();
 
   assert.equal(readiness.checkoutAvailable, true);
-  assert.equal(readiness.providers.stripe.configured, true);
   assert.deepEqual(readiness.blockers, []);
 });
 
@@ -313,7 +302,6 @@ test("billing readiness rejects Stripe checkout without a public app URL", () =>
   const readiness = summarizeBillingReadiness();
 
   assert.equal(readiness.checkoutAvailable, false);
-  assert.equal(readiness.providers.stripe.configured, false);
   assert.deepEqual(readiness.blockers, ["payment_provider_not_configured", "stripe_public_app_url_not_configured"]);
   assert.ok(readiness.warnings.includes("Stripe checkout requires FISH_PUBLIC_APP_URL or NEXT_PUBLIC_FISH_APP_URL to be a public HTTPS origin."));
 });
@@ -427,7 +415,6 @@ test("billing readiness blocks checkout without support and refund links", () =>
   const readiness = summarizeBillingReadiness();
 
   assert.equal(readiness.checkoutAvailable, false);
-  assert.equal(readiness.providers.stripe.configured, true);
   assert.equal(readiness.providers.stripe.enabled, false);
   assert.deepEqual(readiness.customerCare, {
     supportConfigured: false,
@@ -510,7 +497,6 @@ test("billing readiness treats placeholder payment secrets as unconfigured", () 
   const readiness = summarizeBillingReadiness();
 
   assert.equal(readiness.checkoutAvailable, false);
-  assert.equal(readiness.providers.stripe.configured, false);
   assert.deepEqual(readiness.blockers, ["payment_provider_not_configured", "billing_support_url_not_configured", "billing_refund_policy_not_configured"]);
 });
 
