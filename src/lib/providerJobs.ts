@@ -1169,7 +1169,7 @@ function trustedProviderProofKeysFromJson(value: string | null): TrustedProvider
 }
 
 function normalizePem(value: string | null) {
-  return value?.replaceAll("\\n", "\n").trim() ?? null;
+  return value?.replaceAll("\\\\n", "\n").replaceAll("\\n", "\n").trim() ?? null;
 }
 
 function cleanEnv(value: string | undefined) {

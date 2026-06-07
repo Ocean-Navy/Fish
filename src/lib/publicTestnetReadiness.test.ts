@@ -476,6 +476,25 @@ test("public testnet readiness accepts a private app env overlay without exposin
   assert.doesNotMatch(operations.findings.join("\n"), /FISH_GUEST_ID_SALT/);
 });
 
+test("public testnet readiness flags invalid provider proof signing PEM", async () => {
+  const appEnv = await tempEnv(
+    [
+      "FISH_PAID_TOPUPS_PAUSED=true",
+      "FISH_DATA_BACKUP_TARGET=/var/backups/fish",
+      "FISH_PROVIDER_PROOF_SIGNING_KEY_ID=proof-key",
+      String.raw`FISH_PROVIDER_PROOF_SIGNING_PRIVATE_KEY_PEM="-----BEGIN PRIVATE KEY-----\\ninvalid\\n-----END PRIVATE KEY-----\\n"`
+    ].join("\n")
+  );
+  const result = runReadiness(["--env", appEnv, "--ocean-env", missingOceanEnv(), "--json"]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const summary = JSON.parse(result.stdout);
+  const dataHygiene = summary.checks.find((check: { name: string }) => check.name === "Data retention and backups");
+
+  assert.equal(dataHygiene.state, "manual");
+  assert.match(dataHygiene.findings.join("\n"), /valid Ed25519 private key PEM/);
+});
+
 test("public testnet readiness flags oversized faucet grants", async () => {
   const appEnv = await tempEnv(
     [

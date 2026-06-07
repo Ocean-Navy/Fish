@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { createPrivateKey } from "node:crypto";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -43,6 +44,19 @@ test("public testnet secret generator puts faucet settings in the web env", () =
   assert.equal(payload.appEnv.FISH_TESTNET_FAUCET_USDC_TOKEN_ADDRESS, TEST_USDC_ADDRESS);
   assert.match(payload.appEnv.FISH_TESTNET_FAUCET_PRIVATE_KEY, /^0x[0-9a-f]{64}$/i);
   assert.equal(payload.oceanEnv.FISH_TESTNET_FAUCET_PRIVATE_KEY, undefined);
+});
+
+test("public testnet secret generator emits env-file PEM values that load as Ed25519 keys", () => {
+  const result = runSecrets([]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const signingPrivateKeyPem = envValueFromOutput(result.stdout, "FISH_PROVIDER_PROOF_SIGNING_PRIVATE_KEY_PEM");
+  const runnerPrivateKeyPem = envValueFromOutput(result.stdout, "FISH_RUNNER_SIGNING_PRIVATE_KEY_PEM");
+
+  assert.equal(signingPrivateKeyPem.includes("\\\\n"), false);
+  assert.equal(runnerPrivateKeyPem.includes("\\\\n"), false);
+  assert.equal(createPrivateKey(signingPrivateKeyPem.replaceAll("\\n", "\n")).asymmetricKeyType, "ed25519");
+  assert.equal(createPrivateKey(runnerPrivateKeyPem.replaceAll("\\n", "\n")).asymmetricKeyType, "ed25519");
 });
 
 test("public testnet secret generator maps a contract deployment into read-only web env", async () => {
@@ -180,6 +194,13 @@ function runReadiness(args: string[]) {
     cwd: process.cwd(),
     encoding: "utf8"
   });
+}
+
+function envValueFromOutput(output: string, key: string) {
+  const line = output.split(/\r?\n/).find((entry) => entry.startsWith(`${key}=`));
+  assert.ok(line, `${key} should be present in generated output`);
+  const value = line.slice(key.length + 1);
+  return JSON.parse(value);
 }
 
 async function tempEnv(contents: string) {
