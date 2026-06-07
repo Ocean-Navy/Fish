@@ -1504,6 +1504,12 @@ paths:
                     type: string
         '400':
           description: Invalid support ticket
+        '413':
+          description: Support ticket request body is too large
+        '429':
+          description: Support ticket intake rate limit exceeded
+        '503':
+          description: Local support ticket storage cap reached
   /api/support/export:
     get:
       summary: Admin-only support ticket export

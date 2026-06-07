@@ -1,14 +1,33 @@
 import assert from "node:assert/strict";
-import { mkdir, rm } from "node:fs/promises";
+import { mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import path from "node:path";
+import { join } from "node:path";
 import { afterEach, test } from "node:test";
+import { POST, resetSupportRateLimitForTest } from "../../app/api/support/route";
 import { listSupportTickets, saveSupportTicket } from "./supportTickets";
 
+const SUPPORT_ENV_KEYS = [
+  "FISH_SUPPORT_DIR",
+  "FISH_SUPPORT_MAX_BODY_BYTES",
+  "FISH_SUPPORT_MAX_TICKETS",
+  "FISH_SUPPORT_RATE_LIMIT_PER_MINUTE",
+  "FISH_SUPPORT_RATE_LIMIT_WINDOW_MS"
+] as const;
+
+const originalEnv = Object.fromEntries(SUPPORT_ENV_KEYS.map((key) => [key, process.env[key]]));
 const tempDirs: string[] = [];
 
 afterEach(async () => {
-  delete process.env.FISH_SUPPORT_DIR;
+  resetSupportRateLimitForTest();
+  for (const key of SUPPORT_ENV_KEYS) {
+    const value = originalEnv[key];
+    if (value === undefined) {
+      delete process.env[key];
+    } else {
+      process.env[key] = value;
+    }
+  }
+
   await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { force: true, recursive: true })));
 });
 
@@ -56,9 +75,56 @@ test("support tickets reject honeypot and missing message submissions", async ()
   assert.deepEqual(await listSupportTickets(), []);
 });
 
+test("support route rejects oversized JSON before parsing", async () => {
+  process.env.FISH_SUPPORT_DIR = await tempSupportDir();
+  process.env.FISH_SUPPORT_MAX_BODY_BYTES = "128";
+
+  const response = await POST(
+    new Request("http://127.0.0.1:3000/api/support", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-forwarded-for": "198.51.100.10" },
+      body: JSON.stringify({ contact: "test@example.com", message: "hello support", padding: "x".repeat(512) })
+    })
+  );
+
+  assert.equal(response.status, 413);
+  assert.deepEqual(await response.json(), { ok: false, error: "support_request_too_large" });
+});
+
+test("support route rate limits unauthenticated ticket submissions", async () => {
+  process.env.FISH_SUPPORT_DIR = await tempSupportDir();
+  process.env.FISH_SUPPORT_RATE_LIMIT_PER_MINUTE = "1";
+  const body = JSON.stringify({ contact: "test@example.com", kind: "billing", message: "hello support" });
+
+  const first = await POST(
+    new Request("http://127.0.0.1:3000/api/support", { method: "POST", headers: { "x-forwarded-for": "198.51.100.11" }, body })
+  );
+  const second = await POST(
+    new Request("http://127.0.0.1:3000/api/support", { method: "POST", headers: { "x-forwarded-for": "198.51.100.11" }, body })
+  );
+
+  assert.equal(first.status, 200);
+  assert.equal(second.status, 429);
+  assert.deepEqual(await second.json(), { ok: false, error: "support_rate_limited" });
+});
+
+test("support ticket storage cap rejects new files once the cap is reached", async () => {
+  const dir = await tempSupportDir();
+  process.env.FISH_SUPPORT_DIR = dir;
+  process.env.FISH_SUPPORT_MAX_TICKETS = "1";
+  const ticket = { contact: "test@example.com", kind: "technical", message: "hello support" };
+
+  const first = await saveSupportTicket(ticket);
+  const second = await saveSupportTicket(ticket);
+  const files = await readdir(dir);
+
+  assert.equal(first.ok, true);
+  assert.deepEqual(second, { ok: false, status: 503, error: "support_ticket_storage_full" });
+  assert.equal(files.filter((file) => file.endsWith(".json")).length, 1);
+});
+
 async function tempSupportDir() {
-  const dir = path.join(tmpdir(), `fish-support-${Date.now()}-${Math.random().toString(16).slice(2)}`);
-  await mkdir(dir, { recursive: true });
+  const dir = await mkdtemp(join(tmpdir(), "fish-support-"));
   tempDirs.push(dir);
   return dir;
 }
