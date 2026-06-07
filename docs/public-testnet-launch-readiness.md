@@ -146,7 +146,7 @@ FISH_MAX_OUTSTANDING_PREPAID_CREDITS is set
 Stripe or USDC checkout secrets are set
 USDC checkout uses Base mainnet chain id 8453, canonical Base USDC, a non-zero receive address, and an HTTP(S) Base mainnet RPC
 FISH_BILLING_SUPPORT_URL and FISH_BILLING_REFUND_POLICY_URL are public-safe HTTP(S)/mailto links
-mainnet contract writes stay disabled unless explicitly reviewed
+contract writes outside Base Sepolia stay disabled unless explicitly reviewed
 ```
 
 The example env points those customer-care links at `/support` and `/refunds`, and keeps paid top-ups paused. Support and refund tickets are private operator records under `data/support/`.
