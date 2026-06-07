@@ -626,6 +626,35 @@ test("external Oncompute readiness keeps local Ocean Node proof manual", async (
   assert.match(externalProof.findings.join("\n"), /local Ocean Node/);
 });
 
+test("external Oncompute readiness keeps IPv6 local and private Ocean Node URLs manual", async () => {
+  const appEnv = await tempEnv("FISH_PAID_TOPUPS_PAUSED=true\n");
+
+  const localNodeUrls = ["http://[::1]:8000", "http://[fd00::1]:8000", "http://[fe80::1]:8000"];
+
+  for (const nodeUrl of localNodeUrls) {
+    const oceanEnv = await tempEnv(
+      [
+        oceanEnvWithComputeAccess([PROOF_WALLET_ADDRESS]),
+        "OCEAN_WORKLOAD_ADAPTER_MODE=live",
+        "OCEAN_PROOF_RPC=https://mainnet.base.org",
+        `NODE_URL=${nodeUrl}`,
+        "FISH_OCEAN_DATASET_DIDS=[]",
+        "FISH_OCEAN_ALGO_DID=did:op:fish-no-dataset-proof",
+        "FISH_OCEAN_COMPUTE_ENV_ID=external-free",
+        "OCEAN_CLI_DIR=/opt/ocean-cli"
+      ].join("\n")
+    );
+    const result = runReadiness(["--env", appEnv, "--ocean-env", oceanEnv, "--json"]);
+
+    assert.equal(result.status, 0, result.stderr);
+    const summary = JSON.parse(result.stdout);
+    const externalProof = summary.checks.find((check: { name: string }) => check.name === "External Oncompute proof");
+
+    assert.equal(externalProof.state, "manual", nodeUrl);
+    assert.match(externalProof.findings.join("\n"), /local Ocean Node/, nodeUrl);
+  }
+});
+
 test("external Oncompute readiness accepts a complete live free-compute env", async () => {
   const appEnv = await tempEnv("FISH_PAID_TOPUPS_PAUSED=true\n");
   const oceanEnv = await tempEnv(
