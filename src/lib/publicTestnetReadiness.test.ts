@@ -617,6 +617,32 @@ test("Ocean demo readiness accepts free compute restricted to the proof wallet",
   assert.doesNotMatch(ocean.findings.join("\n"), /proof wallet/);
 });
 
+test("Ocean demo readiness rejects extra free compute wallet addresses", async () => {
+  const appEnv = await tempEnv("FISH_PAID_TOPUPS_PAUSED=true\n");
+  const oceanEnv = await tempEnv(oceanEnvWithComputeAccess([PROOF_WALLET_ADDRESS, "0x1111111111111111111111111111111111111111"]));
+  const result = runReadiness(["--env", appEnv, "--ocean-env", oceanEnv, "--json"]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const summary = JSON.parse(result.stdout);
+  const ocean = summary.checks.find((check: { name: string }) => check.name === "GPU/Ocean demo stack");
+
+  assert.equal(ocean.state, "partial");
+  assert.match(ocean.findings.join("\n"), /free\.access\.addresses must contain only the Ocean proof wallet/);
+});
+
+test("Ocean demo readiness rejects non-empty free compute access lists", async () => {
+  const appEnv = await tempEnv("FISH_PAID_TOPUPS_PAUSED=true\n");
+  const oceanEnv = await tempEnv(oceanEnvWithComputeAccess([PROOF_WALLET_ADDRESS], { accessLists: ["public-testers"] }));
+  const result = runReadiness(["--env", appEnv, "--ocean-env", oceanEnv, "--json"]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const summary = JSON.parse(result.stdout);
+  const ocean = summary.checks.find((check: { name: string }) => check.name === "GPU/Ocean demo stack");
+
+  assert.equal(ocean.state, "partial");
+  assert.match(ocean.findings.join("\n"), /non-empty free\.access\.accessLists/);
+});
+
 test("external Oncompute readiness keeps local Ocean Node proof manual", async () => {
   const appEnv = await tempEnv("FISH_PAID_TOPUPS_PAUSED=true\n");
   const oceanEnv = await tempEnv(
@@ -801,7 +827,10 @@ function missingOceanEnv() {
   return path.join(tmpdir(), `fish-missing-ocean-env-${Date.now()}-${Math.random().toString(16).slice(2)}`);
 }
 
-function oceanEnvWithComputeAccess(addresses: string[], options: { runnerSigningKeyId?: string; runnerSigningPrivateKeyPem?: string; runnerApiKey?: string } = {}) {
+function oceanEnvWithComputeAccess(
+  addresses: string[],
+  options: { accessLists?: unknown[]; runnerSigningKeyId?: string; runnerSigningPrivateKeyPem?: string; runnerApiKey?: string } = {}
+) {
   const computeEnvironments = [
     {
       socketPath: "/var/run/docker.sock",
@@ -810,7 +839,8 @@ function oceanEnvWithComputeAccess(addresses: string[], options: { runnerSigning
           id: "fish-local-free",
           free: {
             access: {
-              addresses
+              addresses,
+              accessLists: options.accessLists ?? []
             }
           }
         }
