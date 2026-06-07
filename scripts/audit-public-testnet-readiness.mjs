@@ -14,7 +14,9 @@ const deriveOceanWebEnvHost = option("--derive-ocean-web-env-host");
 const deriveOceanWebEnvProfile = option("--derive-ocean-web-env-profile") || "warm";
 const deriveOceanWebEnvScheme = option("--derive-ocean-web-env-scheme") || "http";
 const json = hasFlag("--json");
-const strict = hasFlag("--strict");
+const advisory = hasFlag("--advisory");
+const strictFlag = hasFlag("--strict");
+const strict = !advisory;
 const MAX_FAUCET_DAILY_CLAIMS = 100;
 const MAX_FAUCET_ETH_GRANT = 0.001;
 const MAX_FAUCET_TEST_OCEAN_GRANT = 10000;
@@ -24,6 +26,10 @@ const BASE_CHAIN_ID = 8453;
 const BASE_USDC_ADDRESS = "0x833589fcD6EDb6E08f4c7C32D4f71b54bdA02913";
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
+if (advisory && strictFlag) {
+  console.error("Use either --advisory or --strict, not both.");
+  process.exit(2);
+}
 if (!["public-testnet", "paid-mainnet"].includes(profile)) {
   console.error(`Unknown readiness profile: ${profile}`);
   console.error("Use --profile public-testnet or --profile paid-mainnet.");
@@ -64,6 +70,7 @@ const summary = {
   checkedAt: new Date().toISOString(),
   profile,
   strict,
+  advisory,
   env: {
     app: rootEnvPath,
     appOverlay: appEnvOverlayPath
@@ -420,7 +427,7 @@ function result(name, steps, milestone, state, findings) {
 function printSummary(summary) {
   console.log(`Fish public-testnet readiness (${summary.checkedAt})`);
   console.log(`profile: ${summary.profile}`);
-  if (summary.strict) console.log("strict: true");
+  console.log(`exit mode: ${summary.advisory ? "advisory (blocked-only)" : "strict (all non-ready states fail)"}`);
   console.log(`app env: ${summary.env.app}`);
   if (summary.env.appOverlay.configured) console.log(`app env overlay: ${summary.env.appOverlay.path}`);
   console.log(`ocean env: ${summary.env.ocean}`);
