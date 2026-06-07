@@ -639,16 +639,26 @@ function checkFreeComputeAccess(env) {
   for (const environment of selected) {
     const label = environment.id ? `Compute environment ${environment.id}` : "Selected compute environment";
     const addresses = Array.isArray(environment.free?.access?.addresses) ? environment.free.access.addresses.map((value) => String(value).trim()).filter(Boolean) : [];
+    const accessLists = Array.isArray(environment.free?.access?.accessLists) ? environment.free.access.accessLists.filter(Boolean) : [];
     if (!addresses.length) {
       findings.push(`${label} has empty free.access.addresses; restrict free jobs to the Ocean proof wallet.`);
       continue;
+    }
+    if (accessLists.length) {
+      findings.push(`${label} has non-empty free.access.accessLists; restrict free jobs to the Ocean proof wallet address only.`);
     }
     const invalidAddresses = addresses.filter((value) => !address(value));
     if (invalidAddresses.length) {
       findings.push(`${label} has invalid free.access.addresses entries.`);
     }
-    if (proofWallet.address && !addresses.some((value) => value.toLowerCase() === proofWallet.address.toLowerCase())) {
-      findings.push(`${label} free.access.addresses does not include the Ocean proof wallet ${proofWallet.address}.`);
+    if (proofWallet.address) {
+      const normalizedProofWallet = proofWallet.address.toLowerCase();
+      const normalizedAddresses = addresses.map((value) => value.toLowerCase());
+      if (!normalizedAddresses.includes(normalizedProofWallet)) {
+        findings.push(`${label} free.access.addresses does not include the Ocean proof wallet ${proofWallet.address}.`);
+      } else if (!invalidAddresses.length && (normalizedAddresses.length !== 1 || normalizedAddresses[0] !== normalizedProofWallet)) {
+        findings.push(`${label} free.access.addresses must contain only the Ocean proof wallet ${proofWallet.address}.`);
+      }
     }
   }
 
