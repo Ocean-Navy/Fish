@@ -34,7 +34,6 @@ contract FishOceanStaking is Initializable, ERC20Upgradeable, OwnableUpgradeable
     uint256 public protocolEmissionsPercentage;
     uint256 public protocolEmissionsPercentageWhenLocked;
     uint256 public totalLockedStakedOcean;
-    uint256 public emissionReserve;
 
     uint256[256] public fishSupply;
     uint256[256] public fishMintRates;
@@ -52,6 +51,11 @@ contract FishOceanStaking is Initializable, ERC20Upgradeable, OwnableUpgradeable
 
     mapping(address => StakeInfo) public stakes;
     mapping(address => LockedStakeInfo) public lockedStakes;
+
+    // Appended after the original staking storage to keep UUPS/ERC1967 upgrades
+    // compatible with pre-reserve proxy deployments. Do not move above the
+    // arrays or mappings.
+    uint256 public emissionReserve;
 
     event Staked(address indexed user, uint256 amount);
     event UnstakeInitiated(address indexed user, uint256 amount);
