@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 
 const includeWallets = hasFlag("--include-wallets");
 const includeFaucet = hasFlag("--include-faucet");
+const PUBLIC_TESTNET_CHAIN_ID = 84532;
 const enableContractActions = hasFlag("--enable-contract-actions");
 const enableContractSettlement = hasFlag("--enable-contract-settlement");
 const json = hasFlag("--json");
@@ -15,7 +16,7 @@ const warmDailyBudgetUsd = option("--warm-budget-usd") || "10";
 const prepaidCreditCap = option("--prepaid-credit-cap") || "100000";
 const contractDeployment = readContractDeployment(option("--contract-deployment"));
 const contractRpcUrlOption = option("--contract-rpc-url") || process.env.FISH_CONTRACT_RPC_URL || process.env.BASE_SEPOLIA_RPC_URL || "";
-const contractRpcUrl = contractRpcUrlOption || (contractDeployment?.chainId === 84532 ? "https://sepolia.base.org" : "");
+const contractRpcUrl = contractRpcUrlOption || (contractDeployment?.chainId === PUBLIC_TESTNET_CHAIN_ID ? "https://sepolia.base.org" : "");
 const contractOperatorPrivateKey = option("--contract-operator-private-key") || "";
 const faucetPrivateKeyOption = option("--faucet-private-key");
 const faucetOceanAddress = option("--test-ocean-address") || contractDeployment?.contracts.oceanToken || "";
@@ -252,8 +253,14 @@ function validateContractOptions() {
   }
   const failures = [];
   if (!/^https?:\/\//i.test(contractRpcUrl)) failures.push("Use --contract-rpc-url https://... with --contract-deployment.");
-  if (enableContractActions && contractDeployment.chainId === 8453) failures.push("--enable-contract-actions is refused for Base mainnet by this public-testnet generator.");
-  if (enableContractSettlement && contractDeployment.chainId === 8453) failures.push("--enable-contract-settlement is refused for Base mainnet by this public-testnet generator.");
+  const publicTestnetOnlyFlags = [
+    ...(enableContractActions ? ["--enable-contract-actions"] : []),
+    ...(enableContractSettlement ? ["--enable-contract-settlement"] : []),
+    ...(includeFaucet ? ["--include-faucet with --contract-deployment"] : [])
+  ];
+  if (publicTestnetOnlyFlags.length && contractDeployment.chainId !== PUBLIC_TESTNET_CHAIN_ID) {
+    failures.push(`${publicTestnetOnlyFlags.join(", ")} require a Base Sepolia deployment artifact with chainId ${PUBLIC_TESTNET_CHAIN_ID}.`);
+  }
   if (enableContractSettlement && !evmPrivateKeyValue(contractOperatorPrivateKey)) failures.push("Use --contract-operator-private-key 0x... when --enable-contract-settlement is set.");
   if (contractOperatorPrivateKey && !evmPrivateKeyValue(contractOperatorPrivateKey)) failures.push("--contract-operator-private-key must be a 0x-prefixed EVM private key.");
   if (failures.length) {
@@ -286,13 +293,13 @@ function evmPrivateKeyValue(value) {
 }
 
 function defaultChainName(chainId, network) {
-  if (chainId === 84532) return "Base Sepolia";
+  if (chainId === PUBLIC_TESTNET_CHAIN_ID) return "Base Sepolia";
   if (chainId === 8453) return "Base";
   return network || `Chain ${chainId}`;
 }
 
 function defaultExplorerUrl(chainId) {
-  if (chainId === 84532) return "https://sepolia.basescan.org";
+  if (chainId === PUBLIC_TESTNET_CHAIN_ID) return "https://sepolia.basescan.org";
   if (chainId === 8453) return "https://basescan.org";
   return "";
 }

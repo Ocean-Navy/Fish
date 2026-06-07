@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { test } from "node:test";
 import { parseOceanBatchJobRequest, runOceanBatchJob } from "./oceanBatch";
-import type { Account, Ledger } from "./fishLedger";
+import { createApiKey, type Account, type Ledger } from "./fishLedger";
 
 test("live Ocean batch adapter requires an Ocean-eligible plan", async () => {
   const { account, ledger } = testLedger({ planId: "free", creditBalance: 100000 });
@@ -89,6 +94,121 @@ test("Ocean batch credit reservation includes private payload tokens", async () 
   if (!result.ok && "needed" in result) {
     assert.equal(result.needed, 2);
     assert.equal(result.available, 1);
+  }
+});
+
+test("failed provider-cost Ocean batch receipts do not consume daily budget", async () => {
+  await rm(path.join(process.cwd(), "data", "ocean-batch"), { recursive: true, force: true });
+
+  const previousEndpoint = process.env.FISH_OCEAN_BATCH_ENDPOINT;
+  const previousBudget = process.env.FISH_OCEAN_BATCH_DAILY_BUDGET_USD;
+  const previousLedgerDir = process.env.FISH_LEDGER_DIR;
+  const ledgerDir = await mkdtemp(path.join(tmpdir(), "fish-ocean-batch-ledger-"));
+  let backendHits = 0;
+  const server = createServer((request, response) => {
+    request.resume();
+    backendHits += 1;
+    response.setHeader("content-type", "application/json");
+    if (backendHits === 1) {
+      response.end(
+        JSON.stringify({
+          status: "failed",
+          errorCode: "provider_failed_after_cost",
+          cost: { providerCostUsd: 0.06, currency: "USD" },
+          usage: { inputTokens: 10, outputTokens: 0, totalTokens: 10, gpuSeconds: 1, items: 1 }
+        })
+      );
+      return;
+    }
+
+    response.end(
+      JSON.stringify({
+        status: "succeeded",
+        providerJobId: "provider-success-after-failure",
+        outputRef: "sha256:provider-success-after-failure-output",
+        cost: { providerCostUsd: 0.05, currency: "USD" },
+        usage: { inputTokens: 10, outputTokens: 10, totalTokens: 20, gpuSeconds: 2, items: 1 }
+      })
+    );
+  });
+
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  assert.equal(typeof address, "object");
+  assert.notEqual(address, null);
+  const port = (address as AddressInfo).port;
+
+  try {
+    process.env.FISH_LEDGER_DIR = ledgerDir;
+    process.env.FISH_OCEAN_BATCH_ENDPOINT = `http://127.0.0.1:${port}`;
+    process.env.FISH_OCEAN_BATCH_DAILY_BUDGET_USD = "0.10";
+
+    const created = await createApiKey("Ocean batch budget test", 100000, "team-api");
+    const account = created.account as unknown as Account;
+    const ledger: Ledger = { accounts: [account] };
+    const failed = await runOceanBatchJob(
+      {
+        taskType: "document_summary",
+        inputRef: "sha256:failed-provider-cost-budget-test",
+        estimatedInputTokens: 10,
+        maxOutputTokens: 20,
+        maxRuntimeSeconds: 60,
+        maxCostUsd: 0.06,
+        adapterMode: "ocean_http"
+      },
+      { account, ledger }
+    );
+
+    assert.equal(failed.ok, false);
+    assert.equal(failed.status, 502);
+    assert.equal("receipt" in failed, true);
+    if (!failed.ok && "receipt" in failed) {
+      const receipt = failed.receipt;
+      assert.ok(receipt);
+      assert.equal(receipt.status, "failed");
+      assert.equal(receipt.cost.providerCostUsd, 0.06);
+      assert.equal(receipt.cost.pricingState, "provider_verified");
+    }
+    assert.equal(account.creditBalance, 100000);
+
+    const succeeded = await runOceanBatchJob(
+      {
+        taskType: "document_summary",
+        inputRef: "sha256:succeeded-provider-budget-test",
+        estimatedInputTokens: 10,
+        maxOutputTokens: 20,
+        maxRuntimeSeconds: 60,
+        maxCostUsd: 0.05,
+        adapterMode: "ocean_http"
+      },
+      { account, ledger }
+    );
+
+    assert.equal(succeeded.ok, true);
+    assert.equal(succeeded.status, 200);
+    assert.equal(backendHits, 2);
+    if (succeeded.ok) {
+      assert.equal(succeeded.budget.spentUsd, 0.05);
+    }
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+    if (previousEndpoint === undefined) {
+      delete process.env.FISH_OCEAN_BATCH_ENDPOINT;
+    } else {
+      process.env.FISH_OCEAN_BATCH_ENDPOINT = previousEndpoint;
+    }
+    if (previousBudget === undefined) {
+      delete process.env.FISH_OCEAN_BATCH_DAILY_BUDGET_USD;
+    } else {
+      process.env.FISH_OCEAN_BATCH_DAILY_BUDGET_USD = previousBudget;
+    }
+    if (previousLedgerDir === undefined) {
+      delete process.env.FISH_LEDGER_DIR;
+    } else {
+      process.env.FISH_LEDGER_DIR = previousLedgerDir;
+    }
+    await rm(path.join(process.cwd(), "data", "ocean-batch"), { recursive: true, force: true });
+    await rm(ledgerDir, { recursive: true, force: true });
   }
 });
 

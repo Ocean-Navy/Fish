@@ -536,11 +536,11 @@ https://<your-domain>/api/billing/webhooks/stripe
 
 Fish accepts `checkout.session.completed`, verifies the Stripe signature, checks the session metadata against the local payment request, and grants `prepaid` credits idempotently by checkout session.
 
-Use `GET /api/billing/readiness` to show public-safe payment state before checkout is enabled. It reports whether top-ups are paused, whether the prepaid liability cap is set in credits and USD exposure, whether support/refund links are configured, and whether Stripe or USDC checkout is configured; it does not expose Stripe secrets, RPC URLs, or payment recipient addresses.
+Use `GET /api/billing/readiness` to show public-safe payment state before checkout is enabled. It reports whether top-ups are paused, whether the prepaid liability cap is set, whether support/refund links are configured, and whether Stripe or USDC checkout is enabled; it does not expose the exact liability cap, Stripe secrets, RPC URLs, detailed provider configuration, or payment recipient addresses.
 
 Paid-mainnet readiness can be satisfied by either Stripe checkout or canonical Base mainnet USDC checkout. Both lanes require support/refund links, a prepaid liability cap, and paid top-ups intentionally unpaused. Base Sepolia is testnet-only and is rejected for paid checkout.
 
-Support and refund tickets can be created through `/support` or `POST /api/support`. They write private operator records under `data/support/`, which is ignored by git and included in runtime backups. Export them with:
+Support and refund tickets can be created through `/support` or `POST /api/support`. The public intake applies a small JSON body limit, per-client rate limit, and local ticket cap before writing private operator records under `data/support/`, which is ignored by git and included in runtime backups. Tune `FISH_SUPPORT_MAX_BODY_BYTES`, `FISH_SUPPORT_RATE_LIMIT_PER_MINUTE`, `FISH_SUPPORT_RATE_LIMIT_WINDOW_MS`, and `FISH_SUPPORT_MAX_TICKETS` for the deployment or replace the local store with a real support system before high-volume public traffic. Export tickets with:
 
 ```bash
 curl -sS 'http://127.0.0.1:3000/api/support/export?format=csv' \
@@ -761,7 +761,7 @@ The `/credits` page also exposes the contract prototype status from:
 /api/contracts/status
 ```
 
-By default this is read-only. Configure `FISH_CONTRACT_*` addresses and `FISH_CONTRACT_RPC_URL` after a testnet deployment. The status endpoint reads live totals from the configured contracts when RPC is available. Wallet write buttons remain disabled unless `FISH_CONTRACT_ACTIONS_ENABLED=true`, and Base mainnet writes stay blocked unless `FISH_CONTRACT_MAINNET_WRITES_ALLOWED=true`. Do not enable mainnet writes before audit, legal review, multisig ownership, and an incident-response runbook.
+By default this is read-only. Configure `FISH_CONTRACT_*` addresses and `FISH_CONTRACT_RPC_URL` after a testnet deployment. The status endpoint reads live totals from the configured contracts when RPC is available. Wallet write buttons remain disabled unless `FISH_CONTRACT_ACTIONS_ENABLED=true`, and any non-Base-Sepolia chain stays blocked unless `FISH_CONTRACT_MAINNET_WRITES_ALLOWED=true`. Do not enable writes outside Base Sepolia before audit, legal review, multisig ownership, and an incident-response runbook.
 
 Deploy a Base Sepolia test system with:
 
@@ -782,7 +782,7 @@ npm run secrets:public-testnet -- \
   --include-faucet
 ```
 
-This adds the `FISH_CONTRACT_*` addresses and, when faucet is included, uses the deployed test OCEAN/Test USDC addresses for the public tester faucet. Contract wallet actions stay disabled unless `--enable-contract-actions` is explicitly added. The generator refuses to enable actions for Base mainnet.
+This adds the `FISH_CONTRACT_*` addresses and, when faucet is included, uses the deployed test OCEAN/Test USDC addresses for the public tester faucet. Contract wallet actions stay disabled unless `--enable-contract-actions` is explicitly added. The public-testnet generator only enables actions, settlement submission, or deployment-derived faucet addresses when the artifact is Base Sepolia (`chainId=84532`).
 
 Paid demand that is settled into the FISH Capacity Pool can be recorded by an operator:
 
@@ -888,7 +888,7 @@ POST /api/ocean/batch/jobs
 GET /api/ocean/batch/readiness
 ```
 
-`POST` requires a Fish API key and accepts hash/reference input through `inputRef`. `adapterMode: "sample_success"` is the default local proof mode. Set `adapterMode: "ocean_http"` only when `FISH_OCEAN_BATCH_ENDPOINT` points to a private Oncompute/Ocean batch adapter, and only Ocean-provider-eligible plans can use that live adapter. For `adapterMode: "ocean_http"`, Fish atomically reserves `maxCostUsd` against `FISH_OCEAN_BATCH_DAILY_BUDGET_USD`, requires enough Fish Credits to cover the selected live cost cap before execution, and debits successful live jobs by at least verified provider cost. Sample/prototype receipts do not count against the real Ocean daily spend cap. Public proof must show tickets and hashes, not raw order data.
+`POST` requires a Fish API key and accepts hash/reference input through `inputRef`. `adapterMode: "sample_success"` is the default local proof mode. Set `adapterMode: "ocean_http"` only when `FISH_OCEAN_BATCH_ENDPOINT` points to a private Oncompute/Ocean batch adapter, and only Ocean-provider-eligible plans can use that live adapter. For `adapterMode: "ocean_http"`, Fish atomically reserves `maxCostUsd` against `FISH_OCEAN_BATCH_DAILY_BUDGET_USD`, requires enough Fish Credits to cover the selected live cost cap before execution, and debits successful live jobs by at least verified provider cost. Sample/prototype receipts and failed jobs do not count against the real Ocean daily spend cap. Public proof must show tickets and hashes, not raw order data.
 
 Batch dishes sent through `/v1/chat/completions` or `/api/dishes/:dishId/run` use the same hash-only batch path by default and require an authenticated Fish API key on a plan allowed to use Ocean provider capacity. Guest meal-counter credits cannot start Ocean batch adapter work. Set `FISH_OCEAN_BATCH_PRIVATE_PAYLOAD=true` only for a private Ocean batch adapter we operate; then short raw dish text is sent to the adapter so the Ocean job can create a returned Markdown/HTML artifact. The returned artifact is shown to the user but not stored in public receipts.
 
@@ -903,7 +903,7 @@ Per-dish runtime and cost caps can be set with `FISH_DOCS_BATCH_MAX_RUNTIME_SECO
 
 Batch receipts are written under `data/ocean-batch/`, and successful jobs also write Fish usage receipts so the public dashboard can count them as Ocean-backed usage. Set `FISH_OCEAN_BATCH_DIR` only for isolated local smoke tests that should not touch the normal runtime receipt ledger. For public testing without external Oncompute payments, run the GPU-side Ocean demo stack and use free compute on our own Ocean Node. See `docs/ocean-batch-jobs-plan.md` for the adapter contract.
 
-`/api/ocean/batch/readiness` and `/proof` show whether the private adapter is configured, reachable, live-ready, and backed by at least one successful non-sample Ocean batch receipt. The readiness response includes a plain-language `claim` object so the API and proof page agree on the current boundary: setup, route connected, local Ocean Node proof, or Ocean CLI proof. It exposes booleans, blockers, and public claim text only; it does not expose adapter URLs, wallet secrets, API keys, prompt text, output text, node URLs, or DIDs.
+`/api/ocean/batch/readiness` and `/proof` show whether the private adapter is configured, reachable, live-ready, and backed by at least one successful non-sample Ocean batch receipt. The readiness response includes a plain-language `claim` object so the API and proof page agree on the current boundary: setup, route connected, Ocean Node snapshot proof, or Ocean CLI proof. The claim is classified from the selected successful receipt's recorded `sourceState` and `adapterMode`; a currently live adapter cannot relabel an older snapshot receipt as an Ocean CLI ticket. It exposes booleans, blockers, receipt provenance labels, and public claim text only; it does not expose adapter URLs, wallet secrets, API keys, prompt text, output text, node URLs, or DIDs.
 
 After `make ocean-demo-smoke` passes, run one full web-to-Ocean proof smoke with the web app pointed at the private adapter:
 

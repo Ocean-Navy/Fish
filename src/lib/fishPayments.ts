@@ -113,8 +113,6 @@ export type FishBillingReadiness = {
   maxCheckoutUsd: number;
   liabilityCap: {
     configured: boolean;
-    maxOutstandingPrepaidCredits: number | null;
-    maxOutstandingPrepaidUsd: number | null;
   };
   customerCare: {
     supportConfigured: boolean;
@@ -124,18 +122,10 @@ export type FishBillingReadiness = {
   };
   providers: {
     stripe: {
-      configured: boolean;
       enabled: boolean;
     };
     usdc: {
-      configured: boolean;
       enabled: boolean;
-      chainId: number;
-      tokenAddress: string;
-      rpcConfigured: boolean;
-      receiveAddressConfigured: boolean;
-      chainConfigured: boolean;
-      tokenConfigured: boolean;
     };
   };
   blockers: string[];
@@ -188,9 +178,7 @@ export function summarizeBillingReadiness(): FishBillingReadiness {
     minCheckoutUsd: readNumber(process.env.FISH_MIN_CHECKOUT_USD, 1),
     maxCheckoutUsd: readNumber(process.env.FISH_MAX_CHECKOUT_USD, 500),
     liabilityCap: {
-      configured: liabilityCapConfigured,
-      maxOutstandingPrepaidCredits: liabilityCapConfigured ? maxOutstandingPrepaidCredits : null,
-      maxOutstandingPrepaidUsd: liabilityCapConfigured ? creditsToUsd(maxOutstandingPrepaidCredits) : null
+      configured: liabilityCapConfigured
     },
     customerCare: {
       supportConfigured: Boolean(supportUrl),
@@ -200,18 +188,10 @@ export function summarizeBillingReadiness(): FishBillingReadiness {
     },
     providers: {
       stripe: {
-        configured: stripeConfigured,
         enabled: checkoutAvailable && stripeConfigured
       },
       usdc: {
-        configured: usdcConfig.configured,
-        enabled: checkoutAvailable && usdcConfig.configured,
-        chainId: usdcConfig.chainId,
-        tokenAddress: usdcConfig.tokenAddress,
-        rpcConfigured: usdcConfig.rpcConfigured,
-        receiveAddressConfigured: usdcConfig.receiveAddressConfigured,
-        chainConfigured: usdcConfig.chainConfigured,
-        tokenConfigured: usdcConfig.tokenConfigured
+        enabled: checkoutAvailable && usdcConfig.configured
       }
     },
     blockers,
@@ -879,9 +859,6 @@ function creditsToCents(credits: number) {
   return Math.ceil(credits * FISH_CREDIT_USD * 100);
 }
 
-function creditsToUsd(credits: number) {
-  return Number((credits * FISH_CREDIT_USD).toFixed(6));
-}
 
 function atomicToDecimal(value: string, decimals: number) {
   const atomic = BigInt(value);

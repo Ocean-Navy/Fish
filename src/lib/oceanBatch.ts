@@ -486,6 +486,7 @@ async function sumOceanBatchReservedCostSince(sinceIso: string) {
 
 function isRealOceanBatchBudgetReceipt(receipt: OceanBatchReceipt) {
   return (
+    receipt.status === "succeeded" &&
     receipt.adapterMode === "ocean_http" &&
     (receipt.sourceState === "snapshot" || receipt.sourceState === "live") &&
     receipt.cost.pricingState === "provider_verified"

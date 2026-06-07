@@ -135,6 +135,8 @@ snapshot   private adapter or local Ocean Node proof
 live       confirmed live/onchain or stronger externally verifiable data
 ```
 
+Public Ocean readiness claims must be derived from the selected successful receipt's recorded `sourceState` and `adapterMode`, not only from the adapter's current health/config response. A snapshot `ocean_http` receipt may support the conservative Ocean Navy Ocean Node claim, but it must not be relabeled as an Ocean CLI ticket just because the adapter is later configured in live mode.
+
 ## Step 5: Payments/Mainnet Readiness
 
 Paid credits should stay blocked until:
@@ -144,7 +146,7 @@ FISH_MAX_OUTSTANDING_PREPAID_CREDITS is set
 Stripe or USDC checkout secrets are set
 USDC checkout uses Base mainnet chain id 8453, canonical Base USDC, a non-zero receive address, and an HTTP(S) Base mainnet RPC
 FISH_BILLING_SUPPORT_URL and FISH_BILLING_REFUND_POLICY_URL are public-safe HTTP(S)/mailto links
-mainnet contract writes stay disabled unless explicitly reviewed
+contract writes outside Base Sepolia stay disabled unless explicitly reviewed
 ```
 
 The example env points those customer-care links at `/support` and `/refunds`, and keeps paid top-ups paused. Support and refund tickets are private operator records under `data/support/`.
@@ -157,7 +159,7 @@ curl -sS http://127.0.0.1:3000/api/billing/readiness
 ```
 
 The default readiness profile is `public-testnet`. In that profile, intentionally paused paid checkout is acceptable because public testers are not using real money. It still reports the missing Stripe/USDC/liability-cap work as manual follow-up.
-`GET /api/billing/readiness` exposes the prepaid liability cap in both credits and USD exposure, plus support/refund readiness and public-safe USDC chain/token checks. Use the USD field for launch review because it is the real maximum prepaid liability if checkout is opened.
+`GET /api/billing/readiness` exposes only public-safe billing status: whether the prepaid liability cap is configured, whether support/refund links are ready, and whether checkout methods are enabled. It intentionally does not expose the exact cap in credits or USD, detailed payment-provider configuration, RPC URLs, or payment recipient addresses; operators should review private env values directly for launch liability decisions.
 
 Before a paid launch, use the stricter profile:
 
