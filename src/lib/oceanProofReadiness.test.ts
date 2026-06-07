@@ -70,9 +70,9 @@ test("Ocean proof readiness is snapshot proof after adapter health and non-sampl
   assert.equal(readiness.trafficReady, true);
   assert.equal(readiness.proofReady, true);
   assert.equal(readiness.claim.level, "local-ocean-node");
-  assert.equal(readiness.claim.title, "Local Ocean proof");
-  assert.match(readiness.claim.headline, /ran through our Ocean Node/);
-  assert.match(readiness.claim.boundary, /does not prove paid third-party Oncompute demand/);
+  assert.equal(readiness.claim.title, "Ocean Node proof");
+  assert.equal(readiness.claim.headline, "Fish can run test dishes through an Ocean Node operated by Ocean Navy.");
+  assert.match(readiness.claim.boundary, /does not prove live Ocean CLI tickets/);
   assert.equal(readiness.adapter.reachable, true);
   assert.equal(readiness.adapter.mode, "local_ocean_node");
   assert.equal(readiness.adapter.liveReady, true);
@@ -121,7 +121,36 @@ test("Ocean proof readiness uses the latest successful non-sample receipt for pu
   assert.equal(readiness.proofReady, true);
   assert.equal(readiness.claim.level, "local-ocean-node");
   assert.equal(readiness.proof.latestReceiptState, "snapshot");
+  assert.equal(readiness.proof.latestReceiptAdapterMode, "ocean_http");
   assert.equal(readiness.proof.latestReceiptAt, "2026-06-06T00:00:00.000Z");
+});
+
+test("Ocean proof readiness does not relabel a snapshot receipt as an Ocean CLI proof when the current adapter is live", async () => {
+  const batchDir = await useTempOceanBatchDir();
+  await writeOceanBatchReceipt(batchDir, {
+    receiptId: "batch_rcpt_snapshot_before_live_adapter",
+    jobId: "batch_job_snapshot_before_live_adapter",
+    createdAt: "2026-06-06T00:00:00.000Z",
+    sourceState: "snapshot",
+    status: "succeeded",
+    outputHash: "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+  });
+  const { server, url } = await startHealthyAdapter({ mode: "live", configuredForFreeCompute: false });
+  servers.push(server);
+  process.env.FISH_OCEAN_BATCH_ENDPOINT = `${url}/jobs`;
+  process.env.FISH_OCEAN_BATCH_API_KEY = "test-ocean-batch-key-1234567890";
+  process.env.FISH_OCEAN_BATCH_PROVIDER_ID = "ocean-navy-live-adapter";
+
+  const readiness = await summarizeOceanProofReadiness();
+
+  assert.equal(readiness.trafficReady, true);
+  assert.equal(readiness.proofReady, true);
+  assert.equal(readiness.adapter.mode, "live");
+  assert.equal(readiness.proof.latestReceiptState, "snapshot");
+  assert.equal(readiness.proof.latestReceiptAdapterMode, "ocean_http");
+  assert.equal(readiness.claim.level, "local-ocean-node");
+  assert.notEqual(readiness.claim.level, "ocean-cli");
+  assert.match(readiness.claim.boundary, /does not prove live Ocean CLI tickets/);
 });
 
 async function useTempOceanBatchDir() {
@@ -187,16 +216,20 @@ async function writeOceanBatchReceipt(
   await writeFile(path.join(receiptsDir, `${createdAt}-${receiptId}.json`.replaceAll(":", "-")), JSON.stringify(receipt, null, 2));
 }
 
-async function startHealthyAdapter() {
+async function startHealthyAdapter(
+  options: { mode?: "local_ocean_node" | "live"; configuredForFreeCompute?: boolean } = {}
+) {
+  const mode = options.mode ?? "local_ocean_node";
+  const configuredForFreeCompute = options.configuredForFreeCompute ?? true;
   const server = createServer((request, response) => {
     response.setHeader("content-type", "application/json");
     if (request.url === "/healthz") {
       response.end(
         JSON.stringify({
           ok: true,
-          mode: "local_ocean_node",
+          mode,
           liveReady: true,
-          configuredForFreeCompute: true,
+          configuredForFreeCompute,
           missing: [],
           warnings: [],
           selected: {
@@ -211,7 +244,7 @@ async function startHealthyAdapter() {
     if (request.url === "/config") {
       response.end(
         JSON.stringify({
-          mode: "local_ocean_node",
+          mode,
           liveReady: true,
           missing: [],
           warnings: [],

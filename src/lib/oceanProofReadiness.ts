@@ -1,4 +1,4 @@
-import { summarizeOceanBatchJobs } from "@/lib/oceanBatch";
+import { summarizeOceanBatchJobs, type OceanBatchReceipt } from "@/lib/oceanBatch";
 import type { DataState } from "@/lib/types";
 
 type AdapterHealthPayload = {
@@ -60,6 +60,7 @@ export type OceanProofReadiness = {
     hasNonSampleReceipt: boolean;
     nonSampleJobs: number;
     latestReceiptState: DataState;
+    latestReceiptAdapterMode: OceanBatchReceipt["adapterMode"] | null;
     latestReceiptAt: string | null;
     succeededJobs: number;
   };
@@ -95,13 +96,20 @@ export async function summarizeOceanProofReadiness(): Promise<OceanProofReadines
     generatedAt,
     trafficReady,
     proofReady,
-    claim: publicClaim({ adapterMode: adapter.mode, hasNonSampleReceipt, proofReady, trafficReady }),
+    claim: publicClaim({
+      adapterMode: adapter.mode,
+      latestReceipt: latestProofReceipt,
+      hasNonSampleReceipt,
+      proofReady,
+      trafficReady
+    }),
     route,
     adapter,
     proof: {
       hasNonSampleReceipt,
       nonSampleJobs: nonSampleReceipts.length,
       latestReceiptState: latestProofReceipt?.sourceState ?? "sample",
+      latestReceiptAdapterMode: latestProofReceipt?.adapterMode ?? null,
       latestReceiptAt: latestProofReceipt?.createdAt ?? null,
       succeededJobs: batch.succeededJobs
     },
@@ -115,28 +123,34 @@ function latestReceipt<T extends { createdAt: string }>(receipts: T[]) {
 
 function publicClaim({
   adapterMode,
+  latestReceipt,
   hasNonSampleReceipt,
   proofReady,
   trafficReady
 }: {
   adapterMode: string | null;
+  latestReceipt: OceanBatchReceipt | null;
   hasNonSampleReceipt: boolean;
   proofReady: boolean;
   trafficReady: boolean;
 }): OceanProofReadiness["claim"] {
   const notClaimed = ["Paid third-party Oncompute demand", "Raw prompts or answers in public proof", "Staking alone funds compute"];
+  const latestReceiptSupportsOceanHttpProof = latestReceipt?.adapterMode === "ocean_http";
+  const latestReceiptIsSnapshotProof = latestReceiptSupportsOceanHttpProof && latestReceipt.sourceState === "snapshot";
+  const latestReceiptIsLiveProof = latestReceiptSupportsOceanHttpProof && latestReceipt.sourceState === "live";
 
-  if (proofReady && hasNonSampleReceipt && adapterMode === "local_ocean_node") {
+  if (proofReady && hasNonSampleReceipt && latestReceiptIsSnapshotProof) {
     return {
       level: "local-ocean-node",
-      title: "Local Ocean proof",
-      headline: "A Fish dish ran through our Ocean Node.",
-      boundary: "This proves the local Ocean Node path operated by Ocean Navy. It does not prove paid third-party Oncompute demand yet.",
+      title: "Ocean Node proof",
+      headline: "Fish can run test dishes through an Ocean Node operated by Ocean Navy.",
+      boundary:
+        "This proves the recorded snapshot Ocean Node path operated by Ocean Navy. It does not prove live Ocean CLI tickets or paid third-party Oncompute demand yet.",
       notClaimed
     };
   }
 
-  if (proofReady && hasNonSampleReceipt && adapterMode === "live") {
+  if (proofReady && hasNonSampleReceipt && adapterMode === "live" && latestReceiptIsLiveProof) {
     return {
       level: "ocean-cli",
       title: "Ocean CLI proof",

@@ -135,6 +135,8 @@ snapshot   private adapter or local Ocean Node proof
 live       confirmed live/onchain or stronger externally verifiable data
 ```
 
+Public Ocean readiness claims must be derived from the selected successful receipt's recorded `sourceState` and `adapterMode`, not only from the adapter's current health/config response. A snapshot `ocean_http` receipt may support the conservative Ocean Navy Ocean Node claim, but it must not be relabeled as an Ocean CLI ticket just because the adapter is later configured in live mode.
+
 ## Step 5: Payments/Mainnet Readiness
 
 Paid credits should stay blocked until:
