@@ -8,11 +8,6 @@ import { defaultFishPrivacyForRoute, type FishUsagePrivacy } from "@/lib/fishPri
 import type { DataState } from "@/lib/types";
 
 const ROOT = process.cwd();
-const LEDGER_DIR = process.env.FISH_LEDGER_DIR ? path.resolve(process.env.FISH_LEDGER_DIR) : path.join(ROOT, "data", "fish");
-const ACCOUNTS_PATH = path.join(LEDGER_DIR, "accounts.json");
-const CREDIT_ENTRIES_PATH = path.join(LEDGER_DIR, "credit_entries.json");
-const RECEIPTS_DIR = path.join(LEDGER_DIR, "receipts");
-const LEDGER_LOCK_PATH = path.join(LEDGER_DIR, "accounts.lock");
 const LEDGER_LOCK_STALE_MS = 30_000;
 const LEDGER_LOCK_RETRY_MS = 10;
 export const FISH_CREDIT_USD = 0.001;
@@ -32,6 +27,26 @@ const chatMessageContentSchema = z.union([z.string().max(CHAT_MAX_TEXT_CONTENT_C
 const chatMetadataSchema = z.record(z.unknown()).refine((metadata) => Object.keys(metadata).length <= CHAT_MAX_METADATA_KEYS, {
   message: `metadata cannot contain more than ${CHAT_MAX_METADATA_KEYS} keys`
 });
+
+function ledgerDir() {
+  return process.env.FISH_LEDGER_DIR ? path.resolve(process.env.FISH_LEDGER_DIR) : path.join(ROOT, "data", "fish");
+}
+
+function accountsPath() {
+  return path.join(ledgerDir(), "accounts.json");
+}
+
+function creditEntriesPath() {
+  return path.join(ledgerDir(), "credit_entries.json");
+}
+
+function receiptsDir() {
+  return path.join(ledgerDir(), "receipts");
+}
+
+function ledgerLockPath() {
+  return path.join(ledgerDir(), "accounts.lock");
+}
 
 export const FISH_MODELS = uniqueModels([
   {
@@ -1330,12 +1345,12 @@ export async function sumProviderCostForRouteSince(route: UsageReceipt["route"],
 }
 
 async function withFishLedgerLock<T>(operation: () => Promise<T>): Promise<T> {
-  await mkdir(LEDGER_DIR, { recursive: true });
+  await mkdir(ledgerDir(), { recursive: true });
   let handle: Awaited<ReturnType<typeof open>> | null = null;
 
   while (!handle) {
     try {
-      handle = await open(LEDGER_LOCK_PATH, "wx");
+      handle = await open(ledgerLockPath(), "wx");
       await handle.writeFile(
         JSON.stringify({
           pid: process.pid,
@@ -1355,23 +1370,23 @@ async function withFishLedgerLock<T>(operation: () => Promise<T>): Promise<T> {
     return await operation();
   } finally {
     await handle.close().catch(() => undefined);
-    await rm(LEDGER_LOCK_PATH, { force: true }).catch(() => undefined);
+    await rm(ledgerLockPath(), { force: true }).catch(() => undefined);
   }
 }
 
 async function removeStaleLedgerLock() {
   let createdAt = 0;
   try {
-    const raw = await readFile(LEDGER_LOCK_PATH, "utf8");
+    const raw = await readFile(ledgerLockPath(), "utf8");
     const parsed = JSON.parse(raw) as { createdAt?: unknown };
     createdAt = typeof parsed.createdAt === "string" ? Date.parse(parsed.createdAt) : 0;
   } catch {
-    const lockStat = await stat(LEDGER_LOCK_PATH).catch(() => null);
+    const lockStat = await stat(ledgerLockPath()).catch(() => null);
     createdAt = lockStat?.mtimeMs ?? 0;
   }
 
   if (createdAt > 0 && Date.now() - createdAt > LEDGER_LOCK_STALE_MS) {
-    await rm(LEDGER_LOCK_PATH, { force: true });
+    await rm(ledgerLockPath(), { force: true });
   }
 }
 
@@ -1414,7 +1429,7 @@ function findCurrentAuthenticatedAccount(ledger: Ledger, authenticatedAccount: A
 
 async function readLedger(): Promise<Ledger> {
   try {
-    const raw = await readFile(ACCOUNTS_PATH, "utf8");
+    const raw = await readFile(accountsPath(), "utf8");
     const parsed = JSON.parse(raw) as Ledger;
     return {
       accounts: Array.isArray(parsed.accounts) ? parsed.accounts : []
@@ -1430,8 +1445,8 @@ async function withLedgerMutation<T>(mutation: (ledger: Ledger) => Promise<T>): 
   const run = ledgerWriteQueue.then(async () => {
     const ledger = await readLedger();
     const result = await mutation(ledger);
-    await mkdir(LEDGER_DIR, { recursive: true });
-    await writeFile(ACCOUNTS_PATH, JSON.stringify(ledger, null, 2));
+    await mkdir(ledgerDir(), { recursive: true });
+    await writeFile(accountsPath(), JSON.stringify(ledger, null, 2));
     return result;
   });
   ledgerWriteQueue = run.then(
@@ -1454,8 +1469,8 @@ async function writeLedger(ledger: Ledger) {
       accounts: ledger.accounts.map((account) => preserveCurrentRevocation(account, currentAccountsById.get(account.id)))
     };
 
-    await mkdir(LEDGER_DIR, { recursive: true });
-    await writeFile(ACCOUNTS_PATH, JSON.stringify(mergedLedger, null, 2));
+    await mkdir(ledgerDir(), { recursive: true });
+    await writeFile(accountsPath(), JSON.stringify(mergedLedger, null, 2));
   });
   ledgerWriteQueue = write.catch(() => undefined);
   await write;
@@ -1476,7 +1491,7 @@ function preserveCurrentRevocation(account: Account, currentAccount?: Account): 
 
 async function readCreditLedger(): Promise<CreditLedger> {
   try {
-    const raw = await readFile(CREDIT_ENTRIES_PATH, "utf8");
+    const raw = await readFile(creditEntriesPath(), "utf8");
     const parsed = JSON.parse(raw) as CreditLedger;
     return {
       entries: Array.isArray(parsed.entries) ? parsed.entries.filter(isCreditEntry) : []
@@ -1487,8 +1502,8 @@ async function readCreditLedger(): Promise<CreditLedger> {
 }
 
 async function writeCreditLedger(ledger: CreditLedger) {
-  await mkdir(LEDGER_DIR, { recursive: true });
-  await writeFile(CREDIT_ENTRIES_PATH, JSON.stringify(ledger, null, 2));
+  await mkdir(ledgerDir(), { recursive: true });
+  await writeFile(creditEntriesPath(), JSON.stringify(ledger, null, 2));
 }
 
 async function readCreditEntries(accountId?: string): Promise<CreditLedgerEntry[]> {
@@ -1640,8 +1655,9 @@ function sumCreditLaneBalances(laneBalances: Map<CreditLane, number>) {
 }
 
 async function writeReceipt(receipt: UsageReceipt) {
-  await mkdir(RECEIPTS_DIR, { recursive: true });
-  await writeFile(path.join(RECEIPTS_DIR, `${receipt.createdAt}-${receipt.id}.json`.replaceAll(":", "-")), JSON.stringify(receipt, null, 2));
+  const dir = receiptsDir();
+  await mkdir(dir, { recursive: true });
+  await writeFile(path.join(dir, `${receipt.createdAt}-${receipt.id}.json`.replaceAll(":", "-")), JSON.stringify(receipt, null, 2));
 }
 
 async function readReceipts(accountId: string): Promise<UsageReceipt[]> {
@@ -1651,12 +1667,13 @@ async function readReceipts(accountId: string): Promise<UsageReceipt[]> {
 
 async function readAllReceipts(): Promise<UsageReceipt[]> {
   try {
-    const files = await readdir(RECEIPTS_DIR);
+    const dir = receiptsDir();
+    const files = await readdir(dir);
     const receipts = await Promise.all(
       files
         .filter((file) => file.endsWith(".json"))
         .map(async (file) => {
-          const raw = await readFile(path.join(RECEIPTS_DIR, file), "utf8");
+          const raw = await readFile(path.join(dir, file), "utf8");
           return JSON.parse(raw) as UsageReceipt;
         })
     );
@@ -1677,7 +1694,7 @@ async function countMonthlySucceededReceipts(accountId: string, periodStart: Dat
   let used = 0;
 
   try {
-    const files = await readdir(RECEIPTS_DIR);
+    const files = await readdir(receiptsDir());
     for (const file of files) {
       if (!file.endsWith(".json") || !file.startsWith(periodFilePrefix)) {
         continue;
@@ -1705,7 +1722,7 @@ async function countMonthlySucceededReceipts(accountId: string, periodStart: Dat
 
 async function readReceiptFile(file: string): Promise<UsageReceipt | null> {
   try {
-    const raw = await readFile(path.join(RECEIPTS_DIR, file), "utf8");
+    const raw = await readFile(path.join(receiptsDir(), file), "utf8");
     return JSON.parse(raw) as UsageReceipt;
   } catch {
     return null;

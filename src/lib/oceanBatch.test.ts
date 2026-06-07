@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
-import { rm } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import { parseOceanBatchJobRequest, runOceanBatchJob } from "./oceanBatch";
@@ -101,6 +102,8 @@ test("failed provider-cost Ocean batch receipts do not consume daily budget", as
 
   const previousEndpoint = process.env.FISH_OCEAN_BATCH_ENDPOINT;
   const previousBudget = process.env.FISH_OCEAN_BATCH_DAILY_BUDGET_USD;
+  const previousLedgerDir = process.env.FISH_LEDGER_DIR;
+  const ledgerDir = await mkdtemp(path.join(tmpdir(), "fish-ocean-batch-ledger-"));
   let backendHits = 0;
   const server = createServer((request, response) => {
     request.resume();
@@ -136,6 +139,7 @@ test("failed provider-cost Ocean batch receipts do not consume daily budget", as
   const port = (address as AddressInfo).port;
 
   try {
+    process.env.FISH_LEDGER_DIR = ledgerDir;
     process.env.FISH_OCEAN_BATCH_ENDPOINT = `http://127.0.0.1:${port}`;
     process.env.FISH_OCEAN_BATCH_DAILY_BUDGET_USD = "0.10";
 
@@ -198,7 +202,13 @@ test("failed provider-cost Ocean batch receipts do not consume daily budget", as
     } else {
       process.env.FISH_OCEAN_BATCH_DAILY_BUDGET_USD = previousBudget;
     }
+    if (previousLedgerDir === undefined) {
+      delete process.env.FISH_LEDGER_DIR;
+    } else {
+      process.env.FISH_LEDGER_DIR = previousLedgerDir;
+    }
     await rm(path.join(process.cwd(), "data", "ocean-batch"), { recursive: true, force: true });
+    await rm(ledgerDir, { recursive: true, force: true });
   }
 });
 
