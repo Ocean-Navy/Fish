@@ -51,8 +51,14 @@ export async function saveSupportTicket(body: unknown) {
     body: data
   };
 
-  await mkdir(supportDir(), { recursive: true });
-  await writeFile(`${supportDir()}/${id}.json`, JSON.stringify(payload, null, 2));
+  const dir = supportDir();
+  await mkdir(dir, { recursive: true });
+  const existingTickets = (await readdir(dir).catch(() => [])).filter((file) => file.endsWith(".json"));
+  if (existingTickets.length >= maxSupportTickets()) {
+    return { ok: false as const, status: 503, error: "support_ticket_storage_full" };
+  }
+
+  await writeFile(`${dir}/${id}.json`, JSON.stringify(payload, null, 2), { flag: "wx" });
   return { ok: true as const, status: 200, id };
 }
 
@@ -90,4 +96,9 @@ async function readStoredSupportTicket(file: string): Promise<StoredSupportTicke
 
 function supportDir() {
   return process.env.FISH_SUPPORT_DIR || "data/support";
+}
+
+function maxSupportTickets() {
+  const value = Number(process.env.FISH_SUPPORT_MAX_TICKETS);
+  return Number.isInteger(value) && value > 0 ? value : 1000;
 }

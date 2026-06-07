@@ -540,7 +540,7 @@ Use `GET /api/billing/readiness` to show public-safe payment state before checko
 
 Paid-mainnet readiness can be satisfied by either Stripe checkout or canonical Base mainnet USDC checkout. Both lanes require support/refund links, a prepaid liability cap, and paid top-ups intentionally unpaused. Base Sepolia is testnet-only and is rejected for paid checkout.
 
-Support and refund tickets can be created through `/support` or `POST /api/support`. They write private operator records under `data/support/`, which is ignored by git and included in runtime backups. Export them with:
+Support and refund tickets can be created through `/support` or `POST /api/support`. The public intake applies a small JSON body limit, per-client rate limit, and local ticket cap before writing private operator records under `data/support/`, which is ignored by git and included in runtime backups. Tune `FISH_SUPPORT_MAX_BODY_BYTES`, `FISH_SUPPORT_RATE_LIMIT_PER_MINUTE`, `FISH_SUPPORT_RATE_LIMIT_WINDOW_MS`, and `FISH_SUPPORT_MAX_TICKETS` for the deployment or replace the local store with a real support system before high-volume public traffic. Export tickets with:
 
 ```bash
 curl -sS 'http://127.0.0.1:3000/api/support/export?format=csv' \
