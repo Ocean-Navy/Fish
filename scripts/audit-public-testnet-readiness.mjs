@@ -246,8 +246,9 @@ function checkContracts(env) {
 
 function checkDataHygiene(env) {
   const findings = [];
+  const proofSigningKey = ed25519PrivateKeyStatus(env.FISH_PROVIDER_PROOF_SIGNING_PRIVATE_KEY_PEM);
   const hasPinnedProofPublicKey = env.FISH_PROVIDER_PROOF_PUBLIC_KEYS_JSON || env.FISH_PROVIDER_PROOF_PUBLIC_KEYS_PATH || env.FISH_PROVIDER_PROOF_PUBLIC_KEY_PEM;
-  const hasManagedProofSigningKey = env.FISH_PROVIDER_PROOF_SIGNING_KEY_ID && safeSecret(env.FISH_PROVIDER_PROOF_SIGNING_PRIVATE_KEY_PEM);
+  const hasManagedProofSigningKey = env.FISH_PROVIDER_PROOF_SIGNING_KEY_ID && proofSigningKey.valid;
   if (!env.FISH_DATA_BACKUP_TARGET) findings.push("No FISH_DATA_BACKUP_TARGET configured; run npm run backup:runtime with a private output path or move ledgers to a database before public scale.");
   if (env.FISH_DATA_BACKUP_TARGET) findings.push(...backupTargetFindings(env.FISH_DATA_BACKUP_TARGET));
   if (!hasPinnedProofPublicKey && !hasManagedProofSigningKey) {
@@ -255,6 +256,9 @@ function checkDataHygiene(env) {
   }
   if (env.FISH_PROVIDER_PROOF_SIGNING_KEY_ID && !safeSecret(env.FISH_PROVIDER_PROOF_SIGNING_PRIVATE_KEY_PEM)) {
     findings.push("FISH_PROVIDER_PROOF_SIGNING_KEY_ID is set but FISH_PROVIDER_PROOF_SIGNING_PRIVATE_KEY_PEM is missing or weak.");
+  }
+  if (proofSigningKey.present && !proofSigningKey.valid) {
+    findings.push("FISH_PROVIDER_PROOF_SIGNING_PRIVATE_KEY_PEM must be a valid Ed25519 private key PEM.");
   }
   if (env.FISH_PROVIDER_PROOF_SIGNING_PRIVATE_KEY_PEM && !env.FISH_PROVIDER_PROOF_SIGNING_KEY_ID) {
     findings.push("FISH_PROVIDER_PROOF_SIGNING_PRIVATE_KEY_PEM is set but FISH_PROVIDER_PROOF_SIGNING_KEY_ID is missing.");
@@ -852,7 +856,7 @@ function trustedRunnerKeysFromJson(value) {
 }
 
 function normalizePem(value) {
-  return value.replaceAll("\\n", "\n");
+  return value.replaceAll("\\\\n", "\n").replaceAll("\\n", "\n");
 }
 
 function option(name) {
@@ -867,6 +871,17 @@ function hasFlag(name) {
 function safeSecret(value) {
   const cleaned = String(value || "").trim();
   return cleaned.length >= 24 && !/change-me|replace-with|placeholder|secret/i.test(cleaned);
+}
+
+function ed25519PrivateKeyStatus(value) {
+  const privateKeyPem = normalizePem(String(value || "").trim());
+  if (!privateKeyPem) return { present: false, valid: false };
+
+  try {
+    return { present: true, valid: createPrivateKey(privateKeyPem).asymmetricKeyType === "ed25519" };
+  } catch {
+    return { present: true, valid: false };
+  }
 }
 
 function stripeLiveModeKey(value) {

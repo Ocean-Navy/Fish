@@ -291,7 +291,7 @@ function readPath(payload: unknown, path: string[]) {
 }
 
 function normalizePem(value: string | null) {
-  return value?.replaceAll("\\n", "\n") ?? null;
+  return value?.replaceAll("\\\\n", "\n").replaceAll("\\n", "\n") ?? null;
 }
 
 function cleanEnv(value: string | undefined) {
