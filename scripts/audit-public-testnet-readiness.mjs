@@ -2,6 +2,7 @@
 import { execFileSync } from "node:child_process";
 import { createPrivateKey, createPublicKey } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
+import { isIP } from "node:net";
 import path from "node:path";
 import { mnemonicToAccount, privateKeyToAccount } from "viem/accounts";
 
@@ -961,8 +962,7 @@ function number(value) {
 function loopbackHttpUrl(value) {
   try {
     const parsed = new URL(String(value || "").trim());
-    const host = parsed.hostname.toLowerCase();
-    return host === "localhost" || host === "127.0.0.1" || host === "::1" || host === "0.0.0.0";
+    return hostLooksLocal(parsed.hostname, { includePrivateNetworks: false });
   } catch {
     return false;
   }
@@ -974,20 +974,53 @@ function looksLocal(value) {
   if (/^\/p2p\//i.test(cleaned)) return false;
   try {
     const parsed = new URL(cleaned);
-    const host = parsed.hostname.toLowerCase();
-    return (
-      host === "localhost" ||
-      host === "127.0.0.1" ||
-      host === "::1" ||
-      host === "0.0.0.0" ||
-      host === "ocean-node" ||
-      host === "host.docker.internal" ||
-      host.endsWith(".local") ||
-      /^10\./.test(host) ||
-      /^192\.168\./.test(host) ||
-      /^172\.(1[6-9]|2\d|3[0-1])\./.test(host)
-    );
+    return hostLooksLocal(parsed.hostname);
   } catch {
-    return /(^|[/:])(localhost|127\.0\.0\.1|0\.0\.0\.0|ocean-node|host\.docker\.internal)([/:]|$)/i.test(cleaned);
+    return /(^|[/:])(localhost|127\.0\.0\.1|0\.0\.0\.0|\[?::1\]?|ocean-node|host\.docker\.internal)([/:]|$)/i.test(
+      cleaned
+    );
   }
+}
+
+function hostLooksLocal(value, options = {}) {
+  const { includePrivateNetworks = true } = options;
+  const host = normalizeHostname(value);
+  if (!host) return false;
+
+  if (host === "localhost" || host === "ocean-node" || host === "host.docker.internal" || host.endsWith(".local")) {
+    return true;
+  }
+  if (host === "127.0.0.1" || host === "0.0.0.0") return true;
+  if (host === "::1" || host === "::" || host === "0:0:0:0:0:0:0:1" || host === "0:0:0:0:0:0:0:0") {
+    return true;
+  }
+
+  if (!includePrivateNetworks) return false;
+
+  if (/^10\./.test(host) || /^192\.168\./.test(host) || /^172\.(1[6-9]|2\d|3[0-1])\./.test(host) || /^169\.254\./.test(host)) {
+    return true;
+  }
+
+  if (isIP(host) === 6) {
+    const expanded = expandIpv6(host);
+    if (!expanded) return false;
+    return expanded.startsWith("fc") || expanded.startsWith("fd") || /^fe[89ab]/.test(expanded);
+  }
+
+  return false;
+}
+
+function normalizeHostname(value) {
+  const host = String(value || "").trim().toLowerCase();
+  if (host.startsWith("[") && host.endsWith("]")) return host.slice(1, -1);
+  return host;
+}
+
+function expandIpv6(value) {
+  if (isIP(value) !== 6) return null;
+  const [headText, tailText] = value.split("::");
+  const head = headText ? headText.split(":") : [];
+  const tail = tailText ? tailText.split(":") : [];
+  const fill = Array(Math.max(0, 8 - head.length - tail.length)).fill("0");
+  return [...head, ...fill, ...tail].map((part) => part.padStart(4, "0")).join(":");
 }
