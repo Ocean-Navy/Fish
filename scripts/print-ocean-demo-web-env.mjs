@@ -144,7 +144,7 @@ function publicBind(value) {
 }
 
 function normalizePem(value) {
-  return String(value || "").trim().replaceAll("\\n", "\n");
+  return String(value || "").trim().replaceAll("\\\\n", "\n").replaceAll("\\n", "\n");
 }
 
 function option(name) {

@@ -120,6 +120,19 @@ test("provider receipt verification trusts configured signing private key", () =
   assert.equal(verification.error, null);
 });
 
+test("provider receipt verification accepts env PEMs with double-escaped newlines", () => {
+  clearProviderProofEnv();
+  const trustedKey = generateProofKey("managed-provider-proof-key");
+  process.env.FISH_PROVIDER_PROOF_SIGNING_KEY_ID = trustedKey.keyId;
+  process.env.FISH_PROVIDER_PROOF_SIGNING_PRIVATE_KEY_PEM = trustedKey.privateKeyPem.replaceAll("\n", "\\\\n");
+  const receipt = signReceipt(buildReceipt({ signerKeyId: trustedKey.keyId, signerPublicKeyPem: trustedKey.publicKeyPem }), trustedKey.privateKeyPem);
+
+  const verification = verifyProviderJobReceipt(receipt);
+
+  assert.equal(verification.ok, true);
+  assert.equal(verification.error, null);
+});
+
 function generateProofKey(keyId: string) {
   const { privateKey, publicKey } = generateKeyPairSync("ed25519");
   return {

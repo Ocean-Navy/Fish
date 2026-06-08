@@ -14,7 +14,9 @@ const deriveOceanWebEnvHost = option("--derive-ocean-web-env-host");
 const deriveOceanWebEnvProfile = option("--derive-ocean-web-env-profile") || "warm";
 const deriveOceanWebEnvScheme = option("--derive-ocean-web-env-scheme") || "http";
 const json = hasFlag("--json");
-const strict = hasFlag("--strict");
+const advisory = hasFlag("--advisory");
+const strictFlag = hasFlag("--strict");
+const strict = !advisory;
 const MAX_FAUCET_DAILY_CLAIMS = 100;
 const MAX_FAUCET_ETH_GRANT = 0.001;
 const MAX_FAUCET_TEST_OCEAN_GRANT = 10000;
@@ -24,6 +26,10 @@ const BASE_CHAIN_ID = 8453;
 const BASE_USDC_ADDRESS = "0x833589fcD6EDb6E08f4c7C32D4f71b54bdA02913";
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
+if (advisory && strictFlag) {
+  console.error("Use either --advisory or --strict, not both.");
+  process.exit(2);
+}
 if (!["public-testnet", "paid-mainnet"].includes(profile)) {
   console.error(`Unknown readiness profile: ${profile}`);
   console.error("Use --profile public-testnet or --profile paid-mainnet.");
@@ -64,6 +70,7 @@ const summary = {
   checkedAt: new Date().toISOString(),
   profile,
   strict,
+  advisory,
   env: {
     app: rootEnvPath,
     appOverlay: appEnvOverlayPath
@@ -247,8 +254,9 @@ function checkContracts(env) {
 
 function checkDataHygiene(env) {
   const findings = [];
+  const proofSigningKey = ed25519PrivateKeyStatus(env.FISH_PROVIDER_PROOF_SIGNING_PRIVATE_KEY_PEM);
   const hasPinnedProofPublicKey = env.FISH_PROVIDER_PROOF_PUBLIC_KEYS_JSON || env.FISH_PROVIDER_PROOF_PUBLIC_KEYS_PATH || env.FISH_PROVIDER_PROOF_PUBLIC_KEY_PEM;
-  const hasManagedProofSigningKey = env.FISH_PROVIDER_PROOF_SIGNING_KEY_ID && safeSecret(env.FISH_PROVIDER_PROOF_SIGNING_PRIVATE_KEY_PEM);
+  const hasManagedProofSigningKey = env.FISH_PROVIDER_PROOF_SIGNING_KEY_ID && proofSigningKey.valid;
   if (!env.FISH_DATA_BACKUP_TARGET) findings.push("No FISH_DATA_BACKUP_TARGET configured; run npm run backup:runtime with a private output path or move ledgers to a database before public scale.");
   if (env.FISH_DATA_BACKUP_TARGET) findings.push(...backupTargetFindings(env.FISH_DATA_BACKUP_TARGET));
   if (!hasPinnedProofPublicKey && !hasManagedProofSigningKey) {
@@ -256,6 +264,9 @@ function checkDataHygiene(env) {
   }
   if (env.FISH_PROVIDER_PROOF_SIGNING_KEY_ID && !safeSecret(env.FISH_PROVIDER_PROOF_SIGNING_PRIVATE_KEY_PEM)) {
     findings.push("FISH_PROVIDER_PROOF_SIGNING_KEY_ID is set but FISH_PROVIDER_PROOF_SIGNING_PRIVATE_KEY_PEM is missing or weak.");
+  }
+  if (proofSigningKey.present && !proofSigningKey.valid) {
+    findings.push("FISH_PROVIDER_PROOF_SIGNING_PRIVATE_KEY_PEM must be a valid Ed25519 private key PEM.");
   }
   if (env.FISH_PROVIDER_PROOF_SIGNING_PRIVATE_KEY_PEM && !env.FISH_PROVIDER_PROOF_SIGNING_KEY_ID) {
     findings.push("FISH_PROVIDER_PROOF_SIGNING_PRIVATE_KEY_PEM is set but FISH_PROVIDER_PROOF_SIGNING_KEY_ID is missing.");
@@ -420,7 +431,7 @@ function result(name, steps, milestone, state, findings) {
 function printSummary(summary) {
   console.log(`Fish public-testnet readiness (${summary.checkedAt})`);
   console.log(`profile: ${summary.profile}`);
-  if (summary.strict) console.log("strict: true");
+  console.log(`exit mode: ${summary.advisory ? "advisory (blocked-only)" : "strict (all non-ready states fail)"}`);
   console.log(`app env: ${summary.env.app}`);
   if (summary.env.appOverlay.configured) console.log(`app env overlay: ${summary.env.appOverlay.path}`);
   console.log(`ocean env: ${summary.env.ocean}`);
@@ -640,16 +651,26 @@ function checkFreeComputeAccess(env) {
   for (const environment of selected) {
     const label = environment.id ? `Compute environment ${environment.id}` : "Selected compute environment";
     const addresses = Array.isArray(environment.free?.access?.addresses) ? environment.free.access.addresses.map((value) => String(value).trim()).filter(Boolean) : [];
+    const accessLists = Array.isArray(environment.free?.access?.accessLists) ? environment.free.access.accessLists.filter(Boolean) : [];
     if (!addresses.length) {
       findings.push(`${label} has empty free.access.addresses; restrict free jobs to the Ocean proof wallet.`);
       continue;
+    }
+    if (accessLists.length) {
+      findings.push(`${label} has non-empty free.access.accessLists; restrict free jobs to the Ocean proof wallet address only.`);
     }
     const invalidAddresses = addresses.filter((value) => !address(value));
     if (invalidAddresses.length) {
       findings.push(`${label} has invalid free.access.addresses entries.`);
     }
-    if (proofWallet.address && !addresses.some((value) => value.toLowerCase() === proofWallet.address.toLowerCase())) {
-      findings.push(`${label} free.access.addresses does not include the Ocean proof wallet ${proofWallet.address}.`);
+    if (proofWallet.address) {
+      const normalizedProofWallet = proofWallet.address.toLowerCase();
+      const normalizedAddresses = addresses.map((value) => value.toLowerCase());
+      if (!normalizedAddresses.includes(normalizedProofWallet)) {
+        findings.push(`${label} free.access.addresses does not include the Ocean proof wallet ${proofWallet.address}.`);
+      } else if (!invalidAddresses.length && (normalizedAddresses.length !== 1 || normalizedAddresses[0] !== normalizedProofWallet)) {
+        findings.push(`${label} free.access.addresses must contain only the Ocean proof wallet ${proofWallet.address}.`);
+      }
     }
   }
 
@@ -853,7 +874,7 @@ function trustedRunnerKeysFromJson(value) {
 }
 
 function normalizePem(value) {
-  return value.replaceAll("\\n", "\n");
+  return value.replaceAll("\\\\n", "\n").replaceAll("\\n", "\n");
 }
 
 function option(name) {
@@ -868,6 +889,17 @@ function hasFlag(name) {
 function safeSecret(value) {
   const cleaned = String(value || "").trim();
   return cleaned.length >= 24 && !/change-me|replace-with|placeholder|secret/i.test(cleaned);
+}
+
+function ed25519PrivateKeyStatus(value) {
+  const privateKeyPem = normalizePem(String(value || "").trim());
+  if (!privateKeyPem) return { present: false, valid: false };
+
+  try {
+    return { present: true, valid: createPrivateKey(privateKeyPem).asymmetricKeyType === "ed25519" };
+  } catch {
+    return { present: true, valid: false };
+  }
 }
 
 function stripeLiveModeKey(value) {

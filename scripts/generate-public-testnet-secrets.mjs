@@ -150,8 +150,8 @@ function evmPrivateKey() {
 function ed25519KeyPair() {
   const { privateKey, publicKey } = generateKeyPairSync("ed25519");
   return {
-    privatePem: privateKey.export({ type: "pkcs8", format: "pem" }).replaceAll("\n", "\\n"),
-    publicPem: publicKey.export({ type: "spki", format: "pem" }).replaceAll("\n", "\\n")
+    privatePem: privateKey.export({ type: "pkcs8", format: "pem" }).toString(),
+    publicPem: publicKey.export({ type: "spki", format: "pem" }).toString()
   };
 }
 

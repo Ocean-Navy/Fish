@@ -14,13 +14,13 @@ Do not claim paid third-party Oncompute demand until Fish runs a paid or externa
 
 ## Current Main-Branch State
 
-With a generated private public-testnet overlay and private Ocean demo host, the expected readiness shape is:
+With a generated private public-testnet overlay and private Ocean demo host, the expected non-gating advisory readiness shape is:
 
 ```text
 ready=9 partial=0 blocked=0 manual=2
 ```
 
-The two manual gates are expected and should remain visible:
+The two manual gates are expected and should remain visible in advisory reports; the default gate still exits non-zero until they are resolved or consciously reviewed in a non-gating context:
 
 - `Payments/mainnet checkout`: waiting for real Stripe or canonical Base mainnet USDC configuration and an explicit unpause.
 - `External Oncompute proof`: waiting for a live external Ocean/Oncompute job with algorithm DID, compute environment id, proof wallet/RPC, output hash/ref, and non-sample Fish receipt.
@@ -57,7 +57,7 @@ Paste the generated values into private env files only. The command prints admin
 Use the GPU/Ocean host private IP or private DNS name for `--derive-ocean-web-env-host`. The readiness audit flags loopback hosts such as `127.0.0.1`, `localhost`, and `host.docker.internal` as partial for a public web VM because they would point the web app back at itself.
 Faucet credentials belong in the private web-app env, not in the Ocean demo stack env. Add `--include-faucet` only when the Base Sepolia test token addresses are known, or pass `--contract-deployment contracts/deployments/<base-sepolia>.local.json` after the test contracts are deployed so the generator can read those addresses from the ignored artifact. Keep the faucet wallet intentionally low-funded.
 
-The readiness script also audits the selected Ocean compute environment. `FISH_OCEAN_COMPUTE_ENV_ID` must match an environment inside `OCEAN_NODE_DOCKER_COMPUTE_ENVIRONMENTS`, and that environment must restrict `free.access.addresses` to the Ocean proof wallet used by the workload adapter.
+The readiness script also audits the selected Ocean compute environment. `FISH_OCEAN_COMPUTE_ENV_ID` must match an environment inside `OCEAN_NODE_DOCKER_COMPUTE_ENVIRONMENTS`, and that environment must restrict `free.access.addresses` to exactly the Ocean proof wallet used by the workload adapter. Other free-access mechanisms, including non-empty `free.access.accessLists`, are treated as not public-testnet ready.
 
 It also audits the selected public chat route. `mock` is allowed only as a clearly labeled preview. If `FISH_CHAT_ROUTE` selects `ocean-first`, `ocean-demo-vllm`, `ocean-provider`, or `external-fallback`, the matching private base URL, API key, model, and daily budget must be configured or the readiness gate blocks.
 
@@ -158,7 +158,7 @@ npm run readiness:public-testnet
 curl -sS http://127.0.0.1:3000/api/billing/readiness
 ```
 
-The default readiness profile is `public-testnet`. In that profile, intentionally paused paid checkout is acceptable because public testers are not using real money. It still reports the missing Stripe/USDC/liability-cap work as manual follow-up.
+The default readiness profile is `public-testnet`. In that profile, intentionally paused paid checkout is reported as a manual follow-up because public testers are not using real money; the command still exits non-zero for that manual row so CI and operators cannot miss it.
 `GET /api/billing/readiness` exposes only public-safe billing status: whether the prepaid liability cap is configured, whether support/refund links are ready, and whether checkout methods are enabled. It intentionally does not expose the exact cap in credits or USD, detailed payment-provider configuration, RPC URLs, or payment recipient addresses; operators should review private env values directly for launch liability decisions.
 
 Before a paid launch, use the stricter profile:
@@ -317,7 +317,7 @@ daily budgets are low
 selected chat route has its private endpoint, API key, model, and budget
 adapter key is not a placeholder
 runner and proof signing keys are configured
-selected Ocean compute environment free access is restricted to the proof wallet
+selected Ocean compute environment free access is restricted to exactly the proof wallet
 all private services bind to localhost/private network
 repository hygiene is ready, with runtime ledgers and private env files ignored
 nginx/TLS is active on the public web host
@@ -388,9 +388,9 @@ Optional:
 
 ```bash
 npm run readiness:public-testnet -- --env .env.production.example --app-env-overlay .env.production.private --ocean-env .env.ocean-demo-stack --json
-npm run readiness:public-testnet:strict -- --env .env.production.example --app-env-overlay .env.production.private --ocean-env .env.ocean-demo-stack
+npm run readiness:public-testnet:advisory -- --env .env.production.example --app-env-overlay .env.production.private --ocean-env .env.ocean-demo-stack
 npm run readiness:paid-mainnet -- --env .env.production.example --app-env-overlay .env.production.private --ocean-env .env.ocean-demo-stack
 ```
 
-The default command exits non-zero only for blocked states. Use `npm run readiness:public-testnet:strict` when every manual and partial item must be resolved before a public link or security-scan handoff. The command prints public-safe readiness states and never prints secrets. Keep `.env.production.private` outside git or in a secret-managed deploy path.
+The default command exits non-zero for every non-ready state, including `partial` and `manual`, so every hardening item must be resolved before a public link or security-scan handoff. Use `npm run readiness:public-testnet:advisory` only for non-gating status reports that should exit non-zero for `blocked` rows alone. The command prints public-safe readiness states and never prints secrets. Keep `.env.production.private` outside git or in a secret-managed deploy path.
 Each readiness row includes the matching step number from this checklist. The `Proof UX and claims` row covers steps 4 and 9 by checking that the readiness API exposes a conservative public `claim`, the proof page uses it, OpenAPI documents it, and the first public proof surface does not include raw setup labels.

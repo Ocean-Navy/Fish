@@ -12,7 +12,7 @@ afterEach(async () => {
   await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { force: true, recursive: true })));
 });
 
-test("public testnet readiness treats paused paid checkout as manual", async () => {
+test("advisory public testnet readiness treats paused paid checkout as manual", async () => {
   const appEnv = await tempEnv("FISH_PAID_TOPUPS_PAUSED=true\n");
   const result = runReadiness(["--env", appEnv, "--ocean-env", missingOceanEnv(), "--json"]);
 
@@ -23,6 +23,7 @@ test("public testnet readiness treats paused paid checkout as manual", async () 
 
   assert.equal(summary.profile, "public-testnet");
   assert.equal(summary.strict, false);
+  assert.equal(summary.advisory, true);
   assert.deepEqual(payments.steps, [5]);
   assert.equal(payments.milestone, "Payments/mainnet readiness");
   assert.equal(payments.state, "manual");
@@ -32,6 +33,20 @@ test("public testnet readiness treats paused paid checkout as manual", async () 
   assert.equal(proofUx.state, "ready");
   assert.deepEqual(proofUx.findings, []);
 });
+
+test("default public testnet readiness fails on unresolved manual or partial checks", async () => {
+  const appEnv = await tempEnv("FISH_PAID_TOPUPS_PAUSED=true\n");
+  const result = runReadinessDefault(["--env", appEnv, "--ocean-env", missingOceanEnv(), "--json"]);
+
+  assert.equal(result.status, 1);
+  const summary = JSON.parse(result.stdout);
+
+  assert.equal(summary.profile, "public-testnet");
+  assert.equal(summary.strict, true);
+  assert.equal(summary.advisory, false);
+  assert.equal(summary.checks.some((check: { state: string }) => check.state !== "ready"), true);
+});
+
 
 test("strict public testnet readiness fails on unresolved manual or partial checks", async () => {
   const appEnv = await tempEnv("FISH_PAID_TOPUPS_PAUSED=true\n");
@@ -461,6 +476,25 @@ test("public testnet readiness accepts a private app env overlay without exposin
   assert.doesNotMatch(operations.findings.join("\n"), /FISH_GUEST_ID_SALT/);
 });
 
+test("public testnet readiness flags invalid provider proof signing PEM", async () => {
+  const appEnv = await tempEnv(
+    [
+      "FISH_PAID_TOPUPS_PAUSED=true",
+      "FISH_DATA_BACKUP_TARGET=/var/backups/fish",
+      "FISH_PROVIDER_PROOF_SIGNING_KEY_ID=proof-key",
+      String.raw`FISH_PROVIDER_PROOF_SIGNING_PRIVATE_KEY_PEM="-----BEGIN PRIVATE KEY-----\\ninvalid\\n-----END PRIVATE KEY-----\\n"`
+    ].join("\n")
+  );
+  const result = runReadiness(["--env", appEnv, "--ocean-env", missingOceanEnv(), "--json"]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const summary = JSON.parse(result.stdout);
+  const dataHygiene = summary.checks.find((check: { name: string }) => check.name === "Data retention and backups");
+
+  assert.equal(dataHygiene.state, "manual");
+  assert.match(dataHygiene.findings.join("\n"), /valid Ed25519 private key PEM/);
+});
+
 test("public testnet readiness flags oversized faucet grants", async () => {
   const appEnv = await tempEnv(
     [
@@ -600,6 +634,32 @@ test("Ocean demo readiness accepts free compute restricted to the proof wallet",
 
   assert.doesNotMatch(ocean.findings.join("\n"), /free\.access\.addresses/);
   assert.doesNotMatch(ocean.findings.join("\n"), /proof wallet/);
+});
+
+test("Ocean demo readiness rejects extra free compute wallet addresses", async () => {
+  const appEnv = await tempEnv("FISH_PAID_TOPUPS_PAUSED=true\n");
+  const oceanEnv = await tempEnv(oceanEnvWithComputeAccess([PROOF_WALLET_ADDRESS, "0x1111111111111111111111111111111111111111"]));
+  const result = runReadiness(["--env", appEnv, "--ocean-env", oceanEnv, "--json"]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const summary = JSON.parse(result.stdout);
+  const ocean = summary.checks.find((check: { name: string }) => check.name === "GPU/Ocean demo stack");
+
+  assert.equal(ocean.state, "partial");
+  assert.match(ocean.findings.join("\n"), /free\.access\.addresses must contain only the Ocean proof wallet/);
+});
+
+test("Ocean demo readiness rejects non-empty free compute access lists", async () => {
+  const appEnv = await tempEnv("FISH_PAID_TOPUPS_PAUSED=true\n");
+  const oceanEnv = await tempEnv(oceanEnvWithComputeAccess([PROOF_WALLET_ADDRESS], { accessLists: ["public-testers"] }));
+  const result = runReadiness(["--env", appEnv, "--ocean-env", oceanEnv, "--json"]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const summary = JSON.parse(result.stdout);
+  const ocean = summary.checks.find((check: { name: string }) => check.name === "GPU/Ocean demo stack");
+
+  assert.equal(ocean.state, "partial");
+  assert.match(ocean.findings.join("\n"), /non-empty free\.access\.accessLists/);
 });
 
 test("external Oncompute readiness keeps local Ocean Node proof manual", async () => {
@@ -786,7 +846,10 @@ function missingOceanEnv() {
   return path.join(tmpdir(), `fish-missing-ocean-env-${Date.now()}-${Math.random().toString(16).slice(2)}`);
 }
 
-function oceanEnvWithComputeAccess(addresses: string[], options: { runnerSigningKeyId?: string; runnerSigningPrivateKeyPem?: string; runnerApiKey?: string } = {}) {
+function oceanEnvWithComputeAccess(
+  addresses: string[],
+  options: { accessLists?: unknown[]; runnerSigningKeyId?: string; runnerSigningPrivateKeyPem?: string; runnerApiKey?: string } = {}
+) {
   const computeEnvironments = [
     {
       socketPath: "/var/run/docker.sock",
@@ -795,7 +858,8 @@ function oceanEnvWithComputeAccess(addresses: string[], options: { runnerSigning
           id: "fish-local-free",
           free: {
             access: {
-              addresses
+              addresses,
+              accessLists: options.accessLists ?? []
             }
           }
         }
@@ -842,6 +906,11 @@ function providerProofSigningKey() {
 }
 
 function runReadiness(args: string[]) {
+  const hasExitMode = args.includes("--strict") || args.includes("--advisory");
+  return runReadinessDefault([...(hasExitMode ? [] : ["--advisory"]), ...args]);
+}
+
+function runReadinessDefault(args: string[]) {
   return spawnSync(process.execPath, ["scripts/audit-public-testnet-readiness.mjs", ...args], {
     cwd: process.cwd(),
     encoding: "utf8"
