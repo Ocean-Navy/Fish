@@ -3,11 +3,14 @@ import { saveSupportTicket } from "@/lib/supportTickets";
 
 export const dynamic = "force-dynamic";
 
-const supportRateBuckets = new Map<string, { count: number; resetAt: number }>();
+type SupportRateLimitCheck = { key: string; limit: number };
+
+type SupportRateBucket = { count: number; resetAt: number };
+
+const supportRateBuckets = new Map<string, SupportRateBucket>();
 
 export async function POST(request: Request) {
-  const clientKey = supportRateLimitKey(request);
-  const rateLimit = checkSupportRateLimit(clientKey);
+  const rateLimit = checkSupportRateLimit(supportRateLimitChecks(request));
   if (!rateLimit.ok) {
     return NextResponse.json({ ok: false, error: "support_rate_limited" }, { status: 429 });
   }
@@ -57,22 +60,27 @@ async function readJsonWithLimit(request: Request, maxBytes: number) {
   }
 }
 
-function checkSupportRateLimit(clientKey: string) {
+function checkSupportRateLimit(checks: SupportRateLimitCheck[]) {
   const now = Date.now();
   const windowMs = supportRateLimitWindowMs();
-  const limit = supportRateLimitPerWindow();
-  const current = supportRateBuckets.get(clientKey);
-  if (!current || current.resetAt <= now) {
-    supportRateBuckets.set(clientKey, { count: 1, resetAt: now + windowMs });
-    pruneSupportRateBuckets(now);
-    return { ok: true as const };
+  pruneSupportRateBuckets(now);
+
+  for (const check of checks) {
+    const current = supportRateBuckets.get(check.key);
+    if (current && current.count >= check.limit) {
+      return { ok: false as const };
+    }
   }
 
-  if (current.count >= limit) {
-    return { ok: false as const };
+  for (const check of checks) {
+    const current = supportRateBuckets.get(check.key);
+    if (!current || current.resetAt <= now) {
+      supportRateBuckets.set(check.key, { count: 1, resetAt: now + windowMs });
+      continue;
+    }
+    current.count += 1;
   }
 
-  current.count += 1;
   return { ok: true as const };
 }
 
@@ -84,9 +92,36 @@ function pruneSupportRateBuckets(now: number) {
   }
 }
 
-function supportRateLimitKey(request: Request) {
-  const forwardedFor = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
-  return forwardedFor || request.headers.get("x-real-ip") || "anonymous";
+function supportRateLimitChecks(request: Request): SupportRateLimitCheck[] {
+  const checks: SupportRateLimitCheck[] = [{ key: "global", limit: supportGlobalRateLimitPerWindow() }];
+
+  const trustedProxyKey = trustedProxyRateLimitKey(request);
+  checks.push({
+    key: trustedProxyKey ? `client:${trustedProxyKey}` : "client:anonymous",
+    limit: supportRateLimitPerWindow()
+  });
+  return checks;
+}
+
+function trustedProxyRateLimitKey(request: Request) {
+  if (!trustProxyHeaders()) {
+    return undefined;
+  }
+
+  const forwardedFor = request.headers
+    .get("x-forwarded-for")
+    ?.split(",")
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .at(-1);
+  const realIp = request.headers.get("x-real-ip")?.trim();
+  return forwardedFor || realIp || undefined;
+}
+
+function trustProxyHeaders() {
+  return ["1", "true", "yes"].includes(
+    (process.env.FISH_SUPPORT_TRUST_PROXY_HEADERS || "").toLowerCase()
+  );
 }
 
 function supportMaxBodyBytes() {
@@ -95,6 +130,14 @@ function supportMaxBodyBytes() {
 
 function supportRateLimitPerWindow() {
   return positiveIntegerEnv("FISH_SUPPORT_RATE_LIMIT_PER_MINUTE", 10);
+}
+
+function supportGlobalRateLimitPerWindow() {
+  const perClientLimit = supportRateLimitPerWindow();
+  return positiveIntegerEnv(
+    "FISH_SUPPORT_GLOBAL_RATE_LIMIT_PER_MINUTE",
+    Math.max(perClientLimit * 20, perClientLimit)
+  );
 }
 
 function supportRateLimitWindowMs() {
