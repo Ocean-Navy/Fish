@@ -11,7 +11,9 @@ const SUPPORT_ENV_KEYS = [
   "FISH_SUPPORT_MAX_BODY_BYTES",
   "FISH_SUPPORT_MAX_TICKETS",
   "FISH_SUPPORT_RATE_LIMIT_PER_MINUTE",
-  "FISH_SUPPORT_RATE_LIMIT_WINDOW_MS"
+  "FISH_SUPPORT_GLOBAL_RATE_LIMIT_PER_MINUTE",
+  "FISH_SUPPORT_RATE_LIMIT_WINDOW_MS",
+  "FISH_SUPPORT_TRUST_PROXY_HEADERS"
 ] as const;
 
 const originalEnv = Object.fromEntries(SUPPORT_ENV_KEYS.map((key) => [key, process.env[key]]));
@@ -106,6 +108,61 @@ test("support route rate limits unauthenticated ticket submissions", async () =>
   assert.equal(first.status, 200);
   assert.equal(second.status, 429);
   assert.deepEqual(await second.json(), { ok: false, error: "support_rate_limited" });
+});
+
+test("support route does not trust spoofed proxy headers by default", async () => {
+  const dir = await tempSupportDir();
+  process.env.FISH_SUPPORT_DIR = dir;
+  process.env.FISH_SUPPORT_RATE_LIMIT_PER_MINUTE = "1";
+  process.env.FISH_SUPPORT_MAX_TICKETS = "3";
+  const body = JSON.stringify({ contact: "test@example.com", kind: "billing", message: "hello support" });
+
+  const first = await POST(
+    new Request("http://127.0.0.1:3000/api/support", {
+      method: "POST",
+      headers: { "x-forwarded-for": "198.51.100.21, 203.0.113.9" },
+      body
+    })
+  );
+  const second = await POST(
+    new Request("http://127.0.0.1:3000/api/support", {
+      method: "POST",
+      headers: { "x-forwarded-for": "198.51.100.22, 203.0.113.9" },
+      body
+    })
+  );
+  const files = await readdir(dir);
+
+  assert.equal(first.status, 200);
+  assert.equal(second.status, 429);
+  assert.deepEqual(await second.json(), { ok: false, error: "support_rate_limited" });
+  assert.equal(files.filter((file) => file.endsWith(".json")).length, 1);
+});
+
+test("support route applies a global backstop when trusted proxy keys rotate", async () => {
+  process.env.FISH_SUPPORT_DIR = await tempSupportDir();
+  process.env.FISH_SUPPORT_TRUST_PROXY_HEADERS = "true";
+  process.env.FISH_SUPPORT_RATE_LIMIT_PER_MINUTE = "10";
+  process.env.FISH_SUPPORT_GLOBAL_RATE_LIMIT_PER_MINUTE = "2";
+  const body = JSON.stringify({ contact: "test@example.com", kind: "billing", message: "hello support" });
+
+  const responses = await Promise.all(
+    ["198.51.100.31", "198.51.100.32", "198.51.100.33"].map((client) =>
+      POST(
+        new Request("http://127.0.0.1:3000/api/support", {
+          method: "POST",
+          headers: { "x-forwarded-for": `${client}, 203.0.113.9` },
+          body
+        })
+      )
+    )
+  );
+
+  assert.deepEqual(
+    responses.map((response) => response.status),
+    [200, 200, 429]
+  );
+  assert.deepEqual(await responses[2].json(), { ok: false, error: "support_rate_limited" });
 });
 
 test("support ticket storage cap rejects new files once the cap is reached", async () => {
