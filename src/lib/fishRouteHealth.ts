@@ -39,7 +39,12 @@ function routeRecord(route: FishChatRouteId): RouteHealthRecord {
 }
 
 export function recordFishRouteSuccess(route: FishChatRouteId) {
-  routeRecord(route).lastSuccessAt = Date.now();
+  const entry = routeRecord(route);
+  entry.lastSuccessAt = Date.now();
+  // A successful call proves the route is reachable now; clear the failure state
+  // (also avoids same-millisecond ties between success and failure timestamps).
+  entry.lastFailureAt = null;
+  entry.lastErrorCode = null;
 }
 
 export function recordFishRouteFailure(route: FishChatRouteId, errorCode: string) {
@@ -60,8 +65,7 @@ export function getFishRouteHealth(route: FishChatRouteId, now = Date.now()): Fi
   }
 
   const failedRecently = entry.lastFailureAt !== null && now - entry.lastFailureAt <= DEGRADED_WINDOW_MS;
-  const recoveredSinceFailure = entry.lastSuccessAt !== null && entry.lastFailureAt !== null && entry.lastSuccessAt > entry.lastFailureAt;
-  const state: FishRouteHealthState = failedRecently && !recoveredSinceFailure ? "degraded" : "ok";
+  const state: FishRouteHealthState = failedRecently ? "degraded" : "ok";
 
   return {
     state,

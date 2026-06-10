@@ -149,10 +149,28 @@ async function fundTestnetEmissions({ staking, ocean, deployer, emissionSource }
   await (await ocean.contract.connect(deployer).approve(stakingAddress, amount)).wait();
   await (await staking.connect(deployer).fundEmissions(amount)).wait();
 
+  // Public load-balanced RPCs can serve eth_call from a replica that hasn't
+  // seen the funding block yet. The tx is confirmed at this point (wait()
+  // throws on revert), so retry the read briefly instead of recording a
+  // misleading zero. With zero stakers nothing drains the reserve, so at
+  // deploy time the reserve must be >= the funded amount once reads catch up.
+  let reserve = await staking.emissionReserve();
+  for (let attempt = 0; reserve < amount && attempt < 5; attempt++) {
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+    reserve = await staking.emissionReserve();
+  }
+  if (reserve < amount) {
+    console.warn(
+      `WARNING: fundEmissions(${ethers.formatEther(amount)}) confirmed on-chain, but the RPC still ` +
+        `reports emissionReserve=${ethers.formatEther(reserve)} after retries. The read is likely lagging; ` +
+        "verify emissionReserve() directly before trusting the summary below."
+    );
+  }
+
   return {
     emissionRatePerSecond: rate.toString(),
     fundedAmount: amount.toString(),
-    emissionReserve: (await staking.emissionReserve()).toString()
+    emissionReserve: reserve.toString()
   };
 }
 
