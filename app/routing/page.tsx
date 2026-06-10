@@ -53,8 +53,14 @@ export default function RoutingPage() {
     <RolePageShell
       eyebrow="Route compass"
       title="Where does your request go?"
-      subtitle={`${policy.activeRoute.label}. ${policy.activeRoute.isRealAi ? "Real AI today." : "Demo answer today."}`}
-      image="/assets/generated/fish-role-builder.png"
+      subtitle={`${policy.activeRoute.label}. ${
+        !policy.activeRoute.isRealAi
+          ? "Demo answer today."
+          : policy.activeRoute.health.state === "degraded"
+            ? "Real AI route configured, but not answering right now."
+            : "Real AI today."
+      }`}
+      image="/assets/generated/fish-role-builder.webp"
       imageAlt="Fish route compass in a Venice Ocean Navy workshop"
       chips={["Demo", "Outside AI", "Ocean providers", "Private later"]}
       primaryAction={{ label: "Ask Fish", href: "/ask" as Route }}

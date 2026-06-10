@@ -23,6 +23,7 @@ import { buildFishKnowledgeContext } from "@/lib/fishKnowledge";
 import { releaseRouteDailyBudgetReservation, reserveRouteDailyBudget, type RouteBudgetCheck, type RouteBudgetReservation } from "@/lib/fishBudget";
 import { spendDailyQuota } from "@/lib/fishQuota";
 import { readFishPrivacyPreference, resolveFishPrivacy, type FishUsagePrivacy } from "@/lib/fishPrivacy";
+import { recordFishRouteFailure, recordFishRouteSuccess } from "@/lib/fishRouteHealth";
 import { spendFishMinuteRateLimit } from "@/lib/fishRateLimit";
 import { runOceanBatchJob } from "@/lib/oceanBatch";
 import { OceanProviderChatError, runSelectedOceanProviderChat } from "@/lib/oceanProviderChat";
@@ -341,7 +342,9 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
       providerCostUsd = warm.providerCostUsd;
       providerId = warm.providerId;
       runnerReceipt = warm.runnerReceipt;
+      recordFishRouteSuccess("ocean-demo-vllm");
     } catch (error) {
+      recordFishRouteFailure("ocean-demo-vllm", error instanceof VllmChatError ? error.message : "ocean_demo_vllm_backend_error");
       if (!canUseExternalFallback(routerConfig, context)) {
         const message = error instanceof VllmChatError ? error.message : "ocean_demo_vllm_backend_error";
         const result = jsonError(error instanceof VllmChatError ? error.status : 502, message, "warm_inference_backend_error", { route });
@@ -462,7 +465,9 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
       providerCostUsd = provider.providerCostUsd;
       providerId = provider.providerId;
       runnerReceipt = provider.runnerReceipt;
+      recordFishRouteSuccess("ocean-provider");
     } catch (error) {
+      recordFishRouteFailure("ocean-provider", error instanceof OceanProviderChatError ? error.message : "ocean_provider_backend_error");
       if (!canUseExternalFallback(routerConfig, context)) {
         const message = error instanceof OceanProviderChatError ? error.message : "ocean_provider_backend_error";
         const result = jsonError(error instanceof OceanProviderChatError ? error.status : 502, message, "ocean_provider_backend_error", { route });
@@ -980,6 +985,7 @@ async function runExternalFallback(input: ChatCompletionInput, promptTokens: num
       promptTokens,
       completionTokens: estimateTokens("")
     });
+    recordFishRouteSuccess("external-fallback");
     return {
       ok: true as const,
       content: external.content,
@@ -992,6 +998,9 @@ async function runExternalFallback(input: ChatCompletionInput, promptTokens: num
     };
   } catch (error) {
     const message = error instanceof ExternalChatError ? error.message : "external_chat_backend_error";
+    if (message !== "external_chat_not_configured") {
+      recordFishRouteFailure("external-fallback", message);
+    }
     return jsonError(message === "external_chat_not_configured" ? 503 : error instanceof ExternalChatError ? error.status : 502, message, "external_backend_error");
   }
 }

@@ -13,15 +13,15 @@ If the current tooling cannot explicitly select GPT Image 2.0, generated images 
 | Asset | Source | Role |
 | --- | --- | --- |
 | `public/assets/fish-ocean-navy-venice.png` | `OceanFish_one_pager.png` | Primary one-pager and current hero-atmosphere reference. |
-| `public/assets/visual-identity/fish-ocean-protocol-captain.png` | `ChatGPT Image May 31, 2026, 12_14_46 PM.png` | Ocean Protocol captain/harbor variant. Good for mascot pose, moonlit harbor palette, and flow-card illustration direction. |
+| `public/assets/visual-identity/fish-ocean-protocol-captain.webp` | `ChatGPT Image May 31, 2026, 12_14_46 PM.png` | Ocean Protocol captain/harbor variant. Good for mascot pose, moonlit harbor palette, and flow-card illustration direction. |
 | `public/assets/visual-identity/fish-venice-market-dolphin.png` | `OceanFish_one.png` | Venice market/dolphin variant. Good for softer mascot expression, market metaphor, and benefit-strip styling. |
-| `public/assets/generated/fish-market-hero.png` | Built-in image generation from Venice/Ocean Navy context | Text-free hero background for the public homepage. |
-| `public/assets/generated/fish-flow-stake.png` | Built-in image generation from Venice/Ocean Navy context | Dedicated flow art for staking/OCEAN holder entry. |
-| `public/assets/generated/fish-flow-catch.png` | Built-in image generation from Venice/Ocean Navy context | Dedicated flow art for catching FISH. |
-| `public/assets/generated/fish-flow-use.png` | Built-in image generation from Venice/Ocean Navy context | Dedicated flow art for users and AI usage. |
-| `public/assets/generated/fish-flow-paid.png` | Built-in image generation from Venice/Ocean Navy context | Dedicated flow art for providers getting paid. |
-| `public/assets/generated/fish-flow-grow.png` | Built-in image generation from Venice/Ocean Navy context | Dedicated flow art for Ocean growth. |
-| `public/assets/generated/fish-role-builder.png` | Built-in image generation from Venice/Ocean Navy context | Dedicated role art for the builder/API hatch entrance. |
+| `public/assets/generated/fish-market-hero.webp` | Built-in image generation from Venice/Ocean Navy context | Text-free hero background for the public homepage. |
+| `public/assets/generated/fish-flow-stake.webp` | Built-in image generation from Venice/Ocean Navy context | Dedicated flow art for staking/OCEAN holder entry. |
+| `public/assets/generated/fish-flow-catch.webp` | Built-in image generation from Venice/Ocean Navy context | Dedicated flow art for catching FISH. |
+| `public/assets/generated/fish-flow-use.webp` | Built-in image generation from Venice/Ocean Navy context | Dedicated flow art for users and AI usage. |
+| `public/assets/generated/fish-flow-paid.webp` | Built-in image generation from Venice/Ocean Navy context | Dedicated flow art for providers getting paid. |
+| `public/assets/generated/fish-flow-grow.webp` | Built-in image generation from Venice/Ocean Navy context | Dedicated flow art for Ocean growth. |
+| `public/assets/generated/fish-role-builder.webp` | Built-in image generation from Venice/Ocean Navy context | Dedicated role art for the builder/API hatch entrance. |
 
 ## Experience Model
 

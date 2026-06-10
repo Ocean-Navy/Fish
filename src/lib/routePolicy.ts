@@ -1,5 +1,6 @@
 import { listFishFeaturePolicies, type FishFeatureId } from "@/lib/fishFeaturePolicy";
 import { getFishConcurrencySnapshot } from "@/lib/fishConcurrency";
+import { getFishRouteHealth, type FishRouteHealth } from "@/lib/fishRouteHealth";
 import { getFishRouterConfig, type FishChatRouteId } from "@/lib/fishRouter";
 import { readOceanBatchDailyBudgetUsd } from "@/lib/oceanBatch";
 import type { DataState } from "@/lib/types";
@@ -17,6 +18,8 @@ export type FishRoutePolicy = {
     privacy: string;
     evidence: string;
     status: RouteModeState;
+    /** Observed backend health (recent request outcomes), not config presence. */
+    health: FishRouteHealth;
   };
   backend: {
     chatRoute: FishChatRouteId;
@@ -254,6 +257,7 @@ function readBooleanEnv(key: string, fallback: boolean) {
 }
 
 function activeRoutePolicy(id: FishChatRouteId, status: RouteModeState): FishRoutePolicy["activeRoute"] {
+  const health = getFishRouteHealth(id);
   if (id === "ocean-demo-vllm") {
     return {
       id,
@@ -261,7 +265,8 @@ function activeRoutePolicy(id: FishChatRouteId, status: RouteModeState): FishRou
       isRealAi: true,
       privacy: "Prompts go to the configured Ocean Navy warm inference endpoint. Fish keeps usage numbers and a request hash.",
       evidence: "Marked as Ocean demo vLLM, not a generic external fallback.",
-      status
+      status,
+      health
     };
   }
   if (id === "external-fallback") {
@@ -271,7 +276,8 @@ function activeRoutePolicy(id: FishChatRouteId, status: RouteModeState): FishRou
       isRealAi: true,
       privacy: "Prompts go to the configured outside AI provider only when this route is explicitly enabled.",
       evidence: "Marked as fallback AI, not Ocean provider proof.",
-      status
+      status,
+      health
     };
   }
   if (id === "ocean-provider") {
@@ -281,7 +287,8 @@ function activeRoutePolicy(id: FishChatRouteId, status: RouteModeState): FishRou
       isRealAi: true,
       privacy: "Prompts go to the configured selected Ocean provider. Fish keeps usage numbers, provider ids, and request hashes.",
       evidence: "Marked as selected Ocean provider work with runner proof when available.",
-      status
+      status,
+      health
     };
   }
   return {
@@ -290,6 +297,7 @@ function activeRoutePolicy(id: FishChatRouteId, status: RouteModeState): FishRou
     isRealAi: false,
     privacy: "Demo answers stay inside the local app process.",
     evidence: "Marked as a demo estimate so nobody confuses it with provider work.",
-    status
+    status,
+    health
   };
 }

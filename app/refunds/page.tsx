@@ -51,7 +51,7 @@ export default function RefundsPage() {
       eyebrow="Refund policy"
       title="Credits need clear rules."
       subtitle="Paid credits can be reviewed. Free test credits are not cash."
-      image="/assets/generated/fish-flow-use.png"
+      image="/assets/generated/fish-flow-use.webp"
       imageAlt="Fish meal counter preparing AI dish receipts"
       chips={["Paid credits", "Duplicate payments", "USDC", "No secrets"]}
       primaryAction={{ label: "Ask support", href: "/support" as NextRoute }}

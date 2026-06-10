@@ -39,7 +39,7 @@ export default function AccountPage() {
       eyebrow="Credit tab"
       title="Count your FISH."
       subtitle="Paste a key. See credits. Know what was used."
-      image="/assets/generated/fish-flow-catch.png"
+      image="/assets/generated/fish-flow-catch.webp"
       imageAlt="Glowing Fish credits caught in a Venice market net"
       chips={["Balance", "Recent use", "Key tools", "No prompts"]}
       primaryAction={{ label: "Try chat", href: "/chat" }}

@@ -36,7 +36,7 @@ export default function DocsPage() {
       eyebrow="API hatch"
       title="Build with Fish."
       subtitle="One key. One chat request. Credits and route labels included."
-      image="/assets/generated/fish-role-builder.png"
+      image="/assets/generated/fish-role-builder.webp"
       imageAlt="Venice market API hatch with Ocean Navy compute tools"
       chips={["API keys", "Models", "Usage", "Privacy"]}
       primaryAction={{ label: "Try chat", href: "/chat" }}

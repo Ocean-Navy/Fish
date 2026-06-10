@@ -21,6 +21,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { FISH_DISHES, type FishDishDefinition } from "@/lib/fishDishes";
+import { describeFishOrderError, type FishOrderErrorCopy } from "@/lib/fishErrorCopy";
 
 const MODEL_STORAGE_KEY = "fish-meal-counter-model-v1";
 const DISH_STORAGE_KEY = "fish-meal-counter-active-v1";
@@ -42,6 +43,9 @@ type FishRoutePolicySummary = {
     label: string;
     isRealAi: boolean;
     status?: string;
+    health?: {
+      state?: "ok" | "degraded" | "unknown";
+    };
   };
   backend?: {
     oceanBatchConfigured?: boolean;
@@ -61,6 +65,8 @@ type DishResult = {
   content: string;
   model: string;
   route?: string;
+  routeLabel?: string;
+  runnerSignatureState?: string | null;
   requestedRoute?: string;
   fallbackFrom?: string | null;
   fallbackReason?: string | null;
@@ -155,18 +161,28 @@ const dishVisuals: Record<string, { image: string; alt: string }> = {
   }
 };
 
-function routeBadgeLabel(routePolicy: FishRoutePolicySummary | null) {
+function routeBadge(routePolicy: FishRoutePolicySummary | null): { label: string; className: string } {
+  const accent = "border-fish-accent/25 bg-fish-accent/10 text-fish-accent";
+  const amber = "border-fish-gold/35 bg-fish-gold/10 text-fish-gold";
   const active = routePolicy?.activeRoute;
   if (!active) {
-    return "Free taste";
+    return { label: "Free taste", className: accent };
   }
   if (active.status === "paused") {
-    return "Paused";
+    return { label: "Paused", className: amber };
   }
   if (active.status === "needs-config") {
-    return "Setup needed";
+    return { label: "Setup needed", className: amber };
   }
-  return active.isRealAi ? "Live AI" : "Demo mode";
+  if (!active.isRealAi) {
+    return { label: "Demo mode", className: accent };
+  }
+  // Honesty rule: configured is not the same as healthy. If the backend failed
+  // recently and has not recovered, say so instead of claiming live AI.
+  if (active.health?.state === "degraded") {
+    return { label: "AI route not answering", className: amber };
+  }
+  return { label: "Live AI", className: accent };
 }
 
 function readStoredModel() {
@@ -192,15 +208,8 @@ function readStoredDish() {
   }
 }
 
-function getErrorMessage(payload: unknown) {
-  if (payload && typeof payload === "object" && "error" in payload) {
-    const error = (payload as { error?: { message?: string; needed?: number; available?: number } }).error;
-    if (error?.message === "insufficient_fish_credits") {
-      return `Not enough Fish credits. Needed ${error.needed ?? "more"}, available ${error.available ?? 0}.`;
-    }
-    return error?.message?.replaceAll("_", " ") ?? "Request failed.";
-  }
-  return "Request failed.";
+function localOrderError(title: string, body: string): FishOrderErrorCopy {
+  return { title, body, code: "order_not_sent" };
 }
 
 export function FishMealCounter() {
@@ -211,7 +220,7 @@ export function FishMealCounter() {
   const [routePolicy, setRoutePolicy] = useState<FishRoutePolicySummary | null>(null);
   const [prompt, setPrompt] = useState("");
   const [result, setResult] = useState<DishResult | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<FishOrderErrorCopy | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   const activeDish = useMemo(() => dishes.find((dish) => dish.id === activeDishId) ?? dishes[0], [activeDishId]);
@@ -260,7 +269,7 @@ export function FishMealCounter() {
   function selectDish(dishId: string) {
     const nextDish = dishes.find((dish) => dish.id === dishId) ?? dishes[0];
     if (nextDish.disabled) {
-      setError(`${nextDish.title} is coming soon.`);
+      setError(localOrderError("Coming soon", `${nextDish.title} is not on the pilot menu yet. Pick another dish.`));
       return;
     }
     setActiveDishId(nextDish.id);
@@ -275,15 +284,15 @@ export function FishMealCounter() {
     const key = apiKey.trim();
     const userPrompt = prompt.trim();
     if (activeDish.disabled) {
-      setError(`${activeDish.title} is coming soon.`);
+      setError(localOrderError("Coming soon", `${activeDish.title} is not on the pilot menu yet. Pick another dish.`));
       return;
     }
     if (!userPrompt) {
-      setError("Add a prompt for this dish.");
+      setError(localOrderError("The order is empty", "Tell Fish what to make, or press Use sample to start from the example."));
       return;
     }
     if (activeDishNeedsKey) {
-      setError("Deep dishes need a Fish API key. Add one in Details or pick Quick Catch for the free taste.");
+      setError(localOrderError("Deep dishes need a key", "Add a Fish API key in Details, or pick Quick Catch for the free taste."));
       return;
     }
 
@@ -308,9 +317,10 @@ export function FishMealCounter() {
           }
         })
       });
-      const payload = await response.json();
+      const payload = await response.json().catch(() => null);
       if (!response.ok) {
-        throw new Error(getErrorMessage(payload));
+        setError(describeFishOrderError(response.status, payload));
+        return;
       }
 
       setResult({
@@ -318,6 +328,8 @@ export function FishMealCounter() {
         content: payload.choices?.[0]?.message?.content ?? "",
         model: payload.model ?? selectedModel,
         route: payload.fish?.route,
+        routeLabel: payload.fish?.routeLabel,
+        runnerSignatureState: payload.fish?.runnerSignatureState,
         requestedRoute: payload.fish?.requestedRoute,
         fallbackFrom: payload.fish?.fallbackFrom,
         fallbackReason: payload.fish?.fallbackReason,
@@ -340,8 +352,13 @@ export function FishMealCounter() {
         knowledgeSources: Array.isArray(payload.fish?.knowledgeSources) ? payload.fish.knowledgeSources : undefined,
         accessMode
       });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Request failed.");
+    } catch {
+      setError(
+        localOrderError(
+          "Fish couldn't reach the kitchen",
+          "The request never made it to the server — check your connection and try again. Nothing was charged."
+        )
+      );
     } finally {
       setIsLoading(false);
     }
@@ -355,7 +372,7 @@ export function FishMealCounter() {
             <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">Menu</p>
             <h2 className="text-3xl font-black text-white">Pick a dish.</h2>
           </div>
-          <span className="rounded-full border border-fish-accent/25 bg-fish-accent/10 px-3 py-1 text-xs font-black text-fish-accent">{routeBadgeLabel(routePolicy)}</span>
+          <span className={`rounded-full border px-3 py-1 text-xs font-black ${routeBadge(routePolicy).className}`}>{routeBadge(routePolicy).label}</span>
         </div>
 
         <div className="mt-5 grid gap-3 sm:grid-cols-2">
@@ -423,7 +440,7 @@ export function FishMealCounter() {
       <section className="rounded-[2rem] border border-fish-accent/25 bg-fish-surface/80 p-4 shadow-harbor sm:p-5">
         <div className="relative aspect-[16/9] overflow-hidden rounded-[1.5rem] border border-fish-accent/20 bg-fish-navy950">
           <Image src={activeVisual.image} alt={activeVisual.alt} fill sizes="(min-width: 1024px) 48vw, 100vw" className="object-cover transition duration-300" />
-          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-fish-navy950/92 via-fish-navy950/35 to-transparent p-5">
+          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-fish-navy950/90 via-fish-navy950/35 to-transparent p-5">
             <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">Your order</p>
             <h2 className="mt-1 text-4xl font-black text-white">{activeDish.title}</h2>
             <p className="mt-1 text-base font-black text-fish-accent">{activeDish.subtitle}</p>
@@ -449,8 +466,15 @@ export function FishMealCounter() {
         ) : null}
 
         {error ? (
-          <div className="mt-4 rounded-2xl border border-fish-coral/35 bg-fish-coral/10 p-4 text-sm font-black text-fish-primary" role="alert">
-            {error}
+          <div className="mt-4 rounded-2xl border border-fish-coral/35 bg-fish-coral/10 p-4" role="alert">
+            <p className="text-base font-black text-white">{error.title}</p>
+            <p className="mt-1 text-sm font-bold leading-6 text-fish-primary">{error.body}</p>
+            {error.action ? (
+              <Link href={error.action.href as Route} className="mt-3 inline-flex h-9 items-center rounded-full border border-fish-coral/40 bg-fish-coral/15 px-4 text-xs font-black text-white transition hover:bg-fish-coral/25">
+                {error.action.label}
+              </Link>
+            ) : null}
+            {error.code !== "order_not_sent" ? <p className="mt-2 text-[0.68rem] font-bold uppercase tracking-[0.08em] text-fish-muted">Code: {error.code}</p> : null}
           </div>
         ) : null}
 
@@ -487,7 +511,7 @@ export function FishMealCounter() {
           </p>
         </details>
 
-        <div className="mt-5 min-h-80 rounded-[1.5rem] border border-fish-accent/18 bg-fish-navy950/45 p-5">
+        <div className="mt-5 min-h-80 rounded-[1.5rem] border border-fish-accent/20 bg-fish-navy950/45 p-5">
           {isLoading ? (
             <div className="flex h-64 items-center justify-center gap-3 text-sm font-black text-fish-primary">
               <Loader2 className="h-5 w-5 animate-spin text-fish-accent" aria-hidden="true" />
@@ -517,11 +541,13 @@ export function FishMealCounter() {
               <details className="mt-4 rounded-2xl border border-fish-accent/15 bg-white/[0.035] p-4 text-xs font-bold leading-6 text-fish-secondary">
                 <summary className="cursor-pointer text-sm font-black text-fish-primary">Receipt</summary>
                 <div className="mt-3 grid gap-2">
+                  {result.accessMode === "guest" ? null : (
+                    <p>
+                      Credits left: <span className="text-fish-primary">{result.creditsRemaining ?? 0}</span>
+                    </p>
+                  )}
                   <p>
-                    Credits left: <span className="text-fish-primary">{result.creditsRemaining ?? 0}</span>
-                  </p>
-                  <p>
-                    {result.accessMode === "guest" ? "Free tastes left" : "Price"}:{" "}
+                    {result.accessMode === "guest" ? "Free tastes left today" : "Price"}:{" "}
                     <span className="text-fish-primary">{result.accessMode === "guest" ? String(result.quotaRemaining ?? 0) : `$${(result.userChargeUsd ?? 0).toFixed(4)}`}</span>
                   </p>
                   <p>
@@ -532,7 +558,17 @@ export function FishMealCounter() {
                   </p>
                   {result.route ? (
                     <p>
-                      Kitchen: <span className="text-fish-primary">{formatBadge(result.route)}</span>
+                      Kitchen: <span className="text-fish-primary">{result.routeLabel ?? formatBadge(result.route)}</span>
+                    </p>
+                  ) : null}
+                  {result.costState ? (
+                    <p>
+                      Cost basis: <span className="text-fish-primary">{formatBadge(result.costState)}</span>
+                    </p>
+                  ) : null}
+                  {result.runnerSignatureState ? (
+                    <p>
+                      Receipt signature: <span className={result.runnerSignatureState === "verified" ? "text-emerald-200" : "text-fish-primary"}>{formatBadge(result.runnerSignatureState)}</span>
                     </p>
                   ) : null}
                   {result.totalTokens ? (
@@ -611,7 +647,7 @@ function DishCard({ dish, activeDishId, onSelect, compact = false }: { dish: Fis
           ? "border-fish-accent ring-2 ring-fish-accent/35"
           : dish.disabled
             ? "cursor-not-allowed border-white/10 opacity-65"
-            : "border-fish-accent/18 hover:border-fish-accent/55"
+            : "border-fish-accent/20 hover:border-fish-accent/55"
       }`}
     >
       <Image src={visual.image} alt="" fill sizes="(min-width: 1024px) 22vw, 50vw" className="object-cover transition duration-300 group-hover:scale-105" />
@@ -692,7 +728,7 @@ function formatBadge(value: string) {
     return "outside AI";
   }
   if (value === "prototype_estimate") {
-    return "estimate";
+    return "prototype estimate";
   }
   if (value === "fallback_verified") {
     return "outside AI";

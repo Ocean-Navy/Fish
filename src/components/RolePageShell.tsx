@@ -3,6 +3,7 @@ import type { Route } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { MobileNavMenu } from "@/components/MobileNavMenu";
 
 type ShellCard = {
   title: string;
@@ -77,15 +78,27 @@ export function RolePageShell({
               Roadmap
             </Link>
           </nav>
-          <Link className="inline-flex h-10 items-center rounded-full bg-gradient-to-r from-fish-accent to-fish-aqua px-4 text-sm font-black text-fish-navy950" href="/#pilot">
-            Join
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link className="inline-flex h-10 items-center rounded-full bg-gradient-to-r from-fish-accent to-fish-aqua px-4 text-sm font-black text-fish-navy950" href="/#pilot">
+              Join
+            </Link>
+            <MobileNavMenu
+              links={[
+                { href: "/#market", label: "Market" },
+                { href: "/ask", label: "Ask Fish" },
+                { href: "/dashboard", label: "Dashboard" },
+                { href: "/privacy", label: "Data policy" },
+                { href: "/roadmap", label: "Roadmap" },
+                { href: "/support", label: "Support" }
+              ]}
+            />
+          </div>
         </div>
       </header>
 
       <section className="relative px-4 pt-28 sm:px-6 lg:px-8">
         <div className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-[0.95fr_1.05fr] lg:items-stretch">
-          <div className="order-2 flex min-h-[28rem] flex-col justify-between rounded-[2rem] border border-fish-accent/25 bg-fish-surface/82 p-6 shadow-harbor backdrop-blur sm:p-9 lg:order-1 lg:min-h-[34rem]">
+          <div className="order-2 flex min-h-[28rem] flex-col justify-between rounded-[2rem] border border-fish-accent/25 bg-fish-surface/80 p-6 shadow-harbor backdrop-blur sm:p-9 lg:order-1 lg:min-h-[34rem]">
             <div>
               <Link href="/" className="mb-8 inline-flex items-center gap-2 text-sm font-black text-fish-secondary hover:text-white">
                 <ArrowLeft className="h-4 w-4" aria-hidden="true" />

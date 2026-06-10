@@ -41,7 +41,7 @@ export default async function CreditsPage() {
       eyebrow="Vault door"
       title="Credits people understand."
       subtitle="Lock OCEAN. Catch AI credits. Spend them on useful work."
-      image="/assets/generated/fish-flow-stake.png"
+      image="/assets/generated/fish-flow-stake.webp"
       imageAlt="Glowing Ocean-style compute coins in a Venice market vault"
       chips={["OCEAN staking", "AI credits", "Provider bonds", "Token later"]}
       primaryAction={{ label: "Get updates", href: "/#pilot" }}

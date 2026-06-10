@@ -14,14 +14,15 @@ import type { Route as NextRoute } from "next";
 import Link from "next/link";
 import { InterestForm } from "@/components/InterestForm";
 import { MarketEntrances } from "@/components/MarketEntrances";
+import { MobileNavMenu } from "@/components/MobileNavMenu";
 import { VisualExplainers } from "@/components/VisualExplainers";
 
 const flow = [
-  { title: "Stake OCEAN", image: "/assets/generated/fish-flow-stake.png", icon: LockKeyhole },
-  { title: "Catch FISH", image: "/assets/generated/fish-flow-catch.png", icon: Fish },
-  { title: "Use AI", image: "/assets/generated/fish-flow-use.png", icon: Sparkles },
-  { title: "Providers get paid", image: "/assets/generated/fish-flow-paid.png", icon: BadgeDollarSign },
-  { title: "Ocean grows", image: "/assets/generated/fish-flow-grow.png", icon: Waves }
+  { title: "Stake OCEAN", image: "/assets/generated/fish-flow-stake.webp", icon: LockKeyhole },
+  { title: "Catch FISH", image: "/assets/generated/fish-flow-catch.webp", icon: Fish },
+  { title: "Use AI", image: "/assets/generated/fish-flow-use.webp", icon: Sparkles },
+  { title: "Providers get paid from usage", image: "/assets/generated/fish-flow-paid.webp", icon: BadgeDollarSign },
+  { title: "Ocean grows", image: "/assets/generated/fish-flow-grow.webp", icon: Waves }
 ];
 
 export default function Home() {
@@ -44,9 +45,22 @@ export default function Home() {
             <Link className="hover:text-white" href={"/privacy" as NextRoute}>Data policy</Link>
             <Link className="hover:text-white" href="/dashboard">Dashboard</Link>
           </nav>
-          <a className="inline-flex h-10 items-center rounded-full bg-gradient-to-r from-fish-accent to-fish-aqua px-4 text-sm font-black text-fish-navy950" href="#pilot">
-            Join
-          </a>
+          <div className="flex items-center gap-2">
+            <a className="inline-flex h-10 items-center rounded-full bg-gradient-to-r from-fish-accent to-fish-aqua px-4 text-sm font-black text-fish-navy950" href="#pilot">
+              Join
+            </a>
+            <MobileNavMenu
+              links={[
+                { href: "/#market", label: "Market" },
+                { href: "/#flow", label: "Flow" },
+                { href: "/#maps", label: "Maps" },
+                { href: "/ask", label: "Ask Fish" },
+                { href: "/proof", label: "Proof" },
+                { href: "/privacy", label: "Data policy" },
+                { href: "/dashboard", label: "Dashboard" }
+              ]}
+            />
+          </div>
         </div>
       </header>
 
@@ -101,7 +115,7 @@ export default function Home() {
               <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">Simple flow</p>
               <h2 className="mt-2 text-4xl font-black text-white sm:text-6xl">The Fish flow</h2>
             </div>
-            <p className="text-xl font-black text-fish-accent">Users buy AI. Providers get paid.</p>
+            <p className="text-xl font-black text-fish-accent">Users buy AI. Providers get paid from real usage (pilot).</p>
           </div>
 
           <div className="grid gap-3 md:grid-cols-5">
@@ -155,7 +169,7 @@ export default function Home() {
               <div
                 className="absolute inset-0"
                 style={{
-                  backgroundImage: "url('/assets/visual-identity/fish-ocean-protocol-captain.png')",
+                  backgroundImage: "url('/assets/visual-identity/fish-ocean-protocol-captain.webp')",
                   backgroundPosition: "center",
                   backgroundSize: "cover"
                 }}
@@ -189,6 +203,8 @@ export default function Home() {
           <p>Built by Ocean Navy on Ocean Protocol. Not official unless approved.</p>
           <div className="flex flex-wrap gap-4 text-fish-gold">
             <Link href={"/privacy" as NextRoute}>Data policy</Link>
+            <Link href={"/support" as NextRoute}>Support</Link>
+            <Link href={"/refunds" as NextRoute}>Refunds</Link>
             <p>Product first. Token later.</p>
           </div>
         </div>

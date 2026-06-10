@@ -12,6 +12,7 @@ import type { OceanProofReadiness } from "@/lib/oceanProofReadiness";
 import type { ProofSummary } from "@/lib/providerJobs";
 import type { ProviderScorecardSummary } from "@/lib/providerScorecard";
 import type { DataState } from "@/lib/types";
+import { MobileNavMenu } from "@/components/MobileNavMenu";
 import { StatusBadge } from "@/components/StatusBadge";
 
 export function PublicProofPage({
@@ -87,14 +88,24 @@ export function PublicProofPage({
             <Link className="hover:text-white" href={"/privacy" as Route}>Data policy</Link>
             <Link className="hover:text-white" href="/dashboard">Dashboard</Link>
           </nav>
-          <Link className="inline-flex h-10 items-center rounded-full bg-gradient-to-r from-fish-accent to-fish-aqua px-4 text-sm font-black text-fish-navy950" href="/#pilot">
-            Join
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link className="inline-flex h-10 items-center rounded-full bg-gradient-to-r from-fish-accent to-fish-aqua px-4 text-sm font-black text-fish-navy950" href="/#pilot">
+              Join
+            </Link>
+            <MobileNavMenu
+              links={[
+                { href: "/proof#proof-story", label: "What counts" },
+                { href: "/proof#activity", label: "Tickets" },
+                { href: "/privacy", label: "Data policy" },
+                { href: "/dashboard", label: "Dashboard" }
+              ]}
+            />
+          </div>
         </div>
       </header>
 
       <section className="relative min-h-[92vh] px-4 pt-28 sm:px-6 lg:px-8">
-        <Image src="/assets/generated/fish-market-hero.png" alt="" fill priority sizes="100vw" className="fish-proof-hero-image object-cover" />
+        <Image src="/assets/generated/fish-market-hero.webp" alt="" fill priority sizes="100vw" className="fish-proof-hero-image object-cover" />
         <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(2,10,30,0.98)_0%,rgba(2,10,30,0.84)_44%,rgba(2,10,30,0.24)_100%)]" aria-hidden="true" />
         <div className="absolute inset-x-0 bottom-0 h-36 bg-gradient-to-t from-fish-navy950 to-transparent" aria-hidden="true" />
 
@@ -261,11 +272,17 @@ export function PublicProofPage({
         {receiptRows.length ? (
           <div className="grid gap-3 lg:grid-cols-5">
             {receiptRows.map((receipt) => (
-              <Link key={receipt.receiptId} href={`/api/proof/receipts/${receipt.receiptId}` as Route} className="group rounded-[1.5rem] border border-fish-accent/20 bg-fish-surface/80 p-5 shadow-harbor hover:border-fish-accent/60">
+              <Link
+                key={receipt.receiptId}
+                href={`/api/proof/receipts/${receipt.receiptId}` as Route}
+                aria-label={`Open raw receipt JSON for ${receipt.providerLabel}`}
+                className="group rounded-[1.5rem] border border-fish-accent/20 bg-fish-surface/80 p-5 shadow-harbor hover:border-fish-accent/60"
+              >
                 <p className="text-xs font-black uppercase tracking-[0.12em] text-fish-gold">{receipt.status.replaceAll("_", " ")}</p>
                 <h3 className="mt-3 text-lg font-black text-white group-hover:text-fish-accent">{receipt.providerLabel}</h3>
                 <p className="mt-3 break-all text-xs font-bold leading-5 text-fish-secondary">{receipt.canonicalReceiptHash.slice(0, 28)}...</p>
                 <p className="mt-4 text-sm font-black text-fish-primary">{receipt.signatureStatus}</p>
+                <p className="mt-2 text-[0.68rem] font-black uppercase tracking-[0.08em] text-fish-muted">Opens raw JSON</p>
               </Link>
             ))}
           </div>
@@ -321,7 +338,15 @@ export function PublicProofPage({
                     <EmptyHarbor text="No capacity-pool settlement records yet. Paid demand records will appear here after operator review." />
                   </div>
                 )}
-                {capacitySettlements.warnings[1] ? <p className="mt-3 rounded-2xl border border-fish-gold/25 bg-fish-gold/10 p-4 text-sm font-black leading-6 text-fish-primary">{capacitySettlements.warnings[1]}</p> : null}
+                {capacitySettlements.warnings.length ? (
+                  <div className="mt-3 grid gap-2">
+                    {capacitySettlements.warnings.map((warning) => (
+                      <p key={warning} className="rounded-2xl border border-fish-gold/25 bg-fish-gold/10 p-4 text-sm font-black leading-6 text-fish-primary">
+                        {warning}
+                      </p>
+                    ))}
+                  </div>
+                ) : null}
               </MetricGroup>
 
               <MetricGroup compact title="Route Tests" eyebrow="Deep proof" state={benchmarks.dataState}>
@@ -353,7 +378,11 @@ export function PublicProofPage({
       <footer className="border-t border-fish-accent/15 px-4 py-8 text-sm font-bold text-fish-secondary sm:px-6 lg:px-8">
         <div className="mx-auto flex max-w-7xl flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <p>Public proof only. Private operating details stay out of this page.</p>
-          <Link className="text-fish-accent hover:text-white" href="/dashboard">Open builder dashboard</Link>
+          <div className="flex flex-wrap gap-4">
+            <Link className="text-fish-accent hover:text-white" href="/dashboard">Open builder dashboard</Link>
+            <Link className="text-fish-gold hover:text-white" href={"/privacy" as Route}>Data policy</Link>
+            <Link className="text-fish-gold hover:text-white" href={"/support" as Route}>Support</Link>
+          </div>
         </div>
       </footer>
     </main>

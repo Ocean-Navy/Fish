@@ -111,7 +111,7 @@ export default function ApiPage() {
       eyebrow="Signal flags"
       title="API status."
       subtitle="The hatch is small today: keys, credits, and clear AI requests."
-      image="/assets/generated/fish-role-builder.png"
+      image="/assets/generated/fish-role-builder.webp"
       imageAlt="Ocean Navy API hatch in a Venice market workshop"
       chips={["Health", "Supply", "Keys", "AI route"]}
       primaryAction={{ label: "Try chat", href: "/chat" }}

@@ -46,7 +46,7 @@ export default function RoadmapPage() {
       eyebrow="Harbor map"
       title="The voyage map."
       subtitle="Build the product first. Add OCEAN utility after real usage."
-      image="/assets/generated/fish-flow-grow.png"
+      image="/assets/generated/fish-flow-grow.webp"
       imageAlt="Moonlit Venice harbor growing into a brighter Ocean ecosystem"
       chips={["Public V0", "AI app/API", "Usage proof", "Credits later"]}
       primaryAction={{ label: "Join pilot", href: "/#pilot" }}

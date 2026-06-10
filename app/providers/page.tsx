@@ -32,7 +32,7 @@ export default async function ProvidersPage() {
       eyebrow="Fishing boats"
       title="Have compute?"
       subtitle="Bring a GPU boat to the Fish market and catch real AI demand."
-      image="/assets/generated/fish-flow-paid.png"
+      image="/assets/generated/fish-flow-paid.webp"
       imageAlt="Ocean Navy provider dock with compute gear and glowing payouts"
       chips={["List boat", "Run jobs", "Get paid", "Build trust"]}
       primaryAction={{ label: "Join provider crew", href: "/#pilot" }}

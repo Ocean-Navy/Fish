@@ -69,7 +69,7 @@ export function VisualExplainers() {
           <ExplainerCard
             title="Who brings what?"
             subtitle="Users, builders, providers, and holders meet around the Fish vault."
-            image="/assets/generated/fish-system-map-labeled-v3.png"
+            image="/assets/generated/fish-system-map-labeled-v3.webp"
             imageAlt="Visual map of Fish users, builders, providers, and holders around a Venice fish market hub"
             labels={systemLabels}
           />
@@ -77,7 +77,7 @@ export function VisualExplainers() {
           <ExplainerCard
             title="How money moves"
             subtitle="Money enters Fish Credits. The market feeds GPUs, staking, and ecosystem growth."
-            image="/assets/generated/fish-money-flow-labeled-v5.png"
+            image="/assets/generated/fish-money-flow-labeled-v5.webp"
             imageAlt="Visual map of Fish Credits receiving subscription and API money, rewarding GPU providers, staking holders, and ecosystem growth"
             labels={moneyLabels}
           />
