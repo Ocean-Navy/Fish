@@ -1,11 +1,14 @@
 import assert from "node:assert/strict";
+import { createServer } from "node:http";
+import { type AddressInfo } from "node:net";
 import { afterEach, test } from "node:test";
-import { DEFAULT_EXTERNAL_CHAT_MAX_TOKENS, getExternalChatConfig, isExternalChatEnabled, runExternalChat } from "./externalChat";
+import { DEFAULT_EXTERNAL_CHAT_MAX_TOKENS, ExternalChatError, getExternalChatConfig, isExternalChatEnabled, runExternalChat } from "./externalChat";
 import { getFishRouterConfig } from "./fishRouter";
 
 const ENV_KEYS = [
   "FISH_CHAT_ROUTE",
   "FISH_CHAT_BACKEND",
+  "FISH_CHAT_TIMEOUT_MS",
   "FISH_EXTERNAL_CHAT_BASE_URL",
   "FISH_EXTERNAL_CHAT_API_KEY",
   "FISH_EXTERNAL_CHAT_MODEL",
@@ -96,6 +99,38 @@ test("external fallback can be explicitly opted in with the backend selector", (
 
   assert.equal(config.backend, "external");
   assert.equal(isExternalChatEnabled(config), true);
+});
+
+test("external chat aborts a hung backend after FISH_CHAT_TIMEOUT_MS", async () => {
+  configureExternalChat();
+  process.env.FISH_CHAT_TIMEOUT_MS = "150";
+
+  const server = createServer(() => {
+    // Never respond: simulates a hung provider holding the socket open.
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const port = (server.address() as AddressInfo).port;
+  process.env.FISH_EXTERNAL_CHAT_BASE_URL = `http://127.0.0.1:${port}/v1`;
+
+  try {
+    const startedAt = Date.now();
+    await assert.rejects(
+      () =>
+        runExternalChat(
+          {
+            model: "fish-demo-chat",
+            messages: [{ role: "user", content: "hello" }],
+            stream: false
+          },
+          { promptTokens: 1, completionTokens: 1 }
+        ),
+      (error: unknown) => error instanceof ExternalChatError && error.status === 504 && error.message === "external_chat_timeout"
+    );
+    assert.ok(Date.now() - startedAt < 5_000, "timeout must fire near the configured window, not hang");
+  } finally {
+    server.closeAllConnections?.();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
 });
 
 function configureExternalChat() {

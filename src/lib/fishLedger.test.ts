@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, test } from "node:test";
@@ -332,6 +332,64 @@ test("chat completion validation caps metadata keys", () => {
   if (!parsed.success) {
     assert.deepEqual(parsed.error.flatten().fieldErrors.metadata, ["metadata cannot contain more than 32 keys"]);
   }
+});
+
+test("concurrent createApiKey calls persist every account", async () => {
+  const ledger = await useTempFishLedger();
+  const { createApiKey } = await importFishLedger(ledger);
+
+  const created = await Promise.all(Array.from({ length: 10 }, (_, index) => createApiKey(`Concurrent key ${index}`, 10)));
+  assert.equal(created.length, 10);
+
+  const persisted = JSON.parse(await readFile(path.join(ledger, "accounts.json"), "utf8")) as { accounts: Array<{ id: string }> };
+  const persistedIds = new Set(persisted.accounts.map((account) => account.id));
+  for (const { account } of created) {
+    assert.ok(persistedIds.has(account.id), `created account ${account.id} was silently dropped from accounts.json`);
+  }
+  assert.equal(persisted.accounts.length, 10);
+});
+
+test("concurrent addFishCredits to different accounts persist both balances", async () => {
+  const ledger = await useTempFishLedger();
+  const { addFishCredits, createApiKey } = await importFishLedger(ledger);
+  const first = await createApiKey("Concurrent credit A", 100);
+  const second = await createApiKey("Concurrent credit B", 100);
+
+  const [firstTopup, secondTopup] = await Promise.all([
+    addFishCredits({ accountId: first.account.id, amount: 50, lane: "prepaid", reason: "concurrent_topup_a", expiresAt: null }),
+    addFishCredits({ accountId: second.account.id, amount: 70, lane: "prepaid", reason: "concurrent_topup_b", expiresAt: null })
+  ]);
+  assert.equal(firstTopup.ok, true);
+  assert.equal(secondTopup.ok, true);
+
+  const persisted = JSON.parse(await readFile(path.join(ledger, "accounts.json"), "utf8")) as { accounts: Array<{ id: string; creditBalance: number }> };
+  const balances = new Map(persisted.accounts.map((account) => [account.id, account.creditBalance]));
+  assert.equal(balances.get(first.account.id), 150);
+  assert.equal(balances.get(second.account.id), 170);
+});
+
+test("mutators refuse to replace a corrupt accounts ledger", async () => {
+  const ledger = await useTempFishLedger();
+  const ledgerModule = await importFishLedger(ledger);
+  await ledgerModule.createApiKey("Pre-corruption key", 10);
+
+  const accountsFile = path.join(ledger, "accounts.json");
+  await writeFile(accountsFile, "{ not json");
+
+  await assert.rejects(() => ledgerModule.createApiKey("Post-corruption key", 10));
+  assert.equal(await readFile(accountsFile, "utf8"), "{ not json", "corrupt accounts.json must not be overwritten");
+});
+
+test("credit mutators refuse to replace a corrupt credit entries ledger", async () => {
+  const ledger = await useTempFishLedger();
+  const ledgerModule = await importFishLedger(ledger);
+  const { account } = await ledgerModule.createApiKey("Credit corruption key", 10);
+
+  const creditEntriesFile = path.join(ledger, "credit_entries.json");
+  await writeFile(creditEntriesFile, "{ not json");
+
+  await assert.rejects(() => ledgerModule.addFishCredits({ accountId: account.id, amount: 5, lane: "prepaid", reason: "corrupt_credit_entries_test", expiresAt: null }));
+  assert.equal(await readFile(creditEntriesFile, "utf8"), "{ not json", "corrupt credit_entries.json must not be overwritten");
 });
 
 async function useTempFishLedger() {

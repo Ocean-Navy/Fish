@@ -1,3 +1,4 @@
+import { getFishChatTimeoutMs, isAbortOrTimeoutError } from "@/lib/fishChatTimeout";
 import type { ChatCompletionInput, RunnerReceiptSummary } from "@/lib/fishLedger";
 import { readAndVerifyRunnerReceipt, runnerReceiptSha256 } from "@/lib/runnerReceipts";
 
@@ -62,30 +63,40 @@ export async function runOpenAiCompatibleChat(
     headers["x-fish-max-budget-usd"] = String(routeContext.maxBudgetUsd);
   }
 
-  const upstream = await fetch(endpoint, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({
-      model: config.model ?? input.model,
-      messages: input.messages,
-      stream: false,
-      ...(routeContext
-        ? {
-            metadata: {
-              ...(input.metadata ?? {}),
-              fish_route_id: routeContext.routeId,
-              idempotency_key: routeContext.idempotencyKey,
-              max_budget_usd: routeContext.maxBudgetUsd
+  let upstream: Response;
+  try {
+    upstream = await fetch(endpoint, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        model: config.model ?? input.model,
+        messages: input.messages,
+        stream: false,
+        ...(routeContext
+          ? {
+              metadata: {
+                ...(input.metadata ?? {}),
+                fish_route_id: routeContext.routeId,
+                idempotency_key: routeContext.idempotencyKey,
+                max_budget_usd: routeContext.maxBudgetUsd
+              }
             }
-          }
-        : input.metadata
-          ? { metadata: input.metadata }
-          : {}),
-      ...(input.temperature === undefined ? {} : { temperature: input.temperature }),
-      ...(input.max_tokens === undefined ? {} : { max_tokens: input.max_tokens })
-    }),
-    ...(routeContext?.timeoutMs ? { signal: AbortSignal.timeout(routeContext.timeoutMs) } : {})
-  });
+          : input.metadata
+            ? { metadata: input.metadata }
+            : {}),
+        ...(input.temperature === undefined ? {} : { temperature: input.temperature }),
+        ...(input.max_tokens === undefined ? {} : { max_tokens: input.max_tokens })
+      }),
+      // Every outbound call gets a timeout: a hung backend must not strand the request
+      // while it holds a credit reservation and a concurrency slot.
+      signal: AbortSignal.timeout(routeContext?.timeoutMs ?? getFishChatTimeoutMs())
+    });
+  } catch (error) {
+    if (isAbortOrTimeoutError(error)) {
+      throw new OpenAiCompatibleChatError(504, "openai_compatible_timeout");
+    }
+    throw error;
+  }
 
   const payload = await upstream.json().catch(() => null);
   if (!upstream.ok) {

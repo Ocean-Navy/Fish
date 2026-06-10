@@ -16,6 +16,7 @@ import {
   type RunnerReceiptSummary
 } from "@/lib/fishLedger";
 import { ExternalChatError, runExternalChat } from "@/lib/externalChat";
+import { getFishChatTimeoutMs } from "@/lib/fishChatTimeout";
 import { tryAcquireFishConcurrencySlot } from "@/lib/fishConcurrency";
 import { getFishBatchFeatureConfig, getFishFeaturePolicy, type FishBatchTaskType, type FishFeatureId } from "@/lib/fishFeaturePolicy";
 import { buildFishKnowledgeContext } from "@/lib/fishKnowledge";
@@ -329,7 +330,8 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
         {
           routeId: route,
           idempotencyKey: reservation.requestId,
-          maxBudgetUsd: estimateRouteMaxCostUsd(route, promptTokens, requestedMaxOutputTokens, routerConfig)
+          maxBudgetUsd: estimateRouteMaxCostUsd(route, promptTokens, requestedMaxOutputTokens, routerConfig),
+          timeoutMs: getFishChatTimeoutMs()
         }
       );
       content = warm.content;
@@ -449,7 +451,8 @@ export async function runFishChatGateway(input: ChatCompletionInput, context: Fi
         {
           routeId: route,
           idempotencyKey: reservation.requestId,
-          maxBudgetUsd: estimateRouteMaxCostUsd(route, promptTokens, requestedMaxOutputTokens, routerConfig)
+          maxBudgetUsd: estimateRouteMaxCostUsd(route, promptTokens, requestedMaxOutputTokens, routerConfig),
+          timeoutMs: getFishChatTimeoutMs()
         }
       );
       content = provider.content;

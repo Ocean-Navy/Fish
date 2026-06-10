@@ -2,18 +2,57 @@ import assert from "node:assert/strict";
 import { type AddressInfo } from "node:net";
 import { createServer, type IncomingMessage } from "node:http";
 import { afterEach, test } from "node:test";
-import { runOpenAiCompatibleChat } from "./openAiCompatibleChat";
+import { OpenAiCompatibleChatError, runOpenAiCompatibleChat } from "./openAiCompatibleChat";
 import { runnerReceiptSha256 } from "./runnerReceipts";
 
+const originalChatTimeoutMs = process.env.FISH_CHAT_TIMEOUT_MS;
 let activeServer: ReturnType<typeof createServer> | null = null;
 
 afterEach(async () => {
+  if (originalChatTimeoutMs === undefined) {
+    delete process.env.FISH_CHAT_TIMEOUT_MS;
+  } else {
+    process.env.FISH_CHAT_TIMEOUT_MS = originalChatTimeoutMs;
+  }
   if (activeServer) {
+    activeServer.closeAllConnections?.();
     await new Promise<void>((resolve, reject) => {
       activeServer?.close((error) => (error ? reject(error) : resolve()));
     });
     activeServer = null;
   }
+});
+
+test("OpenAI-compatible chat times out even when the caller passes no timeoutMs", async () => {
+  process.env.FISH_CHAT_TIMEOUT_MS = "150";
+  activeServer = createServer(() => {
+    // Never respond: simulates a hung warm/provider backend holding the socket open.
+  });
+  await new Promise<void>((resolve) => activeServer?.listen(0, "127.0.0.1", resolve));
+  const port = (activeServer.address() as AddressInfo).port;
+
+  const startedAt = Date.now();
+  await assert.rejects(
+    () =>
+      runOpenAiCompatibleChat(
+        {
+          model: "warm-model",
+          messages: [{ role: "user", content: "hello" }],
+          stream: false
+        },
+        {
+          baseUrl: `http://127.0.0.1:${port}`,
+          apiKey: null,
+          model: "warm-model",
+          providerId: "ocean-navy-demo-node",
+          costUsdPer1kTokens: 0.01
+        },
+        { promptTokens: 1, completionTokens: 1 },
+        { routeId: "ocean-demo-vllm", idempotencyKey: "timeout-test", maxBudgetUsd: 1 }
+      ),
+    (error: unknown) => error instanceof OpenAiCompatibleChatError && error.status === 504 && error.message === "openai_compatible_timeout"
+  );
+  assert.ok(Date.now() - startedAt < 5_000, "timeout must fire near the configured window, not hang");
 });
 
 test("OpenAI-compatible chat marks a replayed provider runner receipt invalid", async () => {

@@ -97,7 +97,7 @@ Purpose:
 - label live/sample state;
 - serve JSON endpoints.
 
-The original Python prototype remains in `backend/` as reference code. The production V0 path is the TypeScript/Next.js implementation.
+The production V0 path is the TypeScript/Next.js implementation. (The old Python `backend/` prototype and `legacy/static-prototype/` reference directories were removed in Phase 1.)
 
 ### Sample data
 

@@ -1,3 +1,4 @@
+import { getFishChatTimeoutMs, isAbortOrTimeoutError } from "@/lib/fishChatTimeout";
 import type { ChatCompletionInput } from "@/lib/fishLedger";
 
 const DEFAULT_EXTERNAL_PROVIDER_ID = "external-compatible";
@@ -55,20 +56,29 @@ export async function runExternalChat(input: ChatCompletionInput, fallbackTokenE
 
   const endpoint = `${config.baseUrl!.replace(/\/+$/, "")}/chat/completions`;
   const maxTokens = input.max_tokens ?? DEFAULT_EXTERNAL_CHAT_MAX_TOKENS;
-  const upstream = await fetch(endpoint, {
-    method: "POST",
-    headers: {
-      authorization: `Bearer ${config.apiKey}`,
-      "content-type": "application/json"
-    },
-    body: JSON.stringify({
-      model: config.model ?? input.model,
-      messages: input.messages,
-      stream: false,
-      max_tokens: maxTokens,
-      ...(input.temperature === undefined ? {} : { temperature: input.temperature })
-    })
-  });
+  let upstream: Response;
+  try {
+    upstream = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${config.apiKey}`,
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({
+        model: config.model ?? input.model,
+        messages: input.messages,
+        stream: false,
+        max_tokens: maxTokens,
+        ...(input.temperature === undefined ? {} : { temperature: input.temperature })
+      }),
+      signal: AbortSignal.timeout(getFishChatTimeoutMs())
+    });
+  } catch (error) {
+    if (isAbortOrTimeoutError(error)) {
+      throw new ExternalChatError(504, "external_chat_timeout");
+    }
+    throw error;
+  }
 
   const payload = await upstream.json().catch(() => null);
   if (!upstream.ok) {

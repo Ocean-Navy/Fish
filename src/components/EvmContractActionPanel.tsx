@@ -31,6 +31,7 @@ const CAPACITY_POOL_WRITES_ABI = [
 type ActionGroup = {
   title: string;
   note: string;
+  warning?: string;
   actions: Array<{
     id: FishContractActionId;
     label: string;
@@ -169,6 +170,12 @@ export function EvmContractActionPanel({ status }: { status: FishContractStatus 
               <p className="text-sm font-black text-white">{group.title}</p>
               <p className="mt-1 text-xs font-bold leading-5 text-fish-secondary">{group.note}</p>
             </div>
+            {group.warning ? (
+              <p role="note" className="mb-3 rounded-2xl border border-fish-gold/30 bg-fish-gold/10 p-3 text-xs font-bold leading-5 text-fish-primary">
+                <span className="font-black uppercase tracking-[0.08em] text-fish-gold">Hold your FISH: </span>
+                {group.warning}
+              </p>
+            ) : null}
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {group.actions.map((action) => (
                 <ActionButton key={action.id} label={action.label} actionId={action.id} busyAction={busyAction} disabled={!canWrite || !address || !chainMatches} onClick={sendAction} />
@@ -221,6 +228,8 @@ const actionGroups: ActionGroup[] = [
   {
     title: "Catch FISH",
     note: "Approve OCEAN, stake it, then lock sOCEAN to mint FISH.",
+    warning:
+      "Minting FISH locks your sOCEAN behind it. Keep that FISH in this wallet — burning it later is the only way to unlock your OCEAN. If you transfer the FISH away, the locked OCEAN is stranded until FISH returns to this wallet.",
     actions: [
       { id: "approve_ocean", label: "Approve OCEAN" },
       { id: "stake_ocean", label: "Stake OCEAN" },
@@ -248,6 +257,8 @@ const actionGroups: ActionGroup[] = [
   {
     title: "Unlock OCEAN",
     note: "Burn FISH to unlock sOCEAN, then start and finish the OCEAN cooldown.",
+    warning:
+      "You can only burn FISH you still hold, and burning is the only key to the sOCEAN locked behind it. FISH sent to another wallet strands your locked OCEAN until this wallet holds FISH again.",
     actions: [
       { id: "burn_fish", label: "Burn FISH" },
       { id: "claim_ocean_rewards", label: "Claim rewards" },

@@ -1,4 +1,4 @@
-import { mkdir, open, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, open, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { setTimeout as sleep } from "node:timers/promises";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import path from "node:path";
@@ -478,104 +478,108 @@ export function requireAdmin(request: Request): { ok: true } | { ok: false; stat
 }
 
 export async function createApiKey(label: string, creditGrant: number, planId: FishPlanId = "free") {
-  const ledger = await readLedger();
-  const key = `fish_sk_${randomBytes(24).toString("base64url")}`;
-  const now = new Date().toISOString();
-  const account: Account = {
-    id: randomUUID(),
-    label,
-    keyHash: hashSecret(key),
-    createdAt: now,
-    rotatedAt: null,
-    revokedAt: null,
-    planId,
-    planActivatedAt: now,
-    planExpiresAt: null,
-    planSource: "pilot_key",
-    creditBalance: creditGrant,
-    totalCreditsGranted: creditGrant,
-    totalCreditsSpent: 0,
-    requestCount: 0,
-    lastUsedAt: null
-  };
+  return withFishLedgerLock(async () => {
+    const ledger = await readLedger();
+    const key = `fish_sk_${randomBytes(24).toString("base64url")}`;
+    const now = new Date().toISOString();
+    const account: Account = {
+      id: randomUUID(),
+      label,
+      keyHash: hashSecret(key),
+      createdAt: now,
+      rotatedAt: null,
+      revokedAt: null,
+      planId,
+      planActivatedAt: now,
+      planExpiresAt: null,
+      planSource: "pilot_key",
+      creditBalance: creditGrant,
+      totalCreditsGranted: creditGrant,
+      totalCreditsSpent: 0,
+      requestCount: 0,
+      lastUsedAt: null
+    };
 
-  ledger.accounts.push(account);
-  await writeLedger(ledger);
-  await appendCreditEntry({
-    entryId: randomUUID(),
-    accountId: account.id,
-    lane: "grant",
-    kind: "grant",
-    amount: creditGrant,
-    requestId: null,
-    receiptId: null,
-    expiresAt: null,
-    createdAt: now,
-    operatorReason: "pilot_key_grant"
+    ledger.accounts.push(account);
+    await writeLedger(ledger);
+    await appendCreditEntry({
+      entryId: randomUUID(),
+      accountId: account.id,
+      lane: "grant",
+      kind: "grant",
+      amount: creditGrant,
+      requestId: null,
+      receiptId: null,
+      expiresAt: null,
+      createdAt: now,
+      operatorReason: "pilot_key_grant"
+    });
+
+    return {
+      key,
+      account: publicAccount(account)
+    };
   });
-
-  return {
-    key,
-    account: publicAccount(account)
-  };
 }
 
 export async function getOrCreateGuestAccount(guestId: string, creditGrant = 25) {
-  const ledger = await readLedger();
-  const id = guestAccountId(guestId);
-  const keyHash = guestAccountKeyHash(guestId);
-  const legacyKeyHash = hashSecret(`guest:${guestId}`);
-  const existing = ledger.accounts.find((candidate) => candidate.id === id || candidate.keyHash === keyHash || candidate.keyHash === legacyKeyHash);
-  if (existing) {
-    if (existing.keyHash !== keyHash || existing.planSource !== "guest_demo") {
-      existing.keyHash = keyHash;
-      existing.planSource = "guest_demo";
-      await writeLedger(ledger);
+  return withFishLedgerLock(async () => {
+    const ledger = await readLedger();
+    const id = guestAccountId(guestId);
+    const keyHash = guestAccountKeyHash(guestId);
+    const legacyKeyHash = hashSecret(`guest:${guestId}`);
+    const existing = ledger.accounts.find((candidate) => candidate.id === id || candidate.keyHash === keyHash || candidate.keyHash === legacyKeyHash);
+    if (existing) {
+      if (existing.keyHash !== keyHash || existing.planSource !== "guest_demo") {
+        existing.keyHash = keyHash;
+        existing.planSource = "guest_demo";
+        await writeLedger(ledger);
+      }
+      return {
+        ledger,
+        account: existing
+      };
     }
+
+    const now = new Date().toISOString();
+    const account: Account = {
+      id,
+      label: `Guest ${guestId.slice(0, 8)}`,
+      keyHash,
+      createdAt: now,
+      rotatedAt: null,
+      revokedAt: null,
+      planId: "free",
+      planActivatedAt: now,
+      planExpiresAt: null,
+      planSource: "guest_demo",
+      creditBalance: creditGrant,
+      totalCreditsGranted: creditGrant,
+      totalCreditsSpent: 0,
+      requestCount: 0,
+      lastUsedAt: null
+    };
+
+    ledger.accounts.push(account);
+    await writeLedger(ledger);
+    await appendCreditEntry({
+      entryId: randomUUID(),
+      accountId: account.id,
+      lane: "grant",
+      kind: "grant",
+      amount: creditGrant,
+      requestId: null,
+      receiptId: null,
+      expiresAt: null,
+      createdAt: now,
+      operatorReason: "guest_demo_grant"
+    });
+
     return {
       ledger,
-      account: existing
+      account
     };
-  }
-
-  const now = new Date().toISOString();
-  const account: Account = {
-    id,
-    label: `Guest ${guestId.slice(0, 8)}`,
-    keyHash,
-    createdAt: now,
-    rotatedAt: null,
-    revokedAt: null,
-    planId: "free",
-    planActivatedAt: now,
-    planExpiresAt: null,
-    planSource: "guest_demo",
-    creditBalance: creditGrant,
-    totalCreditsGranted: creditGrant,
-    totalCreditsSpent: 0,
-    requestCount: 0,
-    lastUsedAt: null
-  };
-
-  ledger.accounts.push(account);
-  await writeLedger(ledger);
-  await appendCreditEntry({
-    entryId: randomUUID(),
-    accountId: account.id,
-    lane: "grant",
-    kind: "grant",
-    amount: creditGrant,
-    requestId: null,
-    receiptId: null,
-    expiresAt: null,
-    createdAt: now,
-    operatorReason: "guest_demo_grant"
   });
-
-  return {
-    ledger,
-    account
-  };
 }
 
 export async function authenticateRequest(request: Request) {
@@ -680,140 +684,144 @@ export async function updateApiKey(_ledger: Ledger, account: Account, input: z.i
 }
 
 export async function addFishCredits(params: z.infer<typeof creditTopupSchema>) {
-  const ledger = await readLedger();
-  const account = ledger.accounts.find((candidate) => candidate.id === params.accountId);
-  if (!account) {
-    return {
-      ok: false as const,
-      status: 404,
-      error: "fish_account_not_found"
+  return withFishLedgerLock(async () => {
+    const ledger = await readLedger();
+    const account = ledger.accounts.find((candidate) => candidate.id === params.accountId);
+    if (!account) {
+      return {
+        ok: false as const,
+        status: 404,
+        error: "fish_account_not_found"
+      };
+    }
+
+    const now = new Date().toISOString();
+    await ensureAccountCreditSeed(account, now);
+    const existingEntries = await readCreditEntries(account.id);
+    const existingEntry = existingEntries.find((entry) => {
+      if (params.idempotencyKey && entry.idempotencyKey === params.idempotencyKey) {
+        return true;
+      }
+      if (params.paymentProviderEventId && entry.paymentProviderEventId === params.paymentProviderEventId) {
+        return true;
+      }
+      return false;
+    });
+
+    if (existingEntry) {
+      return {
+        ok: true as const,
+        idempotent: true,
+        account: publicAccount(account),
+        entry: existingEntry,
+        creditsRemaining: account.creditBalance
+      };
+    }
+
+    const amount = Math.max(1, Math.ceil(params.amount));
+    const entry: CreditLedgerEntry = {
+      entryId: randomUUID(),
+      accountId: account.id,
+      lane: params.lane,
+      kind: params.lane === "adjustment" ? "adjustment" : "grant",
+      amount,
+      requestId: null,
+      receiptId: null,
+      expiresAt: params.expiresAt ?? null,
+      createdAt: now,
+      operatorReason: params.reason,
+      idempotencyKey: params.idempotencyKey ?? null,
+      paymentProviderEventId: params.paymentProviderEventId ?? null
     };
-  }
 
-  const now = new Date().toISOString();
-  await ensureAccountCreditSeed(account, now);
-  const existingEntries = await readCreditEntries(account.id);
-  const existingEntry = existingEntries.find((entry) => {
-    if (params.idempotencyKey && entry.idempotencyKey === params.idempotencyKey) {
-      return true;
-    }
-    if (params.paymentProviderEventId && entry.paymentProviderEventId === params.paymentProviderEventId) {
-      return true;
-    }
-    return false;
-  });
+    account.creditBalance += amount;
+    account.totalCreditsGranted += amount;
+    await writeLedger(ledger);
+    await appendCreditEntry(entry);
 
-  if (existingEntry) {
     return {
       ok: true as const,
-      idempotent: true,
+      idempotent: false,
       account: publicAccount(account),
-      entry: existingEntry,
+      entry,
       creditsRemaining: account.creditBalance
     };
-  }
-
-  const amount = Math.max(1, Math.ceil(params.amount));
-  const entry: CreditLedgerEntry = {
-    entryId: randomUUID(),
-    accountId: account.id,
-    lane: params.lane,
-    kind: params.lane === "adjustment" ? "adjustment" : "grant",
-    amount,
-    requestId: null,
-    receiptId: null,
-    expiresAt: params.expiresAt ?? null,
-    createdAt: now,
-    operatorReason: params.reason,
-    idempotencyKey: params.idempotencyKey ?? null,
-    paymentProviderEventId: params.paymentProviderEventId ?? null
-  };
-
-  account.creditBalance += amount;
-  account.totalCreditsGranted += amount;
-  await writeLedger(ledger);
-  await appendCreditEntry(entry);
-
-  return {
-    ok: true as const,
-    idempotent: false,
-    account: publicAccount(account),
-    entry,
-    creditsRemaining: account.creditBalance
-  };
+  });
 }
 
 export async function activateFishSubscription(params: z.infer<typeof subscriptionActivationSchema>) {
-  const ledger = await readLedger();
-  const account = ledger.accounts.find((candidate) => candidate.id === params.accountId);
-  if (!account) {
-    return {
-      ok: false as const,
-      status: 404,
-      error: "fish_account_not_found"
+  return withFishLedgerLock(async () => {
+    const ledger = await readLedger();
+    const account = ledger.accounts.find((candidate) => candidate.id === params.accountId);
+    if (!account) {
+      return {
+        ok: false as const,
+        status: 404,
+        error: "fish_account_not_found"
+      };
+    }
+
+    const plan = getFishPlan(params.planId);
+    const now = new Date().toISOString();
+    const startsAt = params.startsAt ?? now;
+    const expiresAt = params.expiresAt === undefined ? addMonths(startsAt, 1) : params.expiresAt;
+    const creditGrant = params.creditGrant ?? plan.monthlyCreditGrant;
+    await ensureAccountCreditSeed(account, now);
+    const existingEntries = await readCreditEntries(account.id);
+    const existingEntry = existingEntries.find((entry) => {
+      if (params.idempotencyKey && entry.idempotencyKey === params.idempotencyKey) {
+        return true;
+      }
+      if (params.paymentProviderEventId && entry.paymentProviderEventId === params.paymentProviderEventId) {
+        return true;
+      }
+      return false;
+    });
+
+    if (existingEntry) {
+      return {
+        ok: true as const,
+        idempotent: true,
+        plan,
+        account: publicAccount(account),
+        entry: existingEntry,
+        creditsRemaining: account.creditBalance
+      };
+    }
+
+    const entry: CreditLedgerEntry = {
+      entryId: randomUUID(),
+      accountId: account.id,
+      lane: "subscription",
+      kind: "grant",
+      amount: creditGrant,
+      requestId: params.subscriptionRef ?? null,
+      receiptId: null,
+      expiresAt,
+      createdAt: now,
+      operatorReason: params.reason,
+      idempotencyKey: params.idempotencyKey ?? null,
+      paymentProviderEventId: params.paymentProviderEventId ?? null
     };
-  }
 
-  const plan = getFishPlan(params.planId);
-  const now = new Date().toISOString();
-  const startsAt = params.startsAt ?? now;
-  const expiresAt = params.expiresAt === undefined ? addMonths(startsAt, 1) : params.expiresAt;
-  const creditGrant = params.creditGrant ?? plan.monthlyCreditGrant;
-  await ensureAccountCreditSeed(account, now);
-  const existingEntries = await readCreditEntries(account.id);
-  const existingEntry = existingEntries.find((entry) => {
-    if (params.idempotencyKey && entry.idempotencyKey === params.idempotencyKey) {
-      return true;
-    }
-    if (params.paymentProviderEventId && entry.paymentProviderEventId === params.paymentProviderEventId) {
-      return true;
-    }
-    return false;
-  });
+    account.planId = plan.planId;
+    account.planActivatedAt = startsAt;
+    account.planExpiresAt = expiresAt;
+    account.planSource = "operator_subscription";
+    account.creditBalance += creditGrant;
+    account.totalCreditsGranted += creditGrant;
+    await writeLedger(ledger);
+    await appendCreditEntry(entry);
 
-  if (existingEntry) {
     return {
       ok: true as const,
-      idempotent: true,
+      idempotent: false,
       plan,
       account: publicAccount(account),
-      entry: existingEntry,
+      entry,
       creditsRemaining: account.creditBalance
     };
-  }
-
-  const entry: CreditLedgerEntry = {
-    entryId: randomUUID(),
-    accountId: account.id,
-    lane: "subscription",
-    kind: "grant",
-    amount: creditGrant,
-    requestId: params.subscriptionRef ?? null,
-    receiptId: null,
-    expiresAt,
-    createdAt: now,
-    operatorReason: params.reason,
-    idempotencyKey: params.idempotencyKey ?? null,
-    paymentProviderEventId: params.paymentProviderEventId ?? null
-  };
-
-  account.planId = plan.planId;
-  account.planActivatedAt = startsAt;
-  account.planExpiresAt = expiresAt;
-  account.planSource = "operator_subscription";
-  account.creditBalance += creditGrant;
-  account.totalCreditsGranted += creditGrant;
-  await writeLedger(ledger);
-  await appendCreditEntry(entry);
-
-  return {
-    ok: true as const,
-    idempotent: false,
-    plan,
-    account: publicAccount(account),
-    entry,
-    creditsRemaining: account.creditBalance
-  };
+  });
 }
 
 export async function summarizeAccount(account: Account) {
@@ -1394,6 +1402,10 @@ function isFileExistsError(error: unknown) {
   return typeof error === "object" && error !== null && "code" in error && (error as NodeJS.ErrnoException).code === "EEXIST";
 }
 
+function isFileNotFoundError(error: unknown) {
+  return typeof error === "object" && error !== null && "code" in error && (error as NodeJS.ErrnoException).code === "ENOENT";
+}
+
 let ledgerLock = Promise.resolve();
 
 async function withLedgerLock<T>(operation: () => Promise<T>): Promise<T> {
@@ -1428,15 +1440,35 @@ function findCurrentAuthenticatedAccount(ledger: Ledger, authenticatedAccount: A
 }
 
 async function readLedger(): Promise<Ledger> {
+  let raw: string;
   try {
-    const raw = await readFile(accountsPath(), "utf8");
-    const parsed = JSON.parse(raw) as Ledger;
-    return {
-      accounts: Array.isArray(parsed.accounts) ? parsed.accounts : []
-    };
-  } catch {
-    return { accounts: [] };
+    raw = await readFile(accountsPath(), "utf8");
+  } catch (error) {
+    if (isFileNotFoundError(error)) {
+      return { accounts: [] };
+    }
+    throw error;
   }
+
+  const parsed = parseLedgerJson<Ledger>(raw, accountsPath(), "fish_accounts_ledger_corrupt");
+  return {
+    accounts: Array.isArray(parsed.accounts) ? parsed.accounts : []
+  };
+}
+
+function parseLedgerJson<T>(raw: string, filePath: string, errorCode: string): T {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (error) {
+    console.error(`${errorCode}: ${filePath} contains invalid JSON; refusing to treat it as empty`, error);
+    throw new Error(`${errorCode}: ${filePath} contains invalid JSON; refusing to treat it as empty`);
+  }
+  if (!parsed || typeof parsed !== "object") {
+    console.error(`${errorCode}: ${filePath} does not contain a JSON object; refusing to treat it as empty`);
+    throw new Error(`${errorCode}: ${filePath} does not contain a JSON object; refusing to treat it as empty`);
+  }
+  return parsed as T;
 }
 
 let ledgerWriteQueue = Promise.resolve();
@@ -1445,8 +1477,7 @@ async function withLedgerMutation<T>(mutation: (ledger: Ledger) => Promise<T>): 
   const run = ledgerWriteQueue.then(async () => {
     const ledger = await readLedger();
     const result = await mutation(ledger);
-    await mkdir(ledgerDir(), { recursive: true });
-    await writeFile(accountsPath(), JSON.stringify(ledger, null, 2));
+    await writeJsonAtomic(accountsPath(), ledger);
     return result;
   });
   ledgerWriteQueue = run.then(
@@ -1463,17 +1494,32 @@ function syncLedgerAccountSnapshot(params: { ledger: Ledger; account: Account },
 
 async function writeLedger(ledger: Ledger) {
   const write = ledgerWriteQueue.then(async () => {
+    // Union with the accounts already on disk (keyed by id) so a writer holding a
+    // slightly stale snapshot can never silently drop accounts another writer added.
     const currentLedger = await readLedger();
     const currentAccountsById = new Map(currentLedger.accounts.map((account) => [account.id, account]));
+    const mergedAccountsById = new Map(currentAccountsById);
+    for (const account of ledger.accounts) {
+      mergedAccountsById.set(account.id, preserveCurrentRevocation(account, currentAccountsById.get(account.id)));
+    }
     const mergedLedger: Ledger = {
-      accounts: ledger.accounts.map((account) => preserveCurrentRevocation(account, currentAccountsById.get(account.id)))
+      accounts: [...mergedAccountsById.values()]
     };
 
-    await mkdir(ledgerDir(), { recursive: true });
-    await writeFile(accountsPath(), JSON.stringify(mergedLedger, null, 2));
+    await writeJsonAtomic(accountsPath(), mergedLedger);
   });
   ledgerWriteQueue = write.catch(() => undefined);
   await write;
+}
+
+async function writeJsonAtomic(filePath: string, data: unknown) {
+  // Write to a temp file in the same directory, then rename. The same-dir constraint
+  // keeps the rename atomic (cross-device renames are copies, not atomic swaps).
+  const dir = path.dirname(filePath);
+  await mkdir(dir, { recursive: true });
+  const tempPath = path.join(dir, `${path.basename(filePath)}.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`);
+  await writeFile(tempPath, JSON.stringify(data, null, 2));
+  await rename(tempPath, filePath);
 }
 
 function preserveCurrentRevocation(account: Account, currentAccount?: Account): Account {
@@ -1490,20 +1536,24 @@ function preserveCurrentRevocation(account: Account, currentAccount?: Account): 
 }
 
 async function readCreditLedger(): Promise<CreditLedger> {
+  let raw: string;
   try {
-    const raw = await readFile(creditEntriesPath(), "utf8");
-    const parsed = JSON.parse(raw) as CreditLedger;
-    return {
-      entries: Array.isArray(parsed.entries) ? parsed.entries.filter(isCreditEntry) : []
-    };
-  } catch {
-    return { entries: [] };
+    raw = await readFile(creditEntriesPath(), "utf8");
+  } catch (error) {
+    if (isFileNotFoundError(error)) {
+      return { entries: [] };
+    }
+    throw error;
   }
+
+  const parsed = parseLedgerJson<CreditLedger>(raw, creditEntriesPath(), "fish_credit_ledger_corrupt");
+  return {
+    entries: Array.isArray(parsed.entries) ? parsed.entries.filter(isCreditEntry) : []
+  };
 }
 
 async function writeCreditLedger(ledger: CreditLedger) {
-  await mkdir(ledgerDir(), { recursive: true });
-  await writeFile(creditEntriesPath(), JSON.stringify(ledger, null, 2));
+  await writeJsonAtomic(creditEntriesPath(), ledger);
 }
 
 async function readCreditEntries(accountId?: string): Promise<CreditLedgerEntry[]> {
@@ -1655,9 +1705,7 @@ function sumCreditLaneBalances(laneBalances: Map<CreditLane, number>) {
 }
 
 async function writeReceipt(receipt: UsageReceipt) {
-  const dir = receiptsDir();
-  await mkdir(dir, { recursive: true });
-  await writeFile(path.join(dir, `${receipt.createdAt}-${receipt.id}.json`.replaceAll(":", "-")), JSON.stringify(receipt, null, 2));
+  await writeJsonAtomic(path.join(receiptsDir(), `${receipt.createdAt}-${receipt.id}.json`.replaceAll(":", "-")), receipt);
 }
 
 async function readReceipts(accountId: string): Promise<UsageReceipt[]> {

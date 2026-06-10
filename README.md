@@ -928,7 +928,6 @@ data/provider_allowlist.example.json Provider allowlist template
 docs/                        Implementation and visual identity notes
 deploy/warm-inference/       Private vLLM and Fish Runner deployment examples
 deploy/ocean-demo-stack/     GPU VM Ocean Node, workload adapter, vLLM, and runner stack
-legacy/static-prototype/     Original static prototype
 Dockerfile                   Production standalone Next.js image
 docker-compose.yml           Production-like local service
 ```

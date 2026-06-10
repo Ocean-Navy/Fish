@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  app:
+    name: App (lint, typecheck, tests, build)
+    runs-on: ubuntu-latest
+    env:
+      # The build must never require live secrets; keep CI hermetic.
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Install
+        run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Typecheck
+        run: npm run typecheck
+      - name: App tests
+        run: npm run test:app
+      - name: Build
+        run: npm run build
+
+  contracts:
+    # Separate job so an app-only PR is not blocked by Solidity toolchain time.
+    name: Contracts (hardhat tests)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: contracts/package-lock.json
+      - name: Install contracts workspace
+        run: npm --prefix contracts ci
+      - name: Contracts tests (unit + invariants)
+        run: npm run contracts:test

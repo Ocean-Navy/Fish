@@ -64,8 +64,6 @@ docs/                        Feature plans, runbooks, and implementation contrac
 deploy/                      Docker, nginx, systemd, warm-inference deployment examples
 contracts/                   Prototype Solidity contracts and tests for OCEAN/FISH and capacity pool research
 data/*.json                  Checked-in examples and sample fallback data
-legacy/static-prototype/     Original static prototype reference
-backend/                     Older Python reference implementation
 issues/                      Workstream briefs
 ```
 
