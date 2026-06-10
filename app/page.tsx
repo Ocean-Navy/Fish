@@ -3,26 +3,22 @@ import {
   ArrowRight,
   BadgeDollarSign,
   Fish,
-  LockKeyhole,
   Route,
-  Send,
-  Sparkles,
-  Waves
+  Sparkles
 } from "lucide-react";
 import Image from "next/image";
 import type { Route as NextRoute } from "next";
 import Link from "next/link";
+import { DishShowcase } from "@/components/DishShowcase";
+import { HeroAskInput } from "@/components/HeroAskInput";
 import { InterestForm } from "@/components/InterestForm";
-import { MarketEntrances } from "@/components/MarketEntrances";
 import { MobileNavMenu } from "@/components/MobileNavMenu";
-import { VisualExplainers } from "@/components/VisualExplainers";
+import { MoreMenu } from "@/components/MoreMenu";
 
 const flow = [
-  { title: "Stake OCEAN", image: "/assets/generated/fish-flow-stake.webp", icon: LockKeyhole },
-  { title: "Catch FISH", image: "/assets/generated/fish-flow-catch.webp", icon: Fish },
-  { title: "Use AI", image: "/assets/generated/fish-flow-use.webp", icon: Sparkles },
-  { title: "Providers get paid from usage", image: "/assets/generated/fish-flow-paid.webp", icon: BadgeDollarSign },
-  { title: "Ocean grows", image: "/assets/generated/fish-flow-grow.webp", icon: Waves }
+  { title: "Ask Fish", body: "Type a question. Quick Catch answers, no account needed for a taste.", image: "/assets/generated/fish-flow-use.webp", icon: Sparkles },
+  { title: "Use credits", body: "Bigger dishes run on Fish credits — free taste, stake OCEAN, or top up.", image: "/assets/generated/fish-flow-stake.webp", icon: Fish },
+  { title: "Providers get paid from usage", body: "Real usage settles to GPU providers. Every step keeps a receipt.", image: "/assets/generated/fish-flow-paid.webp", icon: BadgeDollarSign }
 ];
 
 export default function Home() {
@@ -37,13 +33,20 @@ export default function Home() {
             <span className="text-lg font-black text-white">Fish</span>
           </a>
           <nav className="hidden items-center gap-6 text-sm font-black text-fish-secondary md:flex" aria-label="Primary navigation">
-            <a className="hover:text-white" href="#market">Market</a>
-            <a className="hover:text-white" href="#flow">Flow</a>
-            <a className="hover:text-white" href="#maps">Maps</a>
             <Link className="hover:text-white" href={"/ask" as NextRoute}>Ask Fish</Link>
+            <Link className="hover:text-white" href={"/credits" as NextRoute}>Credits</Link>
             <Link className="hover:text-white" href={"/proof" as NextRoute}>Proof</Link>
-            <Link className="hover:text-white" href={"/privacy" as NextRoute}>Data policy</Link>
-            <Link className="hover:text-white" href="/dashboard">Dashboard</Link>
+            <MoreMenu
+              links={[
+                { href: "/story", label: "The Fish story" },
+                { href: "/dashboard", label: "Dashboard" },
+                { href: "/providers", label: "Providers" },
+                { href: "/docs", label: "API docs" },
+                { href: "/roadmap", label: "Roadmap" },
+                { href: "/support", label: "Support" },
+                { href: "/privacy", label: "Data policy" }
+              ]}
+            />
           </nav>
           <div className="flex items-center gap-2">
             <a className="inline-flex h-10 items-center rounded-full bg-gradient-to-r from-fish-accent to-fish-aqua px-4 text-sm font-black text-fish-navy950" href="#pilot">
@@ -51,13 +54,13 @@ export default function Home() {
             </a>
             <MobileNavMenu
               links={[
-                { href: "/#market", label: "Market" },
-                { href: "/#flow", label: "Flow" },
-                { href: "/#maps", label: "Maps" },
                 { href: "/ask", label: "Ask Fish" },
+                { href: "/credits", label: "Credits" },
                 { href: "/proof", label: "Proof" },
-                { href: "/privacy", label: "Data policy" },
-                { href: "/dashboard", label: "Dashboard" }
+                { href: "/story", label: "The Fish story" },
+                { href: "/dashboard", label: "Dashboard" },
+                { href: "/support", label: "Support" },
+                { href: "/privacy", label: "Data policy" }
               ]}
             />
           </div>
@@ -78,47 +81,38 @@ export default function Home() {
             <p className="mt-6 text-4xl font-black leading-tight text-fish-primary sm:text-6xl">
               Pick an AI dish. Fish serves it.
             </p>
-            <Link
-              className="mt-8 flex min-h-16 max-w-2xl items-center justify-between gap-4 rounded-full border border-fish-accent/35 bg-white/95 px-5 text-left shadow-harbor transition hover:scale-[1.01]"
-              href={"/ask" as NextRoute}
-            >
-              <span className="truncate text-base font-black text-fish-navy900 sm:text-xl">Open the dish menu...</span>
-              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-gradient-to-r from-fish-accent to-fish-aqua text-fish-navy950">
-                <Send className="h-5 w-5" aria-hidden="true" />
-              </span>
-            </Link>
+            <HeroAskInput />
             <div className="mt-5 flex flex-wrap gap-3 text-base font-black text-white">
-              {["Docs Bento", "Repo Roll", "Eval Platter", "Data Sushi", "Quick Catch"].map((item) => (
+              {["Quick answers", "Docs", "Code", "Data", "Private by design"].map((item) => (
                 <span key={item} className="rounded-full border border-fish-accent/25 bg-fish-navy950/55 px-4 py-2">
                   {item}
                 </span>
               ))}
             </div>
             <div className="mt-9 flex flex-wrap gap-3">
-              <a className="inline-flex h-12 items-center gap-2 rounded-full bg-gradient-to-r from-fish-accent to-fish-aqua px-6 text-sm font-black text-fish-navy950" href="#market">
-                Enter market <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              <a className="inline-flex h-12 items-center gap-2 rounded-full border border-fish-accent/40 bg-fish-navy950/60 px-6 text-sm font-black text-white" href="#market">
+                See the menu <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </a>
-              <Link className="inline-flex h-12 items-center rounded-full border border-fish-accent/40 bg-fish-navy950/60 px-6 text-sm font-black text-white" href={"/ask" as NextRoute}>
-                Order a dish
-              </Link>
             </div>
           </div>
         </div>
       </section>
 
-      <MarketEntrances />
+      <DishShowcase />
 
       <section id="flow" className="relative px-4 py-16 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl">
           <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">Simple flow</p>
-              <h2 className="mt-2 text-4xl font-black text-white sm:text-6xl">The Fish flow</h2>
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">How it works</p>
+              <h2 className="mt-2 text-4xl font-black text-white sm:text-6xl">Three steps. Every step receipted.</h2>
             </div>
-            <p className="text-xl font-black text-fish-accent">Users buy AI. Providers get paid from real usage (pilot).</p>
+            <Link className="text-xl font-black text-fish-accent hover:text-white" href={"/story" as NextRoute}>
+              Want the full story? →
+            </Link>
           </div>
 
-          <div className="grid gap-3 md:grid-cols-5">
+          <div className="grid gap-3 md:grid-cols-3">
             {flow.map((item, index) => {
               const Icon = item.icon;
               return (
@@ -136,6 +130,7 @@ export default function Home() {
                     <div>
                       <Icon className="mb-3 h-7 w-7 text-fish-aqua" aria-hidden="true" />
                       <h3 className="text-2xl font-black leading-tight text-white">{item.title}</h3>
+                      <p className="mt-2 text-sm font-bold leading-6 text-fish-primary">{item.body}</p>
                     </div>
                   </div>
                 </article>
@@ -144,8 +139,6 @@ export default function Home() {
           </div>
         </div>
       </section>
-
-      <VisualExplainers />
 
       <section className="px-4 py-16 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl overflow-hidden rounded-[2rem] border border-fish-accent/25 bg-fish-surface shadow-harbor">

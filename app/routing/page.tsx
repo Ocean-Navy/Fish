@@ -2,6 +2,7 @@ import { Anchor, BadgeCheck, Compass, FileText, Fish, LockKeyhole, Route as Rout
 import type { Metadata } from "next";
 import type { Route } from "next";
 import Link from "next/link";
+import { AdvancedModeToggle, AdvancedOnly } from "@/components/AdvancedMode";
 import { RolePageShell } from "@/components/RolePageShell";
 import { getFishRoutePolicy, type RouteModeState } from "@/lib/routePolicy";
 
@@ -64,10 +65,16 @@ export default function RoutingPage() {
       imageAlt="Fish route compass in a Venice Ocean Navy workshop"
       chips={["Demo", "Outside AI", "Ocean providers", "Private later"]}
       primaryAction={{ label: "Ask Fish", href: "/ask" as Route }}
-      secondaryAction={{ label: "Open API board", href: "/api" }}
+      secondaryAction={{ label: "API docs", href: "/docs" }}
       steps={steps}
       note="Fish labels every route. If selected Ocean providers did not run the work, Fish will say so."
     >
+      <section className="px-4 pb-6 sm:px-6 lg:px-8">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
+          <p className="text-sm font-bold text-fish-secondary">Simple view shows where your request goes today. Advanced shows every route and cap.</p>
+          <AdvancedModeToggle />
+        </div>
+      </section>
       <section className="px-4 pb-14 sm:px-6 lg:px-8">
         <div className="mx-auto grid max-w-7xl gap-4 lg:grid-cols-[0.7fr_1.3fr]">
           <div className="rounded-[2rem] border border-fish-accent/25 bg-fish-surface/80 p-6 shadow-harbor sm:p-8">
@@ -83,6 +90,28 @@ export default function RoutingPage() {
             </div>
           </div>
 
+          <div className="grid content-start gap-3">
+            <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">Privacy, in four steps</p>
+            {[
+              { tier: "Today", title: "Demo answers", body: "Mock answers stay inside the app. Nothing leaves the harbor." },
+              { tier: "Today", title: "Warm Ocean demo", body: "Prompts go to the Ocean Navy demo kitchen. Receipts keep numbers and hashes, never your text." },
+              { tier: "Next", title: "Selected Ocean providers", body: "Vetted providers cook with signed receipts proving who did the work." },
+              { tier: "Later", title: "Private lanes", body: "Reviewed no-retention policies, hardened runners, then hardware-backed privacy." }
+            ].map((row) => (
+              <article key={row.title} className="grid grid-cols-[4.5rem_1fr] items-start gap-4 rounded-[1.5rem] border border-fish-accent/20 bg-fish-surface/80 p-5 shadow-harbor">
+                <span className="rounded-full border border-fish-gold/30 bg-fish-gold/10 px-2 py-1 text-center text-xs font-black uppercase tracking-[0.06em] text-fish-gold">{row.tier}</span>
+                <div>
+                  <h3 className="text-xl font-black text-white">{row.title}</h3>
+                  <p className="mt-1 text-sm font-bold leading-6 text-fish-secondary">{row.body}</p>
+                </div>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+      <AdvancedOnly>
+      <section className="px-4 pb-14 sm:px-6 lg:px-8">
+        <div className="mx-auto grid max-w-7xl gap-4">
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {policy.modes.map((mode) => {
               const Icon = modeIcons[mode.id];
@@ -104,37 +133,36 @@ export default function RoutingPage() {
               );
             })}
           </div>
-        </div>
-      </section>
 
-      <section className="px-4 pb-14 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-7xl rounded-[2rem] border border-fish-accent/25 bg-fish-surface/80 p-6 shadow-harbor sm:p-8">
-          <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">AI menu policy</p>
-              <h2 className="mt-2 text-3xl font-black text-white sm:text-5xl">Ocean-first, fallback-safe.</h2>
+          <div className="rounded-[2rem] border border-fish-accent/25 bg-fish-surface/80 p-6 shadow-harbor sm:p-8">
+            <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">AI menu policy</p>
+                <h2 className="mt-2 text-3xl font-black text-white sm:text-5xl">Ocean-first, fallback-safe.</h2>
+              </div>
+              <p className="max-w-lg text-base font-bold leading-7 text-fish-secondary">The meal counter stays simple. Fish keeps the route rules behind the counter.</p>
             </div>
-            <p className="max-w-lg text-base font-bold leading-7 text-fish-secondary">The meal counter stays simple. Fish keeps the route rules behind the counter.</p>
-          </div>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {policy.features.map((feature) => (
-              <article key={feature.id} className="rounded-3xl border border-fish-accent/15 bg-white/[0.035] p-5">
-                <div className="flex items-start justify-between gap-3">
-                  <h3 className="text-2xl font-black text-white">{feature.label}</h3>
-                  <span className={`rounded-full border px-3 py-1 text-xs font-black uppercase tracking-[0.08em] ${featureStyles[feature.state]}`}>
-                    {feature.state.replace("-", " ")}
-                  </span>
-                </div>
-                <div className="mt-4 grid gap-2 text-sm font-bold leading-6 text-fish-secondary">
-                  <p><span className="text-fish-primary">Primary:</span> {feature.primary}</p>
-                  <p><span className="text-fish-primary">Fallback:</span> {feature.fallback}</p>
-                  <p><span className="text-fish-primary">Cap:</span> {feature.cap}</p>
-                </div>
-              </article>
-            ))}
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {policy.features.map((feature) => (
+                <article key={feature.id} className="rounded-3xl border border-fish-accent/15 bg-white/[0.035] p-5">
+                  <div className="flex items-start justify-between gap-3">
+                    <h3 className="text-2xl font-black text-white">{feature.label}</h3>
+                    <span className={`rounded-full border px-3 py-1 text-xs font-black uppercase tracking-[0.08em] ${featureStyles[feature.state]}`}>
+                      {feature.state.replace("-", " ")}
+                    </span>
+                  </div>
+                  <div className="mt-4 grid gap-2 text-sm font-bold leading-6 text-fish-secondary">
+                    <p><span className="text-fish-primary">Primary:</span> {feature.primary}</p>
+                    <p><span className="text-fish-primary">Fallback:</span> {feature.fallback}</p>
+                    <p><span className="text-fish-primary">Cap:</span> {feature.cap}</p>
+                  </div>
+                </article>
+              ))}
+            </div>
           </div>
         </div>
       </section>
+      </AdvancedOnly>
 
       <section className="px-4 pb-14 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl rounded-[2rem] border border-fish-accent/25 bg-fish-surface/80 p-6 shadow-harbor sm:p-8">

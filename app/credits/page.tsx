@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { AdvancedModeToggle, AdvancedOnly } from "@/components/AdvancedMode";
 import { EvmStakeIntentPanel } from "@/components/EvmStakeIntentPanel";
 import { FishContractsPanel } from "@/components/FishContractsPanel";
 import { RolePageShell } from "@/components/RolePageShell";
@@ -50,31 +51,56 @@ export default async function CreditsPage() {
       cards={cards}
       note="Credit rule: product first, token utility after usage. Fish credits should be backed by real demand and real payment coverage."
     >
-      <StakingCreditsPanel summary={stakingSummary} />
-      <TestnetFaucetPanel />
-      <FishContractsPanel status={contractStatus} />
-      <EvmStakeIntentPanel />
-      <section className="px-4 pb-14 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-7xl rounded-[2rem] border border-fish-gold/25 bg-fish-gold/10 p-6 shadow-harbor sm:p-8">
-          <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">Token later</p>
-          <div className="mt-4 grid gap-5 lg:grid-cols-[0.85fr_1.15fr] lg:items-start">
-            <div>
-              <h2 className="text-3xl font-black leading-tight text-white sm:text-5xl">Credits come after real use.</h2>
-              <p className="mt-3 text-lg font-bold leading-8 text-fish-primary">
-                Transferable credits only make sense after usage, reserves, payments, and controls are clear.
-              </p>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {tokenGuardrails.map((guardrail) => (
-                <article key={guardrail.title} className="rounded-3xl border border-fish-gold/20 bg-fish-navy950/45 p-5">
-                  <h3 className="text-xl font-black text-white">{guardrail.title}</h3>
-                  <p className="mt-2 text-sm font-bold leading-6 text-fish-secondary">{guardrail.body}</p>
-                </article>
-              ))}
-            </div>
+      <section className="px-4 pb-6 sm:px-6 lg:px-8">
+        <div className="mx-auto flex max-w-7xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h2 className="text-2xl font-black text-white sm:text-3xl">Three ways to get credits.</h2>
+          <div className="flex items-center gap-3">
+            <p className="hidden text-sm font-bold text-fish-secondary sm:block">Contract controls and full records:</p>
+            <AdvancedModeToggle />
+          </div>
+        </div>
+        <div className="mx-auto mt-4 grid max-w-7xl gap-3 md:grid-cols-3">
+          <div className="rounded-3xl border border-fish-accent/20 bg-fish-surface/80 p-5 shadow-harbor">
+            <p className="text-xs font-black uppercase tracking-[0.12em] text-fish-gold">1 · Free taste</p>
+            <p className="mt-2 text-base font-bold leading-7 text-fish-secondary">Claim playground tokens below and try Fish without real money.</p>
+          </div>
+          <div className="rounded-3xl border border-fish-accent/20 bg-fish-surface/80 p-5 shadow-harbor">
+            <p className="text-xs font-black uppercase tracking-[0.12em] text-fish-gold">2 · Stake OCEAN</p>
+            <p className="mt-2 text-base font-bold leading-7 text-fish-secondary">Lock OCEAN, record your intent, and the operator issues verified credits.</p>
+          </div>
+          <div className="rounded-3xl border border-fish-accent/20 bg-fish-surface/80 p-5 shadow-harbor">
+            <p className="text-xs font-black uppercase tracking-[0.12em] text-fish-gold">3 · Top up</p>
+            <p className="mt-2 text-base font-bold leading-7 text-fish-secondary">Card or USDC top-ups on your account tab, when billing is enabled.</p>
           </div>
         </div>
       </section>
+      <TestnetFaucetPanel />
+      <EvmStakeIntentPanel />
+      <AdvancedOnly>
+        <StakingCreditsPanel summary={stakingSummary} />
+        <FishContractsPanel status={contractStatus} />
+        <section className="px-4 pb-14 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-7xl rounded-[2rem] border border-fish-gold/25 bg-fish-gold/10 p-6 shadow-harbor sm:p-8">
+            <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">Token later</p>
+            <div className="mt-4 grid gap-5 lg:grid-cols-[0.85fr_1.15fr] lg:items-start">
+              <div>
+                <h2 className="text-3xl font-black leading-tight text-white sm:text-5xl">Credits come after real use.</h2>
+                <p className="mt-3 text-lg font-bold leading-8 text-fish-primary">
+                  Transferable credits only make sense after usage, reserves, payments, and controls are clear.
+                </p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {tokenGuardrails.map((guardrail) => (
+                  <article key={guardrail.title} className="rounded-3xl border border-fish-gold/20 bg-fish-navy950/45 p-5">
+                    <h3 className="text-xl font-black text-white">{guardrail.title}</h3>
+                    <p className="mt-2 text-sm font-bold leading-6 text-fish-secondary">{guardrail.body}</p>
+                  </article>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+      </AdvancedOnly>
     </RolePageShell>
   );
 }

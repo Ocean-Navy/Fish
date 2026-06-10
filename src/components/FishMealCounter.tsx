@@ -19,8 +19,11 @@ import type { LucideIcon } from "lucide-react";
 import type { Route } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { AdvancedModeToggle, useAdvancedMode } from "@/components/AdvancedMode";
 import { FISH_DISHES, type FishDishDefinition } from "@/lib/fishDishes";
+import { FISH_DISH_VISUALS } from "@/lib/fishDishVisuals";
 import { describeFishOrderError, type FishOrderErrorCopy } from "@/lib/fishErrorCopy";
 
 const MODEL_STORAGE_KEY = "fish-meal-counter-model-v1";
@@ -118,48 +121,7 @@ const futureDishes = dishes.filter((dish) => dish.lane === "future");
 const featuredDishes = [...oceanBatchDishes, ...quickDishes.filter((dish) => dish.id === "ask")];
 const moreDishes = [...quickDishes.filter((dish) => dish.id !== "ask"), ...futureDishes];
 
-const dishVisuals: Record<string, { image: string; alt: string }> = {
-  ask: {
-    image: "/assets/generated/fish-dish-quick-catch.webp",
-    alt: "Simple blue fish dish with a glowing answer pearl and Fish tokens in a Venice market"
-  },
-  code: {
-    image: "/assets/generated/fish-dish-code-roll.webp",
-    alt: "Sushi roll set with abstract coding shapes, circuit ribbons, and glowing Fish tokens"
-  },
-  explain: {
-    image: "/assets/generated/fish-dish-clear-broth.webp",
-    alt: "Clear blue soup with a glowing insight pearl and a small Fish menu plaque"
-  },
-  docs: {
-    image: "/assets/generated/fish-dish-docs-bento.webp",
-    alt: "Bento tray with folded documents, blue fish sushi, and glowing Fish tokens in a Venice market"
-  },
-  repo: {
-    image: "/assets/generated/fish-dish-repo-roll.webp",
-    alt: "Sushi roll platter with blue fish rolls, abstract code maps, and glowing Fish tokens"
-  },
-  eval: {
-    image: "/assets/generated/fish-dish-eval-platter.webp",
-    alt: "Seafood platter with blue fish bites, checkmark symbols, and glowing Fish tokens"
-  },
-  data: {
-    image: "/assets/generated/fish-dish-data-sushi.webp",
-    alt: "Sushi tray with blue fish pieces, organized data cubes, pearls, and glowing Fish tokens"
-  },
-  images: {
-    image: "/assets/generated/fish-dish-image-catch.webp",
-    alt: "Blue fish dish with glowing picture-frame tiles and color cubes"
-  },
-  proposal: {
-    image: "/assets/generated/fish-dish-proposal-platter.webp",
-    alt: "Proposal platter with parchment parcels, a quill garnish, envelope, and glowing Fish tokens"
-  },
-  ocean: {
-    image: "/assets/generated/fish-dish-ocean-special.webp",
-    alt: "Ocean routing platter with blue rolls, a glowing wave bowl, compass, and small boats"
-  }
-};
+const dishVisuals = FISH_DISH_VISUALS;
 
 function routeBadge(routePolicy: FishRoutePolicySummary | null): { label: string; className: string } {
   const accent = "border-fish-accent/25 bg-fish-accent/10 text-fish-accent";
@@ -213,6 +175,7 @@ function localOrderError(title: string, body: string): FishOrderErrorCopy {
 }
 
 export function FishMealCounter() {
+  const searchParams = useSearchParams();
   const [apiKey, setApiKey] = useState("");
   const [models, setModels] = useState<FishModel[]>([{ id: "fish-demo-chat", owned_by: "ocean-navy" }]);
   const [selectedModel, setSelectedModel] = useState("fish-demo-chat");
@@ -222,6 +185,9 @@ export function FishMealCounter() {
   const [result, setResult] = useState<DishResult | null>(null);
   const [error, setError] = useState<FishOrderErrorCopy | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [advancedMode] = useAdvancedMode();
+  const handledQueryRef = useRef(false);
+  const pendingAutoRunRef = useRef(false);
 
   const activeDish = useMemo(() => dishes.find((dish) => dish.id === activeDishId) ?? dishes[0], [activeDishId]);
   const activeVisual = dishVisuals[activeDish.id] ?? dishVisuals.ask;
@@ -232,9 +198,23 @@ export function FishMealCounter() {
   const activeDishNeedsKey = Boolean(activeDish.oceanBatch && !apiKey.trim());
 
   useEffect(() => {
+    // Landing handoff: /ask?q=... runs the question immediately as a Quick Catch
+    // order; /ask?dish=... pre-selects a dish from the showcase cards.
+    const dishParam = searchParams.get("dish");
+    const validDishParam = dishParam && dishes.some((dish) => dish.id === dishParam && !dish.disabled) ? dishParam : null;
+    const question = searchParams.get("q");
+
     Promise.resolve().then(() => {
       setSelectedModel(readStoredModel());
-      setActiveDishId(readStoredDish());
+      setActiveDishId(validDishParam ?? readStoredDish());
+      if (question && !handledQueryRef.current) {
+        handledQueryRef.current = true;
+        if (!validDishParam) {
+          setActiveDishId("ask");
+        }
+        pendingAutoRunRef.current = true;
+        setPrompt(question);
+      }
     });
 
     fetch("/v1/models")
@@ -255,7 +235,15 @@ export function FishMealCounter() {
         }
       })
       .catch(() => undefined);
-  }, []);
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (pendingAutoRunRef.current && prompt.trim() && !isLoading) {
+      pendingAutoRunRef.current = false;
+      void sendPrompt();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prompt]);
 
   useEffect(() => {
     try {
@@ -292,7 +280,7 @@ export function FishMealCounter() {
       return;
     }
     if (activeDishNeedsKey) {
-      setError(localOrderError("Deep dishes need a key", "Add a Fish API key in Details, or pick Quick Catch for the free taste."));
+      setError(localOrderError("Deep dishes need a key", "Turn on Advanced mode to paste your Fish API key, or pick Quick Catch for the free taste."));
       return;
     }
 
@@ -364,79 +352,10 @@ export function FishMealCounter() {
     }
   }
 
+  const enabledDishes = dishes.filter((dish) => !dish.disabled);
+
   return (
-    <div className="grid gap-5 lg:grid-cols-[0.95fr_1.05fr]">
-      <section className="rounded-[2rem] border border-fish-accent/25 bg-fish-surface/80 p-4 shadow-harbor sm:p-5">
-        <div className="flex items-end justify-between gap-3">
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">Menu</p>
-            <h2 className="text-3xl font-black text-white">Pick a dish.</h2>
-          </div>
-          <span className={`rounded-full border px-3 py-1 text-xs font-black ${routeBadge(routePolicy).className}`}>{routeBadge(routePolicy).label}</span>
-        </div>
-
-        <div className="mt-5 grid gap-3 sm:grid-cols-2">
-          {featuredDishes.map((dish) => (
-            <DishCard key={dish.id} dish={dish} activeDishId={activeDish.id} onSelect={selectDish} />
-          ))}
-        </div>
-
-        <details className="mt-4 rounded-[1.5rem] border border-fish-accent/15 bg-white/[0.035] p-4">
-          <summary className="cursor-pointer text-sm font-black text-fish-primary">More dishes</summary>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            {moreDishes.map((dish) => (
-              <DishCard key={dish.id} dish={dish} activeDishId={activeDish.id} onSelect={selectDish} compact />
-            ))}
-          </div>
-        </details>
-
-        <details className="mt-4 rounded-[1.5rem] border border-fish-accent/15 bg-fish-navy950/45 p-4">
-          <summary className="cursor-pointer text-sm font-black text-fish-primary">Details</summary>
-          <div className="mt-4 space-y-4">
-            <label className="block text-sm font-black text-fish-primary" htmlFor="fish-meal-api-key">
-              Fish API key <span className="text-fish-secondary">{activeDish.oceanBatch ? "(needed for deep dishes)" : "(optional)"}</span>
-            </label>
-            <input
-              id="fish-meal-api-key"
-              value={apiKey}
-              onChange={(event) => setApiKey(event.target.value)}
-              type="password"
-              autoComplete="off"
-              placeholder={activeDish.oceanBatch ? "Paste your Fish API key" : "Leave empty for a small demo"}
-              className="h-12 w-full rounded-2xl border border-fish-accent/25 bg-fish-navy950/70 px-4 text-sm font-bold text-white outline-none transition placeholder:text-fish-muted focus:border-fish-accent"
-            />
-
-            <label className="block text-sm font-black text-fish-primary" htmlFor="fish-meal-model">
-              Model
-            </label>
-            <select
-              id="fish-meal-model"
-              value={selectedModel}
-              onChange={(event) => setSelectedModel(event.target.value)}
-              className="h-12 w-full rounded-2xl border border-fish-accent/25 bg-fish-navy950/70 px-4 text-sm font-black text-white outline-none transition focus:border-fish-accent"
-            >
-              {models.map((model) => (
-                <option key={model.id} value={model.id}>
-                  {model.id}
-                </option>
-              ))}
-            </select>
-
-            <div className="grid gap-3 sm:grid-cols-3">
-              <Link className="rounded-2xl border border-fish-accent/15 bg-white/[0.035] p-4 text-sm font-black text-fish-primary hover:border-fish-accent hover:text-white" href={"/privacy" as Route}>
-                Data policy
-              </Link>
-              <Link className="rounded-2xl border border-fish-accent/15 bg-white/[0.035] p-4 text-sm font-black text-fish-primary hover:border-fish-accent hover:text-white" href={"/api" as Route}>
-                API docs
-              </Link>
-              <Link className="rounded-2xl border border-fish-accent/15 bg-white/[0.035] p-4 text-sm font-black text-fish-primary hover:border-fish-accent hover:text-white" href={"/proof" as Route}>
-                Proof
-              </Link>
-            </div>
-          </div>
-        </details>
-      </section>
-
+    <div className="grid gap-5 lg:grid-cols-[1.05fr_0.95fr]">
       <section className="rounded-[2rem] border border-fish-accent/25 bg-fish-surface/80 p-4 shadow-harbor sm:p-5">
         <div className="relative aspect-[16/9] overflow-hidden rounded-[1.5rem] border border-fish-accent/20 bg-fish-navy950">
           <Image src={activeVisual.image} alt={activeVisual.alt} fill sizes="(min-width: 1024px) 48vw, 100vw" className="object-cover transition duration-300" />
@@ -454,14 +373,24 @@ export function FishMealCounter() {
           id="fish-meal-prompt"
           value={prompt}
           onChange={(event) => setPrompt(event.target.value)}
-          rows={7}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && !event.shiftKey) {
+              event.preventDefault();
+              if (!isLoading) {
+                void sendPrompt();
+              }
+            }
+          }}
+          autoFocus
+          rows={6}
           placeholder={activeDish.placeholder}
           className="mt-2 w-full resize-none rounded-[1.5rem] border border-fish-accent/25 bg-fish-navy950/70 p-4 text-base font-bold leading-7 text-white outline-none transition placeholder:text-fish-muted focus:border-fish-accent"
         />
+        <p className="mt-2 text-xs font-bold text-fish-muted">Enter to send · Shift+Enter for a new line</p>
 
         {activeDishNeedsKey ? (
           <div className="mt-4 rounded-2xl border border-fish-gold/25 bg-fish-gold/10 p-4 text-sm font-black leading-6 text-fish-primary">
-            Deep dishes need a Fish API key. Add one in Details, or pick Quick Catch for a free taste.
+            Deep dishes need a Fish API key. Turn on Advanced mode to paste one, or pick Quick Catch for a free taste.
           </div>
         ) : null}
 
@@ -500,17 +429,6 @@ export function FishMealCounter() {
           </button>
         </div>
 
-        <details className="mt-5 rounded-[1.5rem] border border-fish-accent/15 bg-white/[0.035] p-4 text-sm font-bold leading-6 text-fish-secondary">
-          <summary className="cursor-pointer font-black text-fish-primary">How this order is handled</summary>
-          <p className="mt-3">
-            {activeDish.oceanBatch
-              ? oceanBatchPrivatePayload
-                ? "Fish uses your order to make the result. Receipts never show the raw order or answer."
-                : "Fish can make a receipt without showing the raw order."
-              : "No key needed for a small daily demo. API keys unlock more usage."}
-          </p>
-        </details>
-
         <div className="mt-5 min-h-80 rounded-[1.5rem] border border-fish-accent/20 bg-fish-navy950/45 p-5">
           {isLoading ? (
             <div className="flex h-64 items-center justify-center gap-3 text-sm font-black text-fish-primary">
@@ -527,6 +445,10 @@ export function FishMealCounter() {
                 <span className="inline-flex h-9 w-fit items-center rounded-full bg-fish-accent/15 px-3 text-xs font-black uppercase tracking-[0.08em] text-fish-accent">{result.dishTitle}</span>
               </div>
               <ResultContent content={result.content} />
+              <p className="mt-4 text-sm font-bold text-fish-secondary">
+                {result.creditsSpent ?? 0} credit{(result.creditsSpent ?? 0) === 1 ? "" : "s"} · {result.routeLabel ?? formatBadge(result.route ?? "demo")}
+                {result.runnerSignatureState === "verified" ? <span className="text-emerald-200"> · receipt verified ✓</span> : result.costState ? <span> · {formatBadge(result.costState)}</span> : null}
+              </p>
               {result.privacyDowngradeReason ? (
                 <p className="mt-3 rounded-2xl border border-fish-gold/25 bg-fish-gold/10 p-4 text-sm font-black leading-6 text-fish-primary">
                   Privacy mode changed: {formatBadge(result.privacyDowngradeReason)}.
@@ -621,11 +543,107 @@ export function FishMealCounter() {
             <div className="grid h-64 place-items-center text-center">
               <div>
                 <Fish className="mx-auto h-10 w-10 text-fish-accent" aria-hidden="true" />
-                <p className="mx-auto mt-4 max-w-sm text-xl font-black leading-8 text-fish-primary">Choose a dish and place a small order.</p>
+                <p className="mx-auto mt-4 max-w-sm text-xl font-black leading-8 text-fish-primary">Ask anything. Fish serves it.</p>
               </div>
             </div>
           )}
         </div>
+      </section>
+
+      <section className="rounded-[2rem] border border-fish-accent/25 bg-fish-surface/80 p-4 shadow-harbor sm:p-5">
+        <div className="flex items-end justify-between gap-3">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">Menu</p>
+            <h2 className="text-3xl font-black text-white">Pick a dish.</h2>
+          </div>
+          <span className={`rounded-full border px-3 py-1 text-xs font-black ${routeBadge(routePolicy).className}`}>{routeBadge(routePolicy).label}</span>
+        </div>
+
+        <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label="Dish quick picker">
+          {enabledDishes.map((dish) => (
+            <button
+              key={dish.id}
+              type="button"
+              onClick={() => selectDish(dish.id)}
+              aria-pressed={dish.id === activeDish.id}
+              className={`inline-flex h-10 items-center gap-2 rounded-full border px-4 text-sm font-black transition ${
+                dish.id === activeDish.id ? "border-fish-accent bg-fish-accent/15 text-white" : "border-fish-accent/25 bg-fish-navy950/55 text-fish-primary hover:border-fish-accent/55 hover:text-white"
+              }`}
+            >
+              {dish.title}
+            </button>
+          ))}
+        </div>
+
+        <details className="mt-4 rounded-[1.5rem] border border-fish-accent/15 bg-white/[0.035] p-4">
+          <summary className="cursor-pointer text-sm font-black text-fish-primary">Full menu with pictures</summary>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            {featuredDishes.map((dish) => (
+              <DishCard key={dish.id} dish={dish} activeDishId={activeDish.id} onSelect={selectDish} />
+            ))}
+            {moreDishes.map((dish) => (
+              <DishCard key={dish.id} dish={dish} activeDishId={activeDish.id} onSelect={selectDish} compact />
+            ))}
+          </div>
+        </details>
+
+        <div className="mt-4 flex items-center justify-between gap-3 rounded-[1.5rem] border border-fish-accent/15 bg-fish-navy950/45 p-4">
+          <p className="text-sm font-bold leading-6 text-fish-secondary">{advancedMode ? "Model choice, API key, and route details." : "Need a model picker, an API key, or route details?"}</p>
+          <AdvancedModeToggle />
+        </div>
+
+        {advancedMode ? (
+          <div className="mt-4 space-y-4 rounded-[1.5rem] border border-fish-gold/20 bg-fish-navy950/45 p-4">
+            <label className="block text-sm font-black text-fish-primary" htmlFor="fish-meal-api-key">
+              Fish API key <span className="text-fish-secondary">{activeDish.oceanBatch ? "(needed for deep dishes)" : "(optional)"}</span>
+            </label>
+            <input
+              id="fish-meal-api-key"
+              value={apiKey}
+              onChange={(event) => setApiKey(event.target.value)}
+              type="password"
+              autoComplete="off"
+              placeholder={activeDish.oceanBatch ? "Paste your Fish API key" : "Leave empty for a small demo"}
+              className="h-12 w-full rounded-2xl border border-fish-accent/25 bg-fish-navy950/70 px-4 text-sm font-bold text-white outline-none transition placeholder:text-fish-muted focus:border-fish-accent"
+            />
+
+            <label className="block text-sm font-black text-fish-primary" htmlFor="fish-meal-model">
+              Model
+            </label>
+            <select
+              id="fish-meal-model"
+              value={selectedModel}
+              onChange={(event) => setSelectedModel(event.target.value)}
+              className="h-12 w-full rounded-2xl border border-fish-accent/25 bg-fish-navy950/70 px-4 text-sm font-black text-white outline-none transition focus:border-fish-accent"
+            >
+              {models.map((model) => (
+                <option key={model.id} value={model.id}>
+                  {model.id}
+                </option>
+              ))}
+            </select>
+
+            <div className="rounded-2xl border border-fish-accent/15 bg-white/[0.035] p-4 text-sm font-bold leading-6 text-fish-secondary">
+              {activeDish.oceanBatch
+                ? oceanBatchPrivatePayload
+                  ? "Fish uses your order to make the result. Receipts never show the raw order or answer."
+                  : "Fish can make a receipt without showing the raw order."
+                : "No key needed for a small daily demo. API keys unlock more usage."}
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-3">
+              <Link className="rounded-2xl border border-fish-accent/15 bg-white/[0.035] p-4 text-sm font-black text-fish-primary hover:border-fish-accent hover:text-white" href={"/privacy" as Route}>
+                Data policy
+              </Link>
+              <Link className="rounded-2xl border border-fish-accent/15 bg-white/[0.035] p-4 text-sm font-black text-fish-primary hover:border-fish-accent hover:text-white" href={"/docs" as Route}>
+                API docs
+              </Link>
+              <Link className="rounded-2xl border border-fish-accent/15 bg-white/[0.035] p-4 text-sm font-black text-fish-primary hover:border-fish-accent hover:text-white" href={"/proof" as Route}>
+                Proof
+              </Link>
+            </div>
+          </div>
+        ) : null}
       </section>
     </div>
   );

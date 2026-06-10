@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { MobileNavMenu } from "@/components/MobileNavMenu";
+import { MoreMenu } from "@/components/MoreMenu";
 
 type ShellCard = {
   title: string;
@@ -62,21 +63,26 @@ export function RolePageShell({
             <span className="text-lg font-black text-white">Fish</span>
           </Link>
           <nav className="hidden items-center gap-6 text-sm font-black text-fish-secondary md:flex" aria-label="Page navigation">
-            <Link className="hover:text-white" href="/#market">
-              Market
-            </Link>
             <Link className="hover:text-white" href={"/ask" as Route}>
               Ask Fish
             </Link>
-            <Link className="hover:text-white" href="/dashboard">
-              Dashboard
+            <Link className="hover:text-white" href={"/credits" as Route}>
+              Credits
             </Link>
-            <Link className="hover:text-white" href={"/privacy" as Route}>
-              Data policy
+            <Link className="hover:text-white" href={"/proof" as Route}>
+              Proof
             </Link>
-            <Link className="hover:text-white" href="/roadmap">
-              Roadmap
-            </Link>
+            <MoreMenu
+              links={[
+                { href: "/story", label: "The Fish story" },
+                { href: "/dashboard", label: "Dashboard" },
+                { href: "/providers", label: "Providers" },
+                { href: "/docs", label: "API docs" },
+                { href: "/roadmap", label: "Roadmap" },
+                { href: "/support", label: "Support" },
+                { href: "/privacy", label: "Data policy" }
+              ]}
+            />
           </nav>
           <div className="flex items-center gap-2">
             <Link className="inline-flex h-10 items-center rounded-full bg-gradient-to-r from-fish-accent to-fish-aqua px-4 text-sm font-black text-fish-navy950" href="/#pilot">
@@ -84,12 +90,14 @@ export function RolePageShell({
             </Link>
             <MobileNavMenu
               links={[
-                { href: "/#market", label: "Market" },
                 { href: "/ask", label: "Ask Fish" },
+                { href: "/credits", label: "Credits" },
+                { href: "/proof", label: "Proof" },
+                { href: "/story", label: "The Fish story" },
                 { href: "/dashboard", label: "Dashboard" },
-                { href: "/privacy", label: "Data policy" },
                 { href: "/roadmap", label: "Roadmap" },
-                { href: "/support", label: "Support" }
+                { href: "/support", label: "Support" },
+                { href: "/privacy", label: "Data policy" }
               ]}
             />
           </div>

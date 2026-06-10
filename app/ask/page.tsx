@@ -1,16 +1,17 @@
 import { ArrowLeft, Fish } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 import { FishMealCounter } from "@/components/FishMealCounter";
 
 export const metadata: Metadata = {
   title: "Ask Fish - AI meal counter",
-  description: "Pick a Fish AI dish and get a clear result."
+  description: "Ask anything. Fish serves it with a receipt."
 };
 
 export default function AskPage() {
   return (
-    <main className="min-h-screen px-4 pb-14 pt-24 sm:px-6 lg:px-8">
+    <main id="main-content" className="min-h-screen px-4 pb-14 pt-24 sm:px-6 lg:px-8">
       <header className="fixed inset-x-0 top-0 z-30 px-4 py-4 sm:px-6 lg:px-8">
         <div className="mx-auto flex h-14 max-w-7xl items-center justify-between rounded-full border border-fish-accent/20 bg-fish-navy950/75 px-3 pl-4 backdrop-blur-xl">
           <Link href="/" className="flex items-center gap-3" aria-label="Fish home">
@@ -32,9 +33,11 @@ export default function AskPage() {
             <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">Fish meal counter</p>
             <h1 className="text-5xl font-black leading-none text-white sm:text-6xl">Order. Eat.</h1>
           </div>
-          <p className="max-w-xl text-lg font-black leading-tight text-fish-primary">Pick a dish, tell Fish what to make, read the result.</p>
+          <p className="max-w-xl text-lg font-black leading-tight text-fish-primary">Tell Fish what to make. Read the result.</p>
         </div>
-        <FishMealCounter />
+        <Suspense fallback={<div className="grid h-64 place-items-center text-sm font-black text-fish-secondary">Opening the counter...</div>}>
+          <FishMealCounter />
+        </Suspense>
       </section>
     </main>
   );

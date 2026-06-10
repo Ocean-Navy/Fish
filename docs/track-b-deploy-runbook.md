@@ -61,8 +61,13 @@ Good output looks like:
 ```bash
 npm run secrets:public-testnet -- \
   --contract-deployment contracts/deployments/baseSepolia-<timestamp>.local.json \
-  --include-wallets --include-faucet > .env.public-testnet.local
+  --include-wallets --include-faucet \
+  --enable-contract-actions --enable-contract-settlement > .env.public-testnet.local
 ```
+
+Without the two `--enable-*` flags the generator emits `FISH_CONTRACT_ACTIONS_ENABLED=false` / `FISH_CONTRACT_SETTLEMENT_SUBMIT_ENABLED=false` (safe read-only default), and the app comes up in `configured_read_only` mode with all wallet actions disabled. The demo needs both `true`.
+
+When applying the overlay to an env file that already has working app secrets, copy only the `FISH_CONTRACT_*` and `FISH_TESTNET_*` keys — the generator mints fresh `FISH_ADMIN_TOKEN`/`FISH_GUEST_ID_SALT`/etc. on every run, and overwriting an in-use guest-ID salt orphans existing guest accounts.
 
 The script auto-fills the RPC (`https://sepolia.base.org`) and the faucet token addresses from the artifact; `--include-wallets`/`--include-faucet` are only valid because the artifact is Base Sepolia (`chainId 84532`). The output contains secrets — keep the file private.
 

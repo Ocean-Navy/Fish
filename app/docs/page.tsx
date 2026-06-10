@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { Route as NextRoute } from "next";
 import Link from "next/link";
+import { EndpointBoard } from "@/components/EndpointBoard";
 import { RolePageShell } from "@/components/RolePageShell";
 
 export const metadata: Metadata = {
@@ -92,6 +93,7 @@ export default function DocsPage() {
           </p>
         </div>
       </section>
+      <EndpointBoard />
     </RolePageShell>
   );
 }
