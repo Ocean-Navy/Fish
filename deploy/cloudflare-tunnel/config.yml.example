@@ -1,0 +1,18 @@
+# ~/.cloudflared/config.yml — Cloudflare Tunnel ingress for op.fish
+# Replace __TUNNEL_UUID__ with the UUID from `cloudflared tunnel create fish-web`
+# and __HOME__ with your home directory (the README sed does both).
+
+tunnel: __TUNNEL_UUID__
+credentials-file: __HOME__/.cloudflared/__TUNNEL_UUID__.json
+
+ingress:
+  - hostname: op.fish
+    service: http://127.0.0.1:3000
+    originRequest:
+      # Generous ceiling for warm-route answers; app-side cap is FISH_CHAT_TIMEOUT_MS.
+      connectTimeout: 30s
+  # Optional: serve www too (also run: cloudflared tunnel route dns fish-web www.op.fish)
+  # - hostname: www.op.fish
+  #   service: http://127.0.0.1:3000
+  # Required catch-all — never add the MLX (:8080) or runner (:8088) ports here.
+  - service: http_status:404
