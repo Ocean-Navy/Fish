@@ -40,9 +40,9 @@ export default function StoryPage() {
       <section className="px-4 pt-28 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl">
           <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">The full story</p>
-          <h1 className="mt-3 max-w-3xl text-5xl font-black leading-none text-white sm:text-7xl">One market. Four doors. Every step receipted.</h1>
+          <h1 className="mt-3 max-w-3xl text-5xl font-black leading-none text-white sm:text-7xl">One market. Four doors. Everyone eats well.</h1>
           <p className="mt-5 max-w-2xl text-2xl font-black leading-tight text-fish-primary">
-            The quick version lives on the front page. This is the whole harbor: who brings what, how money moves, and where OCEAN fits.
+            The quick version lives on the front page. This is the whole harbor: who brings what, how money moves, where OCEAN fits — and why every step leaves a receipt.
           </p>
         </div>
       </section>

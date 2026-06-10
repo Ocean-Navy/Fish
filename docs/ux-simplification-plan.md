@@ -59,6 +59,8 @@ A single `fish-ui-mode` flag (localStorage, same pattern as the dish/model persi
 
 ### 4.5 Copy rules (both modes)
 
+- **Dishes sell; receipts reassure.** People come to a market for the food, not the paperwork. User-facing simple surfaces lead with appetite — answers, speed, dishes, privacy as a benefit. Receipts and proof appear at the right moment (the bill after the meal, the receipt expander under the answer) and headline only where trust IS the product: `/proof`, the dashboard, provider/holder/operator surfaces, and Advanced mode. Owner-set principle; applied to the landing flow section, the skeptic section ("Don't take our word for it"), and the `/story` hero.
+
 - One metaphor layer per page: dishes on /ask, vault on /credits, harbor on /proof. Doors/boats/maps live on /story.
 - First use of a protocol term in simple mode gets a plain-language gloss or is omitted: "sOCEAN" → "your staked OCEAN", "runner receipt" → "signed kitchen receipt".
 - Every section: one heading, one job, one CTA (Venice discipline).

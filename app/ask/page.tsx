@@ -6,7 +6,7 @@ import { FishMealCounter } from "@/components/FishMealCounter";
 
 export const metadata: Metadata = {
   title: "Ask Fish - AI meal counter",
-  description: "Ask anything. Fish serves it with a receipt."
+  description: "Ask anything. Fish serves it — fast, private, and with an honest bill."
 };
 
 export default function AskPage() {

@@ -17,8 +17,8 @@ import { MoreMenu } from "@/components/MoreMenu";
 
 const flow = [
   { title: "Ask Fish", body: "Type a question. Quick Catch answers, no account needed for a taste.", image: "/assets/generated/fish-flow-use.webp", icon: Sparkles },
-  { title: "Use credits", body: "Bigger dishes run on Fish credits — free taste, stake OCEAN, or top up.", image: "/assets/generated/fish-flow-stake.webp", icon: Fish },
-  { title: "Providers get paid from usage", body: "Real usage settles to GPU providers. Every step keeps a receipt.", image: "/assets/generated/fish-flow-paid.webp", icon: BadgeDollarSign }
+  { title: "Order bigger dishes", body: "Docs, code, data — bigger dishes run on Fish credits: free taste, stake OCEAN, or top up.", image: "/assets/generated/fish-flow-stake.webp", icon: Fish },
+  { title: "The cooks get paid", body: "Your usage pays the GPU providers behind your dish — fairly, and visibly for anyone who wants to check.", image: "/assets/generated/fish-flow-paid.webp", icon: BadgeDollarSign }
 ];
 
 export default function Home() {
@@ -105,7 +105,7 @@ export default function Home() {
           <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">How it works</p>
-              <h2 className="mt-2 text-4xl font-black text-white sm:text-6xl">Three steps. Every step receipted.</h2>
+              <h2 className="mt-2 text-4xl font-black text-white sm:text-6xl">Order. Eat. Come back.</h2>
             </div>
             <Link className="text-xl font-black text-fish-accent hover:text-white" href={"/story" as NextRoute}>
               Want the full story? →
@@ -144,10 +144,10 @@ export default function Home() {
         <div className="mx-auto max-w-7xl overflow-hidden rounded-[2rem] border border-fish-accent/25 bg-fish-surface shadow-harbor">
           <div className="grid lg:grid-cols-[1.15fr_0.85fr]">
             <div className="p-6 sm:p-10">
-              <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">Want details?</p>
-              <h2 className="mt-3 text-4xl font-black leading-tight text-white sm:text-6xl">See what is live.</h2>
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-fish-gold">For the skeptics</p>
+              <h2 className="mt-3 text-4xl font-black leading-tight text-white sm:text-6xl">Don&apos;t take our word for it.</h2>
               <p className="mt-5 max-w-xl text-xl font-bold leading-8 text-fish-secondary">
-                Start with the simple proof page. Open the dashboard when you want the full numbers.
+                The kitchen runs in the open: live supply, real usage, public proof. The bill is always itemized — peek whenever you like.
               </p>
               <div className="mt-8 flex flex-wrap gap-3">
                 <Link className="inline-flex h-12 items-center gap-2 rounded-full bg-gradient-to-r from-fish-accent to-fish-aqua px-6 text-sm font-black text-fish-navy950" href={"/proof" as NextRoute}>
