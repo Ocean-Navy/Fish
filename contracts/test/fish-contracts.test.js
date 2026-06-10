@@ -11,7 +11,7 @@ describe("Fish OCEAN staking and capacity pool", function () {
 
     await expect(staking.connect(holder).mintFish(parse("50"), 0))
       .to.emit(staking, "FishMinted")
-      .withArgs(parse("50"), parse("5"));
+      .withArgs(holder.address, parse("50"), parse("5"));
 
     expect(await fish.balanceOf(holder.address)).to.equal(parse("5"));
     expect(await staking.balanceOfUnlocked(holder.address)).to.equal(parse("50"));
@@ -22,7 +22,9 @@ describe("Fish OCEAN staking and capacity pool", function () {
     );
 
     await fish.connect(holder).approve(await staking.getAddress(), parse("5"));
-    await staking.connect(holder).burnFish(parse("5"));
+    await expect(staking.connect(holder).burnFish(parse("5")))
+      .to.emit(staking, "FishBurned")
+      .withArgs(holder.address, parse("50"), parse("5"));
     expect(await fish.balanceOf(holder.address)).to.equal(0n);
     expect((await staking.lockedStakes(holder.address)).sOceanLockedAmount).to.equal(0n);
 

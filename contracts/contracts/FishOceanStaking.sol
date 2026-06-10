@@ -61,8 +61,8 @@ contract FishOceanStaking is Initializable, ERC20Upgradeable, OwnableUpgradeable
     event UnstakeInitiated(address indexed user, uint256 amount);
     event UnstakeFinalized(address indexed user, uint256 amount);
     event Claimed(address indexed user, uint256 amount);
-    event FishMinted(uint256 sOceanLocked, uint256 fishMinted);
-    event FishBurned(uint256 sOceanUnlocked, uint256 fishBurned);
+    event FishMinted(address indexed user, uint256 sOceanLocked, uint256 fishMinted);
+    event FishBurned(address indexed user, uint256 sOceanUnlocked, uint256 fishBurned);
     event TreasuryUpdated(address indexed newTreasury);
     event EmissionSourceUpdated(address indexed newEmissionSource);
     event EmissionReserveFunded(address indexed funder, uint256 amount);
@@ -232,7 +232,7 @@ contract FishOceanStaking is Initializable, ERC20Upgradeable, OwnableUpgradeable
         totalLockedStakedOcean += sOceanAmountToLock;
 
         stakes[msg.sender].rewardDebt = _getRewardDebt(msg.sender);
-        emit FishMinted(sOceanAmountToLock, fishAmountOut);
+        emit FishMinted(msg.sender, sOceanAmountToLock, fishAmountOut);
         fish.mint(msg.sender, fishAmountOut);
     }
 
@@ -254,7 +254,7 @@ contract FishOceanStaking is Initializable, ERC20Upgradeable, OwnableUpgradeable
         totalLockedStakedOcean -= sOceanToUnlock;
 
         stakes[msg.sender].rewardDebt = _getRewardDebt(msg.sender);
-        emit FishBurned(sOceanToUnlock, fishAmountToBurn);
+        emit FishBurned(msg.sender, sOceanToUnlock, fishAmountToBurn);
         fish.burn(msg.sender, fishAmountToBurn);
     }
 

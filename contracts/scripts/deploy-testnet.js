@@ -6,8 +6,13 @@ const parse = ethers.parseEther;
 const DEFAULT_TESTNET_FISH_COOLDOWN_SECONDS = 300;
 const DEFAULT_TESTNET_OCEAN_COOLDOWN_SECONDS = 300;
 const DEFAULT_TESTNET_MIN_UNSTAKE_BATCH_OPEN_SECONDS = 60;
+// Opt-in emission funding (FISH_TESTNET_FUND_EMISSIONS=true). Small testnet
+// values: 0.001 OCEAN/s ≈ 86.4 OCEAN/day; 5000 OCEAN ≈ 57 days of reserve.
+const DEFAULT_TESTNET_EMISSION_RATE_PER_SECOND = "0.001";
+const DEFAULT_TESTNET_EMISSION_FUND_AMOUNT = "5000";
 
-async function main() {
+async function main(options = {}) {
+  const { silent = false, writeDeployment = true } = options;
   if (network.name === "base") {
     throw new Error("This script is for testnet deployment. Do not run it against Base mainnet.");
   }
@@ -76,6 +81,13 @@ async function main() {
     await (await usdc.contract.mint(operator, ethers.parseUnits("1000000", 6))).wait();
   }
 
+  // Opt-in: unfunded deploys keep pendingRewards/claim() at zero by design
+  // (consistent with the "never claim guaranteed yield" invariant).
+  let emissionFunding = null;
+  if (flagEnv("FISH_TESTNET_FUND_EMISSIONS")) {
+    emissionFunding = await fundTestnetEmissions({ staking, ocean, deployer, emissionSource });
+  }
+
   const deployment = {
     network: network.name,
     chainId: Number((await ethers.provider.getNetwork()).chainId),
@@ -100,11 +112,48 @@ async function main() {
       fishCooldownSeconds,
       oceanCooldownSeconds,
       minUnstakeBatchOpenSeconds
-    }
+    },
+    emissionFunding
   };
 
-  await writeLocalDeployment(deployment);
-  printEnv(deployment);
+  if (writeDeployment) await writeLocalDeployment(deployment);
+  if (!silent) printEnv(deployment);
+  return deployment;
+}
+
+async function fundTestnetEmissions({ staking, ocean, deployer, emissionSource }) {
+  const rate = amountEnv("FISH_TESTNET_EMISSION_RATE_PER_SECOND", DEFAULT_TESTNET_EMISSION_RATE_PER_SECOND);
+  const amount = amountEnv("FISH_TESTNET_EMISSION_FUND_AMOUNT", DEFAULT_TESTNET_EMISSION_FUND_AMOUNT);
+
+  // fundEmissions is onlyEmissionSource (FishOceanStaking.sol:129-137); this
+  // script can only sign as the deployer, so the source must be the deployer.
+  if (emissionSource.toLowerCase() !== deployer.address.toLowerCase()) {
+    throw new Error(
+      "FISH_TESTNET_FUND_EMISSIONS=true requires the emission source to be the deployer " +
+        `(fundEmissions is restricted to the emission source). emissionSource=${emissionSource}, ` +
+        `deployer=${deployer.address}. Unset FISH_CONTRACT_EMISSION_SOURCE_ADDRESS, or deploy ` +
+        "unfunded and call setEmissionRate + approve + fundEmissions from that address afterwards."
+    );
+  }
+
+  const stakingAddress = await staking.getAddress();
+  const balance = await ocean.contract.balanceOf(deployer.address);
+  if (balance < amount) {
+    throw new Error(
+      `Deployer holds ${ethers.formatEther(balance)} OCEAN but FISH_TESTNET_EMISSION_FUND_AMOUNT ` +
+        `needs ${ethers.formatEther(amount)}. Top up or lower the amount.`
+    );
+  }
+
+  await (await staking.setEmissionRate(rate)).wait();
+  await (await ocean.contract.connect(deployer).approve(stakingAddress, amount)).wait();
+  await (await staking.connect(deployer).fundEmissions(amount)).wait();
+
+  return {
+    emissionRatePerSecond: rate.toString(),
+    fundedAmount: amount.toString(),
+    emissionReserve: (await staking.emissionReserve()).toString()
+  };
 }
 
 async function resolveToken({ address, decimals, deployer, name, symbol }) {
@@ -148,6 +197,23 @@ function secondsEnv(name, fallback) {
   return value;
 }
 
+function flagEnv(name) {
+  const value = process.env[name]?.trim().toLowerCase();
+  return value === "true" || value === "1" || value === "yes";
+}
+
+function amountEnv(name, fallback) {
+  const raw = process.env[name]?.trim() || fallback;
+  let value;
+  try {
+    value = parse(raw);
+  } catch {
+    throw new Error(`${name} must be a decimal OCEAN amount (e.g. "0.001"), got "${raw}".`);
+  }
+  if (value <= 0n) throw new Error(`${name} must be greater than zero, got "${raw}".`);
+  return value;
+}
+
 async function writeLocalDeployment(deployment) {
   const dir = path.join(__dirname, "..", "deployments");
   await fs.mkdir(dir, { recursive: true });
@@ -184,9 +250,23 @@ function printEnv(deployment) {
   console.log(`FISH cooldown: ${deployment.parameters.fishCooldownSeconds}s`);
   console.log(`OCEAN cooldown: ${deployment.parameters.oceanCooldownSeconds}s`);
   console.log(`Capacity batch open: ${deployment.parameters.minUnstakeBatchOpenSeconds}s`);
+
+  if (deployment.emissionFunding) {
+    console.log("\nEmission funding (FISH_TESTNET_FUND_EMISSIONS=true):");
+    console.log(`Emission rate: ${ethers.formatEther(deployment.emissionFunding.emissionRatePerSecond)} OCEAN/second`);
+    console.log(`Funded amount: ${ethers.formatEther(deployment.emissionFunding.fundedAmount)} OCEAN`);
+    console.log(`Emission reserve: ${ethers.formatEther(deployment.emissionFunding.emissionReserve)} OCEAN`);
+  } else {
+    console.log("\nEmissions not funded (set FISH_TESTNET_FUND_EMISSIONS=true to fund);");
+    console.log("pendingRewards/claim() stay zero by design on this deployment.");
+  }
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+if (require.main === module) {
+  main().catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  });
+}
+
+module.exports = { main };
