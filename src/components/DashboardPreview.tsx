@@ -35,7 +35,7 @@ export function DashboardPreview({ initialSummary }: { initialSummary: OceanSumm
     ["Available now", formatNumber(summary.kpis.availableGpus)],
     ["Providers", formatNumber(summary.kpis.providerCount)],
     ["Eligible nodes", formatNumber(summary.kpis.eligibleNodeCount)],
-    ["Fish-ready", formatNumber(summary.kpis.fishReadyProviderCount)],
+    ["Fish-ready providers", formatNumber(summary.kpis.fishReadyProviderCount)],
     ["Network jobs", formatCompact(summary.kpis.oceanNativeJobs)],
     ["Network revenue", summary.kpis.networkRevenueUsd === null ? "-" : formatUsd(summary.kpis.networkRevenueUsd)]
   ];
@@ -53,10 +53,11 @@ export function DashboardPreview({ initialSummary }: { initialSummary: OceanSumm
         <button
           type="button"
           onClick={refresh}
-          className="inline-flex h-12 items-center justify-center gap-2 rounded-full border border-fish-accent/40 bg-fish-raised/80 px-5 text-sm font-black text-fish-primary transition hover:border-fish-accent"
+          disabled={isPending}
+          className="inline-flex h-12 items-center justify-center gap-2 rounded-full border border-fish-accent/40 bg-fish-raised/80 px-5 text-sm font-black text-fish-primary transition hover:border-fish-accent disabled:cursor-wait disabled:opacity-60"
         >
           <RefreshCw className={`h-4 w-4 ${isPending ? "animate-spin" : ""}`} aria-hidden="true" />
-          Refresh
+          {isPending ? "Refreshing..." : "Refresh"}
         </button>
       </div>
 
@@ -67,7 +68,7 @@ export function DashboardPreview({ initialSummary }: { initialSummary: OceanSumm
         {error ? <span className="text-fish-coral">Refresh failed: {error}</span> : null}
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-7">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-7">
         {kpis.map(([label, value]) => (
           <div key={label} className="rounded-3xl border border-fish-accent/25 bg-fish-surface/75 p-5 shadow-glow">
             <p className="text-sm font-bold text-fish-secondary">{label}</p>
@@ -138,7 +139,7 @@ export function DashboardPreview({ initialSummary }: { initialSummary: OceanSumm
 
       {summary.warnings.length ? (
         <div className="mt-5 rounded-3xl border border-fish-gold/35 bg-fish-gold/10 p-5 text-sm leading-6 text-[#ffe6ac]">
-          {summary.warnings[0]}
+          {summary.warnings.join(" ")}
         </div>
       ) : null}
     </section>

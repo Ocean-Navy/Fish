@@ -78,7 +78,7 @@ export function ProviderBondsPanel({ summary }: { summary: ProviderBondSummary }
           <div className="mt-5 rounded-3xl border border-dashed border-fish-accent/25 bg-fish-navy950/40 p-6 text-lg font-black leading-8 text-fish-primary">No OCEAN bonds recorded yet.</div>
         )}
 
-        {summary.warnings.length ? <div className="mt-5 rounded-2xl border border-fish-gold/25 bg-fish-gold/10 p-4 text-sm font-bold leading-6 text-fish-primary">{summary.warnings[0]}</div> : null}
+        {summary.warnings.length ? <div className="mt-5 rounded-2xl border border-fish-gold/25 bg-fish-gold/10 p-4 text-sm font-bold leading-6 text-fish-primary">{summary.warnings.join(" ")}</div> : null}
       </div>
     </section>
   );

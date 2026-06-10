@@ -46,6 +46,7 @@ export function EvmContractActionPanel({ status }: { status: FishContractStatus 
   const [fishAmount, setFishAmount] = useState("100");
   const [batchId, setBatchId] = useState(() => String(status.onchain.capacityPool.oldestUnclaimedUnstakeBatch ?? 1));
   const [busyAction, setBusyAction] = useState<FishContractActionId | null>(null);
+  const [isConnecting, setIsConnecting] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -58,6 +59,10 @@ export function EvmContractActionPanel({ status }: { status: FishContractStatus 
       setError("No EVM wallet found in this browser.");
       return;
     }
+    if (isConnecting) {
+      return;
+    }
+    setIsConnecting(true);
     setError(null);
     setNotice(null);
     try {
@@ -70,6 +75,8 @@ export function EvmContractActionPanel({ status }: { status: FishContractStatus 
       setNotice("Wallet connected.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "wallet_connection_failed");
+    } finally {
+      setIsConnecting(false);
     }
   }
 
@@ -150,10 +157,11 @@ export function EvmContractActionPanel({ status }: { status: FishContractStatus 
         <button
           type="button"
           onClick={connectWallet}
-          className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-fish-accent/35 px-4 text-sm font-black text-fish-accent transition hover:bg-fish-accent/10"
+          disabled={isConnecting}
+          className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-fish-accent/35 px-4 text-sm font-black text-fish-accent transition hover:bg-fish-accent/10 disabled:cursor-wait disabled:opacity-60"
         >
-          <Wallet className="h-4 w-4" aria-hidden="true" />
-          {address ? formatEvmAddress(address) : "Connect"}
+          {isConnecting ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Wallet className="h-4 w-4" aria-hidden="true" />}
+          {isConnecting ? "Connecting..." : address ? formatEvmAddress(address) : "Connect"}
         </button>
       </div>
 
@@ -200,8 +208,8 @@ export function EvmContractActionPanel({ status }: { status: FishContractStatus 
       ) : null}
 
       {disabledReason ? <p className="mt-4 rounded-2xl border border-fish-gold/25 bg-fish-gold/10 p-4 text-sm font-black leading-6 text-fish-primary">{disabledReason}</p> : null}
-      {error ? <p className="mt-4 rounded-2xl border border-fish-coral/35 bg-fish-coral/10 p-4 text-sm font-black leading-6 text-fish-primary">{error}</p> : null}
-      {notice ? <p className="mt-4 break-all rounded-2xl border border-emerald-300/30 bg-emerald-400/10 p-4 text-sm font-black leading-6 text-emerald-100">{notice}</p> : null}
+      {error ? <p className="mt-4 rounded-2xl border border-fish-coral/35 bg-fish-coral/10 p-4 text-sm font-black leading-6 text-fish-primary" role="alert">{error}</p> : null}
+      {notice ? <p className="mt-4 break-all rounded-2xl border border-emerald-300/30 bg-emerald-400/10 p-4 text-sm font-black leading-6 text-emerald-100" role="status">{notice}</p> : null}
     </div>
   );
 }

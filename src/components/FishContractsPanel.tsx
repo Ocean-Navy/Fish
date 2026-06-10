@@ -59,7 +59,7 @@ export function FishContractsPanel({ status }: { status: FishContractStatus }) {
             <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-fish-gold" aria-hidden="true" />
             <div>
               <p className="text-sm font-black text-white">Safety rule</p>
-              <p className="mt-1 text-sm font-bold leading-6 text-fish-primary">{status.warnings[0]}</p>
+              <p className="mt-1 text-sm font-bold leading-6 text-fish-primary">{status.warnings.join(" ")}</p>
               {status.warnings[1] ? <p className="mt-1 text-sm font-bold leading-6 text-fish-secondary">{status.warnings[1]}</p> : null}
             </div>
           </div>

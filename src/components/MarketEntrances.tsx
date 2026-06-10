@@ -1,7 +1,9 @@
 "use client";
 
 import { ArrowRight, Coins, KeyRound, MessageSquareText, ServerCog } from "lucide-react";
+import type { Route } from "next";
 import Image from "next/image";
+import Link from "next/link";
 import { useState } from "react";
 
 const entrances = [
@@ -148,13 +150,13 @@ export function MarketEntrances() {
                     </div>
                   ))}
                 </div>
-                <a
-                  href={active.href}
+                <Link
+                  href={active.href as Route}
                   className="mt-4 inline-flex h-12 items-center gap-2 rounded-full bg-gradient-to-r from-fish-accent to-fish-aqua px-6 text-sm font-black text-fish-navy950"
                 >
                   {active.cta}
                   <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                </a>
+                </Link>
               </div>
             </div>
           </div>

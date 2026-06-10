@@ -18,7 +18,7 @@ The current `main` branch contains the public website, meal-counter prototype, p
 - Admin-only signup export for launch lead follow-up.
 - Prototype `/v1` AI API with local API keys, Fish Credits debits, and usage receipts.
 - `/ask` with a Fish meal counter: Ocean batch dishes (Docs Bento, Repo Roll, Eval Platter, Data Sushi) plus quick warm dishes.
-- `/api/meal/order` for a globally capped guest meal-counter demo without exposing a Fish API key.
+- `/api/meal/order` for globally capped guest chat orders without exposing a Fish API key (API-only; the `/ask` UI uses the per-dish `/api/dishes/{dishId}/run` route).
 - `/api/warm/status` for public-safe warm Ocean demo configuration snapshots without endpoint URLs, secrets, or live backend probes.
 - `/api/ocean/batch/jobs` for hash-only Ocean batch dish receipts, sample by default until a private batch adapter is configured.
 - `/api/ocean/batch/readiness` for a public-safe Milestone 3 gate before claiming real Ocean workload proof.

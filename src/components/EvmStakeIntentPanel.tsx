@@ -163,15 +163,15 @@ export function EvmStakeIntentPanel() {
               {isSigning ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <PenLine className="h-4 w-4" aria-hidden="true" />}
               Sign intent
             </button>
-            {error ? <div className="mt-4 rounded-2xl border border-fish-coral/35 bg-fish-coral/10 p-4 text-sm font-black text-fish-primary">{error}</div> : null}
-            {notice ? <div className="mt-4 rounded-2xl border border-emerald-300/30 bg-emerald-400/10 p-4 text-sm font-black text-emerald-100">{notice}</div> : null}
+            {error ? <div className="mt-4 rounded-2xl border border-fish-coral/35 bg-fish-coral/10 p-4 text-sm font-black text-fish-primary" role="alert">{error}</div> : null}
+            {notice ? <div className="mt-4 rounded-2xl border border-emerald-300/30 bg-emerald-400/10 p-4 text-sm font-black text-emerald-100" role="status">{notice}</div> : null}
           </div>
 
           <div className="rounded-3xl border border-fish-accent/15 bg-white/[0.035] p-5">
             <div className="grid gap-3 sm:grid-cols-2">
               <Metric label="Wallet" value={address ? formatEvmAddress(address) : "Not connected"} />
               <Metric label="Chain" value={chainId ? String(chainId) : "-"} />
-              <Metric label="Estimated credits" value={formatNumber(estimatedCredits)} />
+              <Metric label="Estimated credits (preview formula)" value={formatNumber(estimatedCredits)} />
               <Metric label="Credit state" value="Not issued" />
             </div>
             {intent ? (

@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 const steps = [
   { title: "Check the dock", body: "Use the health endpoint to confirm the service is awake." },
   { title: "Read supply", body: "See available Ocean compute for the dashboard." },
-  { title: "Create a pilot key", body: "Issue a Fish key with starter credits." },
+  { title: "Get a pilot key", body: "The operator issues Fish keys with starter credits during the pilot." },
   { title: "Send a test request", body: "Use credits and get a clear response." }
 ];
 
@@ -114,7 +114,7 @@ export default function ApiPage() {
       image="/assets/generated/fish-role-builder.webp"
       imageAlt="Ocean Navy API hatch in a Venice market workshop"
       chips={["Health", "Supply", "Keys", "AI route"]}
-      primaryAction={{ label: "Try chat", href: "/chat" }}
+      primaryAction={{ label: "Try chat", href: "/ask" }}
       secondaryAction={{ label: "Read docs", href: "/docs" }}
       steps={steps}
       cards={cards}
@@ -153,6 +153,9 @@ export default function ApiPage() {
               </div>
             ))}
           </div>
+          <p className="mt-4 text-sm font-bold leading-6 text-fish-secondary">
+            This board is maintained by hand and can lag the code. For machine-readable truth, use <code className="font-black text-fish-primary">/api/health</code> and the OpenAPI file in the repo.
+          </p>
         </div>
       </section>
     </RolePageShell>

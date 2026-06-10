@@ -12,8 +12,10 @@ const requestKinds = [
   { value: "other", label: "Other" }
 ];
 
+type TicketStatus = { kind: "idle" | "sending" | "success" | "error"; message: string };
+
 export function SupportTicketForm() {
-  const [status, setStatus] = useState("");
+  const [status, setStatus] = useState<TicketStatus>({ kind: "idle", message: "" });
   const [isPending, startTransition] = useTransition();
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -28,21 +30,32 @@ export function SupportTicketForm() {
       company: String(data.get("company") ?? "")
     };
 
-    setStatus("Sending...");
+    setStatus({ kind: "sending", message: "Sending..." });
     startTransition(async () => {
-      const response = await fetch("/api/support", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
+      try {
+        const response = await fetch("/api/support", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
 
-      if (!response.ok) {
-        setStatus("Please add contact details and a short message.");
-        return;
+        if (response.ok) {
+          form.reset();
+          setStatus({ kind: "success", message: "Ticket sent. We will follow up through your contact." });
+          return;
+        }
+        if (response.status === 400) {
+          setStatus({ kind: "error", message: "Please add contact details and a short message, then send again." });
+          return;
+        }
+        if (response.status === 429) {
+          setStatus({ kind: "error", message: "Too many tickets right now. Wait a minute and try again." });
+          return;
+        }
+        setStatus({ kind: "error", message: "The ticket didn't go through this time. Try again in a moment." });
+      } catch {
+        setStatus({ kind: "error", message: "Couldn't reach the server — check your connection and try again. Your text is still in the form." });
       }
-
-      form.reset();
-      setStatus("Ticket sent. We will follow up through your contact.");
     });
   }
 
@@ -108,9 +121,15 @@ export function SupportTicketForm() {
         <Send className="h-4 w-4" aria-hidden="true" />
         Send ticket
       </button>
-      <p className="min-h-6 text-sm font-bold text-fish-secondary" role="status">
-        {status}
-      </p>
+      {status.kind === "error" ? (
+        <p className="min-h-6 rounded-2xl border border-fish-coral/35 bg-fish-coral/10 p-3 text-sm font-black text-fish-primary" role="alert">
+          {status.message}
+        </p>
+      ) : (
+        <p className={`min-h-6 text-sm font-bold ${status.kind === "success" ? "text-emerald-200" : "text-fish-secondary"}`} role="status">
+          {status.message}
+        </p>
+      )}
     </form>
   );
 }

@@ -21,7 +21,15 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <a
+          href="#main-content"
+          className="sr-only z-50 rounded-full bg-fish-accent px-5 py-3 text-sm font-black text-fish-navy950 focus:not-sr-only focus:fixed focus:left-4 focus:top-4"
+        >
+          Skip to content
+        </a>
+        {children}
+      </body>
     </html>
   );
 }

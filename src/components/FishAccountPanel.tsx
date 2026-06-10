@@ -5,6 +5,7 @@ import type { Route } from "next";
 import Link from "next/link";
 import { useState } from "react";
 import { formatEvmAddress, parseEvmChainId } from "@/lib/evmWallet";
+import { describeFishOrderError } from "@/lib/fishErrorCopy";
 import { formatDateTime, formatNumber, formatUsd } from "@/lib/format";
 import type { FishBillingReadiness } from "@/lib/fishPayments";
 
@@ -102,12 +103,14 @@ type FishPlan = {
 function getErrorMessage(payload: unknown) {
   if (payload && typeof payload === "object" && "error" in payload) {
     const error = (payload as { error?: { message?: string } | string }).error;
-    if (typeof error === "string") {
-      return error;
+    const code = typeof error === "string" ? error : error?.message;
+    if (code) {
+      const copy = describeFishOrderError(0, { error: { message: code } });
+      // Known codes get full plain-language copy; unknown ones stay readable.
+      return copy.title === "That order didn't go through" ? `${code.replaceAll("_", " ")} — try again.` : `${copy.title} — ${copy.body}`;
     }
-    return error?.message ?? "request_failed";
   }
-  return "request_failed";
+  return "Request failed — try again.";
 }
 
 export function FishAccountPanel({ initialBillingReadiness }: { initialBillingReadiness: FishBillingReadiness }) {
@@ -482,7 +485,7 @@ export function FishAccountPanel({ initialBillingReadiness }: { initialBillingRe
             </div>
           </div>
           <span className={`rounded-full border px-3 py-1 text-xs font-black uppercase tracking-[0.08em] ${account?.account.status === "revoked" ? "border-fish-coral/30 bg-fish-coral/10 text-fish-coral" : "border-fish-accent/20 bg-fish-accent/10 text-fish-accent"}`}>
-            {account ? account.account.status : `${formatNumber(0)} uses`}
+            {account ? account.account.status : "no key loaded"}
           </span>
         </div>
 
@@ -552,8 +555,12 @@ export function FishAccountPanel({ initialBillingReadiness }: { initialBillingRe
               </div>
               {newKey ? (
                 <div className="mt-4 rounded-2xl border border-fish-gold/25 bg-fish-gold/10 p-4">
-                  <p className="text-xs font-black uppercase tracking-[0.1em] text-fish-gold">New key shown once</p>
-                  <input readOnly value={newKey} className="mt-2 h-11 w-full rounded-2xl border border-fish-gold/25 bg-fish-navy950/70 px-4 font-mono text-xs font-bold text-white outline-none" />
+                  <p className="text-xs font-black uppercase tracking-[0.1em] text-fish-gold">New key — save it now</p>
+                  <p className="mt-1 text-xs font-bold leading-5 text-fish-primary">Fish stores only a hash. Once you leave this page, the key cannot be shown again.</p>
+                  <div className="mt-2 flex gap-2">
+                    <input readOnly aria-label="New API key, shown once" value={newKey} className="h-11 w-full rounded-2xl border border-fish-gold/25 bg-fish-navy950/70 px-4 font-mono text-xs font-bold text-white outline-none" />
+                    <CopyKeyButton value={newKey} />
+                  </div>
                 </div>
               ) : null}
             </div>
@@ -776,7 +783,7 @@ function PlanDock({ account }: { account: AccountPayload["account"] }) {
           <h3 className="mt-2 text-2xl font-black text-white">{plan.label}</h3>
         </div>
         <span className={`w-fit rounded-full px-3 py-1 text-xs font-black uppercase tracking-[0.08em] ${plan.state === "prototype" ? "bg-emerald-400/15 text-emerald-200" : "bg-fish-gold/15 text-fish-gold"}`}>
-          {plan.state === "prototype" ? "pilot" : plan.state}
+          {plan.state}
         </span>
       </div>
       <div className="mt-4 grid gap-2 sm:grid-cols-3">
@@ -880,12 +887,34 @@ function formatRoute(route: Receipt["route"]) {
 
 function formatCostState(state: Receipt["costState"]) {
   if (state === "prototype_estimate") {
-    return "estimate";
+    return "prototype estimate";
   }
   if (state === "fallback_verified") {
     return "outside AI";
   }
   return "provider checked";
+}
+
+function CopyKeyButton({ value }: { value: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      type="button"
+      onClick={async () => {
+        try {
+          await navigator.clipboard.writeText(value);
+          setCopied(true);
+          setTimeout(() => setCopied(false), 2000);
+        } catch {
+          // Clipboard can be unavailable; the input stays selectable.
+        }
+      }}
+      className="inline-flex h-11 shrink-0 items-center gap-2 rounded-2xl border border-fish-gold/35 px-4 text-xs font-black text-fish-gold transition hover:bg-fish-gold/15 hover:text-white"
+    >
+      <Save className="h-4 w-4" aria-hidden="true" />
+      {copied ? "Copied" : "Copy"}
+    </button>
+  );
 }
 
 function formatPrivacy(mode: string | undefined) {

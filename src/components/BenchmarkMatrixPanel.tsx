@@ -27,8 +27,8 @@ export function BenchmarkMatrixPanel({ summary }: { summary: BenchmarkSummary })
           <div className="flex flex-wrap items-center gap-3">
             <StatusBadge state={summary.dataState} />
             <span className="text-sm font-bold text-fish-secondary">Updated {formatDateTime(summary.lastUpdated)}</span>
-            <Link className="rounded-full border border-fish-accent/35 px-4 py-2 text-xs font-black text-fish-accent" href="/api/proof/benchmarks?selectedOnly=true">
-              JSON matrix
+            <Link className="rounded-full border border-fish-accent/35 px-4 py-2 text-xs font-black text-fish-accent" title="Opens the raw benchmark JSON feed" href="/api/proof/benchmarks?selectedOnly=true">
+              JSON matrix (raw)
             </Link>
           </div>
         </div>
@@ -121,7 +121,7 @@ export function BenchmarkMatrixPanel({ summary }: { summary: BenchmarkSummary })
 
         {summary.warnings.length ? (
           <div className="mt-5 rounded-2xl border border-fish-gold/25 bg-fish-gold/10 p-4 text-sm font-bold leading-6 text-fish-primary">
-            {summary.warnings[0]}
+            {summary.warnings.join(" ")}
           </div>
         ) : null}
       </div>

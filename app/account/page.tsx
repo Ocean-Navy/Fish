@@ -42,7 +42,7 @@ export default function AccountPage() {
       image="/assets/generated/fish-flow-catch.webp"
       imageAlt="Glowing Fish credits caught in a Venice market net"
       chips={["Balance", "Recent use", "Key tools", "No prompts"]}
-      primaryAction={{ label: "Try chat", href: "/chat" }}
+      primaryAction={{ label: "Try chat", href: "/ask" }}
       secondaryAction={{ label: "API status", href: "/api" }}
       steps={steps}
       cards={cards}

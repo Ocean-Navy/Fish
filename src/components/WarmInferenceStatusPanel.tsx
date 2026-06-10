@@ -44,7 +44,7 @@ export function WarmInferenceStatusPanel({ status }: { status: WarmInferenceStat
 
         {status.warnings.length ? (
           <div className="mt-4 rounded-2xl border border-fish-gold/25 bg-fish-gold/10 p-4 text-sm font-bold leading-6 text-fish-primary">
-            {status.warnings[0]}
+            {status.warnings.join(" ")}
           </div>
         ) : null}
       </div>

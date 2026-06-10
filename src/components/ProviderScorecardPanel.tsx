@@ -76,7 +76,7 @@ export function ProviderScorecardPanel({ summary }: { summary: ProviderScorecard
         )}
 
         {summary.warnings.length ? (
-          <div className="mt-5 rounded-2xl border border-fish-gold/25 bg-fish-gold/10 p-4 text-sm font-bold leading-6 text-fish-primary">{summary.warnings[0]}</div>
+          <div className="mt-5 rounded-2xl border border-fish-gold/25 bg-fish-gold/10 p-4 text-sm font-bold leading-6 text-fish-primary">{summary.warnings.join(" ")}</div>
         ) : null}
       </div>
     </section>

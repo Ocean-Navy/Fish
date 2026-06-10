@@ -74,7 +74,7 @@ export function MarketMakingPanel({ summary }: { summary: MarketMakingSummary })
             <p className="text-xs font-black uppercase tracking-[0.1em] text-fish-gold">Price flag</p>
             <p className="mt-3 text-3xl font-black text-white">{summary.totals.pricingConfidence}</p>
             <p className="mt-2 text-sm font-bold leading-6 text-fish-primary">
-              Target margin {formatNumber(35)}%. Reserve buffer {formatNumber(10)}%. Prices stay hidden until benchmark evidence is strong enough.
+              Policy targets (configured, not measured): {formatNumber(35)}% margin, {formatNumber(10)}% reserve buffer. Prices stay hidden until benchmark evidence is strong enough.
             </p>
           </div>
         </div>
@@ -138,7 +138,7 @@ export function MarketMakingPanel({ summary }: { summary: MarketMakingSummary })
         )}
 
         {summary.warnings.length ? (
-          <div className="mt-5 rounded-2xl border border-fish-gold/25 bg-fish-gold/10 p-4 text-sm font-bold leading-6 text-fish-primary">{summary.warnings[0]}</div>
+          <div className="mt-5 rounded-2xl border border-fish-gold/25 bg-fish-gold/10 p-4 text-sm font-bold leading-6 text-fish-primary">{summary.warnings.join(" ")}</div>
         ) : null}
       </div>
     </section>

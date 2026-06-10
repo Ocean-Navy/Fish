@@ -94,9 +94,9 @@ export function ProofSummaryPanel({ summary }: { summary: ProofSummary }) {
               <div className="rounded-2xl border border-fish-gold/20 bg-fish-navy950/40 p-4">
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-xs font-black uppercase tracking-[0.1em] text-fish-gold">Payable rows</p>
-                  <Link className="text-xs font-black text-fish-accent hover:text-white" href="/api/proof/payouts?limit=50">
-                    JSON
-                  </Link>
+                  <span className="text-xs font-bold text-fish-secondary" title="The raw payout feed requires the operator admin token; see the operator runbook.">
+                    Full feed: operator-only
+                  </span>
                 </div>
                 <div className="mt-3 space-y-2">
                   {summary.payouts.events.slice(0, 4).map((event) => (
@@ -105,8 +105,8 @@ export function ProofSummaryPanel({ summary }: { summary: ProofSummary }) {
                         <p className="font-black text-white">{event.providerLabel}</p>
                         <p className="text-xs font-bold text-fish-secondary">
                           {formatReceiptType(event.eventType)} / {formatReceiptType(event.state)} / {event.sourceKind === "receipt" && event.sourceReceiptId ? (
-                            <Link className="text-fish-accent hover:text-white" href={`/api/proof/receipts/${event.sourceReceiptId}` as Route}>
-                              proof
+                            <Link className="text-fish-accent hover:text-white" title="Opens the raw receipt JSON" href={`/api/proof/receipts/${event.sourceReceiptId}` as Route}>
+                              proof (JSON)
                             </Link>
                           ) : (
                             "manual"
@@ -123,9 +123,13 @@ export function ProofSummaryPanel({ summary }: { summary: ProofSummary }) {
           {summary.payouts.batches.length ? (
             <div className="mt-4 flex flex-wrap gap-2">
               {summary.payouts.batches.slice(0, 3).map((batch) => (
-                <Link key={batch.payoutBatchId} className="rounded-full border border-fish-gold/30 px-4 py-2 text-xs font-black text-fish-primary hover:border-fish-accent hover:text-white" href={batch.exportUrl as Route}>
-                  Export batch {batch.payoutBatchId.slice(0, 14)}... / {formatUsd(batch.amountUsd)}
-                </Link>
+                <span
+                  key={batch.payoutBatchId}
+                  className="rounded-full border border-fish-gold/30 px-4 py-2 text-xs font-black text-fish-primary"
+                  title="The batch CSV export requires the operator admin token; see the operator runbook."
+                >
+                  Batch {batch.payoutBatchId.slice(0, 14)}... / {formatUsd(batch.amountUsd)} (export: operator-only)
+                </span>
               ))}
             </div>
           ) : null}
@@ -154,7 +158,7 @@ export function ProofSummaryPanel({ summary }: { summary: ProofSummary }) {
                   return (
                     <tr key={receipt.receiptId} className={needsReview ? "bg-red-500/10 text-red-100" : "text-fish-primary"}>
                       <td className="border-b border-white/10 px-3 py-3 font-bold">
-                        <Link className="text-fish-accent hover:text-white" href={`/api/proof/receipts/${receipt.receiptId}` as Route}>
+                        <Link className="text-fish-accent hover:text-white" title="Opens the raw receipt JSON" href={`/api/proof/receipts/${receipt.receiptId}` as Route}>
                           {receipt.receiptId.slice(0, 14)}...
                         </Link>
                       </td>
@@ -196,7 +200,7 @@ export function ProofSummaryPanel({ summary }: { summary: ProofSummary }) {
 
         {summary.warnings.length ? (
           <div className="mt-5 rounded-2xl border border-fish-gold/25 bg-fish-gold/10 p-4 text-sm font-bold leading-6 text-fish-primary">
-            {summary.warnings[0]}
+            {summary.warnings.join(" ")}
           </div>
         ) : null}
       </div>

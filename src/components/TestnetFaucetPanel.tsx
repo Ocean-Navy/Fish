@@ -2,6 +2,7 @@
 
 import { CheckCircle2, Fish, Loader2, RefreshCcw, ShipWheel, Wallet } from "lucide-react";
 import { useEffect, useState } from "react";
+import { StatusBadge } from "@/components/StatusBadge";
 import { formatEvmAddress, parseEvmChainId } from "@/lib/evmWallet";
 import { formatNumber } from "@/lib/format";
 
@@ -236,6 +237,7 @@ export function TestnetFaucetPanel() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
+            {status ? <StatusBadge state={status.dataState} /> : null}
             <Badge label={status?.claiming.state ?? "loading"} tone={ready ? "ready" : "muted"} />
             <button
               type="button"
@@ -357,7 +359,10 @@ function StepCard({ title, body, done }: { title: string; body: string; done: bo
     <div className={`rounded-2xl border p-4 ${done ? "border-emerald-300/30 bg-emerald-400/10" : "border-white/10 bg-white/[0.035]"}`}>
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm font-black text-white">{title}</p>
-        <CheckCircle2 className={`h-5 w-5 ${done ? "text-emerald-200" : "text-fish-secondary/50"}`} aria-hidden="true" />
+        <span className="flex items-center gap-1.5">
+          <span className={`text-[0.65rem] font-black uppercase tracking-[0.08em] ${done ? "text-emerald-200" : "text-fish-secondary/70"}`}>{done ? "Done" : "To do"}</span>
+          <CheckCircle2 className={`h-5 w-5 ${done ? "text-emerald-200" : "text-fish-secondary/50"}`} aria-hidden="true" />
+        </span>
       </div>
       <p className="mt-2 text-sm font-bold leading-6 text-fish-secondary">{body}</p>
     </div>

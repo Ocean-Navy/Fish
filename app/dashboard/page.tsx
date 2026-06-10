@@ -23,8 +23,14 @@ import { summarizeStakingCredits } from "@/lib/stakingCredits";
 import { getWarmInferenceStatus } from "@/lib/warmInferenceStatus";
 import { Fish } from "lucide-react";
 import Link from "next/link";
+import type { Metadata } from "next";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "Fish Dashboard - Ocean supply and proof",
+  description: "Builder dashboard: Ocean Network supply, usage, provider proof, staking credits, and contract state."
+};
 
 export default async function DashboardPage() {
   const [oceanData, fishUsage, providerPilot, proof, providerScorecard, providerBonds, benchmarks, stakingCredits, warmStatus, contractStatus, capacitySettlements] = await Promise.all([
@@ -48,7 +54,7 @@ export default async function DashboardPage() {
   });
 
   return (
-    <main className="min-h-screen">
+    <main id="main-content" className="min-h-screen">
       <header className="border-b border-fish-accent/15 bg-fish-navy950/80 px-4 py-4 backdrop-blur-xl sm:px-6 lg:px-8">
         <div className="mx-auto flex max-w-7xl items-center justify-between">
           <Link href="/" className="flex items-center gap-3 text-white">

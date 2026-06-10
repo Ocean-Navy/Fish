@@ -39,7 +39,7 @@ export default function DocsPage() {
       image="/assets/generated/fish-role-builder.webp"
       imageAlt="Venice market API hatch with Ocean Navy compute tools"
       chips={["API keys", "Models", "Usage", "Privacy"]}
-      primaryAction={{ label: "Try chat", href: "/chat" }}
+      primaryAction={{ label: "Try chat", href: "/ask" }}
       secondaryAction={{ label: "See roadmap", href: "/roadmap" }}
       steps={steps}
       cards={cards}

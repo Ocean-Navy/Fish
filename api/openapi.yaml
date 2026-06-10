@@ -286,7 +286,7 @@ paths:
   /api/meal/order:
     post:
       summary: Guest Fish meal-counter order
-      description: Globally capped guest route for the public meal counter. Uses the same chat request shape without exposing or accepting a Fish API key, and unauthenticated callers share one internal anonymous quota principal.
+      description: Globally capped guest chat route (API-only; the /ask web UI uses /api/dishes/{dishId}/run). Uses the same chat request shape without exposing or accepting a Fish API key, and unauthenticated callers share one internal anonymous quota principal.
       requestBody:
         required: true
         content:

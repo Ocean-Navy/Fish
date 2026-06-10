@@ -27,7 +27,7 @@ const flow = [
 
 export default function Home() {
   return (
-    <main className="overflow-hidden">
+    <main id="main-content" className="overflow-hidden">
       <header className="fixed inset-x-0 top-0 z-30 px-4 py-4 sm:px-6 lg:px-8">
         <div className="mx-auto flex h-14 max-w-7xl items-center justify-between rounded-full border border-fish-accent/20 bg-fish-navy950/70 px-3 pl-4 backdrop-blur-xl">
           <a href="#top" className="flex items-center gap-3" aria-label="Fish home">
