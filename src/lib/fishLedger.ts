@@ -3,6 +3,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import path from "node:path";
 import { z } from "zod";
+import { isPlaceholderSecret } from "@/lib/env";
 import { FISH_DISH_MODELS, fishFeatureIdFromModel } from "@/lib/fishFeaturePolicy";
 import { defaultFishPrivacyForRoute, type FishUsagePrivacy } from "@/lib/fishPrivacy";
 import type { DataState } from "@/lib/types";
@@ -452,10 +453,9 @@ export function parseChatCompletion(body: unknown) {
   return chatCompletionSchema.safeParse(body);
 }
 
-const UNSAFE_ADMIN_TOKENS = new Set(["change-me-for-production", "replace-with-a-long-random-secret"]);
-
 function isUnsafeAdminToken(token: string) {
-  return UNSAFE_ADMIN_TOKENS.has(token.trim().toLowerCase());
+  // Shared prefix matcher: any change-me…/replace-with… template value is unsafe.
+  return isPlaceholderSecret(token);
 }
 
 export function requireAdmin(request: Request): { ok: true } | { ok: false; status: number; error: string } {
@@ -619,7 +619,7 @@ export async function authenticateRequest(request: Request) {
 }
 
 export async function revokeApiKey(_ledger: Ledger, account: Account, authenticatedKeyHash = account.keyHash) {
-  return withLedgerLock(async () => {
+  return withFishLedgerLock(async () => {
     const ledger = await readLedger();
     const currentAccount = findAccountWithAuthenticatedKey(ledger, account, authenticatedKeyHash);
     if (!currentAccount) {
@@ -648,7 +648,7 @@ export async function revokeApiKey(_ledger: Ledger, account: Account, authentica
 }
 
 export async function updateApiKey(_ledger: Ledger, account: Account, input: z.infer<typeof keyUpdateSchema>, authenticatedKeyHash = account.keyHash) {
-  return withLedgerLock(async () => {
+  return withFishLedgerLock(async () => {
     const ledger = await readLedger();
     const currentAccount = findCurrentAuthenticatedAccount(ledger, account, authenticatedKeyHash);
     if (!currentAccount) {
@@ -1406,23 +1406,6 @@ function isFileNotFoundError(error: unknown) {
   return typeof error === "object" && error !== null && "code" in error && (error as NodeJS.ErrnoException).code === "ENOENT";
 }
 
-let ledgerLock = Promise.resolve();
-
-async function withLedgerLock<T>(operation: () => Promise<T>): Promise<T> {
-  const previous = ledgerLock;
-  let releaseCurrent!: () => void;
-  ledgerLock = new Promise<void>((resolve) => {
-    releaseCurrent = resolve;
-  });
-
-  await previous.catch(() => undefined);
-  try {
-    return await operation();
-  } finally {
-    releaseCurrent();
-  }
-}
-
 function findAccountWithAuthenticatedKey(ledger: Ledger, authenticatedAccount: Account, authenticatedKeyHash: string) {
   const currentAccount = ledger.accounts.find((candidate) => candidate.id === authenticatedAccount.id);
   if (!currentAccount || currentAccount.keyHash !== authenticatedKeyHash) {
@@ -1472,20 +1455,6 @@ function parseLedgerJson<T>(raw: string, filePath: string, errorCode: string): T
 }
 
 let ledgerWriteQueue = Promise.resolve();
-
-async function withLedgerMutation<T>(mutation: (ledger: Ledger) => Promise<T>): Promise<T> {
-  const run = ledgerWriteQueue.then(async () => {
-    const ledger = await readLedger();
-    const result = await mutation(ledger);
-    await writeJsonAtomic(accountsPath(), ledger);
-    return result;
-  });
-  ledgerWriteQueue = run.then(
-    () => undefined,
-    () => undefined
-  );
-  return run;
-}
 
 function syncLedgerAccountSnapshot(params: { ledger: Ledger; account: Account }, latestLedger: Ledger, latestAccount: Account) {
   params.ledger.accounts = latestLedger.accounts;

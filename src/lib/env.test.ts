@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import { test } from "node:test";
-import { checkRequiredEnv, validateEnv, validateEnvAtBoot } from "./env";
+import { checkRequiredEnv, isPlaceholderSecret, validateEnv, validateEnvAtBoot } from "./env";
 
 const VALID_PROD_ENV = {
   NODE_ENV: "production",
@@ -30,6 +32,39 @@ test("placeholder admin token is rejected", () => {
   assert.equal(result.ok, false);
   if (!result.ok) {
     assert.ok(result.issues.some((issue) => issue.includes("FISH_ADMIN_TOKEN") && issue.includes("placeholder")));
+  }
+});
+
+test("placeholder detection matches by prefix, not exact string", () => {
+  assert.equal(isPlaceholderSecret("change-me-for-production"), true);
+  assert.equal(isPlaceholderSecret("replace-with-a-long-random-secret"), true);
+  // The cloudflare-tunnel template wordings that bypassed the old exact-match set.
+  assert.equal(isPlaceholderSecret("replace-with-a-long-random-secret-you-generate"), true);
+  assert.equal(isPlaceholderSecret("replace-with-a-different-long-random-secret"), true);
+  assert.equal(isPlaceholderSecret("  Change-Me-Anything  "), true);
+  assert.equal(isPlaceholderSecret("a-real-long-random-secret"), false);
+});
+
+test("secrets copied verbatim from committed env templates are rejected at boot", async () => {
+  // Every committed template must yield values that fail production validation,
+  // whether empty (missing) or a placeholder string. Guards template/guard drift.
+  const templates = [".env.production.example", path.join("deploy", "cloudflare-tunnel", "env.op.fish.local.example")];
+  for (const template of templates) {
+    const raw = await readFile(path.join(process.cwd(), template), "utf8");
+    const values = new Map<string, string>();
+    for (const line of raw.split("\n")) {
+      const match = /^(FISH_ADMIN_TOKEN|FISH_GUEST_ID_SALT)=(.*)$/.exec(line.trim());
+      if (match) {
+        values.set(match[1], match[2]);
+      }
+    }
+    assert.ok(values.has("FISH_ADMIN_TOKEN") && values.has("FISH_GUEST_ID_SALT"), `${template} should define both required secrets`);
+    const result = checkRequiredEnv({
+      NODE_ENV: "production",
+      FISH_ADMIN_TOKEN: values.get("FISH_ADMIN_TOKEN"),
+      FISH_GUEST_ID_SALT: values.get("FISH_GUEST_ID_SALT")
+    } as NodeJS.ProcessEnv);
+    assert.equal(result.ok, false, `${template} values must not pass production env validation`);
   }
 });
 

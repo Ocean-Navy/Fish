@@ -11,14 +11,27 @@ import { z } from "zod";
  * no secrets; validation only throws on a running production server.
  */
 
-const PLACEHOLDER_SECRETS = new Set(["change-me-for-production", "replace-with-a-long-random-secret"]);
+const PLACEHOLDER_SECRET_PREFIXES = ["change-me", "replace-with"];
+
+/**
+ * True for values copied verbatim from committed env templates. Matched by
+ * prefix, not exact string, so new template wordings (e.g.
+ * "replace-with-a-long-random-secret-you-generate" in
+ * deploy/cloudflare-tunnel/env.op.fish.local.example) cannot silently bypass
+ * the guard. Shared with fishLedger.requireAdmin so the boot-time and runtime
+ * checks cannot drift apart.
+ */
+export function isPlaceholderSecret(value: string): boolean {
+  const normalized = value.trim().toLowerCase();
+  return PLACEHOLDER_SECRET_PREFIXES.some((prefix) => normalized.startsWith(prefix));
+}
 
 const requiredSecret = (name: string) =>
   z
     .string({ required_error: `${name} is required in production` })
     .trim()
     .min(1, `${name} is required in production`)
-    .refine((value) => !PLACEHOLDER_SECRETS.has(value.toLowerCase()), `${name} is still set to a public placeholder value; generate a long random secret`);
+    .refine((value) => !isPlaceholderSecret(value), `${name} is still set to a public placeholder value; generate a long random secret`);
 
 const envSchema = z
   .object({
