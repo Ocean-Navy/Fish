@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, test } from "node:test";
@@ -390,6 +390,25 @@ test("credit mutators refuse to replace a corrupt credit entries ledger", async 
 
   await assert.rejects(() => ledgerModule.addFishCredits({ accountId: account.id, amount: 5, lane: "prepaid", reason: "corrupt_credit_entries_test", expiresAt: null }));
   assert.equal(await readFile(creditEntriesFile, "utf8"), "{ not json", "corrupt credit_entries.json must not be overwritten");
+});
+
+test("budget and monthly-limit reads refuse a corrupt receipt file instead of seeing zero spend", async () => {
+  const ledger = await useTempFishLedger();
+  const ledgerModule = await importFishLedger(ledger);
+  const { account } = await ledgerModule.createApiKey("Receipt corruption key", 10);
+
+  const receiptsDir = path.join(ledger, "receipts");
+  await mkdir(receiptsDir, { recursive: true });
+  const monthPrefix = new Date().toISOString().slice(0, 7);
+  const corruptFile = path.join(receiptsDir, `${monthPrefix}-01T00-00-00.000Z-corrupt.json`);
+  await writeFile(corruptFile, "{ not json");
+
+  // Daily route spend cap input: must throw, not return $0 spent.
+  await assert.rejects(() => ledgerModule.sumProviderCostForRouteSince("external-fallback", new Date(0).toISOString()), /fish_receipts_corrupt/);
+  // Monthly request limit: must throw, not under-count.
+  await assert.rejects(() => ledgerModule.checkFishMonthlyRequestLimit(account), /fish_receipts_corrupt/);
+  // The corrupt file must be left in place for the operator to inspect.
+  assert.equal(await readFile(corruptFile, "utf8"), "{ not json");
 });
 
 async function useTempFishLedger() {

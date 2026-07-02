@@ -197,6 +197,15 @@ export type Account = {
   totalCreditsSpent: number;
   requestCount: number;
   lastUsedAt: string | null;
+  /**
+   * Recent payment-backed grant entries, duplicated onto the account so the
+   * idempotency record commits in the SAME atomic write as the balance/plan
+   * change. Without this, a crash between writeLedger and appendCreditEntry
+   * left a granted balance with no idempotency record, and a payment-provider
+   * webhook retry would grant the credits a second time. Pruned by age; the
+   * credit entries file remains the permanent dedupe source.
+   */
+  recentPaymentEntries?: CreditLedgerEntry[] | null;
 };
 
 export type Ledger = {
@@ -683,6 +692,50 @@ export async function updateApiKey(_ledger: Ledger, account: Account, input: z.i
   });
 }
 
+// How long payment entries stay duplicated on the account for crash recovery.
+// Must comfortably exceed the longest payment-provider webhook retry horizon
+// (Stripe retries for ~3 days); the entries file remains the permanent record.
+const RECENT_PAYMENT_ENTRY_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+
+function matchesPaymentIdempotency(entry: CreditLedgerEntry, params: { idempotencyKey?: string; paymentProviderEventId?: string }) {
+  if (params.idempotencyKey && entry.idempotencyKey === params.idempotencyKey) {
+    return true;
+  }
+  if (params.paymentProviderEventId && entry.paymentProviderEventId === params.paymentProviderEventId) {
+    return true;
+  }
+  return false;
+}
+
+function rememberPaymentEntry(account: Account, entry: CreditLedgerEntry, nowMs: number) {
+  const kept = (account.recentPaymentEntries ?? []).filter((candidate) => {
+    const createdAtMs = Date.parse(candidate.createdAt);
+    return Number.isFinite(createdAtMs) && nowMs - createdAtMs < RECENT_PAYMENT_ENTRY_RETENTION_MS;
+  });
+  kept.push(entry);
+  account.recentPaymentEntries = kept;
+}
+
+/**
+ * Dedupe lookup for payment-backed grants. Checks the permanent entries file
+ * first, then the account's crash-recovery copy. When the account copy hits
+ * but the entries file is missing the entry (a crash happened between the
+ * ledger write and the entry append), the audit log is healed by appending
+ * the remembered entry — the balance was already applied atomically with it.
+ */
+async function findAppliedPaymentEntry(account: Account, existingEntries: CreditLedgerEntry[], params: { idempotencyKey?: string; paymentProviderEventId?: string }) {
+  const fromFile = existingEntries.find((entry) => matchesPaymentIdempotency(entry, params));
+  if (fromFile) {
+    return fromFile;
+  }
+  const fromAccount = (account.recentPaymentEntries ?? []).find((entry) => matchesPaymentIdempotency(entry, params));
+  if (fromAccount) {
+    await appendCreditEntry(fromAccount);
+    return fromAccount;
+  }
+  return null;
+}
+
 export async function addFishCredits(params: z.infer<typeof creditTopupSchema>) {
   return withFishLedgerLock(async () => {
     const ledger = await readLedger();
@@ -698,15 +751,7 @@ export async function addFishCredits(params: z.infer<typeof creditTopupSchema>) 
     const now = new Date().toISOString();
     await ensureAccountCreditSeed(account, now);
     const existingEntries = await readCreditEntries(account.id);
-    const existingEntry = existingEntries.find((entry) => {
-      if (params.idempotencyKey && entry.idempotencyKey === params.idempotencyKey) {
-        return true;
-      }
-      if (params.paymentProviderEventId && entry.paymentProviderEventId === params.paymentProviderEventId) {
-        return true;
-      }
-      return false;
-    });
+    const existingEntry = await findAppliedPaymentEntry(account, existingEntries, params);
 
     if (existingEntry) {
       return {
@@ -736,6 +781,9 @@ export async function addFishCredits(params: z.infer<typeof creditTopupSchema>) 
 
     account.creditBalance += amount;
     account.totalCreditsGranted += amount;
+    // The idempotency record commits atomically with the balance; a crash
+    // before appendCreditEntry is healed on the next dedupe hit.
+    rememberPaymentEntry(account, entry, Date.parse(now));
     await writeLedger(ledger);
     await appendCreditEntry(entry);
 
@@ -768,15 +816,7 @@ export async function activateFishSubscription(params: z.infer<typeof subscripti
     const creditGrant = params.creditGrant ?? plan.monthlyCreditGrant;
     await ensureAccountCreditSeed(account, now);
     const existingEntries = await readCreditEntries(account.id);
-    const existingEntry = existingEntries.find((entry) => {
-      if (params.idempotencyKey && entry.idempotencyKey === params.idempotencyKey) {
-        return true;
-      }
-      if (params.paymentProviderEventId && entry.paymentProviderEventId === params.paymentProviderEventId) {
-        return true;
-      }
-      return false;
-    });
+    const existingEntry = await findAppliedPaymentEntry(account, existingEntries, params);
 
     if (existingEntry) {
       return {
@@ -810,6 +850,9 @@ export async function activateFishSubscription(params: z.infer<typeof subscripti
     account.planSource = "operator_subscription";
     account.creditBalance += creditGrant;
     account.totalCreditsGranted += creditGrant;
+    // The idempotency record commits atomically with the balance and plan; a
+    // crash before appendCreditEntry is healed on the next dedupe hit.
+    rememberPaymentEntry(account, entry, Date.parse(now));
     await writeLedger(ledger);
     await appendCreditEntry(entry);
 
@@ -1354,23 +1397,35 @@ export async function sumProviderCostForRouteSince(route: UsageReceipt["route"],
 
 async function withFishLedgerLock<T>(operation: () => Promise<T>): Promise<T> {
   await mkdir(ledgerDir(), { recursive: true });
+  const lockToken = `${process.pid}:${Date.now()}:${Math.random().toString(36).slice(2)}`;
   let handle: Awaited<ReturnType<typeof open>> | null = null;
 
   while (!handle) {
     try {
       handle = await open(ledgerLockPath(), "wx");
-      await handle.writeFile(
-        JSON.stringify({
-          pid: process.pid,
-          createdAt: new Date().toISOString()
-        })
-      );
     } catch (error) {
       if (!isFileExistsError(error)) {
         throw error;
       }
       await removeStaleLedgerLock();
       await sleep(LEDGER_LOCK_RETRY_MS);
+      continue;
+    }
+
+    try {
+      await handle.writeFile(
+        JSON.stringify({
+          pid: process.pid,
+          createdAt: new Date().toISOString(),
+          token: lockToken
+        })
+      );
+    } catch (error) {
+      // Do not leave a half-written lock behind — it would block every waiter
+      // until the stale timeout.
+      await handle.close().catch(() => undefined);
+      await rm(ledgerLockPath(), { force: true }).catch(() => undefined);
+      throw error;
     }
   }
 
@@ -1378,8 +1433,26 @@ async function withFishLedgerLock<T>(operation: () => Promise<T>): Promise<T> {
     return await operation();
   } finally {
     await handle.close().catch(() => undefined);
-    await rm(ledgerLockPath(), { force: true }).catch(() => undefined);
+    await releaseFishLedgerLock(lockToken);
   }
+}
+
+async function releaseFishLedgerLock(lockToken: string) {
+  // Only remove the lock we still own. An operation that overran the stale
+  // timeout may have had its lock legitimately taken over by another waiter;
+  // deleting unconditionally here would release that new holder's lock.
+  try {
+    const raw = await readFile(ledgerLockPath(), "utf8");
+    const owner = JSON.parse(raw) as { token?: unknown };
+    if (owner.token !== lockToken) {
+      return;
+    }
+  } catch {
+    // Unreadable or missing lock metadata: nothing owned to release; the
+    // stale-timeout path will clean up whatever is left.
+    return;
+  }
+  await rm(ledgerLockPath(), { force: true }).catch(() => undefined);
 }
 
 async function removeStaleLedgerLock() {
@@ -1487,8 +1560,14 @@ async function writeJsonAtomic(filePath: string, data: unknown) {
   const dir = path.dirname(filePath);
   await mkdir(dir, { recursive: true });
   const tempPath = path.join(dir, `${path.basename(filePath)}.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`);
-  await writeFile(tempPath, JSON.stringify(data, null, 2));
-  await rename(tempPath, filePath);
+  try {
+    await writeFile(tempPath, JSON.stringify(data, null, 2));
+    await rename(tempPath, filePath);
+  } catch (error) {
+    // Don't let failed writes accumulate orphaned .tmp files in the ledger dirs.
+    await rm(tempPath, { force: true }).catch(() => undefined);
+    throw error;
+  }
 }
 
 function preserveCurrentRevocation(account: Account, currentAccount?: Account): Account {
@@ -1683,21 +1762,22 @@ async function readReceipts(accountId: string): Promise<UsageReceipt[]> {
 }
 
 async function readAllReceipts(): Promise<UsageReceipt[]> {
+  // Fail-closed read: a missing directory means "no receipts yet", but an
+  // unreadable or corrupt receipt file must throw. Receipts feed the daily
+  // route spend caps and the monthly request limit — swallowing corruption to
+  // [] silently reset those money guards (they would see $0 spent / 0 used).
+  let files: string[];
   try {
-    const dir = receiptsDir();
-    const files = await readdir(dir);
-    const receipts = await Promise.all(
-      files
-        .filter((file) => file.endsWith(".json"))
-        .map(async (file) => {
-          const raw = await readFile(path.join(dir, file), "utf8");
-          return JSON.parse(raw) as UsageReceipt;
-        })
-    );
-    return receipts.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-  } catch {
-    return [];
+    files = await readdir(receiptsDir());
+  } catch (error) {
+    if (isFileNotFoundError(error)) {
+      return [];
+    }
+    throw error;
   }
+
+  const receipts = await Promise.all(files.filter((file) => file.endsWith(".json")).map((file) => readReceiptFile(file)));
+  return receipts.filter((receipt): receipt is UsageReceipt => receipt !== null).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 }
 
 async function countMonthlySucceededReceipts(accountId: string, periodStart: Date, nextPeriodStart: Date, stopAt = Number.POSITIVE_INFINITY): Promise<number> {
@@ -1710,40 +1790,53 @@ async function countMonthlySucceededReceipts(accountId: string, periodStart: Dat
   const periodFilePrefix = periodStart.toISOString().slice(0, 7);
   let used = 0;
 
+  // Fail-closed count: corruption must throw rather than under-count, or a
+  // single bad receipt file would quietly lift the monthly request limit.
+  let files: string[];
   try {
-    const files = await readdir(receiptsDir());
-    for (const file of files) {
-      if (!file.endsWith(".json") || !file.startsWith(periodFilePrefix)) {
-        continue;
-      }
+    files = await readdir(receiptsDir());
+  } catch (error) {
+    if (isFileNotFoundError(error)) {
+      return used;
+    }
+    throw error;
+  }
 
-      const receipt = await readReceiptFile(file);
-      if (!receipt || receipt.accountId !== accountId || receipt.status !== "succeeded") {
-        continue;
-      }
+  for (const file of files) {
+    if (!file.endsWith(".json") || !file.startsWith(periodFilePrefix)) {
+      continue;
+    }
 
-      const createdAt = new Date(receipt.createdAt).getTime();
-      if (createdAt >= periodStartMs && createdAt < nextPeriodStartMs) {
-        used += 1;
-        if (used >= stopAt) {
-          return used;
-        }
+    const receipt = await readReceiptFile(file);
+    if (!receipt || receipt.accountId !== accountId || receipt.status !== "succeeded") {
+      continue;
+    }
+
+    const createdAt = new Date(receipt.createdAt).getTime();
+    if (createdAt >= periodStartMs && createdAt < nextPeriodStartMs) {
+      used += 1;
+      if (used >= stopAt) {
+        return used;
       }
     }
-  } catch {
-    return used;
   }
 
   return used;
 }
 
 async function readReceiptFile(file: string): Promise<UsageReceipt | null> {
+  const filePath = path.join(receiptsDir(), file);
+  let raw: string;
   try {
-    const raw = await readFile(path.join(receiptsDir(), file), "utf8");
-    return JSON.parse(raw) as UsageReceipt;
-  } catch {
-    return null;
+    raw = await readFile(filePath, "utf8");
+  } catch (error) {
+    if (isFileNotFoundError(error)) {
+      // Vanished between listing and reading (e.g. operator cleanup) — not corruption.
+      return null;
+    }
+    throw error;
   }
+  return parseLedgerJson<UsageReceipt>(raw, filePath, "fish_receipts_corrupt");
 }
 
 function summarizeReceiptCosts(receipts: UsageReceipt[]) {

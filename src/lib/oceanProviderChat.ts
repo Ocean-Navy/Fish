@@ -35,7 +35,10 @@ export async function runSelectedOceanProviderChat(
     return await runOpenAiCompatibleChat(input, config, fallbackTokenEstimate, routeContext);
   } catch (error) {
     if (error instanceof OpenAiCompatibleChatError) {
-      throw new OceanProviderChatError(error.status, error.message === "openai_compatible_route_not_configured" ? "ocean_provider_not_configured" : "ocean_provider_backend_error");
+      // Preserve the timeout distinction: the friendly order-error copy and
+      // route-health diagnostics key on the `_timeout` suffix.
+      const code = error.message === "openai_compatible_route_not_configured" ? "ocean_provider_not_configured" : error.message === "openai_compatible_timeout" ? "ocean_provider_timeout" : "ocean_provider_backend_error";
+      throw new OceanProviderChatError(error.status, code);
     }
     throw error;
   }

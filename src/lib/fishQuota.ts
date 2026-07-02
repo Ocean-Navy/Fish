@@ -1,9 +1,15 @@
-import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import type { FishChatRouteId } from "@/lib/fishRouter";
 
-const DEFAULT_QUOTA_DIR = path.join(process.cwd(), "data", "fish");
+// The quota ledger lives next to the account ledger. Honoring FISH_LEDGER_DIR
+// (resolved at call time, like fishLedger does) keeps tests hermetic — without
+// it, `npm run test:app` on a production machine would mutate the live
+// data/fish quota state and contend on its lock.
+function defaultQuotaDir() {
+  return process.env.FISH_LEDGER_DIR ? path.resolve(process.env.FISH_LEDGER_DIR) : path.join(process.cwd(), "data", "fish");
+}
 const QUOTA_LEDGER_FILE = "daily_quotas.json";
 const QUOTA_LOCK_DIR = "daily_quotas.lock";
 const QUOTA_LOCK_TIMEOUT_MS = 5000;
@@ -44,7 +50,7 @@ export type DailyQuotaResult =
 
 export async function spendDailyQuota(principalId: string, route: FishQuotaRouteId, limit: number, options: DailyQuotaOptions = {}): Promise<DailyQuotaResult> {
   const normalizedLimit = Math.max(0, Math.floor(limit));
-  const quotaDir = options.quotaDir ?? DEFAULT_QUOTA_DIR;
+  const quotaDir = options.quotaDir ?? defaultQuotaDir();
 
   return withQuotaLedgerLock(quotaDir, options.lockTimeoutMs ?? QUOTA_LOCK_TIMEOUT_MS, async () => {
     const ledger = await readQuotaLedger(quotaDir);
@@ -148,17 +154,25 @@ async function releaseQuotaLedgerLock(lockDir: string, lockToken: string) {
 }
 
 async function removeStaleQuotaLock(lockDir: string) {
+  let createdAtMs = Number.NaN;
   try {
     const raw = await readFile(path.join(lockDir, "owner.json"), "utf8");
     const owner = JSON.parse(raw) as { createdAt?: string };
-    const createdAtMs = owner.createdAt ? Date.parse(owner.createdAt) : Number.NaN;
-
-    if (Number.isFinite(createdAtMs) && Date.now() - createdAtMs > QUOTA_LOCK_STALE_MS) {
-      await rm(lockDir, { force: true, recursive: true });
-    }
+    createdAtMs = owner.createdAt ? Date.parse(owner.createdAt) : Number.NaN;
   } catch {
-    // Keep the existing lock when its owner metadata cannot be read; the timeout path
-    // will fail closed instead of allowing concurrent quota mutations.
+    // Missing or unreadable owner metadata is a crash artifact from the window
+    // between mkdir(lockDir) and the owner.json write. Fall through to judging
+    // staleness by the lock dir's own mtime — refusing forever would brick
+    // every future quota operation until an operator deletes the dir by hand.
+  }
+
+  if (!Number.isFinite(createdAtMs)) {
+    const lockStat = await stat(lockDir).catch(() => null);
+    createdAtMs = lockStat?.mtimeMs ?? Number.NaN;
+  }
+
+  if (Number.isFinite(createdAtMs) && Date.now() - createdAtMs > QUOTA_LOCK_STALE_MS) {
+    await rm(lockDir, { force: true, recursive: true }).catch(() => undefined);
   }
 }
 

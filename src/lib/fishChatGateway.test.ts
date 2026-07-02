@@ -11,12 +11,15 @@ import type { Account, ChatCompletionInput, Ledger } from "./fishLedger";
 const previousEnv = new Map<string, string | undefined>();
 const touchedEnv = ["FISH_MAX_CONCURRENT_REQUESTS", "FISH_OCEAN_BATCH_ENDPOINT", "FISH_OCEAN_BATCH_TIMEOUT_MS", "FISH_OCEAN_BATCH_DAILY_BUDGET_USD", "FISH_DOCS_BATCH_MAX_RUNTIME_SECONDS"];
 const originalLedgerDir = process.env.FISH_LEDGER_DIR;
+const originalOceanBatchDir = process.env.FISH_OCEAN_BATCH_DIR;
 let activeTempDir: string | null = null;
 let modules: Awaited<ReturnType<typeof loadModules>> | null = null;
 
 before(async () => {
   activeTempDir = await mkdtemp(path.join(tmpdir(), "fish-chat-gateway-"));
   process.env.FISH_LEDGER_DIR = activeTempDir;
+  // Keep ocean-batch budget state inside the temp dir — never in the repo's live data/.
+  process.env.FISH_OCEAN_BATCH_DIR = path.join(activeTempDir, "ocean-batch");
   modules = await loadModules();
 });
 
@@ -37,6 +40,11 @@ after(async () => {
     delete process.env.FISH_LEDGER_DIR;
   } else {
     process.env.FISH_LEDGER_DIR = originalLedgerDir;
+  }
+  if (originalOceanBatchDir === undefined) {
+    delete process.env.FISH_OCEAN_BATCH_DIR;
+  } else {
+    process.env.FISH_OCEAN_BATCH_DIR = originalOceanBatchDir;
   }
   if (activeTempDir) {
     await rm(activeTempDir, { force: true, recursive: true });

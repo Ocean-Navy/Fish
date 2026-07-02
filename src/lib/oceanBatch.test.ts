@@ -98,11 +98,10 @@ test("Ocean batch credit reservation includes private payload tokens", async () 
 });
 
 test("failed provider-cost Ocean batch receipts consume daily budget", async () => {
-  await rm(path.join(process.cwd(), "data", "ocean-batch"), { recursive: true, force: true });
-
   const previousEndpoint = process.env.FISH_OCEAN_BATCH_ENDPOINT;
   const previousBudget = process.env.FISH_OCEAN_BATCH_DAILY_BUDGET_USD;
   const previousLedgerDir = process.env.FISH_LEDGER_DIR;
+  const previousBatchDir = process.env.FISH_OCEAN_BATCH_DIR;
   const ledgerDir = await mkdtemp(path.join(tmpdir(), "fish-ocean-batch-ledger-"));
   let backendHits = 0;
   const server = createServer((request, response) => {
@@ -140,6 +139,8 @@ test("failed provider-cost Ocean batch receipts consume daily budget", async () 
 
   try {
     process.env.FISH_LEDGER_DIR = ledgerDir;
+    // Keep budget state inside the temp dir — never in the repo's live data/.
+    process.env.FISH_OCEAN_BATCH_DIR = path.join(ledgerDir, "ocean-batch");
     process.env.FISH_OCEAN_BATCH_ENDPOINT = `http://127.0.0.1:${port}`;
     process.env.FISH_OCEAN_BATCH_DAILY_BUDGET_USD = "0.10";
 
@@ -209,7 +210,11 @@ test("failed provider-cost Ocean batch receipts consume daily budget", async () 
     } else {
       process.env.FISH_LEDGER_DIR = previousLedgerDir;
     }
-    await rm(path.join(process.cwd(), "data", "ocean-batch"), { recursive: true, force: true });
+    if (previousBatchDir === undefined) {
+      delete process.env.FISH_OCEAN_BATCH_DIR;
+    } else {
+      process.env.FISH_OCEAN_BATCH_DIR = previousBatchDir;
+    }
     await rm(ledgerDir, { recursive: true, force: true });
   }
 });

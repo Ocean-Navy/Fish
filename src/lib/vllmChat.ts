@@ -31,7 +31,10 @@ export async function runVllmChat(input: ChatCompletionInput, fallbackTokenEstim
     return await runOpenAiCompatibleChat(input, config, fallbackTokenEstimate, routeContext);
   } catch (error) {
     if (error instanceof OpenAiCompatibleChatError) {
-      throw new VllmChatError(error.status, error.message === "openai_compatible_route_not_configured" ? "ocean_demo_vllm_not_configured" : "ocean_demo_vllm_backend_error");
+      // Preserve the timeout distinction: the friendly order-error copy and
+      // route-health diagnostics key on the `_timeout` suffix.
+      const code = error.message === "openai_compatible_route_not_configured" ? "ocean_demo_vllm_not_configured" : error.message === "openai_compatible_timeout" ? "ocean_demo_vllm_timeout" : "ocean_demo_vllm_backend_error";
+      throw new VllmChatError(error.status, code);
     }
     throw error;
   }
