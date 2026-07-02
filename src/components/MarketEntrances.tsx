@@ -25,7 +25,7 @@ const entrances = [
     image: "/assets/generated/fish-role-builder.webp",
     icon: KeyRound,
     cta: "Get a key",
-    href: "/api",
+    href: "/docs",
     chips: ["One key", "Send requests", "Build faster"],
     scene: ["Choose a model", "Send a request", "Read the result"]
   },

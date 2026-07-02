@@ -9,7 +9,9 @@ ingress:
   - hostname: op.fish
     service: http://127.0.0.1:3000
     originRequest:
-      # Generous ceiling for warm-route answers; app-side cap is FISH_CHAT_TIMEOUT_MS.
+      # Bounds only the TCP connect to the local app (loopback, effectively
+      # instant). Long ANSWERS are bounded by the app-side FISH_CHAT_TIMEOUT_MS
+      # and Cloudflare's edge response limit (~100s) — not by this knob.
       connectTimeout: 30s
   # Optional: serve www too (also run: cloudflared tunnel route dns fish-web www.op.fish)
   # - hostname: www.op.fish

@@ -18,7 +18,7 @@ import { MoreMenu } from "@/components/MoreMenu";
 const flow = [
   { title: "Ask Fish", body: "Type a question. Quick Catch answers, no account needed for a taste.", image: "/assets/generated/fish-flow-use.webp", icon: Sparkles },
   { title: "Order bigger dishes", body: "Docs, code, data — bigger dishes run on Fish credits: free taste, stake OCEAN, or top up.", image: "/assets/generated/fish-flow-stake.webp", icon: Fish },
-  { title: "The cooks get paid", body: "Your usage pays the GPU providers behind your dish — fairly, and visibly for anyone who wants to check.", image: "/assets/generated/fish-flow-paid.webp", icon: BadgeDollarSign }
+  { title: "The cooks get paid", body: "Every order writes a receipt so the GPU providers behind your dish can be paid from real usage — visibly, for anyone who wants to check.", image: "/assets/generated/fish-flow-paid.webp", icon: BadgeDollarSign }
 ];
 
 export default function Home() {
@@ -59,6 +59,9 @@ export default function Home() {
                 { href: "/proof", label: "Proof" },
                 { href: "/story", label: "The Fish story" },
                 { href: "/dashboard", label: "Dashboard" },
+                { href: "/providers", label: "Providers" },
+                { href: "/docs", label: "API docs" },
+                { href: "/roadmap", label: "Roadmap" },
                 { href: "/support", label: "Support" },
                 { href: "/privacy", label: "Data policy" }
               ]}
@@ -83,7 +86,7 @@ export default function Home() {
             </p>
             <HeroAskInput />
             <div className="mt-5 flex flex-wrap gap-3 text-base font-black text-white">
-              {["Quick answers", "Docs", "Code", "Data", "Private by design"].map((item) => (
+              {["Quick answers", "Docs", "Code", "Data", "Honest receipts"].map((item) => (
                 <span key={item} className="rounded-full border border-fish-accent/25 bg-fish-navy950/55 px-4 py-2">
                   {item}
                 </span>

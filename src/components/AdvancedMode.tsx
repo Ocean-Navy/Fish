@@ -27,7 +27,16 @@ export function useAdvancedMode(): [boolean, (advanced: boolean) => void] {
   const [advanced, setAdvancedState] = useState(false);
 
   useEffect(() => {
-    const sync = () => setAdvancedState(readAdvancedMode());
+    const sync = (event?: Event) => {
+      // Same-page mode changes carry the value in the event detail so the
+      // toggle also works when storage is unavailable (strict privacy modes);
+      // re-reading storage here used to revert the click immediately.
+      if (event instanceof CustomEvent && typeof event.detail === "boolean") {
+        setAdvancedState(event.detail);
+        return;
+      }
+      setAdvancedState(readAdvancedMode());
+    };
     sync();
     window.addEventListener(MODE_EVENT, sync);
     window.addEventListener("storage", sync);
@@ -41,10 +50,10 @@ export function useAdvancedMode(): [boolean, (advanced: boolean) => void] {
     try {
       window.localStorage.setItem(STORAGE_KEY, next ? "advanced" : "simple");
     } catch {
-      // Storage can be unavailable; the toggle still works for this view.
+      // Storage can be unavailable; the event detail still updates every open view.
     }
     setAdvancedState(next);
-    window.dispatchEvent(new CustomEvent(MODE_EVENT));
+    window.dispatchEvent(new CustomEvent(MODE_EVENT, { detail: next }));
   };
 
   return [advanced, setAdvanced];

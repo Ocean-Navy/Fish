@@ -19,7 +19,7 @@ import type { LucideIcon } from "lucide-react";
 import type { Route } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AdvancedModeToggle, useAdvancedMode } from "@/components/AdvancedMode";
 import { FISH_DISHES, type FishDishDefinition } from "@/lib/fishDishes";
@@ -176,6 +176,8 @@ function localOrderError(title: string, body: string): FishOrderErrorCopy {
 
 export function FishMealCounter() {
   const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
   const [apiKey, setApiKey] = useState("");
   const [models, setModels] = useState<FishModel[]>([{ id: "fish-demo-chat", owned_by: "ocean-navy" }]);
   const [selectedModel, setSelectedModel] = useState("fish-demo-chat");
@@ -186,7 +188,7 @@ export function FishMealCounter() {
   const [error, setError] = useState<FishOrderErrorCopy | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [advancedMode] = useAdvancedMode();
-  const handledQueryRef = useRef(false);
+  const handledQueryRef = useRef<string | null>(null);
   const pendingAutoRunRef = useRef(false);
 
   const activeDish = useMemo(() => dishes.find((dish) => dish.id === activeDishId) ?? dishes[0], [activeDishId]);
@@ -207,16 +209,28 @@ export function FishMealCounter() {
     Promise.resolve().then(() => {
       setSelectedModel(readStoredModel());
       setActiveDishId(validDishParam ?? readStoredDish());
-      if (question && !handledQueryRef.current) {
-        handledQueryRef.current = true;
-        if (!validDishParam) {
-          setActiveDishId("ask");
+      if (question !== null && question !== handledQueryRef.current) {
+        handledQueryRef.current = question;
+        // Only a non-empty question arms an auto-run; a blank ?q= must not
+        // leave a latch behind that fires on the user's first keystroke.
+        if (question.trim()) {
+          if (!validDishParam) {
+            setActiveDishId("ask");
+          }
+          pendingAutoRunRef.current = true;
+          setPrompt(question);
         }
-        pendingAutoRunRef.current = true;
-        setPrompt(question);
+        // Consume ?q= from the URL so a reload, bookmark, or back/forward
+        // visit shows the answer flow without silently re-spending a run.
+        const nextParams = new URLSearchParams(searchParams.toString());
+        nextParams.delete("q");
+        const nextQuery = nextParams.toString();
+        router.replace((nextQuery ? `${pathname}?${nextQuery}` : pathname) as Route, { scroll: false });
       }
     });
+  }, [searchParams, pathname, router]);
 
+  useEffect(() => {
     fetch("/v1/models")
       .then((response) => (response.ok ? response.json() : null))
       .then((payload) => {
@@ -235,7 +249,7 @@ export function FishMealCounter() {
         }
       })
       .catch(() => undefined);
-  }, [searchParams]);
+  }, []);
 
   useEffect(() => {
     if (pendingAutoRunRef.current && prompt.trim() && !isLoading) {

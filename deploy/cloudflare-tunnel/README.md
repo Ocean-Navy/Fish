@@ -49,9 +49,14 @@ mkdir -p ~/.cloudflared
 sed -e "s|__TUNNEL_UUID__|<UUID>|g" -e "s|__HOME__|$HOME|g" \
   deploy/cloudflare-tunnel/config.yml.example > ~/.cloudflared/config.yml
 
-cloudflared tunnel route dns fish-web op.fish    # writes the CNAME — THIS is the moment op.fish switches
-sudo cloudflared service install                 # launchd daemon, survives reboots
+cloudflared tunnel route dns fish-web op.fish --overwrite-dns   # writes the CNAME — THIS is the moment op.fish switches
+sudo cloudflared service install                                # launchd daemon, survives reboots
 ```
+
+`--overwrite-dns` matters when op.fish already has records (the step-0 case):
+without it, `route dns` refuses with "record with that host already exists" and
+nothing switches. If you prefer the manual path, delete the existing A/AAAA/CNAME
+at the apex in dash.cloudflare.com → DNS first, then run the command without the flag.
 
 Verify: `cloudflared tunnel info fish-web` shows a connection, then open https://op.fish from your phone (not your home Wi-Fi) and run one Quick Catch order end to end.
 

@@ -43,7 +43,7 @@ export default function AccountPage() {
       imageAlt="Glowing Fish credits caught in a Venice market net"
       chips={["Balance", "Recent use", "Key tools", "No prompts"]}
       primaryAction={{ label: "Try chat", href: "/ask" }}
-      secondaryAction={{ label: "API status", href: "/api" }}
+      secondaryAction={{ label: "API docs", href: "/docs" }}
       steps={steps}
       cards={cards}
       note="Your key is used only for this check. Fish shows usage numbers, not your prompt text."

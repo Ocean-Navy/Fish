@@ -95,6 +95,8 @@ export function RolePageShell({
                 { href: "/proof", label: "Proof" },
                 { href: "/story", label: "The Fish story" },
                 { href: "/dashboard", label: "Dashboard" },
+                { href: "/providers", label: "Providers" },
+                { href: "/docs", label: "API docs" },
                 { href: "/roadmap", label: "Roadmap" },
                 { href: "/support", label: "Support" },
                 { href: "/privacy", label: "Data policy" }
